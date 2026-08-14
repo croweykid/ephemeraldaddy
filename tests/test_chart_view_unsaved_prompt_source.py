@@ -72,7 +72,7 @@ def test_lucygoosey_timed_autosaves_are_update_only_for_saved_charts():
     autosave_method = _method_source("_autosave_checkbox_state")
     metric_method = _method_source("_flush_pending_sentiment_metrics_save")
     assert "return self._can_autosave_current_chart()" in should_auto_method
-    assert "return self.current_chart_id is not None" in can_autosave_method
+    assert "return self._current_local_row_id() is not None" in can_autosave_method
     assert "Lucygoosey autosaves are update-only" in can_autosave_method
     assert "not self._can_autosave_current_chart()" in autosave_method
     assert "if not self._should_auto_update_sentiments():" in metric_method
@@ -270,3 +270,17 @@ def test_material_facts_load_uses_legacy_aware_loader():
     method = _method_source("_load_material_facts_for_chart")
     assert "identifiers = load_personal_identifiers(chart_id)" in method
     assert "load_personal_identifiers_by_uid(get_chart_uid(chart_id))" not in method
+
+
+def test_chart_editor_retains_only_uid_current_chart_identity():
+    class_source = APP_SOURCE[APP_SOURCE.index("class MainWindow"):]
+    init_start = class_source.index("    def __init__")
+    init_end = class_source.index("\n    def ", init_start + 1)
+    init_source = class_source[init_start:init_end]
+    identity_source = _method_source("_set_current_chart_identity")
+    adapter_source = _method_source("_current_local_row_id")
+
+    assert "self.current_chart_uid: str | None = None" in init_source
+    assert "self.current_chart_id" not in class_source
+    assert "self.current_chart_uid = resolved_uid" in identity_source
+    assert "return get_chart_id_by_uid(self.current_chart_uid)" in adapter_source

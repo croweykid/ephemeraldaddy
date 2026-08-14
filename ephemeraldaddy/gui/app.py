@@ -2539,7 +2539,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._chart_cache = {}
         # Dialog-side chart selection/render state mirrors MainWindow attributes
         # and is referenced by shared refresh helpers.
-        self.current_chart_id: int | None = None
+        self.current_chart_uid: str | None = None
         self._latest_chart = None
         self._search_body_filters = []
         self._aspect_filters = []
@@ -2633,15 +2633,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._filter_refresh_timer.setSingleShot(True)
         self._filter_refresh_timer.setInterval(75)
         self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
-        # Database View selection is UID-owned. Legacy integer mirrors are
-        # refreshed only for older local-row adapters that have not migrated yet.
+        # Database View selection is UID-owned. Integer row IDs are resolved only
+        # at persistence adapters and are never retained as parallel controller state.
         self._selected_chart_uid_order: list[str] = []
         self._selected_chart_uids_set: set[str] = set()
-        self._selected_local_row_id_order: list[int] = []
-        self._selected_local_row_ids_set: set[int] = set()
         self._visible_local_row_ids: set[int] = set()
         self._filter_navigation_anchor_chart_uid: str | None = None
-        self._filter_navigation_anchor_local_row_id: int | None = None
         self._selection_update_mode = "replace"
         self._prior_deselected_selection: list[str] = []
         self._syncing_visible_selection = False
@@ -7518,6 +7515,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         normalized_uid = str(chart_uid or "").strip().upper()
         return normalized_uid or None
 
+    def _current_local_row_id(self) -> int | None:
+        """Resolve the UID-owned current chart at the SQLite boundary."""
+        return get_chart_id_by_uid(self.current_chart_uid)
+
     @staticmethod
     def _normalized_item_chart_uid(item: QListWidgetItem | None) -> str | None:
         if item is None:
@@ -7552,7 +7553,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     ) -> list[int]:
         if selected_items is None:
             self._reconcile_persistent_selection_with_database()
-            return list(getattr(self, "_selected_local_row_id_order", []))
+            return self._local_row_ids_for_uids(self._selected_chart_uid_order)
         return self._local_row_ids_for_uids(self._selected_chart_uids(selected_items))
 
     def _selected_chart_uids(
@@ -7602,10 +7603,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._selected_chart_uid_order = ordered_uids
         self._selected_chart_uids_set = set(ordered_uids)
 
-        # Legacy mirrors are local adapters only; the authoritative selection is UID order above.
-        ordered_ids = self._local_row_ids_for_uids(ordered_uids)
-        self._selected_local_row_id_order = ordered_ids
-        self._selected_local_row_ids_set = set(ordered_ids)
         if hasattr(self, "_batch_selection_uid_order"):
             self._update_batch_selection_order_by_uids(ordered_uids)
 
@@ -13097,7 +13094,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if event.type() == QEvent.KeyPress:
                 if event.key() == Qt.Key_Escape:
                     self._clear_persistent_selection()
-                    self._filter_navigation_anchor_local_row_id = None
                     self._on_selection_changed()
                     return True
                 if event.key() in (Qt.Key_Up, Qt.Key_Down) and not list_widget.selectedItems():
@@ -13565,7 +13561,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         logger.info("Astrotheme import completed (id=%s chart_id=%s).", debug_id, chart_id)
 
     def _on_get_bio_for_open_chart(self) -> None:
-        if self.current_chart_id is not None:
+        if self._current_local_row_id() is not None:
             self._run_metadata_migration_action(ACTION_GET_BIO)
             return
         chart_name = self.name_edit.text().strip()
@@ -17297,15 +17293,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         selected_chart_uids = list(getattr(self, "_selected_chart_uid_order", []))
         return selected_chart_uids[-1] if selected_chart_uids else None
 
-    def _current_filter_navigation_anchor_local_row_id(self) -> int | None:
-        anchor_uid = self._current_filter_navigation_anchor_chart_uid()
-        if not anchor_uid:
-            return None
-        return get_chart_id_by_uid(anchor_uid)
-
     def _clear_filter_selection(self) -> None:
         self._filter_navigation_anchor_chart_uid = self._current_filter_navigation_anchor_chart_uid()
-        self._filter_navigation_anchor_local_row_id = self._current_filter_navigation_anchor_local_row_id()
         self._replace_persistent_selection_by_uids([])
         if self.list_widget is None:
             return
@@ -17783,7 +17772,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._filter_navigation_anchor_chart_uid = (
                 current_chart_uid if current_chart_uid in selected_chart_uids else selected_chart_uids[-1]
             )
-            self._filter_navigation_anchor_local_row_id = get_chart_id_by_uid(self._filter_navigation_anchor_chart_uid)
         self._selection_update_mode = "replace"
 
         if self._right_panel_visible and self._active_right_panel == "edit":
@@ -19222,7 +19210,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._replace_persistent_selection_by_local_row_ids(selected_ids)
         else:
             self._reconcile_persistent_selection_with_database()
-        selected_ids = set(getattr(self, "_selected_local_row_ids_set", set()))
+        selected_ids = set(self._selected_local_row_ids())
         if progress_callback:
             progress_callback("Syncing chart tools…", 93)
         list_signal_blocker = QSignalBlocker(self.list_widget)
@@ -19760,10 +19748,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS,
             int(self._hide_hypothetical_charts),
         )
-        self._populate_list(
-            selected_ids=set(self._selected_local_row_ids()),
-            refresh_metrics=False,
-        )
+        self._populate_list(refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
     def _on_show_hidden_charts_toggled(self, checked: bool) -> None:
@@ -24347,11 +24332,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         database_view_active = bool(self.isVisible() and self.isActiveWindow())
         if database_view_active:
             return self._selected_non_placeholder_chart_ids()
-        if self.current_chart_id is not None:
-            return [int(self.current_chart_id)]
+        if self._current_local_row_id() is not None:
+            return [int(self._current_local_row_id())]
         parent_window = self._owner_window()
-        if isinstance(parent_window, MainWindow) and parent_window.current_chart_id is not None:
-            return [int(parent_window.current_chart_id)]
+        if isinstance(parent_window, MainWindow) and parent_window._current_local_row_id() is not None:
+            return [int(parent_window._current_local_row_id())]
         return self._selected_non_placeholder_chart_ids()
 
     def _run_metadata_migration_action(self, action: str) -> None:
@@ -24424,10 +24409,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._refresh_charts(changed_uids=changed_uids)
             if (
                 action == ACTION_GET_BIO
-                and self.current_chart_id is not None
-                and get_chart_uid(self.current_chart_id) in changed_uids
+                and self._current_local_row_id() is not None
+                and get_chart_uid(self._current_local_row_id()) in changed_uids
             ):
-                refreshed_chart = load_chart(int(self.current_chart_id))
+                refreshed_chart = load_chart(int(self._current_local_row_id()))
                 biography_text = str(getattr(refreshed_chart, "biography", "") or "")
                 self.biography_edit.setPlainText(biography_text)
                 if self._latest_chart is not None:
@@ -25181,9 +25166,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         _apply_minimum_screen_height(self)
 
         # Chart Editor Window vs Chart Edit Window:
-        # - Chart Editor Window: current_chart_id is None (blank fields/new chart).
-        # - Chart Edit Window: current_chart_id is set (editing existing chart).
-        self.current_chart_id = None
+        # - Chart Editor Window: current_chart_uid is None (blank fields/new chart).
+        # - Chart Edit Window: current_chart_uid is set (editing existing chart).
         self.current_chart_uid: str | None = None
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
         self._hidden_local_row_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
@@ -26550,7 +26534,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             rows = list_charts()
         return load_similar_chart_candidates(
             rows=rows,
-            current_chart_id=self.current_chart_id if current_chart_id is None else current_chart_id,
+            current_chart_id=self._current_local_row_id() if current_chart_id is None else current_chart_id,
             load_chart_by_id=load_chart,
             load_charts_by_ids=load_charts,
             hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
@@ -27446,7 +27430,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         worker = SimilarChartsWorker(
             request_id=request_id,
             chart=chart,
-            current_chart_id=self.current_chart_id,
+            current_chart_id=self._current_local_row_id(),
             least_similar=least_similar,
             algorithm_mode=algorithm_mode,
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
@@ -27916,7 +27900,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 return
         else:
             chart = self._latest_chart
-            subject_chart_id = self.current_chart_id
+            subject_chart_id = self._current_local_row_id()
 
         if chart is None:
             QMessageBox.information(self, "Astro Twin Calculator", "Generate or load a chart first.")
@@ -30389,7 +30373,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
         )
         if chart_view_active and self._latest_chart is not None:
-            return self._latest_chart, self.current_chart_id
+            return self._latest_chart, self._current_local_row_id()
 
         if database_view_active:
             if manage_dialog is not None and hasattr(manage_dialog, "_get_transit_popout_action_chart"):
@@ -30410,7 +30394,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 return None, None
 
         if self._latest_chart is not None:
-            return self._latest_chart, self.current_chart_id
+            return self._latest_chart, self._current_local_row_id()
 
         chart_id = self._selected_chart_id_from_manage_view()
         if chart_id is None:
@@ -32876,10 +32860,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         Chart View entries without a saved id/UID still require an explicit
         formal save through the Save/Discard leave prompt or Save Chart button.
         """
-        return self.current_chart_id is not None
+        return self._current_local_row_id() is not None
 
     def _ensure_current_chart_still_exists(self) -> bool:
-        chart_id = self.current_chart_id
+        chart_id = self._current_local_row_id()
         if chart_id is None:
             return False
         try:
@@ -33056,7 +33040,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.sentiment_metrics_widget.setVisible(not is_event_chart)
         if hasattr(self, "random_birth_date_button"):
             self.random_birth_date_button.setVisible(
-                self.current_chart_id is None or is_hypothetical_chart
+                self._current_local_row_id() is None or is_hypothetical_chart
             )
         if hasattr(self, "alternate_chart_widget"):
             self.alternate_chart_widget.setVisible(is_hypothetical_chart)
@@ -33068,7 +33052,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         line_edit = getattr(self, "alternate_chart_input", None)
         if not isinstance(line_edit, QLineEdit):
             return
-        current_chart_id = getattr(self, "current_chart_id", None)
+        current_chart_id = self._current_local_row_id()
         current_chart_id = int(current_chart_id) if current_chart_id is not None else None
         chart_rows = list_charts()
         chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
@@ -33115,7 +33099,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if not text:
             self._mark_lucygoosey()
             return
-        chart_uid = find_chart_uid_by_name(text, exclude_chart_id=getattr(self, "current_chart_id", None))
+        chart_uid = find_chart_uid_by_name(text, exclude_chart_id=self._current_local_row_id())
         if not chart_uid:
             QMessageBox.information(
                 self,
@@ -33135,7 +33119,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         text = line_edit.text().strip()
         if not text:
             return ""
-        return find_chart_uid_by_name(text, exclude_chart_id=getattr(self, "current_chart_id", None)) or ""
+        return find_chart_uid_by_name(text, exclude_chart_id=self._current_local_row_id()) or ""
 
     def _set_chart_type_selection(self, chart_type: str | None) -> None:
         chart_type_value = _normalize_gui_source(chart_type)
@@ -33589,7 +33573,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if isinstance(focus_widget, (QTextEdit, QPlainTextEdit)):
                 super().keyPressEvent(event)
                 return
-            if self.current_chart_id is not None:
+            if self._current_local_row_id() is not None:
                 self.on_update_chart()
             else:
                 self.on_generate()
@@ -33672,7 +33656,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _on_placeholder_toggled(self, checked: bool) -> None:
         if checked:
             self._clear_required_field_highlights()
-            if self.current_chart_id is not None and self.placeholder_chart_checkbox.hasFocus():
+            if self._current_local_row_id() is not None and self.placeholder_chart_checkbox.hasFocus():
                 revert_choice = QMessageBox.question(
                     self,
                     "Revert to placeholder chart?",
@@ -34100,12 +34084,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         checkbox.blockSignals(False)
 
     def _sync_chart_view_hide_checkbox(self) -> None:
-        chart_id = getattr(self, "current_chart_id", None)
+        chart_id = self._current_local_row_id()
         is_hidden = chart_id is not None and int(chart_id) in getattr(self, "_hidden_local_row_ids", set())
         self._set_chart_view_hide_checkbox_checked(is_hidden)
 
     def _on_chart_view_hide_chart_toggled(self, checked: bool) -> None:
-        chart_id = getattr(self, "current_chart_id", None)
+        chart_id = self._current_local_row_id()
         if chart_id is None:
             self._set_chart_view_hide_checkbox_checked(False)
             return
@@ -34188,7 +34172,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if not isinstance(line_edit, QLineEdit):
             return
 
-        current_chart_id = getattr(self, "current_chart_id", None)
+        current_chart_id = self._current_local_row_id()
         current_chart_id = int(current_chart_id) if current_chart_id is not None else None
         chart_rows = list_charts()
         chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
@@ -34269,7 +34253,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         chart_uid = find_chart_uid_by_name(
             line_edit.text(),
-            exclude_chart_id=getattr(self, "current_chart_id", None),
+            exclude_chart_id=self._current_local_row_id(),
         )
         if not chart_uid:
             if line_edit.text().strip():
@@ -34422,7 +34406,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         text = line_edit.text().strip()
         if not text:
             return
-        chart_uid = find_chart_uid_by_name(text, exclude_chart_id=getattr(self, "current_chart_id", None))
+        chart_uid = find_chart_uid_by_name(text, exclude_chart_id=self._current_local_row_id())
         if not chart_uid:
             QMessageBox.information(
                 self,
@@ -34576,7 +34560,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         *,
         subjective_notes_autosave: bool = False,
     ):
-        chart_id = self.current_chart_id
+        chart_id = self._current_local_row_id()
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
         chart = None
         place = self.place_edit.text().strip()
@@ -34778,7 +34762,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if (
                 persisted_chart_for_change is not None
                 and chart_id is not None
-                and self.current_chart_id == chart_id
+                and self._current_local_row_id() == chart_id
             )
             else None
         )
@@ -34839,7 +34823,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._chart_analytics_cache_token(persisted_chart_for_change)
             if (
                 persisted_chart_for_change is not None
-                and self.current_chart_id == chart_id
+                and self._current_local_row_id() == chart_id
             )
             else None
         )
@@ -35039,7 +35023,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._set_chart_right_panel_container_visible(True)
 
     def _on_delete_this_chart(self) -> None:
-        chart_id = self.current_chart_id
+        chart_id = self._current_local_row_id()
         if chart_id is None:
             QMessageBox.information(
                 self,
@@ -35221,23 +35205,24 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         normalized_uid = str(chart_uid or "").strip().upper()
         return normalized_uid or None
 
+    def _current_local_row_id(self) -> int | None:
+        """Resolve the UID-owned edit session identity at the SQLite boundary."""
+        return get_chart_id_by_uid(self.current_chart_uid)
+
     def _set_current_chart_identity(
         self,
         chart_id: int | None,
         chart: Chart | None = None,
         chart_uid: str | None = None,
     ) -> None:
-        self.current_chart_id = int(chart_id) if chart_id is not None else None
-        if self.current_chart_id is None:
-            self.current_chart_uid = None
-            return
-        self.current_chart_uid = self._normalized_chart_uid_key(
-            chart_uid or getattr(chart, "chart_uid", None) or get_chart_uid(self.current_chart_id)
+        resolved_uid = self._normalized_chart_uid_key(
+            chart_uid or getattr(chart, "chart_uid", None) or get_chart_uid(chart_id)
         )
+        self.current_chart_uid = resolved_uid
 
     def _current_chart_uid_for_navigation(self) -> str | None:
         stored_chart_uid = self._normalized_chart_uid_key(getattr(self, "current_chart_uid", None))
-        current_chart_id = int(self.current_chart_id) if self.current_chart_id is not None else None
+        current_chart_id = int(self._current_local_row_id()) if self._current_local_row_id() is not None else None
         latest_chart = getattr(self, "_latest_chart", None)
         latest_chart_uid = self._normalized_chart_uid_key(getattr(latest_chart, "chart_uid", None))
         latest_chart_id = getattr(latest_chart, "id", None)
@@ -35925,7 +35910,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         logger.debug(
             "Switching to Database View (main_visible=%s chart_id=%s).",
             self.isVisible(),
-            self.current_chart_id,
+            self._current_local_row_id(),
         )
         database_view_open_timing = DatabaseViewOpenTiming()
         if not self._charts_controller.confirm_manage_charts_open(startup_progress):
@@ -36837,7 +36822,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return changed_fields
 
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
-        chart_id = self.current_chart_id
+        chart_id = self._current_local_row_id()
         astro_data_token = astro_data_recalculation_token(
             chart,
             chart_uses_houses_value=chart_uses_houses(chart),
@@ -38616,7 +38601,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             awareness_stream_entries=awareness_stream_entries,
             circuit_entries=circuit_entries,
             open_hd_synastry=lambda: self._open_human_design_synastry_for_chart_uid(
-                str(getattr(source_chart, "chart_uid", "") or get_chart_uid(self.current_chart_id) or "")
+                str(getattr(source_chart, "chart_uid", "") or get_chart_uid(self._current_local_row_id()) or "")
             ),
         )
 
@@ -39008,12 +38993,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
 
     def on_get_current_transits(self) -> None:
-        self._generate_current_transits_for_chart(self._latest_chart, self.current_chart_id)
+        self._generate_current_transits_for_chart(self._latest_chart, self._current_local_row_id())
 
     def on_get_synastry_chart(self) -> None:
         manage_dialog = self._get_or_create_manage_charts_dialog()
         chart_ids = manage_dialog._prompt_composite_chart_selection(
-            default_first_chart_id=self.current_chart_id,
+            default_first_chart_id=self._current_local_row_id(),
             focus_second_input=True,
         )
         if chart_ids is None:
@@ -39029,7 +39014,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         default_first_chart_id = (
             get_chart_id_by_uid(first_chart_uid)
             if first_chart_uid
-            else self.current_chart_id
+            else self._current_local_row_id()
         )
         default_second_chart_id = None
         if first_chart_uid is None and len(selected_chart_ids) == 2:
