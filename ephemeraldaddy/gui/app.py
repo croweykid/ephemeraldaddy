@@ -732,6 +732,7 @@ from ephemeraldaddy.core.db import (
     load_chart,
     load_chart_by_uid,
     load_charts,
+    load_charts_by_uids,
     load_dominant_sign_weights,
     get_chart_uid,
     get_chart_uid_map,
@@ -7887,9 +7888,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         breakdown_chart_uids = similarity_breakdown_chart_uids(resolution)
         if breakdown_chart_uids is not None:
-            self._update_similarities_analysis(
-                self._local_row_ids_for_uids(breakdown_chart_uids)
-            )
+            self._update_similarities_analysis(breakdown_chart_uids)
 
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
@@ -7916,7 +7915,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if breakdown_chart_uids is None:
             return
         total_contrasts = self._update_dissimilarities_analysis(
-            self._local_row_ids_for_uids(breakdown_chart_uids)
+            breakdown_chart_uids
         )
         first_name = str(getattr(first, "name", "") or f"UID {resolution.first_chart_uid}")
         second_name = str(getattr(second, "name", "") or f"UID {resolution.second_chart_uid}")
@@ -7924,22 +7923,28 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
 
-    def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
-        selected_chart_ids = self._exclude_similarities_placeholder_local_row_ids(chart_ids)
-        if len(selected_chart_ids) != 2:
+    def _update_dissimilarities_analysis(self, chart_uids: list[str]) -> int:
+        selected_chart_uids = [
+            chart_uid
+            for chart_uid in chart_uids
+            if self._is_similarity_participant_uid(chart_uid)
+        ]
+        if len(selected_chart_uids) != 2:
             self.similarities_controller.set_export_sections([])
             self.similarities_status_label.setText(
                 "Select non-placeholder charts to calculate dissimilarities."
             )
             return 0
 
-        db_chart_ids = [
-            int(normalized[0])
+        db_chart_uids = [
+            str(normalized[30]).strip().upper()
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
             and not _chart_row_is_non_aggregable(normalized)
+            and len(normalized) > 30
+            and str(normalized[30] or "").strip()
         ]
-        db_total_count = len(db_chart_ids)
+        db_total_count = len(db_chart_uids)
         progress = show_similarities_loading_progress(
             parent=self,
             message="Calculating dissimilarities analysis…",
@@ -7948,8 +7953,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             update_similarities_loading_progress(progress, "Finding pair-only contrast factors…")
             pair_sections = build_dissimilarity_export_sections(
                 self,
-                selected_chart_ids,
-                db_chart_ids,
+                selected_chart_uids,
+                db_chart_uids,
                 db_total_count,
             )
             self.similarities_controller.set_export_sections(pair_sections)
@@ -7989,7 +7994,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     section_list,
                     toggle,
                     [(match[0], match[1], match[2]) for match in matches],
-                    selection_total_count=len(selected_chart_ids),
+                    selection_total_count=len(selected_chart_uids),
                     db_match_counts=db_match_counts,
                     db_total_count=db_total_count,
                     db_total_counts_by_label=db_total_counts,
@@ -8187,14 +8192,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         ]
 
     def _build_common_position_signs(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        if len(chart_ids) < 2:
+        if len(chart_uids) < 2:
             return []
 
         charts = []
-        for chart_id in chart_ids:
-            chart = self._get_chart_for_filter(chart_id)
+        for chart_uid in chart_uids:
+            chart = self._get_chart_for_filter_by_uid(chart_uid)
             if chart is not None:
                 charts.append(chart)
         chart_count = len(charts)
@@ -8228,9 +8233,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
     def _build_common_houses_in_positions(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         if chart_count < 2:
@@ -8262,9 +8267,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(match_counts, chart_count)
 
     def _build_common_signs_in_houses(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         if chart_count < 2:
@@ -8285,9 +8290,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(match_counts, chart_count)
 
     def _build_common_dominant_signs(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8308,9 +8313,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
     def _build_common_dominant_bodies(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8339,9 +8344,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
     def _build_common_dominant_houses(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8417,21 +8422,21 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return {house_num for house_num, _weight in ranked[:3]}
 
     def _build_common_dominant_elements(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         return _build_common_dominant_elements(charts, self._sorted_similarity_matches)
 
     def _build_common_dominant_modes(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         return _build_common_dominant_modes(charts, self._sorted_similarity_matches)
 
     def _build_common_dominant_nakshatras(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8466,9 +8471,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(nakshatra_counts, chart_count)
 
     def _build_common_aspects(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8514,9 +8519,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
     def _build_common_human_design_aggregates(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> HumanDesignSharedAggregates:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         return compute_common_human_design_aggregates(
             charts,
             extract_profile=self._extract_human_design_profile,
@@ -8528,39 +8533,39 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
     def _build_common_human_design_gates(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_ids).gates
+        return self._build_common_human_design_aggregates(chart_uids).gates
 
     def _build_common_human_design_gate_lines(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_ids).gate_lines
+        return self._build_common_human_design_aggregates(chart_uids).gate_lines
 
     def _build_common_human_design_channels(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_ids).channels
+        return self._build_common_human_design_aggregates(chart_uids).channels
 
     def _build_common_human_design_defined_centers(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_ids).defined_centers
+        return self._build_common_human_design_aggregates(chart_uids).defined_centers
 
     def _build_common_human_design_authorities(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_ids).authorities
+        return self._build_common_human_design_aggregates(chart_uids).authorities
 
     def _build_common_human_design_profiles(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_ids).profiles
+        return self._build_common_human_design_aggregates(chart_uids).profiles
 
     def _build_common_bazi_signs(
-        self, chart_ids: list[int]
+        self, chart_uids: list[str]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8585,11 +8590,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self,
         section_title: str,
         label: str,
-        chart_ids: list[int],
+        chart_uids: list[str],
     ) -> str:
         matching_names: list[str] = []
-        for chart_id in chart_ids:
-            chart = self._get_chart_for_filter(int(chart_id))
+        for chart_uid in chart_uids:
+            chart = self._get_chart_for_filter_by_uid(chart_uid)
             if chart is None:
                 continue
             include = False
@@ -8738,21 +8743,24 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 include = label in bazi_sign_weights_from_chart(chart)
 
             if include:
-                matching_names.append(self._display_name_for_chart_id(int(chart_id)))
+                matching_names.append(str(getattr(chart, "name", "") or f"UID {chart_uid}"))
         return ", ".join(matching_names)
 
-    def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
-        selected_non_placeholder_chart_ids = self._exclude_similarities_placeholder_local_row_ids(chart_ids)
-        db_chart_ids = [
-            int(normalized[0])
+    def _update_similarities_analysis(self, chart_uids: list[str]) -> None:
+        selected_non_placeholder_chart_uids = [
+            chart_uid
+            for chart_uid in chart_uids
+            if self._is_similarity_participant_uid(chart_uid)
+        ]
+        db_chart_uids = [
+            str(normalized[30]).strip().upper()
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
             and not _chart_row_is_non_aggregable(normalized)
+            and len(normalized) > 30
+            and str(normalized[30] or "").strip()
         ]
-        db_total_count = len(db_chart_ids)
-        selected_non_placeholder_chart_uids = list(
-            get_chart_uid_map(selected_non_placeholder_chart_ids).values()
-        )
+        db_total_count = len(db_chart_uids)
         resolution = self._resolve_similarity_pair_targets(
             selected_non_placeholder_chart_uids
         )
@@ -8779,9 +8787,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     resolution.guidance or "Select 2 charts to compare."
                 )
 
-        if len(selected_non_placeholder_chart_ids) < 2:
+        if len(selected_non_placeholder_chart_uids) < 2:
             self.similarities_controller.set_export_sections([])
-            if len(chart_ids) >= 2:
+            if len(chart_uids) >= 2:
                 self.similarities_status_label.setText(
                     "Placeholders are excluded from astrological similarities. "
                     "Select 2 or more non-placeholder charts."
@@ -8901,18 +8909,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 progress,
                 "Calculating selected-chart similarities…",
             )
-            common_positions = self._build_common_position_signs(selected_non_placeholder_chart_ids)
-            common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_ids)
-            common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_ids)
-            common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
-            common_dominant_bodies = self._build_common_dominant_bodies(selected_non_placeholder_chart_ids)
-            common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_ids)
-            common_dominant_elements = self._build_common_dominant_elements(selected_non_placeholder_chart_ids)
-            common_dominant_modes = self._build_common_dominant_modes(selected_non_placeholder_chart_ids)
-            common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
-            common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
+            common_positions = self._build_common_position_signs(selected_non_placeholder_chart_uids)
+            common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_uids)
+            common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_uids)
+            common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_uids)
+            common_dominant_bodies = self._build_common_dominant_bodies(selected_non_placeholder_chart_uids)
+            common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_uids)
+            common_dominant_elements = self._build_common_dominant_elements(selected_non_placeholder_chart_uids)
+            common_dominant_modes = self._build_common_dominant_modes(selected_non_placeholder_chart_uids)
+            common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_uids)
+            common_aspects = self._build_common_aspects(selected_non_placeholder_chart_uids)
             common_hd_aggregates = self._build_common_human_design_aggregates(
-                selected_non_placeholder_chart_ids
+                selected_non_placeholder_chart_uids
             )
             common_hd_gates = common_hd_aggregates.gates
             common_hd_gate_lines = common_hd_aggregates.gate_lines if common_hd_gates else []
@@ -8920,13 +8928,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             common_hd_defined_centers = common_hd_aggregates.defined_centers
             common_hd_authorities = common_hd_aggregates.authorities
             common_hd_profiles = common_hd_aggregates.profiles
-            common_bazi_signs = self._build_common_bazi_signs(selected_non_placeholder_chart_ids)
+            common_bazi_signs = self._build_common_bazi_signs(selected_non_placeholder_chart_uids)
             update_similarities_loading_progress(
                 progress,
                 "Loading cached database comparison baselines…",
             )
             db_baselines = self._similarities_db_baseline_cache.get(
-                db_chart_ids,
+                db_chart_uids,
                 lambda ids: build_similarity_db_baselines(self, ids),
             )
             db_common_positions = db_baselines["common_positions"]
@@ -8967,7 +8975,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Signs in positions in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_positions
@@ -8985,7 +8993,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Houses in positions in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_houses_in_positions
@@ -9003,7 +9011,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Signs in houses in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_signs_in_houses
@@ -9021,7 +9029,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Top 3 Dominant Signs in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_signs
@@ -9039,7 +9047,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Top 3 Dominant Bodies in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_bodies
@@ -9057,7 +9065,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Top 3 Dominant Houses in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_houses
@@ -9075,7 +9083,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Elemental Dominance in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_elements
@@ -9093,7 +9101,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Modal Dominance in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_modes
@@ -9111,7 +9119,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Dominant nakshatras in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_nakshatras
@@ -9129,7 +9137,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Aspects in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_aspects
@@ -9147,7 +9155,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Gates in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_gates
@@ -9165,7 +9173,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Gate Lines in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_gate_lines
@@ -9183,7 +9191,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Channels in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_channels
@@ -9201,7 +9209,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Defined Centers in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_defined_centers
@@ -9219,7 +9227,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Authorities in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_authorities
@@ -9237,7 +9245,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Profiles in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_profiles
@@ -9255,7 +9263,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "BaZi signs in common",
                                 label,
-                                selected_non_placeholder_chart_ids,
+                                selected_non_placeholder_chart_uids,
                             ),
                         )
                         for label, match_count, total_count in common_bazi_signs
@@ -9292,18 +9300,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if total_matches > 0:
                 self.similarities_status_label.setText(
                     f"{total_matches} shared pattern(s) found across "
-                    f"{len(selected_non_placeholder_chart_ids)} selected chart(s), each present in at least 2 charts."
+                    f"{len(selected_non_placeholder_chart_uids)} selected chart(s), each present in at least 2 charts."
                 )
             else:
                 self.similarities_status_label.setText(
                     f"No shared similarities found in at least 2 charts across "
-                    f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
+                    f"{len(selected_non_placeholder_chart_uids)} selected chart(s)."
                 )
             self._set_similarities_section_matches(
                 self.similarities_common_positions_list,
                 self.similarities_common_positions_toggle,
                 common_positions,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_positions,
                 db_total_count=db_total_count,
                 db_total_counts_by_label=db_common_positions_totals,
@@ -9312,7 +9320,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_houses_in_positions_list,
                 self.similarities_houses_in_positions_toggle,
                 common_houses_in_positions,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_houses_in_positions,
                 db_total_count=db_total_count,
                 db_total_counts_by_label=db_common_houses_in_positions_totals,
@@ -9321,7 +9329,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_signs_in_houses_list,
                 self.similarities_signs_in_houses_toggle,
                 common_signs_in_houses,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_signs_in_houses,
                 db_total_count=db_total_count,
                 db_total_counts_by_label=db_common_signs_in_houses_totals,
@@ -9330,7 +9338,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_signs_list,
                 self.similarities_dominant_signs_toggle,
                 common_dominant_signs,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_dominant_signs,
                 db_total_count=db_total_count,
             )
@@ -9338,7 +9346,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_bodies_list,
                 self.similarities_dominant_bodies_toggle,
                 common_dominant_bodies,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_dominant_bodies,
                 db_total_count=db_total_count,
             )
@@ -9346,7 +9354,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_houses_list,
                 self.similarities_dominant_houses_toggle,
                 common_dominant_houses,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_dominant_houses,
                 db_total_count=db_total_count,
             )
@@ -9354,7 +9362,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_elements_list,
                 self.similarities_dominant_elements_toggle,
                 common_dominant_elements,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_dominant_elements,
                 db_total_count=db_total_count,
             )
@@ -9362,7 +9370,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_modes_list,
                 self.similarities_dominant_modes_toggle,
                 common_dominant_modes,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_dominant_modes,
                 db_total_count=db_total_count,
             )
@@ -9370,7 +9378,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_nakshatras_list,
                 self.similarities_dominant_nakshatras_toggle,
                 common_dominant_nakshatras,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_dominant_nakshatras,
                 db_total_count=db_total_count,
             )
@@ -9378,7 +9386,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_aspects_list,
                 self.similarities_common_aspects_toggle,
                 common_aspects,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_aspects,
                 db_total_count=db_total_count,
                 db_total_counts_by_label=db_common_aspects_totals,
@@ -9387,7 +9395,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_gates_list,
                 self.similarities_common_hd_gates_toggle,
                 common_hd_gates,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_hd_gates,
                 db_total_count=db_total_count,
             )
@@ -9396,7 +9404,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_gate_lines_list,
                 self.similarities_common_hd_gate_lines_toggle,
                 common_hd_gate_lines,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_hd_gate_lines,
                 db_total_count=db_total_count,
             )
@@ -9404,7 +9412,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_channels_list,
                 self.similarities_common_hd_channels_toggle,
                 common_hd_channels,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_hd_channels,
                 db_total_count=db_total_count,
             )
@@ -9412,7 +9420,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_defined_centers_list,
                 self.similarities_common_hd_defined_centers_toggle,
                 common_hd_defined_centers,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_hd_defined_centers,
                 db_total_count=db_total_count,
             )
@@ -9420,7 +9428,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_authorities_list,
                 self.similarities_common_hd_authorities_toggle,
                 common_hd_authorities,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_hd_authorities,
                 db_total_count=db_total_count,
             )
@@ -9428,7 +9436,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_profiles_list,
                 self.similarities_common_hd_profiles_toggle,
                 common_hd_profiles,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_hd_profiles,
                 db_total_count=db_total_count,
             )
@@ -9436,7 +9444,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_bazi_signs_list,
                 self.similarities_common_bazi_signs_toggle,
                 common_bazi_signs,
-                selection_total_count=len(selected_non_placeholder_chart_ids),
+                selection_total_count=len(selected_non_placeholder_chart_uids),
                 db_match_counts=db_common_bazi_signs,
                 db_total_count=db_total_count,
             )
@@ -12927,7 +12935,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 )
 
         if update_similarities:
-            self._update_similarities_analysis(chart_ids)
+            self._update_similarities_analysis(
+                list(get_chart_uid_map(chart_ids).values())
+            )
             self._stabilize_left_scroll_panel_layout(self.similarities_analysis_panel_scroll)
 
         if update_database_metrics:
@@ -23422,9 +23432,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _show_high_similarity_chart_pairs(self) -> None:
         show_high_similarity_chart_pairs(
             self,
-            chart_ids=list(get_chart_ids_by_uid(getattr(self, "_active_chart_rows_by_uid", {})).values()),
-            exclude_placeholder_chart_ids=self._exclude_similarities_placeholder_local_row_ids,
-            load_charts_by_id=load_charts,
+            chart_uids=list(getattr(self, "_active_chart_rows_by_uid", {})),
+            exclude_placeholder_chart_uids=lambda chart_uids: [
+                chart_uid
+                for chart_uid in chart_uids
+                if self._is_similarity_participant_uid(chart_uid)
+            ],
+            load_charts_by_uids=load_charts_by_uids,
             algorithm_mode=getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT),
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
             hidden_chart_uids=set(self._hidden_chart_uids),
@@ -28510,7 +28524,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if breakdown_chart_uids is None:
             return
         total_contrasts = self._update_dissimilarities_analysis(
-            self._local_row_ids_for_uids(breakdown_chart_uids)
+            breakdown_chart_uids
         )
         first_name = str(getattr(first, "name", "") or f"UID {resolution.first_chart_uid}")
         second_name = str(getattr(second, "name", "") or f"UID {resolution.second_chart_uid}")
@@ -28518,22 +28532,24 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
 
-    def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
-        selected_chart_ids = self._exclude_placeholder_local_row_ids(chart_ids)
-        if len(selected_chart_ids) != 2:
+    def _update_dissimilarities_analysis(self, chart_uids: list[str]) -> int:
+        selected_chart_uids = list(chart_uids)
+        if len(selected_chart_uids) != 2:
             self._similarities_export_sections = []
             self.similarities_status_label.setText(
                 "Select non-placeholder charts to calculate dissimilarities."
             )
             return 0
 
-        db_chart_ids = [
-            int(normalized[0])
+        db_chart_uids = [
+            str(normalized[30]).strip().upper()
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
             and not _chart_row_is_non_aggregable(normalized)
+            and len(normalized) > 30
+            and str(normalized[30] or "").strip()
         ]
-        db_total_count = len(db_chart_ids)
+        db_total_count = len(db_chart_uids)
         progress = show_similarities_loading_progress(
             parent=self,
             message="Calculating dissimilarities analysis…",
@@ -28542,8 +28558,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             update_similarities_loading_progress(progress, "Finding pair-only contrast factors…")
             pair_sections = build_dissimilarity_export_sections(
                 self,
-                selected_chart_ids,
-                db_chart_ids,
+                selected_chart_uids,
+                db_chart_uids,
                 db_total_count,
             )
             self._similarities_export_sections = pair_sections
@@ -28582,7 +28598,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     section_list,
                     toggle,
                     [(match[0], match[1], match[2]) for match in matches],
-                    selection_total_count=len(selected_chart_ids),
+                    selection_total_count=len(selected_chart_uids),
                     db_match_counts=db_match_counts,
                     db_total_count=db_total_count,
                     db_total_counts_by_label=db_total_counts,

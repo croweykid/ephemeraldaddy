@@ -354,8 +354,8 @@ class SimilaritiesController:
         self.host._refresh_similarities_chart_options()
         self.capture_legacy_attributes()
 
-    def update_analysis(self, chart_ids: list[int]) -> None:
-        self.host._update_similarities_analysis(chart_ids)
+    def update_analysis(self, chart_uids: list[str]) -> None:
+        self.host._update_similarities_analysis(chart_uids)
         self.capture_legacy_attributes()
 
     def calculate_pair_similarity(self) -> None:
