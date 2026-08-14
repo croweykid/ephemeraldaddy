@@ -101,6 +101,21 @@ def test_active_and_displayed_row_caches_are_uid_keyed():
     assert "_displayed_chart_rows_by_id" not in source
 
 
+def test_displayed_row_uid_is_normalized_before_cache_insertion():
+    source = _class_source("ManageChartsDialog", "MainWindow")
+    populate_source = source[source.index("    def _populate_list(") :]
+
+    normalize_uid = populate_source.index(
+        'item_chart_uid = str(_chart_uid or "").strip().upper()'
+    )
+    cache_row = populate_source.index(
+        "self._displayed_chart_rows_by_uid[item_chart_uid] = ("
+    )
+    create_item = populate_source.index("item = QListWidgetItem(label)")
+
+    assert normalize_uid < cache_row < create_item
+
+
 def test_similar_chart_candidate_exclusions_are_uid_owned():
     source = _class_source("MainWindow")
 
