@@ -87,8 +87,8 @@ class FakeDissimilarityProvider:
     def __init__(self, charts):
         self.charts = charts
 
-    def _get_chart_for_filter(self, chart_id):
-        return self.charts.get(chart_id)
+    def _get_chart_for_filter_by_uid(self, chart_uid):
+        return self.charts.get(chart_uid)
 
     def _similarities_body_label(self, body):
         return body
@@ -108,7 +108,7 @@ class FakeDissimilarityProvider:
     def _chart_human_design_profile(self, chart):
         return ""
 
-    def _similarity_matching_chart_names(self, section_title, label, chart_ids):
+    def _similarity_matching_chart_names(self, section_title, label, chart_uids):
         return ""
 
 
@@ -131,12 +131,12 @@ def _chart(*, birthtime_unknown, positions, houses=None, bazi_year_pillar=""):
 def test_dissimilarity_export_sections_exclude_timed_only_contrasts_for_mixed_pair():
     provider = FakeDissimilarityProvider(
         {
-            1: _chart(
+            "UID-1": _chart(
                 birthtime_unknown=False,
                 positions={"Sun": 15.0, "Moon": 95.0, "AS": 20.0},
                 houses=[index * 30.0 for index in range(12)],
             ),
-            2: _chart(
+            "UID-2": _chart(
                 birthtime_unknown=True,
                 positions={"Sun": 45.0, "Moon": 95.0},
             ),
@@ -146,8 +146,8 @@ def test_dissimilarity_export_sections_exclude_timed_only_contrasts_for_mixed_pa
     sections = dict(
         build_dissimilarity_export_sections(
             provider,
-            selected_chart_ids=[1, 2],
-            db_chart_ids=[1, 2],
+            selected_chart_uids=["UID-1", "UID-2"],
+            db_chart_uids=["UID-1", "UID-2"],
             db_total_count=2,
         )
     )
@@ -167,16 +167,16 @@ def test_dissimilarity_export_sections_exclude_timed_only_contrasts_for_mixed_pa
 def test_dissimilarity_export_sections_include_unique_bazi_signs():
     provider = FakeDissimilarityProvider(
         {
-            1: _chart(birthtime_unknown=True, positions={"Sun": 15.0}, bazi_year_pillar="Snake"),
-            2: _chart(birthtime_unknown=True, positions={"Sun": 15.0}, bazi_year_pillar="Rat"),
+            "UID-1": _chart(birthtime_unknown=True, positions={"Sun": 15.0}, bazi_year_pillar="Snake"),
+            "UID-2": _chart(birthtime_unknown=True, positions={"Sun": 15.0}, bazi_year_pillar="Rat"),
         }
     )
 
     sections = dict(
         build_dissimilarity_export_sections(
             provider,
-            selected_chart_ids=[1, 2],
-            db_chart_ids=[1, 2],
+            selected_chart_uids=["UID-1", "UID-2"],
+            db_chart_uids=["UID-1", "UID-2"],
             db_total_count=2,
         )
     )
@@ -197,9 +197,9 @@ def test_similarity_factor_counts_prefer_house_cusp_labels_for_angle_sign_tautol
         positions={"AS": 125.0, "IC": 95.0, "DS": 155.0, "MC": 5.0},
         houses=[120.0, 150.0, 180.0, 90.0, 120.0, 150.0, 150.0, 180.0, 210.0, 0.0, 30.0, 60.0],
     )
-    provider = FakeDissimilarityProvider({1: chart})
+    provider = FakeDissimilarityProvider({"UID-1": chart})
 
-    sections = _build_similarity_factor_counts(provider, [1])
+    sections = _build_similarity_factor_counts(provider, ["UID-1"])
     position_counts, _position_totals = sections.get("Signs in positions in contrast", ({}, {}))
     house_sign_counts, _house_sign_totals = sections["Signs in houses in contrast"]
 
@@ -226,10 +226,31 @@ def test_dissimilarity_factor_counts_use_shared_aspect_display_rules():
         {"p1": "AS", "p2": "DS", "type": "opposition", "delta": 0.0},
         {"p1": "Sun", "p2": "Moon", "type": "sextile", "delta": 0.0},
     ]
-    provider = FakeDissimilarityProvider({1: chart})
+    provider = FakeDissimilarityProvider({"UID-1": chart})
 
-    counts, _totals = _build_similarity_factor_counts(provider, [1])["Aspects in contrast"]
+    counts, _totals = _build_similarity_factor_counts(provider, ["UID-1"])["Aspects in contrast"]
 
     assert "AS trine MC" in counts
     assert "Moon sextile Sun" in counts
     assert "AS opposition DS" not in counts
+
+
+def test_similarity_baseline_cache_is_stable_for_uid_order():
+    from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+        SimilaritiesDbBaselineCache,
+    )
+
+    cache = SimilaritiesDbBaselineCache()
+    calls = []
+
+    def build(chart_uids):
+        calls.append(tuple(chart_uids))
+        return {"uids": tuple(chart_uids)}
+
+    first = cache.get(["UID-A", "UID-B"], build)
+    second = cache.get(["UID-A", "UID-B"], build)
+    reordered = cache.get(["UID-B", "UID-A"], build)
+
+    assert first is second
+    assert reordered == {"uids": ("UID-B", "UID-A")}
+    assert calls == [("UID-A", "UID-B"), ("UID-B", "UID-A")]
