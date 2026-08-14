@@ -1,5 +1,9 @@
 from types import SimpleNamespace
 
+import pytest
+
+pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
+
 from ephemeraldaddy.gui.features.charts import trait_predictions
 
 

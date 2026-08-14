@@ -7,6 +7,8 @@ def _install_pyside_stubs() -> None:
     pyside = sys.modules.setdefault("PySide6", types.ModuleType("PySide6"))
     qt_core = sys.modules.setdefault("PySide6.QtCore", types.ModuleType("PySide6.QtCore"))
     qt_widgets = sys.modules.setdefault("PySide6.QtWidgets", types.ModuleType("PySide6.QtWidgets"))
+    qt_core.__getattr__ = lambda _name: object
+    qt_widgets.__getattr__ = lambda _name: object
 
     class _QTimer:
         @staticmethod
@@ -59,15 +61,21 @@ def _install_pyside_stubs() -> None:
             return True
 
     qt_core.QTimer = _QTimer
+    qt_core.QObject = object
     qt_core.QPoint = object
     qt_core.QPropertyAnimation = object
     qt_core.QEasingCurve = object
+    qt_core.QThread = object
+    qt_core.Signal = lambda *_args, **_kwargs: object()
+    qt_core.Slot = lambda *_args, **_kwargs: (lambda fn: fn)
     qt_core.Qt = _Qt
     qt_widgets.QWidget = _QWidget
     qt_widgets.QScrollArea = _QScrollArea
     qt_widgets.QAbstractButton = _QAbstractButton
     qt_widgets.QGraphicsOpacityEffect = object
     qt_widgets.QHBoxLayout = object
+    qt_widgets.QLabel = _QWidget
+    qt_widgets.QMessageBox = object
     qt_widgets.QPushButton = object
     qt_widgets.QSizePolicy = object
     qt_widgets.QStackedWidget = object
@@ -75,6 +83,18 @@ def _install_pyside_stubs() -> None:
 
     pyside.QtCore = qt_core
     pyside.QtWidgets = qt_widgets
+
+    style = types.ModuleType("ephemeraldaddy.gui.style")
+    style.close_app_loading_progress = lambda *_args, **_kwargs: None
+    style.create_app_loading_progress = lambda *_args, **_kwargs: None
+    style.update_app_loading_progress = lambda *_args, **_kwargs: None
+    style.ARROW_STYLES = {"classic": "→"}
+    style.CHART_DATA_DIVIDER = ""
+    style.SETTINGS_APP = "EphemeralDaddy"
+    style.SETTINGS_ORG = "EphemeralDaddy"
+    style.apply_chart_info_link_cursor = lambda *_args, **_kwargs: None
+    style.houses_unknown_note_html = lambda *_args, **_kwargs: ""
+    sys.modules["ephemeraldaddy.gui.style"] = style
 
 
 _install_pyside_stubs()

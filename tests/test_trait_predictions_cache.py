@@ -1,6 +1,10 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
+
 ROOT = Path(__file__).resolve().parents[1]
 
 from ephemeraldaddy.gui.features.charts import trait_predictions
