@@ -9,7 +9,7 @@ from PySide6.QtCore import QObject, Signal
 
 from ephemeraldaddy.analysis.get_astro_twin import find_astro_twins
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.core.db import list_charts, load_chart, load_charts
+from ephemeraldaddy.core.db import get_chart_id_by_uid, get_chart_ids_by_uid, list_charts, load_chart, load_charts
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     load_similar_chart_candidates,
 )
@@ -26,22 +26,22 @@ class SimilarChartsWorker(QObject):
         *,
         request_id: str,
         chart: Chart,
-        current_chart_id: int | None,
+        current_chart_uid: str | None,
         least_similar: bool,
         algorithm_mode: str,
         custom_settings: Any,
-        hidden_chart_ids: set[int] | None = None,
+        hidden_chart_uids: set[str] | None = None,
         include_hidden_charts: bool = True,
         top_k: int = 3,
     ) -> None:
         super().__init__()
         self._request_id = request_id
         self._chart = chart
-        self._current_chart_id = current_chart_id
+        self._current_chart_uid = str(current_chart_uid or "").strip().upper() or None
         self._least_similar = bool(least_similar)
         self._algorithm_mode = algorithm_mode
         self._custom_settings = custom_settings
-        self._hidden_chart_ids = set(hidden_chart_ids or set())
+        self._hidden_chart_uids = {str(uid).strip().upper() for uid in (hidden_chart_uids or set()) if str(uid).strip()}
         self._include_hidden_charts = bool(include_hidden_charts)
         self._top_k = int(top_k)
         self._cancel_requested = False
@@ -55,12 +55,14 @@ class SimilarChartsWorker(QObject):
     def run(self) -> None:
         try:
             rows = list_charts()
+            current_chart_id = get_chart_id_by_uid(self._current_chart_uid)
+            hidden_chart_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
             candidates = load_similar_chart_candidates(
                 rows=rows,
-                current_chart_id=self._current_chart_id,
+                current_chart_id=current_chart_id,
                 load_chart_by_id=load_chart,
                 load_charts_by_ids=load_charts,
-                hidden_chart_ids=self._hidden_chart_ids,
+                hidden_chart_ids=hidden_chart_ids,
                 include_hidden_charts=self._include_hidden_charts,
             )
             if not candidates:
@@ -77,7 +79,7 @@ class SimilarChartsWorker(QObject):
                 self._chart,
                 candidates,
                 top_k=self._top_k,
-                exclude_chart_id=self._current_chart_id,
+                exclude_chart_id=current_chart_id,
                 least_similar=self._least_similar,
                 algorithm_mode=self._algorithm_mode,
                 custom_settings=self._custom_settings,

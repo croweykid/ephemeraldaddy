@@ -1408,7 +1408,7 @@ def sync_chart_right_panel_placeholder_state(owner: object, chart: object | None
     if analytics_button is None or predictions_button is None:
         return
     is_placeholder = bool(getattr(owner, "_is_placeholder_chart")(chart))
-    is_saved_chart = bool(chart is not None and getattr(owner, "current_chart_id", None) is not None)
+    is_saved_chart = bool(chart is not None and getattr(owner, "current_chart_uid", None) is not None)
     analytics_available = bool(is_saved_chart and not is_placeholder)
     analytics_button.setVisible(analytics_available)
     analytics_button.setEnabled(analytics_available)

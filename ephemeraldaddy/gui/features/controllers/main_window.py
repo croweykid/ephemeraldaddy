@@ -534,16 +534,12 @@ class ChartsController:
         confirm_discard_or_save: Callable[[], bool],
         get_or_create_manage_dialog: Callable[[], QWidget],
         raise_manage_dialog: Callable[[], None],
-        get_pending_changed_ids: Callable[[], set[int]] | None = None,
-        clear_pending_changed_ids: Callable[[], None] | None = None,
-        get_pending_changed_refreshes: Callable[[], tuple[set[int], set[int]]] | None = None,
-        clear_pending_changed_refreshes: Callable[[], None] | None = None,
+        get_pending_changed_refreshes: Callable[[], tuple[set[int], set[int], bool]],
+        clear_pending_changed_refreshes: Callable[[], None],
     ) -> None:
         self._confirm_discard_or_save = confirm_discard_or_save
         self._get_or_create_manage_dialog = get_or_create_manage_dialog
         self._raise_manage_dialog = raise_manage_dialog
-        self._get_pending_changed_ids = get_pending_changed_ids or (lambda: set())
-        self._clear_pending_changed_ids = clear_pending_changed_ids or (lambda: None)
         self._get_pending_changed_refreshes = get_pending_changed_refreshes
         self._clear_pending_changed_refreshes = clear_pending_changed_refreshes
 
@@ -568,11 +564,9 @@ class ChartsController:
             progress_callback("Preparing Database View shell…", 72)
         dialog = self._get_or_create_manage_dialog()
         open_timing.phase("dialog_shell")
-        if self._get_pending_changed_refreshes is not None:
-            pending_metric_ids, pending_lightweight_ids = self._get_pending_changed_refreshes()
-        else:
-            pending_metric_ids = set(self._get_pending_changed_ids())
-            pending_lightweight_ids = set()
+        pending_metric_ids, pending_lightweight_ids, force_full_refresh = (
+            self._get_pending_changed_refreshes()
+        )
         pending_ids = set(pending_metric_ids) | set(pending_lightweight_ids)
         pending_refresh_metrics = bool(pending_metric_ids)
         was_visible = dialog.isVisible()
@@ -585,7 +579,16 @@ class ChartsController:
 
         refresh_after_show: Callable[[], None] | None = None
         refresh_reason = "none"
-        if pending_ids:
+        if force_full_refresh:
+            refresh_reason = "deleted_chart"
+            def refresh_after_show() -> None:
+                dialog._refresh_charts(
+                    refresh_metrics=True,
+                    defer_metrics_refresh=progress_callback is None,
+                    refresh_tag_completers=True,
+                    progress_callback=progress_callback,
+                )
+        elif pending_ids:
             refresh_reason = "pending_changes"
             def refresh_after_show() -> None:
                 dialog._refresh_charts(
@@ -608,10 +611,7 @@ class ChartsController:
                 )
         if progress_callback:
             progress_callback("Showing Database View shell…", 88)
-        if self._clear_pending_changed_refreshes is not None:
-            self._clear_pending_changed_refreshes()
-        else:
-            self._clear_pending_changed_ids()
+        self._clear_pending_changed_refreshes()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
         use_launch_pulse = not bool(getattr(dialog, "_launch_foreground_completed", False))
         if was_visible:

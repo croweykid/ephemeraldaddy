@@ -254,12 +254,12 @@ class ChartRightPanelController:
 
     def sync_placeholder_state(self, chart: object | None = None) -> None:
         """Sync tab availability for the current chart without clearing it implicitly."""
-        if chart is not None and self._chart is None and not hasattr(self._owner, "current_chart_id"):
+        if chart is not None and self._chart is None:
             sync_chart_right_panel_placeholder_state(self._owner, chart)
             return
         current_chart = self._chart if chart is None else chart
         is_placeholder = self._is_placeholder_chart(current_chart)
-        is_saved_chart = bool(current_chart is not None and getattr(self._owner, "current_chart_id", None) is not None)
+        is_saved_chart = bool(current_chart is not None and getattr(self._owner, "current_chart_uid", None) is not None)
         analytics_available = bool(is_saved_chart and not is_placeholder)
         demo_mode_enabled = self._demo_mode_enabled()
         self.set_section_visible("analytics", analytics_available)
@@ -327,8 +327,8 @@ class ChartRightPanelController:
         if callable(cache_token):
             chart_token = str(cache_token(chart))
         else:
-            chart_id = getattr(self._owner, "current_chart_id", None)
-            chart_token = f"id:{chart_id}" if chart_id is not None else f"object:{id(chart)}"
+            chart_uid = str(getattr(self._owner, "current_chart_uid", "") or "").strip()
+            chart_token = f"uid:{chart_uid}" if chart_uid else f"object:{id(chart)}"
         norms_token_fn = getattr(self._owner, "_prediction_norms_render_token", None)
         norms_token = str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
         return f"{chart_token}|{norms_token}"

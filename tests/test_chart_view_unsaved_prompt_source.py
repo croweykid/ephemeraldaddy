@@ -72,7 +72,7 @@ def test_lucygoosey_timed_autosaves_are_update_only_for_saved_charts():
     autosave_method = _method_source("_autosave_checkbox_state")
     metric_method = _method_source("_flush_pending_sentiment_metrics_save")
     assert "return self._can_autosave_current_chart()" in should_auto_method
-    assert "return self.current_chart_id is not None" in can_autosave_method
+    assert "return self._current_local_row_id() is not None" in can_autosave_method
     assert "Lucygoosey autosaves are update-only" in can_autosave_method
     assert "not self._can_autosave_current_chart()" in autosave_method
     assert "if not self._should_auto_update_sentiments():" in metric_method
@@ -181,21 +181,16 @@ def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
 
 def test_save_update_caches_chart_view_entry_by_uid_not_row_id():
     method = _method_source("on_update_chart")
-    assert "self._set_current_chart_identity(chart_id, chart)" in method
+    assert "self._set_current_chart_uid(chart.chart_uid)" in method
     assert "self._cache_chart_view_navigation_entry(self.current_chart_uid, chart)" in method
     assert "self._cache_chart_view_navigation_entry(chart_id, chart)" not in method
 
 
-def test_current_chart_uid_for_navigation_repairs_stale_uid_state():
+def test_current_chart_uid_for_navigation_does_not_round_trip_through_row_id():
     method = _method_source("_current_chart_uid_for_navigation")
-    assert "latest_chart_uid" in method
-    assert "current_chart_id is not None" in method
-    assert "latest_chart_id == current_chart_id" in method
-    assert "current_chart_id is None" not in method
-    assert "stored_chart_uid != latest_chart_uid" in method
-    assert "self.current_chart_uid = latest_chart_uid" in method
-    assert "resolved_chart_uid = self._normalized_chart_uid_key(get_chart_uid(current_chart_id))" in method
-    assert "return stored_chart_uid" in method
+    assert "return self._normalized_chart_uid_key(self.current_chart_uid)" in method
+    assert "get_chart_uid" not in method
+    assert "_current_local_row_id" not in method
 
 
 def test_delete_flow_invalidates_navigation_cache_with_predelete_uids():
@@ -203,14 +198,13 @@ def test_delete_flow_invalidates_navigation_cache_with_predelete_uids():
     delete_end = APP_SOURCE.find("\n    def ", delete_start + 1)
     delete_method = APP_SOURCE[delete_start:delete_end]
     deleted_callback = _method_source("_on_charts_deleted")
-    id_adapter = _method_source("_invalidate_chart_view_navigation_cache_for_ids")
-
-    assert "deleted_chart_uids = set(get_chart_uid_map(chart_ids).values())" in delete_method
+    assert "deleted_chart_uids = set(chart_uids)" in delete_method
+    assert "delete_charts_by_uids(chart_uids)" in delete_method
     assert "parent._on_charts_deleted(set(chart_ids), chart_uids=deleted_chart_uids)" in delete_method
     assert "chart_uids: set[str] | None = None" in deleted_callback
     assert "self._invalidate_chart_view_navigation_cache(normalized_chart_uids)" in deleted_callback
-    assert "self._invalidate_chart_view_navigation_cache_for_ids(chart_ids)" in deleted_callback
-    assert 'getattr(cached_chart, "id", 0)' not in id_adapter
+    assert "_invalidate_chart_view_navigation_cache_for_ids" not in APP_SOURCE
+    assert 'getattr(cached_chart, "id", 0)' not in deleted_callback
 
 
 def test_loaded_rectified_time_is_restored_before_checkbox_enabled():
@@ -234,7 +228,7 @@ def test_subjective_autosave_preserves_mixed_changed_fields_for_refresh():
     update_index = method.index("self._update_sentiment_tally(", changed_fields_index)
     refresh_block = method[changed_fields_index:update_index]
     assert "changed_fields &= " not in refresh_block
-    update_call = method[update_index:method.index("self._manage_charts_pending_changed_ids.add", update_index)]
+    update_call = method[update_index:method.index("self._record_manage_charts_pending_change", update_index)]
     assert "update_similarities=bool(" in update_call
     assert '"birth_data" in changed_fields' in update_call
 
@@ -270,3 +264,77 @@ def test_material_facts_load_uses_legacy_aware_loader():
     method = _method_source("_load_material_facts_for_chart")
     assert "identifiers = load_personal_identifiers(chart_id)" in method
     assert "load_personal_identifiers_by_uid(get_chart_uid(chart_id))" not in method
+
+
+def test_chart_editor_retains_only_uid_current_chart_identity():
+    class_source = APP_SOURCE[APP_SOURCE.index("class MainWindow"):]
+    init_start = class_source.index("    def __init__")
+    init_end = class_source.index("\n    def ", init_start + 1)
+    init_source = class_source[init_start:init_end]
+    identity_source = _method_source("_set_current_chart_uid")
+    adapter_start = class_source.index("    def _current_local_row_id")
+    adapter_end = class_source.index("\n    def ", adapter_start + 1)
+    adapter_source = class_source[adapter_start:adapter_end]
+
+    assert "self.current_chart_uid: str | None = None" in init_source
+    assert "self.current_chart_id" not in class_source
+    assert "chart_id" not in identity_source
+    assert "chart:" not in identity_source
+    assert "normalized_uid = self._normalized_chart_uid_key(chart_uid)" in identity_source
+    assert "if normalized_uid is None:" in identity_source
+    assert "self.current_chart_uid = normalized_uid" in identity_source
+    assert "def _clear_current_chart_uid" in class_source
+    assert "latest_uid == current_uid" in adapter_source
+    assert "return get_chart_id_by_uid(current_uid)" in adapter_source
+
+
+def test_pending_database_refresh_state_is_uid_owned():
+    class_source = APP_SOURCE[APP_SOURCE.index("class MainWindow"):]
+    pending_method = _method_source("_pending_manage_chart_refreshes")
+
+    assert "_manage_charts_pending_changed_ids" not in class_source
+    assert "_manage_charts_pending_changed_uids" in class_source
+    assert "get_chart_id_by_uid(chart_uid)" in pending_method
+
+
+def test_saved_chart_right_panel_consumers_use_uid_identity():
+    controller_source = Path("ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    fallback_source = Path("ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+
+    assert 'getattr(self._owner, "current_chart_uid", None) is not None' in controller_source
+    assert 'getattr(owner, "current_chart_uid", None) is not None' in fallback_source
+    assert "current_chart_id" not in controller_source
+    assert "current_chart_id" not in fallback_source
+
+
+def test_deleted_chart_uid_is_queued_as_full_refresh_tombstone():
+    delete_method = _method_source("_on_delete_this_chart")
+    discard_branch = _method_source("on_update_chart")
+    record_method = _method_source("_record_manage_charts_pending_change")
+    pending_method = _method_source("_pending_manage_chart_refreshes")
+    clear_method = _method_source("_clear_pending_manage_chart_refreshes")
+    controller_source = Path(
+        "ephemeraldaddy/gui/features/controllers/main_window.py"
+    ).read_text()
+
+    assert "chart_uid = self._current_chart_uid_for_navigation()" in delete_method
+    assert "delete_charts_by_uids([chart_uid])" in delete_method
+    assert "self._record_manage_charts_pending_change(chart_uid, refresh_metrics=True, deleted=True)" in delete_method
+    assert "self._record_manage_charts_pending_change(chart_uid, refresh_metrics=True, deleted=True)" in discard_branch
+    assert "get_chart_uid" not in record_method
+    assert "if deleted:" in record_method
+    assert "self._manage_charts_full_refresh_pending = True" in record_method
+    assert "bool(self._manage_charts_full_refresh_pending)" in pending_method
+    assert "self._manage_charts_full_refresh_pending = False" in clear_method
+    assert "if force_full_refresh:" in controller_source
+    assert 'refresh_reason = "deleted_chart"' in controller_source
+
+
+def test_persisted_chart_object_caches_local_row_id_before_hot_path_use():
+    method = _method_source("on_update_chart")
+    assign_index = method.index("chart.id = int(chart_id)")
+
+    assert method.index("chart_id = save_chart(") < assign_index
+    assert method.index("self._set_current_chart_uid(chart.chart_uid)") > assign_index
+    assert method.index("self._cache_chart_view_navigation_entry(self.current_chart_uid, chart)") > assign_index
+    assert method.index("self._latest_chart = chart") > assign_index

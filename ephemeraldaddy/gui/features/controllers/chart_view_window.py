@@ -50,7 +50,6 @@ from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
 from ephemeraldaddy.core.photo_gallery import (
     add_photo_file,
     add_photo_url,
-    chart_uid_for_chart_id,
     delete_photo,
     get_photo_data,
     get_profile_photo_id,
@@ -2202,23 +2201,28 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     return panel
 
 
+def _current_photo_gallery_chart_uid(owner: QWidget) -> str | None:
+    chart_uid = str(getattr(owner, "current_chart_uid", "") or "").strip().upper()
+    return chart_uid or None
+
+
 def _ensure_photo_gallery_chart_uid(owner: QWidget) -> str | None:
-    chart_id = getattr(owner, "current_chart_id", None)
-    if chart_id is None:
-        choice = QMessageBox.question(
-            owner,
-            "Save chart before adding photos?",
-            "Photo Gallery entries are linked by chart UID. Save this chart before adding photos?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes,
-        )
-        if choice != QMessageBox.Yes:
-            return None
-        update_chart = getattr(owner, "on_update_chart", None)
-        if callable(update_chart):
-            update_chart(show_dialog=False, recalculate_chart=True)
-        chart_id = getattr(owner, "current_chart_id", None)
-    return chart_uid_for_chart_id(chart_id)
+    chart_uid = _current_photo_gallery_chart_uid(owner)
+    if chart_uid is not None:
+        return chart_uid
+    choice = QMessageBox.question(
+        owner,
+        "Save chart before adding photos?",
+        "Photo Gallery entries are linked by chart UID. Save this chart before adding photos?",
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.Yes,
+    )
+    if choice != QMessageBox.Yes:
+        return None
+    update_chart = getattr(owner, "on_update_chart", None)
+    if callable(update_chart):
+        update_chart(show_dialog=False, recalculate_chart=True)
+    return _current_photo_gallery_chart_uid(owner)
 
 
 def _photo_gallery_grid_cell_size(owner: QWidget) -> int:
@@ -2236,7 +2240,7 @@ def _sync_current_chart_profile_pic(owner: QWidget, chart_uid: str | None) -> No
     if current_chart is not None:
         setattr(current_chart, "profile_pic", str(profile_photo_id or ""))
 
-def _refresh_photo_gallery_for_chart(owner: QWidget, chart_id: int | None = None) -> None:
+def _refresh_photo_gallery_for_chart(owner: QWidget, chart_uid: str | None = None) -> None:
     grid_layout = getattr(owner, "photo_gallery_grid_layout", None)
     empty_label = getattr(owner, "photo_gallery_empty_label", None)
     if grid_layout is None:
@@ -2246,7 +2250,7 @@ def _refresh_photo_gallery_for_chart(owner: QWidget, chart_id: int | None = None
         widget = item.widget()
         if widget is not None:
             widget.deleteLater()
-    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None) if chart_id is None else chart_id)
+    chart_uid = chart_uid or _current_photo_gallery_chart_uid(owner)
     photos = list_photos(chart_uid)
     profile_photo_id = get_profile_photo_id(chart_uid)
     _sync_current_chart_profile_pic(owner, chart_uid)
@@ -2326,7 +2330,7 @@ def _add_photo_gallery_url(owner: QWidget) -> None:
 
 
 def _show_photo_gallery_preview(owner: QWidget, photo_id: int) -> None:
-    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None))
+    chart_uid = _current_photo_gallery_chart_uid(owner)
     photo_rows = list_photos(chart_uid)
     photos = [
         photo_data
@@ -2343,7 +2347,7 @@ def _show_photo_gallery_preview(owner: QWidget, photo_id: int) -> None:
 
 
 def _set_photo_gallery_profile_pic(owner: QWidget, photo_id: int) -> None:
-    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None))
+    chart_uid = _current_photo_gallery_chart_uid(owner)
     if not set_profile_photo(chart_uid, photo_id):
         QMessageBox.warning(owner, "Profile pic unavailable", "Could not assign that photo as this chart’s profile pic.")
         return
@@ -2362,7 +2366,7 @@ def _delete_photo_gallery_photo(owner: QWidget, photo_id: int) -> None:
     )
     if choice != QMessageBox.Yes:
         return
-    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None))
+    chart_uid = _current_photo_gallery_chart_uid(owner)
     delete_photo(photo_id, chart_uid)
     _refresh_photo_gallery_for_chart(owner)
 
