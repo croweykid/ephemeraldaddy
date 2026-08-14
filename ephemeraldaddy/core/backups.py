@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import tempfile
 import zipfile
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -94,13 +95,16 @@ def _sha256(path: Path) -> str:
 
 def _snapshot_sqlite(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(source) as source_conn:
-        with sqlite3.connect(destination) as destination_conn:
+    # A sqlite connection's context manager commits or rolls back, but does not
+    # close the connection.  Explicitly close both handles so Windows can remove
+    # the staged database when the backup temporary directory is cleaned up.
+    with closing(sqlite3.connect(source)) as source_conn:
+        with closing(sqlite3.connect(destination)) as destination_conn:
             source_conn.backup(destination_conn)
 
 
 def _validate_sqlite(path: Path) -> None:
-    with sqlite3.connect(path) as conn:
+    with closing(sqlite3.connect(path)) as conn:
         row = conn.execute("PRAGMA integrity_check").fetchone()
     if not row or str(row[0]).lower() != "ok":
         raise ValueError(f"SQLite integrity check failed for {path.name}: {row[0] if row else 'no result'}")

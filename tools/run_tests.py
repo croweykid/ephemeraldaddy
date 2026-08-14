@@ -17,6 +17,15 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LOG_DIRECTORY = REPOSITORY_ROOT / "tests" / "results" / "test-runs"
 
 
+def operating_system_summary() -> str:
+    """Return a concise, explicit OS label for the test report header."""
+    system = platform.system().strip() or "Unknown"
+    release = platform.release().strip()
+    version = platform.version().strip()
+    details = " ".join(part for part in (release, version) if part)
+    return f"{system} ({details})" if details else system
+
+
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -93,6 +102,7 @@ def main() -> int:
         _write_line(log_file, f"Started (UTC): {timestamp}")
         _write_line(log_file, f"Repository: {REPOSITORY_ROOT}")
         _write_line(log_file, f"Python: {sys.version.replace(os.linesep, ' ')}")
+        _write_line(log_file, f"Operating system: {operating_system_summary()}")
         _write_line(log_file, f"Platform: {platform.platform()}")
         _write_line(log_file, f"Command: {subprocess.list2cmdline(command)}")
         _write_line(log_file, "-" * 72)

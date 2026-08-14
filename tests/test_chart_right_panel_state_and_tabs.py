@@ -1,5 +1,6 @@
 import sys
 import types
+from datetime import datetime
 from types import SimpleNamespace
 
 
@@ -268,7 +269,7 @@ def test_schedule_render_for_active_tab_predictions():
     assert calls == [("enneagram",), ("dnd",)]
 
 
-def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible():
+def test_schedule_render_for_active_tab_abc_when_anagrams_visible():
     owner = _owner()
     owner._latest_chart = object()
     calls = []
@@ -278,7 +279,7 @@ def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible()
     owner._render_enneagram_predictions = lambda _chart: None
     owner._render_dndification_predictions = lambda _chart: None
     owner._is_chart_analysis_section_visible = lambda key: key == "anagrams"
-    owner._chart_right_panel_state.active_tab = "subjective_notes"
+    owner._chart_right_panel_state.active_tab = "abc"
 
     schedule_chart_render_for_active_right_panel(owner)
 
@@ -387,7 +388,7 @@ def test_schedule_render_for_active_tab_predictions_skips_cached_chart_token():
 
 def test_schedule_render_for_active_tab_predictions_rerenders_when_chart_token_changes():
     owner = _owner()
-    chart = SimpleNamespace(name="first")
+    chart = SimpleNamespace(name="first", chart_uid="UID1", dt=datetime(2000, 1, 1))
     owner._latest_chart = chart
     calls = []
     owner._chart_analytics_cache_token = lambda current_chart: f"token:{current_chart.name}"
@@ -397,6 +398,7 @@ def test_schedule_render_for_active_tab_predictions_rerenders_when_chart_token_c
 
     schedule_chart_render_for_active_right_panel(owner)
     chart.name = "second"
+    chart.dt = datetime(2001, 1, 1)
     schedule_chart_render_for_active_right_panel(owner)
 
     assert calls == [

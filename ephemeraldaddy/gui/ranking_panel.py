@@ -331,11 +331,14 @@ class RankingsPanelMixin:
         ):
             return False
 
-        hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
+        hidden_chart_uids = {
+            self._normalize_rankings_chart_uid(chart_uid)
+            for chart_uid in getattr(self, "_hidden_chart_uids", set())
+        }
         chart_tokens = self._traits_distribution_chart_tokens()
         for chart_id, chart_uid in sorted(chart_uids_by_id.items()):
             chart_uid = self._normalize_rankings_chart_uid(chart_uid)
-            if not chart_uid or chart_id in hidden_chart_ids:
+            if not chart_uid or chart_uid in hidden_chart_uids:
                 continue
             chart = self._get_chart_for_filter(chart_id)
             if chart is None or self._is_placeholder_chart(chart):
@@ -424,20 +427,19 @@ class RankingsPanelMixin:
                 }
                 cache_warmed = database_count > 0 and not bool(database_analytics.get("partial", False))
                 parsed_percent = database_analytics.get("parsed_percent", 100.0)
+        database_chart_uids = tuple(
+            sorted(
+                str(chart_uid).strip().upper()
+                for chart_uid in get_chart_uid_map(database_chart_ids).values()
+                if str(chart_uid or "").strip()
+            )
+        )
         trait_rankings = self._traits_distribution_chart_rankings(
-            chart_ids=database_chart_ids,
+            chart_uids=database_chart_uids,
             trait_signature=trait_signature,
             selected_trait_name=selected_trait_name or "",
             database_values=database_values,
         )
-        # trait_uid_map = get_chart_uid_map(row.get("chart_id") for row in trait_rankings)
-        # for row in trait_rankings:
-        #     try:
-        #         chart_uid = trait_uid_map.get(int(row.get("chart_id")))
-        #     except (TypeError, ValueError):
-        #         chart_uid = None
-        #     if chart_uid:
-        #         row["chart_uid"] = chart_uid
         self.rankings_traits_label.setText(
             self._render_traits_distribution_rankings_html(
                 selected_trait_name,

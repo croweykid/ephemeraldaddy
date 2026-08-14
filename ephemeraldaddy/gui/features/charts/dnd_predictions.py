@@ -71,7 +71,10 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     weighted_position_entries,
     weighted_string_entries,
 )
-from ephemeraldaddy.gui.features.charts.prediction_loading_labels import stop_prediction_loading_blink
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
+    add_prediction_calculate_prompt,
+    stop_prediction_loading_blink,
+)
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS,
     PREDICTION_SCORE_MODE_BACKGROUND_Z,
@@ -1182,7 +1185,7 @@ def build_dnd_alignment_breakdown_html(owner: Any, chart: Any) -> str:
         + "</table><br>"
         f"<b>X coordinate:</b> Lawful {lawful:+.2f}% − Chaotic {chaotic:+.2f}% = {lawful - chaotic:+.2f}%<br>"
         f"<b>Y coordinate:</b> Good {good:+.2f}% − Evil {evil:+.2f}% = {good - evil:+.2f}%<br>"
-        f"<b>Official D&amp;D alignment:</b> "
+        f"<b>Official Fantasy RPG alignment:</b> "
         f"{html.escape(resolve_dnd_official_alignment(good - evil, lawful - chaotic))}"
         '</div>'
     )
@@ -1233,7 +1236,7 @@ def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
         f"<strong>Lawful:</strong> {_format_percent(lawful)}<br>"
         f"<strong>Net Good:</strong> {_format_percent(net_good_evil)} &nbsp; "
         f"<strong>Net Lawful:</strong> {_format_percent(net_lawful_chaotic)}<br>"
-        f"<strong>Official D&amp;D alignment:</strong> "
+        f"<strong>Official Fantasy RPG alignment:</strong> "
         f"{html.escape(resolve_dnd_official_alignment(net_good_evil, net_lawful_chaotic))}"
     )
 
@@ -1624,6 +1627,7 @@ class DndPredictionPanelAdapter:
         if callable(self.reset_canvas_callback):
             canvas_attr = "dnd_prediction_alignment_canvas" if section == "dnd_alignment" else "dnd_prediction_statblock_canvas"
             self.reset_canvas_callback(canvas_attr)
+        add_prediction_calculate_prompt(target_layout)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:

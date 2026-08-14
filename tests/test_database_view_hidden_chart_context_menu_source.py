@@ -11,8 +11,8 @@ def _method_source(method_name: str) -> str:
 
 
 def test_show_hidden_setting_names_charts_explicitly():
-    assert 'QCheckBox("Show Hidden Charts")' in APP_SOURCE
-    assert 'QCheckBox("Show Hidden")' not in APP_SOURCE
+    assert "SETTINGS_KEY_SHOW_HIDDEN_CHARTS" in APP_SOURCE
+    assert 'QuadStateSlider("hidden charts")' in Path("ephemeraldaddy/gui/dbv_search_panel.py").read_text(encoding="utf-8")
 
 
 def test_button_enabled_guard_compares_local_enabled_state():
@@ -48,13 +48,13 @@ def test_context_menu_offers_single_chart_tool_actions():
     assert "self._on_middle_panel_chart_tool(tool_actions[chosen_action])" in method
 
 
-def test_unhide_selected_charts_removes_ids_and_preserves_selection():
+def test_unhide_selected_charts_removes_uids_and_preserves_selection():
     method = _method_source("_unhide_selected_charts")
 
-    assert "self._hidden_chart_ids.difference_update(normalized_ids)" in method
-    assert "self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))" in method
+    assert "changed_chart_uids = self._chart_uids_for_ids(normalized_ids)" in method
+    assert "self._hidden_chart_uids.difference_update(changed_chart_uids)" in method
     assert "self._save_hidden_chart_uids_to_settings()" in method
-    assert "set(self._selected_chart_ids()) | normalized_ids" in method
+    assert "set(self._selected_local_row_ids()) | normalized_ids" in method
     assert "sync_persistent_selection=False" in method
 
 
@@ -69,7 +69,7 @@ def test_hidden_charts_filter_is_conditionally_visible_in_search_panel():
     panel_source = Path("ephemeraldaddy/gui/dbv_search_panel.py").read_text(encoding="utf-8")
 
     assert 'window.hidden_charts_checkbox = QuadStateSlider("hidden charts")' in panel_source
-    assert 'app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE' in panel_source
+    assert 'SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE' in panel_source
     assert 'window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)' in panel_source
     assert 'window.hidden_charts_filter_row.setVisible(' in panel_source
     assert 'getattr(window, "_show_hidden_charts", False)' in panel_source
@@ -82,12 +82,12 @@ def test_show_hidden_toggle_updates_hidden_filter_visibility():
     assert 'self.hidden_charts_filter_row.setVisible(self._show_hidden_charts)' in method
 
 
-def test_hidden_charts_filter_matches_hidden_id_set_only_when_visible():
+def test_hidden_charts_filter_resolves_uids_at_the_row_boundary_only_when_visible():
     method = _method_source("_chart_matches_filters")
 
     assert 'hidden_charts_state = (' in method
     assert 'getattr(self, "_show_hidden_charts", False)' in method
-    assert 'is_hidden_chart = int(chart_id) in getattr(self, "_hidden_chart_ids", set())' in method
+    assert 'is_hidden_chart = int(chart_id) in self._hidden_local_row_ids_for_persistence()' in method
     assert 'hidden_charts_state == QuadStateSlider.MODE_TRUE and not is_hidden_chart' in method
     assert 'hidden_charts_state == QuadStateSlider.MODE_FALSE and is_hidden_chart' in method
 

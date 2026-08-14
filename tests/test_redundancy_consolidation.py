@@ -185,7 +185,8 @@ def test_human_design_channel_records_preserve_all_circuit_topology_and_metadata
         {"name", "gates", "centers", "circuit", "explanation"} <= record.keys()
         for record in HD_CHANNELS.values()
     )
-    assert HD_CHANNELS["16-48"]["aliases"] == ("Channel of the Wavelength",)
+    assert HD_CHANNELS["16-48"]["name"] == "Channel of the Wavelength"
+    assert all("aliases" not in record for record in HD_CHANNELS.values())
 
 
 def test_startup_entrypoints_share_one_animation_renderer() -> None:
