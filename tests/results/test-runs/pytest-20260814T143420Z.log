@@ -146,3 +146,2411 @@ tests\test_human_design_synastry_plot.py .                               [ 55%]
 tests\test_loading_messages.py ....                                      [ 56%]
 tests\test_manage_charts_startup_source.py ...                           [ 56%]
 tests\test_material_facts_uid.py ....                                    [ 56%]
+tests\test_metric_canvas_layout_controller.py ..F..                      [ 56%]
+tests\test_metric_canvas_recalculation_sizing_source.py .....            [ 57%]
+tests\test_metric_popout_registry.py ....                                [ 57%]
+tests\test_name_analytics_refresh_source.py .........                    [ 58%]
+tests\test_name_manager_source.py ...                                    [ 58%]
+tests\test_name_search.py .........                                      [ 59%]
+tests\test_nonastral_batch_writes.py ........                            [ 59%]
+tests\test_ocean_mbti_neuroticism_prefix.py ...                          [ 60%]
+tests\test_ocean_predictions_source.py ...........                       [ 61%]
+tests\test_packaging_default_traits_source.py ..                         [ 61%]
+tests\test_packaging_package_discovery.py .                              [ 61%]
+tests\test_percentage_weights.py ..                                      [ 61%]
+tests\test_performance_metrics.py ..F......                              [ 62%]
+tests\test_photo_gallery_profile_pic.py ...                              [ 62%]
+tests\test_photo_gallery_profile_pic_source.py ...                       [ 62%]
+tests\test_placeholder_chart_source.py .                                 [ 62%]
+tests\test_planet_dynamics_cache_source.py .....                         [ 63%]
+tests\test_popout_chart_alignment_source.py ..                           [ 63%]
+tests\test_position_descriptions.py ....                                 [ 63%]
+tests\test_prediction_cache_birth_data_signatures_source.py ....FF...    [ 64%]
+tests\test_prediction_norms_snapshot_source.py ........F.....            [ 65%]
+tests\test_predictions_placeholder_current_render_source.py .            [ 65%]
+tests\test_predictions_settings_source.py .....F...                      [ 66%]
+tests\test_property_manager_column_layout_source.py ..                   [ 66%]
+tests\test_property_manager_deferred_refresh_source.py .                 [ 66%]
+tests\test_property_manager_embedded_refresh_source.py .                 [ 66%]
+tests\test_property_manager_locked_field_buttons_source.py .             [ 66%]
+tests\test_property_manager_open_widget_refresh_source.py ...            [ 66%]
+tests\test_property_manager_settings_embed_source.py ..                  [ 67%]
+tests\test_property_manager_settings_height_source.py F                  [ 67%]
+tests\test_property_manager_settings_tab_style_source.py ..              [ 67%]
+tests\test_property_manager_tag_refresh_source.py ...                    [ 67%]
+tests\test_quad_state_slider_source.py .                                 [ 67%]
+tests\test_ranking_panel_sign_dominance_name_styles_source.py .          [ 67%]
+tests\test_ranking_panel_sign_dominance_tooltips_source.py ....          [ 67%]
+tests\test_ranking_panel_trait_dropdown_source.py ...                    [ 68%]
+tests\test_ranking_panel_visible_refresh_source.py ...                   [ 68%]
+tests\test_rectification_engine_views_source.py .F..                     [ 68%]
+tests\test_rectification_range.py ....                                   [ 69%]
+tests\test_rectification_range_gui_source.py ....                        [ 69%]
+tests\test_redundancy_consolidation.py .......F.                         [ 70%]
+tests\test_reminds_me_of_completer_source.py .                           [ 70%]
+tests\test_reminds_me_of_reciprocity_cleanup.py .                        [ 70%]
+tests\test_reminds_me_of_uid.py ........                                 [ 70%]
+tests\test_retcon_dropdown_styles_source.py .....                        [ 71%]
+tests\test_retcon_lucygoosey_autosave.py ....                            [ 71%]
+tests\test_retcon_search.py ..........                                   [ 72%]
+tests\test_search_panel_isolated_factors.py ...                          [ 72%]
+tests\test_selection_header.py .........                                 [ 73%]
+tests\test_semantics_formating.py ............F                          [ 74%]
+tests\test_sign_keyword_info_spacing.py .                                [ 74%]
+tests\test_similar_charts_candidate_batch_loading.py .                   [ 74%]
+tests\test_similar_charts_collection_scope_source.py .........           [ 75%]
+tests\test_similar_charts_hidden_visibility_source.py .FF..F.FFF.        [ 76%]
+tests\test_similar_charts_popout.py .FF..........                        [ 77%]
+tests\test_similar_charts_popout_cache_source.py ........                [ 77%]
+tests\test_similarities_algorithm_log.py ...                             [ 77%]
+tests\test_similarities_analysis.py ....                                 [ 78%]
+tests\test_similarities_controller_source.py .....                       [ 78%]
+tests\test_similarities_db_norm_delta.py ....                            [ 79%]
+tests\test_similarities_export_dialog_source.py ...                      [ 79%]
+tests\test_similarities_json_export.py .........F.                       [ 80%]
+tests\test_similarity_algorithm_accuracy_ranking.py .................    [ 81%]
+tests\test_similarity_algorithm_accuracy_refresh_source.py .....F        [ 81%]
+tests\test_similarity_calculator_settings.py F.......................... [ 84%]
+.....                                                                    [ 84%]
+tests\test_similarity_custom_presets.py ...                              [ 84%]
+tests\test_similarity_dominance_profiles.py ....                         [ 85%]
+tests\test_similarity_pairing.py ....                                    [ 85%]
+tests\test_size_checker_popup.py .                                       [ 85%]
+tests\test_statistical_significance.py .......                           [ 85%]
+tests\test_tag_categories.py F.F.                                        [ 86%]
+tests\test_tag_chip_pill_style_source.py ..F.                            [ 86%]
+tests\test_tag_manager_parent_counts_source.py F                         [ 86%]
+tests\test_tags_manager_drag_drop_source.py ..                           [ 86%]
+tests\test_tags_manager_parent_tags_source.py .......                    [ 87%]
+tests\test_test_runner_setup.py .                                        [ 87%]
+tests\test_time_sensitivity.py ............FFF...F.........              [ 89%]
+tests\test_time_sensitivity_token_source.py .                            [ 89%]
+tests\test_trait_likelihood_signature_source.py ....                     [ 90%]
+tests\test_trait_prediction_chart_info.py F.                             [ 90%]
+tests\test_trait_prediction_delegate_source.py .                         [ 90%]
+tests\test_trait_prediction_factors.py ..                                [ 90%]
+tests\test_trait_predictions_cache.py ..F.FFFFFFF.....                   [ 91%]
+tests\test_traits.py ....................                                [ 93%]
+tests\test_traits_privacy_and_metadata_source.py ....                    [ 93%]
+tests\test_traits_settings_source.py ....F.....                          [ 94%]
+tests\test_transit_export.py .                                           [ 94%]
+tests\test_transit_position_diagnostic.py ..                             [ 94%]
+tests\test_transit_window_cache.py ..                                    [ 94%]
+tests\test_uid_controller_state_source.py ..............                 [ 95%]
+tests\test_uid_finalization_source.py .F                                 [ 96%]
+tests\test_user_facing_terminology_source.py ..FF                        [ 96%]
+tests\test_weighted_chart_predictor.py .......................           [ 98%]
+tests\test_wheel_plot_aspect_rendering.py .....                          [ 98%]
+tests\test_wikipedia_blurb_getter.py ........                            [ 99%]
+tests\test_window_chrome_settings_source.py ..........                   [100%]
+
+================================== FAILURES ===================================
+_________ test_modified_enter_shortcut_is_not_reserved_for_line_edit __________
+
+    def test_modified_enter_shortcut_is_not_reserved_for_line_edit():
+        app = _application()
+        install_appwide_input_focus_policy(app)
+        window = QWidget()
+        layout = QVBoxLayout(window)
+        search_input = QLineEdit()
+        layout.addWidget(search_input)
+        shortcut_hits: list[bool] = []
+        shortcut = QShortcut(QKeySequence("Ctrl+Return"), window)
+        shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+        shortcut.activated.connect(lambda: shortcut_hits.append(True))
+    
+        window.show()
+        search_input.setFocus()
+        QTest.keyClick(search_input, Qt.Key_Return, Qt.ControlModifier)
+    
+>       assert shortcut_hits == [True]
+E       assert [] == [True]
+E         
+E         Right contains one more item: True
+E         Use -v to get more diff
+
+tests\test_appwide_input.py:87: AssertionError
+---------------------------- Captured stderr call -----------------------------
+This plugin does not support propagateSizeHints()
+_______ test_placement_weighting_modes_have_item_and_selected_tooltips ________
+
+    def test_placement_weighting_modes_have_item_and_selected_tooltips():
+>       assert "PLACEMENT_WEIGHTING_MODE_TOOLTIPS" in SECTION
+E       assert 'PLACEMENT_WEIGHTING_MODE_TOOLTIPS' in '(\n    *,\n    dialog: QDialog,\n    section_layout: QVBoxLayout,\n    subheader_style: str,\n    on_mode_default_tog... Authorities"),\n    ("bazisigns", "BaZi Signs"),\n    ("positions", "Positions"),\n    ("aspects", "Aspects"),\n)\n\n'
+
+tests\test_astro_twin_settings_layout_source.py:88: AssertionError
+_____________ test_create_backup_package_includes_known_sidecars ______________
+
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-d4g42cib\\payload\\data'
+onerror = <function TemporaryDirectory._rmtree.<locals>.onerror at 0x000001DE30909080>
+
+    def _rmtree_unsafe(path, onerror):
+        try:
+            with os.scandir(path) as scandir_it:
+                entries = list(scandir_it)
+        except OSError:
+            onerror(os.scandir, path, sys.exc_info())
+            entries = []
+        for entry in entries:
+            fullname = entry.path
+            if _rmtree_isdir(entry):
+                try:
+                    if entry.is_symlink():
+                        # This can only happen if someone replaces
+                        # a directory with a symlink after the call to
+                        # os.scandir or entry.is_dir above.
+                        raise OSError("Cannot call rmtree on a symbolic link")
+                except OSError:
+                    onerror(os.path.islink, fullname, sys.exc_info())
+                    continue
+                _rmtree_unsafe(fullname, onerror)
+            else:
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-d4g42cib\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:632: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+package_paths = {'charts': WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_...ppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_inc0/data/charts.personal_identifiers.json')}
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_inc0')
+
+    def test_create_backup_package_includes_known_sidecars(package_paths, tmp_path):
+        _sqlite(package_paths["charts"], "charts", "chart")
+        _sqlite(package_paths["photo_gallery"], "photos", "photo")
+        _sqlite(package_paths["time_sensitivity"], "ranges", "range")
+        package_paths["personal_identifiers"].write_text('{"1": {"emails": ["a@example.com"]}}', encoding="utf-8")
+    
+>       destination = backups.create_backup_package(tmp_path / "full.edbackup")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_backup_packages.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+ephemeraldaddy\core\backups.py:137: in create_backup_package
+    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-backup-") as tmp_name:
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:943: in __exit__
+    self.cleanup()
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:947: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:929: in _rmtree
+    _shutil.rmtree(name, onerror=onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:787: in rmtree
+    return _rmtree_unsafe(path, onerror)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:634: in _rmtree_unsafe
+    onerror(os.unlink, fullname, sys.exc_info())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-d4g42cib\\payload\\data\\charts.db'
+exc_info = (<class 'PermissionError'>, PermissionError(13, 'The process cannot access the file because it is being used by another process'), <traceback object at 0x000001DE308D7040>)
+
+    def onerror(func, path, exc_info):
+        if issubclass(exc_info[0], PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-d4g42cib\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:893: PermissionError
+________ test_create_backup_package_skips_missing_optional_components _________
+
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-b6qcsi29\\payload\\data'
+onerror = <function TemporaryDirectory._rmtree.<locals>.onerror at 0x000001DE3090A2A0>
+
+    def _rmtree_unsafe(path, onerror):
+        try:
+            with os.scandir(path) as scandir_it:
+                entries = list(scandir_it)
+        except OSError:
+            onerror(os.scandir, path, sys.exc_info())
+            entries = []
+        for entry in entries:
+            fullname = entry.path
+            if _rmtree_isdir(entry):
+                try:
+                    if entry.is_symlink():
+                        # This can only happen if someone replaces
+                        # a directory with a symlink after the call to
+                        # os.scandir or entry.is_dir above.
+                        raise OSError("Cannot call rmtree on a symbolic link")
+                except OSError:
+                    onerror(os.path.islink, fullname, sys.exc_info())
+                    continue
+                _rmtree_unsafe(fullname, onerror)
+            else:
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-b6qcsi29\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:632: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+package_paths = {'charts': WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_...ppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_ski0/data/charts.personal_identifiers.json')}
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_ski0')
+
+    def test_create_backup_package_skips_missing_optional_components(package_paths, tmp_path):
+        _sqlite(package_paths["charts"], "charts", "chart")
+    
+>       destination = backups.create_backup_package(tmp_path / "minimal")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_backup_packages.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+ephemeraldaddy\core\backups.py:137: in create_backup_package
+    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-backup-") as tmp_name:
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:943: in __exit__
+    self.cleanup()
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:947: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:929: in _rmtree
+    _shutil.rmtree(name, onerror=onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:787: in rmtree
+    return _rmtree_unsafe(path, onerror)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:634: in _rmtree_unsafe
+    onerror(os.unlink, fullname, sys.exc_info())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-b6qcsi29\\payload\\data\\charts.db'
+exc_info = (<class 'PermissionError'>, PermissionError(13, 'The process cannot access the file because it is being used by another process'), <traceback object at 0x000001DF5ADC5B80>)
+
+    def onerror(func, path, exc_info):
+        if issubclass(exc_info[0], PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-b6qcsi29\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:893: PermissionError
+_______________ test_restore_backup_package_validates_checksum ________________
+
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-jqbnn2ls\\payload\\data'
+onerror = <function TemporaryDirectory._rmtree.<locals>.onerror at 0x000001DF5977EE80>
+
+    def _rmtree_unsafe(path, onerror):
+        try:
+            with os.scandir(path) as scandir_it:
+                entries = list(scandir_it)
+        except OSError:
+            onerror(os.scandir, path, sys.exc_info())
+            entries = []
+        for entry in entries:
+            fullname = entry.path
+            if _rmtree_isdir(entry):
+                try:
+                    if entry.is_symlink():
+                        # This can only happen if someone replaces
+                        # a directory with a symlink after the call to
+                        # os.scandir or entry.is_dir above.
+                        raise OSError("Cannot call rmtree on a symbolic link")
+                except OSError:
+                    onerror(os.path.islink, fullname, sys.exc_info())
+                    continue
+                _rmtree_unsafe(fullname, onerror)
+            else:
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-jqbnn2ls\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:632: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+package_paths = {'charts': WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_backup_package...ppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_backup_package_va0/data/charts.personal_identifiers.json')}
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_backup_package_va0')
+
+    def test_restore_backup_package_validates_checksum(package_paths, tmp_path):
+        _sqlite(package_paths["charts"], "charts", "chart")
+>       destination = backups.create_backup_package(tmp_path / "full.edbackup")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_backup_packages.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+ephemeraldaddy\core\backups.py:137: in create_backup_package
+    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-backup-") as tmp_name:
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:943: in __exit__
+    self.cleanup()
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:947: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:929: in _rmtree
+    _shutil.rmtree(name, onerror=onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:787: in rmtree
+    return _rmtree_unsafe(path, onerror)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:634: in _rmtree_unsafe
+    onerror(os.unlink, fullname, sys.exc_info())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-jqbnn2ls\\payload\\data\\charts.db'
+exc_info = (<class 'PermissionError'>, PermissionError(13, 'The process cannot access the file because it is being used by another process'), <traceback object at 0x000001DF595B62C0>)
+
+    def onerror(func, path, exc_info):
+        if issubclass(exc_info[0], PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-jqbnn2ls\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:893: PermissionError
+_________ test_restore_package_removes_sidecars_missing_from_manifest _________
+
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-fmvc8jw9\\payload\\data'
+onerror = <function TemporaryDirectory._rmtree.<locals>.onerror at 0x000001DF5977F420>
+
+    def _rmtree_unsafe(path, onerror):
+        try:
+            with os.scandir(path) as scandir_it:
+                entries = list(scandir_it)
+        except OSError:
+            onerror(os.scandir, path, sys.exc_info())
+            entries = []
+        for entry in entries:
+            fullname = entry.path
+            if _rmtree_isdir(entry):
+                try:
+                    if entry.is_symlink():
+                        # This can only happen if someone replaces
+                        # a directory with a symlink after the call to
+                        # os.scandir or entry.is_dir above.
+                        raise OSError("Cannot call rmtree on a symbolic link")
+                except OSError:
+                    onerror(os.path.islink, fullname, sys.exc_info())
+                    continue
+                _rmtree_unsafe(fullname, onerror)
+            else:
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-fmvc8jw9\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:632: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+package_paths = {'charts': WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_package_remove...ppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_package_removes_s0/data/charts.personal_identifiers.json')}
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_package_removes_s0')
+
+    def test_restore_package_removes_sidecars_missing_from_manifest(package_paths, tmp_path):
+        _sqlite(package_paths["charts"], "charts", "original")
+>       package = backups.create_backup_package(tmp_path / "minimal.edbackup")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_backup_packages.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+ephemeraldaddy\core\backups.py:137: in create_backup_package
+    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-backup-") as tmp_name:
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:943: in __exit__
+    self.cleanup()
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:947: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:929: in _rmtree
+    _shutil.rmtree(name, onerror=onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:787: in rmtree
+    return _rmtree_unsafe(path, onerror)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:634: in _rmtree_unsafe
+    onerror(os.unlink, fullname, sys.exc_info())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-fmvc8jw9\\payload\\data\\charts.db'
+exc_info = (<class 'PermissionError'>, PermissionError(13, 'The process cannot access the file because it is being used by another process'), <traceback object at 0x000001DE3091E440>)
+
+    def onerror(func, path, exc_info):
+        if issubclass(exc_info[0], PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-fmvc8jw9\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:893: PermissionError
+____________ test_restore_package_preserves_user_omitted_sidecars _____________
+
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-_2gtxf3w\\payload\\data'
+onerror = <function TemporaryDirectory._rmtree.<locals>.onerror at 0x000001DF5977C720>
+
+    def _rmtree_unsafe(path, onerror):
+        try:
+            with os.scandir(path) as scandir_it:
+                entries = list(scandir_it)
+        except OSError:
+            onerror(os.scandir, path, sys.exc_info())
+            entries = []
+        for entry in entries:
+            fullname = entry.path
+            if _rmtree_isdir(entry):
+                try:
+                    if entry.is_symlink():
+                        # This can only happen if someone replaces
+                        # a directory with a symlink after the call to
+                        # os.scandir or entry.is_dir above.
+                        raise OSError("Cannot call rmtree on a symbolic link")
+                except OSError:
+                    onerror(os.path.islink, fullname, sys.exc_info())
+                    continue
+                _rmtree_unsafe(fullname, onerror)
+            else:
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-_2gtxf3w\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:632: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+package_paths = {'charts': WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_package_preser...ppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_package_preserves0/data/charts.personal_identifiers.json')}
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_package_preserves0')
+
+    def test_restore_package_preserves_user_omitted_sidecars(package_paths, tmp_path):
+        _sqlite(package_paths["charts"], "charts", "original")
+>       package = backups.create_backup_package(
+            tmp_path / "custom.edbackup",
+            included_component_keys={"charts"},
+            preserve_missing_component_keys={"photo_gallery", "personal_identifiers", "time_sensitivity"},
+        )
+
+tests\test_backup_packages.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+ephemeraldaddy\core\backups.py:137: in create_backup_package
+    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-backup-") as tmp_name:
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:943: in __exit__
+    self.cleanup()
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:947: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:929: in _rmtree
+    _shutil.rmtree(name, onerror=onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:787: in rmtree
+    return _rmtree_unsafe(path, onerror)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:634: in _rmtree_unsafe
+    onerror(os.unlink, fullname, sys.exc_info())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-_2gtxf3w\\payload\\data\\charts.db'
+exc_info = (<class 'PermissionError'>, PermissionError(13, 'The process cannot access the file because it is being used by another process'), <traceback object at 0x000001DF5AE49B00>)
+
+    def onerror(func, path, exc_info):
+        if issubclass(exc_info[0], PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-_2gtxf3w\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:893: PermissionError
+____________ test_create_backup_package_uses_custom_charts_source _____________
+
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-hyma16_d\\payload\\data'
+onerror = <function TemporaryDirectory._rmtree.<locals>.onerror at 0x000001DF59718D60>
+
+    def _rmtree_unsafe(path, onerror):
+        try:
+            with os.scandir(path) as scandir_it:
+                entries = list(scandir_it)
+        except OSError:
+            onerror(os.scandir, path, sys.exc_info())
+            entries = []
+        for entry in entries:
+            fullname = entry.path
+            if _rmtree_isdir(entry):
+                try:
+                    if entry.is_symlink():
+                        # This can only happen if someone replaces
+                        # a directory with a symlink after the call to
+                        # os.scandir or entry.is_dir above.
+                        raise OSError("Cannot call rmtree on a symbolic link")
+                except OSError:
+                    onerror(os.path.islink, fullname, sys.exc_info())
+                    continue
+                _rmtree_unsafe(fullname, onerror)
+            else:
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-hyma16_d\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:632: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+package_paths = {'charts': WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_...ppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_use0/data/charts.personal_identifiers.json')}
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_create_backup_package_use0')
+
+    def test_create_backup_package_uses_custom_charts_source(package_paths, tmp_path):
+        _sqlite(package_paths["charts"], "charts", "live")
+        custom_charts = tmp_path / "custom_charts.db"
+        _sqlite(custom_charts, "charts", "custom")
+    
+>       package = backups.create_backup_package(
+            tmp_path / "custom.edbackup",
+            component_source_overrides={"charts": custom_charts},
+            included_component_keys={"charts"},
+            preserve_missing_component_keys={"photo_gallery", "personal_identifiers", "time_sensitivity"},
+        )
+
+tests\test_backup_packages.py:141: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+ephemeraldaddy\core\backups.py:137: in create_backup_package
+    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-backup-") as tmp_name:
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:943: in __exit__
+    self.cleanup()
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:947: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:929: in _rmtree
+    _shutil.rmtree(name, onerror=onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:787: in rmtree
+    return _rmtree_unsafe(path, onerror)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:634: in _rmtree_unsafe
+    onerror(os.unlink, fullname, sys.exc_info())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-hyma16_d\\payload\\data\\charts.db'
+exc_info = (<class 'PermissionError'>, PermissionError(13, 'The process cannot access the file because it is being used by another process'), <traceback object at 0x000001DE308D5180>)
+
+    def onerror(func, path, exc_info):
+        if issubclass(exc_info[0], PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-hyma16_d\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:893: PermissionError
+__________ test_restore_database_supports_full_package_and_legacy_db __________
+
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-cmago_b0\\payload\\data'
+onerror = <function TemporaryDirectory._rmtree.<locals>.onerror at 0x000001DF5971A8E0>
+
+    def _rmtree_unsafe(path, onerror):
+        try:
+            with os.scandir(path) as scandir_it:
+                entries = list(scandir_it)
+        except OSError:
+            onerror(os.scandir, path, sys.exc_info())
+            entries = []
+        for entry in entries:
+            fullname = entry.path
+            if _rmtree_isdir(entry):
+                try:
+                    if entry.is_symlink():
+                        # This can only happen if someone replaces
+                        # a directory with a symlink after the call to
+                        # os.scandir or entry.is_dir above.
+                        raise OSError("Cannot call rmtree on a symbolic link")
+                except OSError:
+                    onerror(os.path.islink, fullname, sys.exc_info())
+                    continue
+                _rmtree_unsafe(fullname, onerror)
+            else:
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-cmago_b0\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:632: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+package_paths = {'charts': WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_database_suppo...ppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_database_supports0/data/charts.personal_identifiers.json')}
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_restore_database_supports0')
+
+    def test_restore_database_supports_full_package_and_legacy_db(package_paths, tmp_path):
+        _sqlite(package_paths["charts"], "charts", "original")
+        _sqlite(package_paths["photo_gallery"], "photos", "photo-original")
+        package_paths["personal_identifiers"].write_text('{"old": true}', encoding="utf-8")
+>       package = backups.create_backup_package(tmp_path / "full.edbackup")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_backup_packages.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+ephemeraldaddy\core\backups.py:137: in create_backup_package
+    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-backup-") as tmp_name:
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:943: in __exit__
+    self.cleanup()
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:947: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:929: in _rmtree
+    _shutil.rmtree(name, onerror=onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:787: in rmtree
+    return _rmtree_unsafe(path, onerror)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:629: in _rmtree_unsafe
+    _rmtree_unsafe(fullname, onerror)
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\shutil.py:634: in _rmtree_unsafe
+    onerror(os.unlink, fullname, sys.exc_info())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-cmago_b0\\payload\\data\\charts.db'
+exc_info = (<class 'PermissionError'>, PermissionError(13, 'The process cannot access the file because it is being used by another process'), <traceback object at 0x000001DF596DA6C0>)
+
+    def onerror(func, path, exc_info):
+        if issubclass(exc_info[0], PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\ANONYM~1\\AppData\\Local\\Temp\\ephemeraldaddy-backup-cmago_b0\\payload\\data\\charts.db'
+
+..\..\..\AppData\Local\Python\pythoncore-3.11-64\Lib\tempfile.py:893: PermissionError
+_______ test_every_persisted_chart_column_has_one_master_classification _______
+
+    def test_every_persisted_chart_column_has_one_master_classification():
+        from ephemeraldaddy.core import db
+    
+        connection = sqlite3.connect(":memory:")
+        try:
+            db._create_charts_table(connection)
+            persisted_fields = {
+                str(row[1]) for row in connection.execute("PRAGMA table_info(charts)")
+            }
+        finally:
+            connection.close()
+>       assert persisted_fields <= ASTRO_DATA | NONASTRAL_DATA
+E       AssertionError: assert {'age_when_fi..._pillar', ...} <= frozenset({'a...lement', ...})
+E         
+E         Extra items in the left set:
+E         'human_design_profile'
+
+tests\test_chart_data_field_classification.py:66: AssertionError
+____ test_chart_info_ambiguous_short_tokens_require_uppercase_word_matches ____
+
+    def test_chart_info_ambiguous_short_tokens_require_uppercase_word_matches():
+        source = (REPO_ROOT / "ephemeraldaddy/gui/style.py").read_text()
+    
+>       assert 'uppercase_word_only_tokens = {"AS", "IC", "G"}' in source
+E       assert 'uppercase_word_only_tokens = {"AS", "IC", "G"}' in '"""Shared GUI styling and interface constants."""\\nimport html\\nimport re\\n\\nfrom PySide6.QtCore import (\\n    QEasin...rt_stretch": 2,\\n    "info_stretch": 1,\\n    "info_placeholder": "\u24d8 Click a label to view detailed information.",\\n}\\n'
+
+tests\test_chart_info_token_formatting_source.py:10: AssertionError
+_ test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible __
+
+    def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible():
+        owner = _owner()
+        owner._latest_chart = object()
+        calls = []
+        owner._schedule_chart_render = (
+            lambda chart, sections=None: calls.append((chart, sections))
+        )
+        owner._render_enneagram_predictions = lambda _chart: None
+        owner._render_dndification_predictions = lambda _chart: None
+        owner._is_chart_analysis_section_visible = lambda key: key == "anagrams"
+        owner._chart_right_panel_state.active_tab = "subjective_notes"
+    
+        schedule_chart_render_for_active_right_panel(owner)
+    
+>       assert calls == [(owner._latest_chart, {"anagrams"})]
+E       AssertionError: assert [] == [(<object obj...{'anagrams'})]
+E         
+E         Right contains one more item: (<object object at 0x000001DF5AF08580>, {'anagrams'})
+E         Use -v to get more diff
+
+tests\test_chart_right_panel_state_and_tabs.py:285: AssertionError
+__ test_schedule_render_for_active_tab_predictions_skips_cached_chart_token ___
+
+    def test_schedule_render_for_active_tab_predictions_skips_cached_chart_token():
+        owner = _owner()
+        owner._latest_chart = SimpleNamespace(name="same")
+        calls = []
+        owner._chart_analytics_cache_token = lambda chart: f"token:{chart.name}"
+        owner._render_enneagram_predictions = lambda _chart: calls.append(("enneagram",))
+        owner._render_dndification_predictions = lambda _chart: calls.append(("dnd",))
+        owner._chart_right_panel_state.active_tab = "predictions"
+    
+        schedule_chart_render_for_active_right_panel(owner)
+        schedule_chart_render_for_active_right_panel(owner)
+    
+>       assert calls == [("enneagram",), ("dnd",)]
+E       AssertionError: assert [('enneagram'...',), ('dnd',)] == [('enneagram',), ('dnd',)]
+E         
+E         Left contains 2 more items, first extra item: ('enneagram',)
+E         Use -v to get more diff
+
+tests\test_chart_right_panel_state_and_tabs.py:385: AssertionError
+_ test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout _
+
+    def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout():
+        source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+        method_start = source.index("    def _render_dndification_predictions")
+        method = source[
+>           method_start : source.index("    def _normalize_aspect_type", method_start)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ]
+E       ValueError: substring not found
+
+tests\test_chart_view_right_panel_layout_source.py:58: ValueError
+___ test_property_managers_button_sits_below_settings_sections_with_padding ___
+
+    def test_property_managers_button_sits_below_settings_sections_with_padding():
+        source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+        method_start = source.index("    def _ensure_settings_dialog")
+        method = source[method_start : source.index("    def _set_lilith_calculation_method", method_start)]
+    
+>       data_visualization_index = method.index('"Data Visualization"')
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: substring not found
+
+tests\test_chart_view_right_panel_layout_source.py:169: ValueError
+___________ test_dnd_alignment_popout_is_registered_and_configured ____________
+
+    def test_dnd_alignment_popout_is_registered_and_configured():
+        registry_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/metric_popout_registry.py").read_text()
+        dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+        app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    
+        assert 'key="dnd_alignment"' in registry_source
+        assert 'title="Fantasy RPG Alignment"' in registry_source
+        assert '_draw_dnd_alignment_predictions' in registry_source
+        assert 'connect_dnd_alignment_popout_pick_handler' in registry_source
+        assert 'def _draw_dnd_alignment_predictions' in app_source
+        assert 'def _build_dnd_alignment_popout_info' in app_source
+        assert 'build_dnd_alignment_breakdown_html' in dnd_source
+        assert 'build_dnd_alignment_description_html' in dnd_source
+        assert 'point.set_gid(f"dnd_alignment:{alignment_key}")' in dnd_source
+        assert 'font-style:italic' in dnd_source
+        assert 'def resolve_dnd_official_alignment' in dnd_source
+>       assert 'Official Fantasy RPG alignment:' in dnd_source
+E       assert 'Official Fantasy RPG alignment:' in '"""Fantasy RPG prediction chart rendering helpers for Chart View."""\n\nfrom __future__ import annotations\n\nimport ... set_chart_info_html(info_panel, build_info_html(stat_key))\n\n    popout_canvas.mpl_connect("pick_event", _on_pick)\n'
+
+tests\test_chart_view_right_panel_layout_source.py:286: AssertionError
+_ test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating _
+
+    def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating():
+        enneagram_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/enneagram_predictions.py").read_text()
+        dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+        stack_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+        controller_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+        view_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+        loading_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/prediction_loading_labels.py").read_text()
+        app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    
+>       assert "No prior data. Calculate (can take awhile)?" in enneagram_source
+E       assert 'No prior data. Calculate (can take awhile)?' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ...        info_panel.setHtml(build_info_html(enneagram_type))\n\n    popout_canvas.mpl_connect("pick_event", _on_pick)\n'
+
+tests\test_chart_view_right_panel_layout_source.py:309: AssertionError
+_ test_traits_predictions_default_to_manual_recalculation_with_cached_stale_display _
+
+    def test_traits_predictions_default_to_manual_recalculation_with_cached_stale_display():
+        source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
+>       assert "No prior data. Calculate (can take awhile)?" in source
+E       AssertionError: assert 'No prior data. Calculate (can take awhile)?' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ...nk(label)\n        QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))\n    return\n'
+
+tests\test_chart_view_right_panel_layout_source.py:355: AssertionError
+_____ test_traits_prediction_prompt_label_is_reshown_after_table_results ______
+
+    def test_traits_prediction_prompt_label_is_reshown_after_table_results():
+        source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
+        apply_view = source.split("def _apply_traits_prediction_view", 1)[1].split("def _apply_traits_prediction_metadata", 1)[0]
+    
+        assert "label.setVisible(True)" in apply_view
+>       assert "A later chart may have no cached metadata yet" in apply_view
+E       assert 'A later chart may have no cached metadata yet' in '(owner: Any, above_html: str, below_html: str, *, prefix_html: str = "") -> None:\n    owner._traits_prediction_above...  label.setVisible(False)\n        label.adjustSize()\n        label.setMinimumHeight(label.sizeHint().height())\n\n\n'
+
+tests\test_chart_view_right_panel_layout_source.py:383: AssertionError
+_ test_predictions_panel_rerenders_traits_for_each_chart_even_when_content_exists _
+
+    def test_predictions_panel_rerenders_traits_for_each_chart_even_when_content_exists():
+        source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+        predictions_branch = source.split('if active_panel == "predictions":', 1)[1].split('if active_panel == "abc"', 1)[0]
+    
+        assert 'traits_render_token = str(getattr(owner, "_traits_prediction_last_render_chart_token", "") or "")' in predictions_branch
+        assert 'traits_ready_for_chart = traits_ready and traits_render_token == render_token' in predictions_branch
+        assert 'and traits_ready_for_chart' in predictions_branch
+        assert 'and traits_ready\n' not in predictions_branch
+        assert 'render_traits = getattr(owner, "_render_traits_predictions", None)' in predictions_branch
+>       assert 'if callable(render_traits):\n            render_traits(chart)' in predictions_branch
+E       assert 'if callable(render_traits):\n            render_traits(chart)' in '\n        render_token = _chart_right_panel_prediction_render_token(owner, chart)\n        traits_ready = _traits_pre...grams"\n    # section visibility because Euphonics does not yet have a separate\n    # persisted visibility key.\n    '
+
+tests\test_chart_view_right_panel_layout_source.py:394: AssertionError
+________ test_prediction_calculate_prompts_expand_and_center_contents _________
+
+    def test_prediction_calculate_prompts_expand_and_center_contents():
+        for relative_path in (
+            "ephemeraldaddy/gui/features/charts/dnd_predictions.py",
+            "ephemeraldaddy/gui/features/charts/enneagram_predictions.py",
+        ):
+            source = (REPO_ROOT / relative_path).read_text()
+>           assert "QSizePolicy.Expanding, QSizePolicy.MinimumExpanding" in source
+E           assert 'QSizePolicy.Expanding, QSizePolicy.MinimumExpanding' in '"""Fantasy RPG prediction chart rendering helpers for Chart View."""\n\nfrom __future__ import annotations\n\nimport ... set_chart_info_html(info_panel, build_info_html(stat_key))\n\n    popout_canvas.mpl_connect("pick_event", _on_pick)\n'
+
+tests\test_chart_view_right_panel_layout_source.py:406: AssertionError
+_ test_subjective_only_save_uses_lightweight_update_and_preserves_calculated_payloads _
+
+    def test_subjective_only_save_uses_lightweight_update_and_preserves_calculated_payloads():
+        save = _method(APP_SOURCE, "on_update_chart")
+        lightweight = _function(DB_SOURCE, "update_chart_lightweight_metadata")
+        update_sql = lightweight.split("UPDATE charts", 1)[1].split("WHERE id = ?", 1)[0]
+    
+>       assert "if recalculate_chart:\n                update_chart(chart_id, chart, **save_kwargs)" in save
+E       assert 'if recalculate_chart:\n                update_chart(chart_id, chart, **save_kwargs)' in '    def on_update_chart(\n        self,\n        show_dialog: bool = True,\n        recalculate_chart: bool = True,\n...   if not is_placeholder and chart_recalculated:\n            self._schedule_chart_render(chart, sections={"wheel"})\n'
+
+tests\test_chart_view_save_integrity_regression_source.py:43: AssertionError
+______ test_chart_view_tag_completers_preserve_session_tags_before_save _______
+
+    def test_chart_view_tag_completers_preserve_session_tags_before_save():
+        assert "def _tag_completer_tags_for_session" in APP_SOURCE
+        helper_start = APP_SOURCE.index("def _tag_completer_tags_for_session")
+        helper_end = APP_SOURCE.index("def _update_tag_completers", helper_start)
+        helper_source = APP_SOURCE[helper_start:helper_end]
+>       assert "list_recognized_tags()" in helper_source
+E       AssertionError: assert 'list_recognized_tags()' in 'def _tag_completer_tags_for_session(self) -> list[str]:\n        return tag_completer_tags_for_session(self)\n\n    '
+
+tests\test_chart_view_session_completers_source.py:11: AssertionError
+_________ test_sexiness_module_is_hidden_by_default_and_configurable __________
+
+    def test_sexiness_module_is_hidden_by_default_and_configurable():
+        visibility_source = (REPO_ROOT / "ephemeraldaddy/gui/visibility.py").read_text()
+        app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    
+        assert "\"chart_view.sexiness\": False" in visibility_source
+>       assert "Show Sexiness (Observations)" in app_source
+E       assert 'Show Sexiness (Observations)' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_chart_view_sexiness_metadata.py:40: AssertionError
+_______ test_startup_debug_installs_persistent_native_crash_diagnostics _______
+
+    def test_startup_debug_installs_persistent_native_crash_diagnostics():
+        debug_config = APP_SOURCE.split("def _configure_debug_logging", 1)[1].split(
+            "def _should_run_startup_dependency_check", 1
+        )[0]
+        assert "install_crash_diagnostics(debug_enabled=debug_enabled)" in debug_config
+        assert "crash_log_path" in debug_config
+        assert "Debug logging configured" in debug_config
+    
+        assert "import faulthandler" in CRASH_DIAGNOSTICS_SOURCE
+        assert "faulthandler.enable(file=target, all_threads=True)" in CRASH_DIAGNOSTICS_SOURCE
+>       assert "faulthandler.register(native_signal, file=_log_file, all_threads=True, chain=True)" in CRASH_DIAGNOSTICS_SOURCE
+E       assert 'faulthandler.register(native_signal, file=_log_file, all_threads=True, chain=True)' in '"""Crash diagnostics for native GUI failures.\n\nSegmentation faults usually happen below Python (Qt/PySide, matplotl...g_file or sys.stderr\n    if target is not None:\n        faulthandler.dump_traceback(file=target, all_threads=True)\n'
+
+tests\test_chart_view_tag_crash_diagnostics_source.py:38: AssertionError
+___________ test_database_search_top_categories_are_nested_sections ___________
+
+    def test_database_search_top_categories_are_nested_sections():
+        for title in ("\U0001fa90Astro", "\U0001fab7Human Design", "\U0001f4adObservations", "\U0001f3b1Predictions", "\U0001f465Demographics"):
+>           assert f'add_collapsible_section("{title}", nested=True)' in SEARCH_SOURCE
+E           assert 'add_collapsible_section("\U0001f3b1Predictions", nested=True)' in '"""Database View right-hand search panel UI builder.\\n\\nThis module intentionally owns Database View search-panel wid...  button_row.addWidget(clear_button)\\n    layout.addLayout(button_row)\\n\\n    layout.addStretch(1)\\n    return panel\\n'
+
+tests\test_collapsible_subsection_background_source.py:29: AssertionError
+______ test_database_search_subsections_use_standard_section_background _______
+
+    def test_database_search_subsections_use_standard_section_background():
+        for title in (
+            "\U0001fa90Positions",
+            "\U0001fa90Decans",
+            "\U0001f4adSentiment Types",
+            "\U0001f4adRelationship Types",
+            "\U0001f4adPersonal Relevance",
+            "\U0001f570\ufe0fLifespan",
+            "\U0001f4adNotes",
+        ):
+            assert f'add_collapsible_section("{title}", nested=True)' not in SEARCH_SOURCE
+>           assert f'add_collapsible_section("{title}")' in SEARCH_SOURCE
+E           assert 'add_collapsible_section("\U0001f570\ufe0fLifespan")' in '"""Database View right-hand search panel UI builder.\\n\\nThis module intentionally owns Database View search-panel wid...  button_row.addWidget(clear_button)\\n    layout.addLayout(button_row)\\n\\n    layout.addStretch(1)\\n    return panel\\n'
+
+tests\test_collapsible_subsection_background_source.py:43: AssertionError
+___ test_database_analytics_flushes_pending_metrics_before_close_cache_save ___
+
+    def test_database_analytics_flushes_pending_metrics_before_close_cache_save():
+>       flush_start = APP_SOURCE.index("    def _flush_pending_database_metrics_before_close")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: substring not found
+
+tests\test_database_analytics_demand_refresh_source.py:31: ValueError
+______ test_database_analytics_enneagram_popout_uses_standard_info_html _______
+
+    def test_database_analytics_enneagram_popout_uses_standard_info_html():
+>       assert "build_enneagram_popout_info_html(" in SOURCE
+E       assert 'build_enneagram_popout_info_html(' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ...UNDS:\n            return DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR\n        return CHART_THEME_COLORS["background"]\n'
+
+tests\test_database_analytics_enneagram_source.py:13: AssertionError
+___ test_incremental_refresh_reuses_same_changed_ids_for_every_section_step ___
+
+    def test_incremental_refresh_reuses_same_changed_ids_for_every_section_step():
+        method = _method_source(APP_SOURCE, "_run_incremental_metrics_refresh_step")
+>       assert "self._incremental_metrics_refresh_changed_ids.clear()" in method.split(
+            "if not self._incremental_metrics_refresh_sections:", 1
+        )[1].split("section_key =", 1)[0]
+E       AssertionError: assert 'self._incremental_metrics_refresh_changed_ids.clear()' in '\n            self._incremental_metrics_refresh_scheduled = False\n            self._incremental_metrics_force_full_r...esh_scheduled:\n                self._show_database_analytics_pending_indicator(False)\n            return\n\n        '
+
+tests\test_database_metrics_persistent_cache_source.py:86: AssertionError
+____________ test_clear_and_active_filter_state_include_subspecies ____________
+
+    def test_clear_and_active_filter_state_include_subspecies() -> None:
+>       assert "self.subspecies_filter_combo.currentData() == \"Any\"" in APP_SOURCE
+E       assert 'self.subspecies_filter_combo.currentData() == "Any"' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_database_search_subspecies_source.py:40: AssertionError
+______________ test_show_hidden_setting_names_charts_explicitly _______________
+
+    def test_show_hidden_setting_names_charts_explicitly():
+>       assert 'QCheckBox("Show Hidden Charts")' in APP_SOURCE
+E       assert 'QCheckBox("Show Hidden Charts")' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_database_view_hidden_chart_context_menu_source.py:14: AssertionError
+_______ test_unhide_selected_charts_removes_ids_and_preserves_selection _______
+
+    def test_unhide_selected_charts_removes_ids_and_preserves_selection():
+        method = _method_source("_unhide_selected_charts")
+    
+>       assert "self._hidden_chart_ids.difference_update(normalized_ids)" in method
+E       AssertionError: assert 'self._hidden_chart_ids.difference_update(normalized_ids)' in '    def _unhide_selected_charts(self, chart_ids: list[int]) -> None:\n        normalized_ids = {int(chart_id) for cha...ids()) | normalized_ids, refresh_metrics=False)\n        self._on_selection_changed(sync_persistent_selection=False)\n'
+
+tests\test_database_view_hidden_chart_context_menu_source.py:54: AssertionError
+_____ test_hidden_charts_filter_is_conditionally_visible_in_search_panel ______
+
+    def test_hidden_charts_filter_is_conditionally_visible_in_search_panel():
+        panel_source = Path("ephemeraldaddy/gui/dbv_search_panel.py").read_text(encoding="utf-8")
+    
+        assert 'window.hidden_charts_checkbox = QuadStateSlider("hidden charts")' in panel_source
+>       assert 'app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE' in panel_source
+E       assert 'app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE' in '"""Database View right-hand search panel UI builder.\n\nThis module intentionally owns Database View search-panel wid...  button_row.addWidget(clear_button)\n    layout.addLayout(button_row)\n\n    layout.addStretch(1)\n    return panel\n'
+
+tests\test_database_view_hidden_chart_context_menu_source.py:72: AssertionError
+______ test_hidden_charts_filter_matches_hidden_id_set_only_when_visible ______
+
+    def test_hidden_charts_filter_matches_hidden_id_set_only_when_visible():
+        method = _method_source("_chart_matches_filters")
+    
+        assert 'hidden_charts_state = (' in method
+        assert 'getattr(self, "_show_hidden_charts", False)' in method
+>       assert 'is_hidden_chart = int(chart_id) in getattr(self, "_hidden_chart_ids", set())' in method
+E       assert 'is_hidden_chart = int(chart_id) in getattr(self, "_hidden_chart_ids", set())' in '    def _chart_matches_filters(\n        self,\n        chart_id: int,\n        *,\n        human_design_search_selec... str(filters["element"].currentData()),\n                ):\n                    return False\n\n        return True\n'
+
+tests\test_database_view_hidden_chart_context_menu_source.py:90: AssertionError
+__ test_populate_list_skips_per_row_filter_engine_when_no_filters_are_active __
+
+    def test_populate_list_skips_per_row_filter_engine_when_no_filters_are_active():
+        populate_method = _method_source("_populate_list")
+    
+        assert "has_active_chart_filters = self._has_active_chart_filters()" in populate_method
+>       assert "if has_active_chart_filters:\n                    try:\n                        matches_filters = self._chart_matches_filters(cid)" in populate_method
+E       AssertionError: assert 'if has_active_chart_filters:\n                    try:\n                        matches_filters = self._chart_matches_filters(cid)' in '    def _populate_list(\n        self,\n        selected_ids: set[int] | None = None,\n        *,\n        refresh_me...e_full_refresh=force_full_analysis_refresh,\n                )\n        self._update_collection_membership_buttons()\n'
+
+tests\test_database_view_hydration_source.py:26: AssertionError
+_______ test_database_view_timer_starts_before_cold_dialog_construction _______
+
+    def test_database_view_timer_starts_before_cold_dialog_construction() -> None:
+        app_source = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+        method = app_source.split("    def on_manage_charts(", 1)[1].split(
+            "    def _hide_chart_view_while_database_view_is_open", 1
+        )[0]
+    
+        confirmation = method.index("confirm_manage_charts_open")
+        timing_start = method.index("database_view_open_timing = DatabaseViewOpenTiming()")
+        dialog_construction = method.index("self._get_or_create_manage_charts_dialog()")
+        controller_handoff = method.index("open_timing=database_view_open_timing")
+    
+>       assert confirmation < timing_start < dialog_construction < controller_handoff
+E       assert 367 < 275
+
+tests\test_database_view_performance.py:58: AssertionError
+_ test_demo_mode_restores_saved_predictability_visibility_instead_of_forcing_visible _
+
+    def test_demo_mode_restores_saved_predictability_visibility_instead_of_forcing_visible():
+        app = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    
+        assert 'def _restore_demo_mode_configured_visibility(self) -> None:' in app
+        assert 'self._restore_demo_mode_configured_visibility()' in app
+>       assert 'visible = self._visibility.get("chart_view.predictability")' in app
+E       assert 'visible = self._visibility.get("chart_view.predictability")' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_demo_mode_privacy_source.py:94: AssertionError
+___ test_database_distinction_repeated_gate_score_weights_extra_repetitions ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF5B6E98D0>
+
+    def test_database_distinction_repeated_gate_score_weights_extra_repetitions(monkeypatch):
+        from types import SimpleNamespace
+    
+        hd_module = types.ModuleType("ephemeraldaddy.analysis.human_design")
+        hd_module.build_human_design_result = lambda _chart: None
+        sys.modules.setdefault("ephemeraldaddy.analysis.human_design", hd_module)
+        hd_reference_module = types.ModuleType("ephemeraldaddy.analysis.human_design_reference")
+        hd_reference_module.GATE_COLORS = {}
+        hd_reference_module.HD_LINE_COLORS = {}
+        sys.modules.setdefault("ephemeraldaddy.analysis.human_design_reference", hd_reference_module)
+        style_module = types.ModuleType("ephemeraldaddy.gui.style")
+        style_module.CHART_DATA_HIGHLIGHT_COLOR = "#fff"
+        sys.modules.setdefault("ephemeraldaddy.gui.style", style_module)
+    
+>       from ephemeraldaddy.gui.features.charts import distinguishing_factors
+
+tests\test_distinguishing_factors.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+ephemeraldaddy\gui\features\charts\distinguishing_factors.py:30: in <module>
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:51: in <module>
+    from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+ephemeraldaddy\gui\features\charts\presentation.py:13: in <module>
+    from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """Human Design gate/line/channel lookup helpers."""
+    
+    from __future__ import annotations
+    
+    from typing import Iterable
+    
+>   from ephemeraldaddy.analysis.human_design_reference import HD_CHANNELS as HD_CHANNEL_REFERENCE
+E   ImportError: cannot import name 'HD_CHANNELS' from 'ephemeraldaddy.analysis.human_design_reference' (unknown location)
+
+ephemeraldaddy\core\hd.py:7: ImportError
+____ test_cosmid_air_water_evidence_requires_both_elements_to_be_dominant _____
+
+    def test_cosmid_air_water_evidence_requires_both_elements_to_be_dominant():
+        assigner = SpeciesAssigner()
+        cards = assigner._score_families(
+            {},
+            [],
+            _sample_feats(
+                prominence={"Uranus": 1.0, "Neptune": 1.0, "Pluto": 1.0},
+                house_ratios={8: 0.4, 11: 0.4, 12: 0.4},
+                tight_outer_to_identity=[("Uranus", "AS", 1.0)],
+            ),
+        )
+    
+        cosmid_reasons = cards["Cosmids"].reasons
+        assert "Outer-planet emphasis (Uranus/Neptune/Pluto) helps Cosmids." in cosmid_reasons
+        assert "Dominant Air/Water helps the unearthly register." not in cosmid_reasons
+>       assert "Liminal houses (8th/11th/12th) reinforce it." in cosmid_reasons
+E       AssertionError: assert 'Liminal houses (8th/11th/12th) reinforce it.' in ['Outer-planet emphasis (Uranus/Neptune/Pluto) helps Cosmids.', 'Liminal houses (H8/H11/H12) reinforce it.', 'Outer planets (Uranus/Neptune/Pluto) tied to identity points (Sun/Moon/Ascendant) intensify it.']
+
+tests\test_dominance_thresholds.py:85: AssertionError
+_____ test_enneagram_predictor_uses_analysis_enneagrams_reference_source ______
+
+    def test_enneagram_predictor_uses_analysis_enneagrams_reference_source():
+>       assert "from ephemeraldaddy.analysis.enneagram import ENNEAGRAMS" in APP_SOURCE
+E       assert 'from ephemeraldaddy.analysis.enneagram import ENNEAGRAMS' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_enneagram_database_norm_predictions_source.py:38: AssertionError
+___________ test_guide_bottom_panels_are_controlled_by_button_panel ___________
+
+    def test_guide_bottom_panels_are_controlled_by_button_panel():
+        source = _guide_source()
+    
+>       assert "panel_buttons.setMinimumHeight(100)" in source
+E       assert 'panel_buttons.setMinimumHeight(100)' in 'def show_guide_to_the_galaxy(owner: "QWidget") -> None:\n    from PySide6.QtCore import QObject, QPointF, QRectF, QTh...QueuedConnection)\n        thread.start()\n\n    calculate_button.clicked.connect(refresh_ranges)\n    dialog.show()\n'
+
+tests\test_galaxy_explainer_intro_source.py:40: AssertionError
+__________ test_profile_relation_classifies_resonance_and_harmonics ___________
+
+    def test_profile_relation_classifies_resonance_and_harmonics():
+        assert human_design_profile_relation("2/4", "2/4") == ("fully resonant profile", 2)
+        assert human_design_profile_relation("2/4", "5/1") == ("fully harmonic profile", 2)
+>       assert human_design_profile_relation("2/4", "5/4") == ("resonant & harmonic profile", 2)
+E       AssertionError: assert ('harmonic resonant', 2) == ('resonant & ...c profile', 2)
+E         
+E         At index 0 diff: 'harmonic resonant' != 'resonant & harmonic profile'
+E         Use -v to get more diff
+
+tests\test_human_design_electrochemistry_predictor.py:63: AssertionError
+_________ test_chart_calculation_settings_builds_gender_method_radios _________
+
+    def test_chart_calculation_settings_builds_gender_method_radios():
+        from pathlib import Path
+    
+        source = Path("ephemeraldaddy/gui/app.py").read_text()
+>       settings_branch = source.split('"Chart Calculation Methods"', 1)[1].split(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            '"Data Visualization"', 1
+        )[0]
+E       IndexError: list index out of range
+
+tests\test_human_design_electrochemistry_predictor.py:732: IndexError
+_______ test_settings_consolidates_database_and_visualization_controls ________
+
+    def test_settings_consolidates_database_and_visualization_controls():
+        from pathlib import Path
+    
+        source = Path("ephemeraldaddy/gui/app.py").read_text()
+        settings_source = source.split("def _ensure_settings_dialog", 1)[1].split(
+            "def _refresh_settings_footer_note", 1
+        )[0]
+    
+>       show_hide_index = settings_source.index('"Show/Hide Modules"')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: substring not found
+
+tests\test_human_design_electrochemistry_predictor.py:787: ValueError
+_______ test_collapsed_canvas_uses_current_viewport_width_when_revealed _______
+
+    def test_collapsed_canvas_uses_current_viewport_width_when_revealed():
+        app = QApplication.instance() or QApplication([])
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        section = QWidget()
+        section_layout = QVBoxLayout(section)
+        canvas = FigureCanvas(Figure(figsize=(4, 2.4)))
+        section_layout.addWidget(canvas)
+        scroll_layout.addWidget(section)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(scroll_content)
+        scroll.resize(420, 500)
+        scroll.show()
+        controller = MetricCanvasLayoutController(side_gutter_px=5, redraw=lambda _canvas: None)
+        controller.register(canvas, scroll)
+        _process_events(app)
+    
+        section.hide()
+        scroll.resize(340, 500)
+        _process_events(app)
+        stale_width = canvas.width()
+    
+        section.show()
+        _process_events(app)
+    
+        margins = section_layout.contentsMargins()
+        expected_width = scroll.viewport().width() - margins.left() - margins.right() - 10
+>       assert canvas.width() == expected_width
+E       assert 278 == 310
+E        +  where 278 = <built-in method width of FigureCanvasQTAgg object at 0x000001DF5B8AF580>()
+E        +    where <built-in method width of FigureCanvasQTAgg object at 0x000001DF5B8AF580> = <matplotlib.backends.backend_qtagg.FigureCanvasQTAgg(0x1df5dab6070) at 0x000001DF5B8AF580>.width
+
+tests\test_metric_canvas_layout_controller.py:101: AssertionError
+___ test_developer_tools_exposes_requested_performance_setting_and_tooltip ____
+
+    def test_developer_tools_exposes_requested_performance_setting_and_tooltip() -> None:
+        source = Path("ephemeraldaddy/gui/dev_tools.py").read_text(encoding="utf-8")
+        assert 'SETTINGS_KEY_PERFORMANCE_METRICS_LOGGING = "dev_tools/performance_metrics_logging"' in source
+        assert "PERFORMANCE_METRICS_LOGGING_DEFAULT = False" in source
+        assert "def load_performance_metrics_logging_enabled" in source
+        assert 'QCheckBox("Enable Performance Metrics Logging")' in source
+>       assert (
+            "When enabled, 'performance metrics log' file will appear locally and in "
+            in source
+        )
+E       assert "When enabled, 'performance metrics log' file will appear locally and in " in 'from __future__ import annotations\n\nimport weakref\nfrom pathlib import Path\nfrom typing import Callable\n\nimport...se the old Enneagram-specific name.\nbuild_enneagram_predictor_settings_section = build_predictions_settings_section\n'
+
+tests\test_performance_metrics.py:65: AssertionError
+_ test_predictions_manual_recalculation_setting_defaults_to_manual_and_blocks_trait_auto_load _
+
+    def test_predictions_manual_recalculation_setting_defaults_to_manual_and_blocks_trait_auto_load():
+        app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+        dev_tools_source = (REPO_ROOT / "ephemeraldaddy/gui/dev_tools.py").read_text(encoding="utf-8")
+        trait_render = TRAIT_SOURCE.split("def render_traits_predictions", 1)[1]
+    
+>       assert 'SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"' in app_source
+E       assert 'SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_prediction_cache_birth_data_signatures_source.py:78: AssertionError
+____ test_stale_predictions_show_cached_data_before_optional_auto_refresh _____
+
+    def test_stale_predictions_show_cached_data_before_optional_auto_refresh():
+        dnd_render = DND_SOURCE.split("def render(self, chart", 1)[1]
+        enneagram_render = ENNEAGRAM_SOURCE.split("def render(self, chart", 1)[1]
+        trait_render = TRAIT_SOURCE.split("def render_traits_predictions", 1)[1]
+    
+        assert '_trait_predictions_refresh_message' in trait_render
+        assert '_apply_traits_prediction_metadata(' in trait_render
+        assert '_start_traits_prediction_calculation(owner)' in trait_render
+>       assert 'automatic refresh is running in the background' in DND_SOURCE
+E       assert 'automatic refresh is running in the background' in '"""Fantasy RPG prediction chart rendering helpers for Chart View."""\n\nfrom __future__ import annotations\n\nimport ... set_chart_info_html(info_panel, build_info_html(stat_key))\n\n    popout_canvas.mpl_connect("pick_event", _on_pick)\n'
+
+tests\test_prediction_cache_birth_data_signatures_source.py:94: AssertionError
+_ test_chart_view_traits_keep_uid_metadata_visible_when_cache_is_stale_or_incomplete _
+
+    def test_chart_view_traits_keep_uid_metadata_visible_when_cache_is_stale_or_incomplete():
+        cached_only_method = TRAIT_SOURCE.split("def trait_metadata_for_chart", 1)[1].split("if cached_only:\n        return None", 1)[0]
+        assert "if cached_only and (cached_rows_by_name or stale_rows_by_name):" in cached_only_method
+        assert "rows previously persisted for this chart UID remain displayable" in cached_only_method
+>       assert "metadata[\"stale\"] = True" in cached_only_method
+E       assert 'metadata["stale"] = True' in '(\n    owner: Any,\n    chart: Any,\n    *,\n    cached_only: bool = False,\n    traits: list[dict[str, Any]] | None ... else set(),\n                full_staleness_reasons=full_reasons,\n            )\n            return metadata\n\n    '
+
+tests\test_prediction_norms_snapshot_source.py:89: AssertionError
+_________ test_gender_guesser_render_routes_through_predictions_panel _________
+
+    def test_gender_guesser_render_routes_through_predictions_panel():
+        assert '"gender": "predictions"' in APP_SOURCE
+>       assert '"gender_guesser"} and not self._is_chart_analysis_section_visible(section_key)' in APP_SOURCE
+E       assert '"gender_guesser"} and not self._is_chart_analysis_section_visible(section_key)' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_predictions_settings_source.py:57: AssertionError
+________ test_property_manager_tab_fills_the_available_settings_height ________
+
+    def test_property_manager_tab_fills_the_available_settings_height() -> None:
+>       property_manager_setup = APP_SOURCE.split(
+            '"Property Manager",', 1
+        )[1].split(
+            "self._populate_settings_property_manager_section", 1
+        )[0]
+E       IndexError: list index out of range
+
+tests\test_property_manager_settings_height_source.py:8: IndexError
+_____________ test_house_refinement_is_scoped_to_current_results ______________
+
+    def test_house_refinement_is_scoped_to_current_results():
+        assert 'QPushButton("Refine by House Placement")' in DIALOGUES_SOURCE
+        assert 'header = QLabel("H")' in DIALOGUES_SOURCE
+        assert 'QLabel("Midhaven" if body == "MC" else body)' in DIALOGUES_SOURCE
+        assert "candidate_windows=refinement_windows" in DIALOGUES_SOURCE
+        assert "self._ensure_refinement_angle_widgets()" in DIALOGUES_SOURCE
+>       assert "def _remove_refinement_angle_widgets" not in DIALOGUES_SOURCE
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert 'self._remove_refinement_angle_widgets()' in '"""Shared dialog classes extracted from the legacy app module."""\n\n# Includes Rectification\n\nimport datetime\nimp...\n        return max(\n            1, min(10, round(normalized_familiarity_score(self.selected_total())))\n        )\n'
+
+tests\test_rectification_engine_views_source.py:21: AssertionError
+_ test_human_design_channel_records_preserve_all_circuit_topology_and_metadata _
+
+    def test_human_design_channel_records_preserve_all_circuit_topology_and_metadata() -> None:
+        from ephemeraldaddy.analysis.human_design_reference import (
+            HD_CHANNELS,
+            HD_CIRCUIT_GROUPS,
+        )
+    
+        detailed_pairs = {
+            tuple(sorted(channel["gates"])) for channel in HD_CHANNELS.values()
+        }
+        circuit_pairs = {
+            tuple(sorted(gates))
+            for group in HD_CIRCUIT_GROUPS.values()
+            for subcircuit in group["subcircuits"].values()
+            for _channel, _name, gates in subcircuit["channels"]
+        }
+        assert detailed_pairs == circuit_pairs
+        assert len(HD_CHANNELS) == len(detailed_pairs) == 36
+        assert all(
+            {"name", "gates", "centers", "circuit", "explanation"} <= record.keys()
+            for record in HD_CHANNELS.values()
+        )
+>       assert HD_CHANNELS["16-48"]["aliases"] == ("Channel of the Wavelength",)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'aliases'
+
+tests\test_redundancy_consolidation.py:188: KeyError
+_____________ test_historical_semantics_module_remains_compatible _____________
+
+    def test_historical_semantics_module_remains_compatible():
+>       from ephemeraldaddy.semantics_formating import format_ordinal as legacy_format_ordinal
+E       ModuleNotFoundError: No module named 'ephemeraldaddy.semantics_formating'
+
+tests\test_semantics_formating.py:54: ModuleNotFoundError
+_ test_similar_charts_app_passes_current_hidden_chart_visibility_to_candidates _
+
+    def test_similar_charts_app_passes_current_hidden_chart_visibility_to_candidates():
+        source = _app_source()
+        load_method = source.split("def _load_similar_chart_candidates", 1)[1].split(
+            "def _similar_charts_visible_candidate_rows", 1
+        )[0]
+        visible_rows_method = source.split("def _similar_charts_visible_candidate_rows", 1)[1].split(
+            "def _similar_charts_popout_database_row_signatures", 1
+        )[0]
+        popout_method = source.split("def _show_similar_charts_popout", 1)[1].split(
+            "def _export_similar_charts_popout_share", 1
+        )[0]
+    
+>       assert 'hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set()))' in load_method
+E       assert 'hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set()))' in '(\n        self,\n        *,\n        rows: list[tuple[Any, ...]] | None = None,\n        current_chart_id: int | Non..."_similar_charts_candidate_excluded_chart_uids", set())\n                ).values()\n            ),\n        )\n\n    '
+
+tests\test_similar_charts_hidden_visibility_source.py:44: AssertionError
+___ test_chart_view_similar_charts_worker_receives_hidden_chart_visibility ____
+
+    def test_chart_view_similar_charts_worker_receives_hidden_chart_visibility():
+        app_source = _app_source()
+        start_method = app_source.split("def _start_similar_charts_worker", 1)[1].split(
+            "def _forget_similar_charts_worker_job", 1
+        )[0]
+        worker_source = _worker_source()
+    
+>       assert 'hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set()))' in start_method
+E       assert 'hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set()))' in '(\n        self,\n        *,\n        request_id: str,\n        chart: Chart,\n        chart_token: str,\n        lea...s_worker_job(t, w))\n        self._similar_charts_worker_jobs.append((thread, worker))\n        thread.start()\n\n    '
+
+tests\test_similar_charts_hidden_visibility_source.py:59: AssertionError
+_______________ test_trait_rankings_are_moved_to_rankings_panel _______________
+
+    def test_trait_rankings_are_moved_to_rankings_panel():
+        database_source = _database_analytics_source()
+        app_source = _app_source()
+        ranking_panel_source = _ranking_panel_source()
+        create_method = database_source.split("def _create_traits_database_analytics_section", 1)[1].split(
+            "def _traits_distribution_display_mode", 1
+        )[0]
+    
+        assert '("Trait Predictions", "trait_predictions")' in create_method
+        assert '("Trait Rankings", "trait_rankings")' not in create_method
+        assert 'from ephemeraldaddy.gui.ranking_panel import RankingsPanelMixin' in app_source
+>       assert 'class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):' in app_source
+E       assert 'class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_similar_charts_hidden_visibility_source.py:112: AssertionError
+__________ test_rankings_links_use_chart_uids_for_navigation_targets __________
+
+    def test_rankings_links_use_chart_uids_for_navigation_targets():
+        app_source = _app_source()
+        ranking_panel_source = _ranking_panel_source()
+        database_source = _database_analytics_source()
+        app_link_method = app_source.split("def _on_similar_chart_link_activated", 1)[1].split(
+            "def _on_similar_chart_popout_link_activated", 1
+        )[0]
+        rankings_refresh = ranking_panel_source.split("def _refresh_rankings_panel", 1)[1].split(
+            "def _refresh_sign_dominance_rankings", 1
+        )[0]
+        renderer = database_source.split("def _render_traits_distribution_rankings_html", 1)[1].split(
+            "def _collect_traits_distribution_analytics", 1
+        )[0]
+        link_handler = database_source.split("def _on_traits_distribution_rank_chart_link_activated", 1)[1].split(
+            "@staticmethod", 1
+        )[0]
+    
+        assert 'target_chart_uid = self._normalized_chart_uid_key(normalized_target)' in app_link_method
+        assert 'trait_uid_map = get_chart_uid_map(row.get("chart_id") for row in trait_rankings)' in rankings_refresh
+        assert 'row["chart_uid"] = chart_uid' in rankings_refresh
+        assert 'chart_uid = str(row.get("chart_uid", "") or "").strip()' in renderer
+>       assert 'chart_target = chart_uid or (str(chart_id) if chart_id else "")' in renderer
+E       assert 'chart_target = chart_uid or (str(chart_id) if chart_id else "")' in '(\n        selected_trait_name: str | None,\n        rankings: list[dict[str, Any]],\n        *,\n        scope_label...       except Exception:\n            logger.exception("Failed to save traits distribution likelihood cache.")\n\n    '
+
+tests\test_similar_charts_hidden_visibility_source.py:166: AssertionError
+_____ test_trait_rankings_default_to_database_until_manual_rank_selected ______
+
+    def test_trait_rankings_default_to_database_until_manual_rank_selected():
+        source = _database_analytics_source()
+        create_method = source.split("def _create_traits_database_analytics_section", 1)[1].split(
+            "def _traits_distribution_display_mode", 1
+        )[0]
+        click_method = source.split("def _on_traits_distribution_rank_selected_clicked", 1)[1].split(
+            "def _sync_traits_distribution_rank_combo", 1
+        )[0]
+        render_method = source.split("def _render_traits_distribution_section", 1)[1].split(
+            "def _render_enneagram_section", 1
+        )[0]
+    
+        assert 'QPushButton("rank selected")' in create_method
+>       assert "_traits_distribution_latest_selected_chart_ids" in click_method
+E       assert '_traits_distribution_latest_selected_chart_ids' in '(self) -> None:\n        """Manually switch Trait Rankings to the current Database View selection."""\n        curren...       update_similarities=False,\n                sections_to_refresh={"traits_distribution"},\n            )\n\n    '
+
+tests\test_similar_charts_hidden_visibility_source.py:183: AssertionError
+_____ test_hiding_current_trait_ranking_members_refreshes_cached_top_ten ______
+
+    def test_hiding_current_trait_ranking_members_refreshes_cached_top_ten():
+        analytics_source = _database_analytics_source()
+        refresh_method = analytics_source.split(
+            "def _refresh_traits_distribution_rankings_after_hidden_chart_change", 1
+        )[1].split("def _on_traits_distribution_rank_trait_changed", 1)[0]
+        render_method = analytics_source.split("def _render_traits_distribution_section", 1)[1].split(
+            "def _render_enneagram_section", 1
+        )[0]
+        app_source = _app_source()
+        hide_method = app_source.split("def _hide_selected_charts", 1)[1].split("def _unhide_selected_charts", 1)[0]
+    
+>       assert "_traits_distribution_current_ranked_chart_ids" in refresh_method
+E       assert '_traits_distribution_current_ranked_chart_ids' in '(self, hidden_chart_uids: set[str]) -> None:\n        current_ranked_uids = getattr(self, "_traits_distribution_curre...t_ranked_uids)):\n            return\n        self._refresh_traits_distribution_rankings_from_cached_context()\n\n    '
+
+tests\test_similar_charts_hidden_visibility_source.py:210: AssertionError
+_______________ test_similar_chart_export_rows_include_z_score ________________
+
+    def test_similar_chart_export_rows_include_z_score():
+        match = SimpleNamespace(
+            chart_id=7,
+            chart_uid="UIDTEST0000007",
+            chart_name="Test Chart",
+            score=0.82,
+            placement_score=0.8,
+            aspect_score=0.7,
+            distribution_score=0.6,
+            dominance_score=0.5,
+        )
+    
+        from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+            build_similar_charts_export_lines,
+            build_similar_charts_export_rows_from_matches,
+        )
+    
+        rows = build_similar_charts_export_rows_from_matches(
+            matches=[match],
+            resolve_similarity_band=_band_for_test,
+            similarity_average=70.0,
+            similarity_standard_deviation=6.0,
+        )
+    
+        assert rows[0]["chart_uid"] == "UIDTEST0000007"
+        assert rows[0]["similarity_z_score"] == 2.0
+        markdown = "\n".join(build_similar_charts_export_lines(subject_name="Subject", rows=rows, is_markdown=True))
+        plain = "\n".join(build_similar_charts_export_lines(subject_name="Subject", rows=rows, is_markdown=False))
+        assert "| Rank | Chart UID |" in markdown
+        assert "UIDTEST0000007" in markdown
+        assert "UIDTEST0000007" in plain
+        assert "#7" not in plain
+        assert "+2.000" in markdown
+>       assert "z=+2.000" in plain
+E       assert 'z=+2.000' in "Subject's Astro Twins\n\n1. UIDTEST0000007 � Test Chart: Similarity 82.0% [test band; standard deviation from db similarity norms: +2.000] (placements 80%, aspects 70%)"
+
+tests\test_similar_charts_popout.py:165: AssertionError
+__________________ test_similar_match_blocks_include_z_score __________________
+
+    def test_similar_match_blocks_include_z_score():
+        match = SimpleNamespace(
+            chart_id=7,
+            chart_name="Test Chart",
+            score=0.82,
+            placement_score=0.8,
+            aspect_score=0.7,
+            distribution_score=0.6,
+            dominance_score=0.5,
+            chart_uses_houses=True,
+            algorithm_mode="default",
+        )
+    
+        from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+            render_similar_match_blocks,
+        )
+    
+        html = render_similar_match_blocks(
+            matches=[match],
+            highlight_color="#ffffff",
+            resolve_similarity_band=_band_for_test,
+            similarity_average=70.0,
+            similarity_standard_deviation=6.0,
+        )
+    
+>       assert "z=+2.00" in html
+E       assert 'z=+2.00' in '<span style="font-weight: bold; color: #ffffff;">1.</span> #7 \u2014 <a href="7">Test Chart</a> <a href="sim-info:7">\u24d8</a>...similarity norms: +2.00)</span> - <a href="sim-why:sim-info:7" style="color: #ffffff; text-decoration: none;">why?</a>'
+
+tests\test_similar_charts_popout.py:193: AssertionError
+____________ test_similarities_python_export_includes_sample_count ____________
+
+    def test_similarities_python_export_includes_sample_count():
+        payload = build_similarities_json_export_payload(
+            "Sampled",
+            [("Gates in common", [("Gate 44", 5, 12, 0, 100, "A")])],
+        )
+    
+        profile = payload["Sampled"]
+>       assert profile["samples"] == (12, 0)
+E       assert [12, 0] == (12, 0)
+E         
+E         Use -v to get more diff
+
+tests\test_similarities_json_export.py:277: AssertionError
+_______ test_manage_presets_navigates_to_property_manager_preset_field ________
+
+    def test_manage_presets_navigates_to_property_manager_preset_field():
+        method = SOURCE.split("def _show_settings_astro_twin_presets_manager", 1)[1].split(
+            "def _on_custom_db_export", 1
+        )[0]
+>       assert 'get("Property Manager")' in method
+E       assert 'get("Property Manager")' in '(self) -> None:\n        tab_index = getattr(self, "_settings_section_title_to_index", {}).get("Property Managers")\n....refresh_usage()\n            manager_widget.select_field(ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS)\n\n    '
+
+tests\test_similarity_algorithm_accuracy_refresh_source.py:81: AssertionError
+__________ test_default_similarity_settings_match_requested_weights ___________
+
+    def test_default_similarity_settings_match_requested_weights():
+        settings = SimilarityCalculatorSettings.defaults_for_default_mode()
+    
+        assert settings.normalized_placement_weighting_mode() == "hybrid"
+        assert settings.weights_by_component() == {
+            "placement": 0.17,
+            "aspect": 0.08,
+            "distribution": 0.07,
+            "dominant_bodies": 0.0425,
+            "dominant_signs": 0.0425,
+            "dominant_houses": 0.0425,
+            "dominant_nakshatras": 0.0425,
+            "nakshatra_placement": 0.06,
+            "nakshatra_dominance": 0.09,
+            "defined_centers": 0.03,
+            "human_design_gates": 0.30,
+            "human_design_channels": 0.04,
+            "inner_planet_placement": 0.13,
+            "outer_planet_placement": 0.0,
+            "big_3": 0.0,
+        }
+        assert settings.enabled_components() == {
+            "placement": True,
+            "aspect": True,
+            "distribution": False,
+            "dominant_bodies": True,
+            "dominant_signs": True,
+            "dominant_houses": True,
+            "dominant_nakshatras": True,
+            "nakshatra_placement": True,
+            "nakshatra_dominance": True,
+            "defined_centers": False,
+            "human_design_gates": True,
+            "human_design_channels": False,
+            "inner_planet_placement": True,
+            "outer_planet_placement": False,
+            "big_3": False,
+        }
+>       assert sum(
+            weight
+            for key, weight in settings.weights_by_component().items()
+            if settings.enabled_components()[key]
+        ) == 1.0
+E       assert 0.9999999999999999 == 1.0
+E        +  where 0.9999999999999999 = sum(<generator object test_default_similarity_settings_match_requested_weights.<locals>.<genexpr> at 0x000001DF63B3BD80>)
+
+tests\test_similarity_calculator_settings.py:57: AssertionError
+_________ test_property_manager_retains_its_original_category_labels __________
+
+    def test_property_manager_retains_its_original_category_labels() -> None:
+>       assert ("\U0001f9ec Trait", "trait") in TAG_CATEGORY_OPTIONS
+E       AssertionError: assert ('\U0001f9ec Trait', 'trait') in (('Occupation', 'occupation'), ('Trait', 'trait'), ('Reputation', 'reputation'), ('Affiliation', 'affiliation'), ('Crime', 'crime'), ('Life Events', 'life_events'), ...)
+
+tests\test_tag_categories.py:10: AssertionError
+_________ test_database_analytics_retains_original_labels_and_aliases _________
+
+    def test_database_analytics_retains_original_labels_and_aliases() -> None:
+>       assert "Characters" in TAG_DISTRIBUTION_CATEGORY_ORDER
+E       AssertionError: assert 'Characters' in ('Affiliation', 'Characters Played', 'Crime', 'Genres', 'Hobbies', 'Life Events', ...)
+
+tests\test_tag_categories.py:22: AssertionError
+_____ test_chart_tags_live_in_chart_info_stack_not_subjective_notes_panel _____
+
+    def test_chart_tags_live_in_chart_info_stack_not_subjective_notes_panel():
+        app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+    
+        assert "self.chart_tags_panel_widget = QWidget()" in app_source
+        assert "self.chart_info_content_stack.addWidget(self.chart_tags_panel_widget)" in app_source
+>       assert '"tags": 2' in app_source
+E       assert '"tags": 2' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ..., False):\n        app._edd_running = True\n        sys.exit(app.exec())\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\test_tag_chip_pill_style_source.py:47: AssertionError
+______ test_tag_manager_parent_node_counts_include_exact_parent_tag_rows ______
+
+    def test_tag_manager_parent_node_counts_include_exact_parent_tag_rows():
+        refresh_list = DEV_TOOLS_SOURCE.split("def _refresh_list", 1)[1].split(
+            "def _selected_label", 1
+        )[0]
+        assert "parent_node_path_keys: set[str] = set()" in refresh_list
+>       assert "if exact_path_key in parent_node_path_keys:" in refresh_list
+E       AssertionError: assert 'if exact_path_key in parent_node_path_keys:' in '(self) -> None:\n        rows = self._active_rows()\n        expanded_state: dict[str, bool] = {}\n        if self._a...  tree.blockSignals(False)\n        self._refreshing_label_views = False\n        self._on_selection_changed()\n\n    '
+
+tests\test_tag_manager_parent_counts_source.py:13: AssertionError
+_______ test_time_sensitivity_html_color_codes_deltas_and_links_factors _______
+
+    def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
+        import pytest
+    
+        panel_module = pytest.importorskip(
+            "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+            exc_type=ImportError,
+        )
+        format_time_sensitivity_result_html = (
+            panel_module.format_time_sensitivity_result_html
+        )
+    
+        result = TimeSensitivityResult(
+            chart_uid="CHARTUID",
+            chart_name="Example",
+            birth_date_key="01-01-2000",
+            algorithm_version="time-sensitivity-v2",
+            computed_at="2026-06-20T00:00:00Z",
+            config=TimeSensitivityConfig().__dict__,
+            sample_count=2,
+            baseline_time="12:00",
+            overall={
+                "stability_percent": 50.0,
+                "max_total_change_from_baseline_percent": 50.0,
+            },
+            numeric_ranges={
+                "dominant_sign_weights": {
+                    "Aries": {
+                        "min": 1.0,
+                        "max": 3.0,
+                        "baseline": 1.0,
+                        "delta": 2.0,
+                        "percent_delta": 200.0,
+                        "max_decrease_percent": 0.0,
+                        "max_increase_percent": 200.0,
+                        "label": "Highly variable",
+                        "peak_times": ["12:00"],
+                    },
+                    "Taurus": {
+                        "min": 1.0,
+                        "max": 1.5,
+                        "baseline": 1.0,
+                        "delta": 0.5,
+                        "percent_delta": 50.0,
+                        "max_decrease_percent": 0.0,
+                        "max_increase_percent": 50.0,
+                        "label": "Variable",
+                        "peak_times": ["00:00"],
+                    },
+                },
+                "dominant_element_weights": {
+                    "Fire": {
+                        "min": 0.0,
+                        "max": 2.0,
+                        "baseline": 1.0,
+                        "delta": 2.0,
+                        "percent_delta": 100.0,
+                        "max_decrease_percent": -100.0,
+                        "max_increase_percent": 100.0,
+                        "label": "Highly variable",
+                        "peak_times": ["23:59"],
+                    },
+                },
+            },
+            human_design={
+                "gates": {"always": [1], "sometimes": [2], "sample_count": 2},
+                "lines": {"always": ["1.1"], "sometimes": [], "sample_count": 2},
+                "channels": {"always": [], "sometimes": [], "sample_count": 2},
+                "type_distribution": {"Generator": 2},
+                "profile_distribution": {"1/3": 2},
+            },
+            stable=[],
+            variable=[],
+            warnings=[],
+        )
+    
+        html = format_time_sensitivity_result_html(result)
+    
+>       assert "distinguishing-factor:sign:Aries" in html
+E       assert 'distinguishing-factor:sign:Aries' in "<div style='white-space: normal;'><div><strong>Max possible change from 12:00 (baseline):</strong> 50%</div>\n<div><s...href='distinguishing-factor:ts-hd-property:profile:1/3' style='color:#d7b5ff; text-decoration:none;'>1/3</a> (2)</div>"
+
+tests\test_time_sensitivity.py:438: AssertionError
+---------------------------- Captured stderr call -----------------------------
+Type conversion already registered from type PySide::PyObjectWrapper to type int
+____ test_overall_time_sensitivity_lists_all_definite_human_design_values _____
+
+    def test_overall_time_sensitivity_lists_all_definite_human_design_values():
+        import pytest
+    
+        panel_module = pytest.importorskip(
+            "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+            exc_type=ImportError,
+        )
+        result = TimeSensitivityResult(
+            chart_uid="CHARTUID",
+            chart_name="Example",
+            birth_date_key="01-01-2000",
+            algorithm_version="time-sensitivity-v2",
+            computed_at="2026-08-06T00:00:00Z",
+            config=TimeSensitivityConfig().__dict__,
+            sample_count=49,
+            baseline_time="12:00",
+            overall={},
+            numeric_ranges={},
+            human_design={
+                "gates": {"always": [1, 7], "sometimes": [2]},
+                "lines": {"always": ["1.3", "7.2"], "sometimes": []},
+                "channels": {"always": ["1-8", "7-31"], "sometimes": []},
+                "centers": {"always": ["G", "Sacral"], "sometimes": []},
+                "type_distribution": {"Generator": 49},
+                "profile_distribution": {"1/3": 49},
+            },
+            stable=["Sun sign: Leo all day", "HD Type: Generator all day"],
+            variable=[],
+            warnings=[],
+        )
+    
+        html = panel_module._summary_html(result)
+    
+>       assert "HD Gates:" in html and "distinguishing-factor:gate:1" in html
+E       assert ('HD Gates:' in "<div style='white-space: normal;'><div><strong>Max possible change from 12:00 (baseline):</strong> 0%</div>\n<div><st...>Variable:</div>\n<ul style='margin-top:2px; margin-bottom:6px;'><li>No categorical variability found.</li></ul></div>" and 'distinguishing-factor:gate:1' in "<div style='white-space: normal;'><div><strong>Max possible change from 12:00 (baseline):</strong> 0%</div>\n<div><st...>Variable:</div>\n<ul style='margin-top:2px; margin-bottom:6px;'><li>No categorical variability found.</li></ul></div>")
+
+tests\test_time_sensitivity.py:481: AssertionError
+---------------------------- Captured stderr call -----------------------------
+Type conversion already registered from type PySide::PyObjectWrapper to type int
+_ test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales __
+
+    def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales():
+        import pytest
+    
+        panel_module = pytest.importorskip(
+            "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+            exc_type=ImportError,
+        )
+        format_time_sensitivity_result_html = (
+            panel_module.format_time_sensitivity_result_html
+        )
+    
+        result = TimeSensitivityResult(
+            chart_uid="CHARTUID",
+            chart_name="Example",
+            birth_date_key="01-01-2000",
+            algorithm_version="time-sensitivity-v2",
+            computed_at="2026-06-20T00:00:00Z",
+            config=TimeSensitivityConfig().__dict__,
+            sample_count=2,
+            baseline_time="12:00",
+            overall={
+                "stability_percent": 50.0,
+                "max_total_change_from_baseline_percent": 50.0,
+            },
+            numeric_ranges={
+                "dominant_sign_weights": {
+                    "Aries": {
+                        "min": 1.0,
+                        "max": 3.0,
+                        "baseline": 1.0,
+                        "delta": 2.0,
+                        "percent_delta": 200.0,
+                        "max_decrease_percent": 0.0,
+                        "max_increase_percent": 200.0,
+                        "label": "Highly variable",
+                        "peak_times": ["12:00"],
+                    },
+                    "Taurus": {
+                        "min": 2.0,
+                        "max": 2.5,
+                        "baseline": 2.0,
+                        "delta": 0.5,
+                        "percent_delta": 25.0,
+                        "max_decrease_percent": 0.0,
+                        "max_increase_percent": 25.0,
+                        "label": "Variable",
+                        "peak_times": ["00:00"],
+                    },
+                },
+            },
+            human_design={},
+            stable=[],
+            variable=[],
+            warnings=[],
+        )
+    
+        html = format_time_sensitivity_result_html(result)
+>       taurus_item = html[html.index("Taurus") : html.index("Taurus") + 500]
+                           ^^^^^^^^^^^^^^^^^^^^
+E       ValueError: substring not found
+
+tests\test_time_sensitivity.py:558: ValueError
+---------------------------- Captured stderr call -----------------------------
+Type conversion already registered from type PySide::PyObjectWrapper to type int
+___ test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench ____
+
+    def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
+        import pytest
+    
+        panel_module = pytest.importorskip(
+            "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+            exc_type=ImportError,
+        )
+    
+        result = TimeSensitivityResult(
+            chart_uid="CHARTUID",
+            chart_name="Example",
+            birth_date_key="01-01-2000",
+            algorithm_version="time-sensitivity-v2",
+            computed_at="2026-06-20T00:00:00Z",
+            config=TimeSensitivityConfig().__dict__,
+            sample_count=2,
+            baseline_time="12:00",
+            overall={},
+            numeric_ranges={
+                "dominant_nakshatra_weights": {
+                    "Ashwini": {
+                        "min": 2.0,
+                        "max": 7.0,
+                        "most_likely_weight": {"weight": 5.0, "count": 3, "percent": 75.0},
+                        "trough_times": ["00:30"],
+                        "peak_times": ["23:30"],
+                    },
+                },
+            },
+            human_design={},
+            stable=[],
+            variable=[],
+            warnings=[],
+        )
+    
+        html = panel_module._time_sensitivity_factor_info_html(
+            result, "dominant_nakshatra_weights", "Ashwini"
+        )
+    
+        assert "Ashwini" in html
+>       assert "Min dominance" in html
+E       assert 'Min dominance' in "<div style='white-space:normal; line-height:1.45;'><div style='font-size:14px; font-weight:700; color:#6699ff; margin...f;'>Mean:</span> 5</div><div><span style='font-weight:700;color:#c8914f;'>Max Dominance:</span> 7 at 23:30</div></div>"
+
+tests\test_time_sensitivity.py:685: AssertionError
+---------------------------- Captured stderr call -----------------------------
+Type conversion already registered from type PySide::PyObjectWrapper to type int
+_______ test_trait_info_explains_dominance_and_formats_evidence_headers _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF63692B90>
+
+    def test_trait_info_explains_dominance_and_formats_evidence_headers(monkeypatch):
+        monkeypatch.setattr(
+            trait_predictions,
+            "matched_weighted_criteria",
+            lambda _chart, _profile: {
+                "positive": ["Aries", "Sun", "Ashwini", "Gate 12", "Sun in Aries"],
+                "negative": [],
+            },
+        )
+        trait = {
+            "name": "Inventive",
+            "description": "Finds original solutions.",
+            "samples": 42,
+            "profile": {
+                "signs": {"Aries": 1},
+                "bodies": {"Sun": 1},
+                "nakshatras": {"Ashwini": 1},
+                "gates": {12: 1},
+                "positions": {"Sun in Aries": 1},
+            },
+        }
+    
+        result = trait_predictions._trait_info_html(trait, SimpleNamespace(name="Ada Lovelace"))
+    
+        assert "based on aggregated data from 42 charts" in result
+        assert f"color:{trait_predictions.CHART_DATA_HIGHLIGHT_COLOR};" in result
+        assert "Matching factors in Ada Lovelace's chart:</div>" in result
+        assert "font-size:12px; font-weight:700; color:#9fd6aa;'>Supporting:</div>" in result
+>       assert "Aries dominant</li>" in result
+E       assert 'Aries dominant</li>' in "<div style='font-size:18px; font-weight:700; color:#cc99ff;'>Inventive</div><div style='height:6px;'></div><div style...i><li style='margin:2px 0; color:#d9f2de;'>Gate 12</li><li style='margin:2px 0; color:#d9f2de;'>Sun in Aries</li></ul>"
+
+tests\test_trait_prediction_chart_info.py:38: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  ephemeraldaddy.analysis.traits:traits.py:346 Trait 'Inventive' uses legacy integer samples=42; please update it to a samples array such as [42, 0].
+____________ test_forced_trait_norm_refresh_recomputes_stale_cache ____________
+
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_forced_trait_norm_refresh0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF6BF7CAD0>
+
+    def test_forced_trait_norm_refresh_recomputes_stale_cache(tmp_path, monkeypatch):
+        cache_path = tmp_path / "trait_db_norms.json"
+        monkeypatch.setattr(trait_predictions, "TRAIT_DB_NORMS_CACHE_PATH", cache_path)
+        trait = {"name": "Creative", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
+        cache_key = trait_predictions._trait_norm_cache_key(("UID1", "UID2"), trait)
+        cache_path.write_text(
+            trait_predictions.json.dumps(
+                {
+                    "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
+                    "entries": {
+                        cache_key: {
+                            "trait_name": "Creative",
+                            "db_average": 63.5,
+                            "chart_count": 1,
+                            "norm_state": {
+                                "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
+                                "chart_count": 1,
+                                "chart_tokens": {"UID1": "old"},
+                            },
+                            "norm_signature": "old-norm-signature",
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        owner = _TraitsCacheOwner(
+            (("uid:one", "row"),),
+            chart_rows=[
+                (1, "One", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID1"),
+                (2, "Two", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID2"),
+            ],
+        )
+        owner._traits_distribution_signature = lambda traits: tuple(
+            (item["name"], "#ffffff", repr(item.get("profile", {}))) for item in traits
+        )
+    
+        def collect(_chart_ids, *, trait_items, trait_signature):
+            assert [item["name"] for item in trait_items] == ["Creative"]
+            return {"trait_names": ["Creative"], "totals": {"Creative": 1.7}, "chart_count": 2}
+    
+        owner._collect_traits_distribution_analytics = collect
+    
+>       assert trait_predictions._database_trait_averages(owner, [trait], force_refresh_stale=True) == {"Creative": 85.0}
+E       AssertionError: assert {} == {'Creative': 85.0}
+E         
+E         Right contains 1 more item:
+E         {'Creative': 85.0}
+E         Use -v to get more diff
+
+tests\test_trait_predictions_cache.py:136: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  ephemeraldaddy.gui.features.charts.trait_predictions:trait_predictions.py:1166 Traits panel could not collect Database Analytics trait averages: test_forced_trait_norm_refresh_recomputes_stale_cache.<locals>.collect() got an unexpected keyword argument 'time_budget_seconds'
+Traceback (most recent call last):
+  File "C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\ephemeraldaddy\gui\features\charts\trait_predictions.py", line 1164, in _database_trait_averages
+    analytics = collect(chart_uids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\ephemeraldaddy\gui\features\charts\database_analytics.py", line 5665, in _collect_traits_distribution_analytics_by_uids
+    return self._collect_traits_distribution_analytics(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: test_forced_trait_norm_refresh_recomputes_stale_cache.<locals>.collect() got an unexpected keyword argument 'time_budget_seconds'
+_ test_traits_distribution_likelihood_cache_persists_across_matching_sessions _
+
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_traits_distribution_likel1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF6AF04B90>
+
+    def test_traits_distribution_likelihood_cache_persists_across_matching_sessions(tmp_path, monkeypatch):
+        from ephemeraldaddy.core import db
+    
+        monkeypatch.setattr(db, "DB_DIR", tmp_path)
+        trait_signature = (("Creative", "#ffffff", "{}"),)
+        first_session = _TraitsCacheOwner((("uid:one", "row"),))
+        first_session._traits_distribution_chart_likelihood_cache = {
+            (0, trait_signature, 101): {"Creative": 87.5}
+        }
+    
+        first_session._save_traits_distribution_likelihood_cache()
+    
+        next_session = _TraitsCacheOwner((("uid:one", "row"),))
+>       assert next_session._load_traits_distribution_likelihood_cache() is True
+E       assert False is True
+E        +  where False = _load_traits_distribution_likelihood_cache()
+E        +    where _load_traits_distribution_likelihood_cache = <test_trait_predictions_cache._TraitsCacheOwner object at 0x000001DF6AF04E10>._load_traits_distribution_likelihood_cache
+
+tests\test_trait_predictions_cache.py:200: AssertionError
+__ test_traits_distribution_likelihood_cache_rejects_changed_chart_rows_only __
+
+tmp_path = WindowsPath('C:/Users/Anonymous/AppData/Local/Temp/pytest-of-Anonymous/pytest-0/test_traits_distribution_likel2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF6B01F110>
+
+    def test_traits_distribution_likelihood_cache_rejects_changed_chart_rows_only(tmp_path, monkeypatch):
+        from ephemeraldaddy.core import db
+    
+        monkeypatch.setattr(db, "DB_DIR", tmp_path)
+        first_session = _TraitsCacheOwner(
+            (("uid:one", "row"),),
+            chart_rows=[(101, "Original"), (202, "Unchanged")],
+        )
+        trait_signature = (("Creative", "#ffffff", "{}"),)
+        first_session._traits_distribution_chart_likelihood_cache = {
+            (0, trait_signature, 101): {"Creative": 87.5},
+            (0, trait_signature, 202): {"Creative": 42.0},
+        }
+        first_session._save_traits_distribution_likelihood_cache()
+    
+        next_session = _TraitsCacheOwner(
+            (("uid:two", "row"),),
+            chart_rows=[(101, "Changed"), (202, "Unchanged")],
+        )
+    
+>       assert next_session._load_traits_distribution_likelihood_cache() is True
+E       assert False is True
+E        +  where False = _load_traits_distribution_likelihood_cache()
+E        +    where _load_traits_distribution_likelihood_cache = <test_trait_predictions_cache._TraitsCacheOwner object at 0x000001DF6B01F550>._load_traits_distribution_likelihood_cache
+
+tests\test_trait_predictions_cache.py:226: AssertionError
+_________ test_traits_distribution_collection_stops_after_time_budget _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF6B060250>
+
+    def test_traits_distribution_collection_stops_after_time_budget(monkeypatch):
+        owner = _TraitsCacheOwner((("uid:one", "row"),))
+        owner._traits_distribution_chart_likelihood_cache = {}
+        owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
+        owner._is_placeholder_chart = lambda _chart: False
+        owner._debug_chart_label = lambda chart: str(chart.get("id"))
+    
+        tick = {"value": 0.0}
+    
+        def fake_monotonic():
+            tick["value"] += 1.0
+            return tick["value"]
+    
+        calls = []
+    
+        def fake_likelihoods(chart, trait_items, possible_scores=None):
+            calls.append(chart["id"])
+            return {"Creative": 75.0}
+    
+        monkeypatch.setattr("ephemeraldaddy.gui.features.charts.database_analytics.time.monotonic", fake_monotonic)
+        monkeypatch.setattr(
+            "ephemeraldaddy.gui.features.charts.database_analytics.calculate_trait_likelihoods",
+            fake_likelihoods,
+        )
+    
+        result = owner._collect_traits_distribution_analytics(
+            [1, 2, 3],
+            trait_items=[{"name": "Creative", "profile": {}}],
+            trait_signature=(("Creative", "#ffffff", "{}"),),
+            time_budget_seconds=0.5,
+        )
+    
+>       assert result["partial"] is True
+E       assert False is True
+
+tests\test_trait_predictions_cache.py:266: AssertionError
+____ test_traits_distribution_collection_uses_warm_cache_past_time_budget _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF6AFAF210>
+
+    def test_traits_distribution_collection_uses_warm_cache_past_time_budget(monkeypatch):
+        owner = _TraitsCacheOwner((("uid:one", "row"),))
+        signature = (("Creative", "#ffffff", "{}"),)
+        owner._traits_distribution_chart_likelihood_cache = {
+            (0, signature, 1): {"Creative": 80.0},
+            (0, signature, 2): {"Creative": 60.0},
+        }
+        owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
+        owner._is_placeholder_chart = lambda _chart: False
+    
+        monkeypatch.setattr("ephemeraldaddy.gui.features.charts.database_analytics.time.monotonic", lambda: 10_000.0)
+    
+        result = owner._collect_traits_distribution_analytics(
+            [1, 2],
+            trait_items=[{"name": "Creative", "profile": {}}],
+            trait_signature=signature,
+            time_budget_seconds=0.0,
+        )
+    
+        assert result["partial"] is False
+>       assert result["chart_count"] == 2
+E       assert 0 == 2
+
+tests\test_trait_predictions_cache.py:292: AssertionError
+_ test_traits_distribution_collection_scores_only_new_trait_when_existing_trait_cached _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF6B02C2D0>
+
+    def test_traits_distribution_collection_scores_only_new_trait_when_existing_trait_cached(monkeypatch):
+        owner = _TraitsCacheOwner((("uid:one", "row"),))
+        owner._traits_distribution_chart_likelihood_cache = {}
+        owner._traits_distribution_individual_likelihood_cache = {
+            (("Creative", "#ffffff", "{}"), 1): 80.0,
+        }
+        owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
+        owner._is_placeholder_chart = lambda _chart: False
+        owner._debug_chart_label = lambda chart: str(chart.get("id"))
+    
+        scored_trait_batches = []
+    
+        def fake_likelihoods(chart, trait_items, possible_scores=None):
+            scored_trait_batches.append([trait["name"] for trait in trait_items])
+            return {"Analytical": 65.0}
+    
+        monkeypatch.setattr(
+            "ephemeraldaddy.gui.features.charts.database_analytics.calculate_trait_likelihoods",
+            fake_likelihoods,
+        )
+    
+        signature = (
+            ("Creative", "#ffffff", "{}"),
+            ("Analytical", "#ffffff", "{}"),
+        )
+        result = owner._collect_traits_distribution_analytics(
+            [1],
+            trait_items=[{"name": "Creative", "profile": {}}, {"name": "Analytical", "profile": {}}],
+            trait_signature=signature,
+            time_budget_seconds=None,
+        )
+    
+>       assert scored_trait_batches == [["Analytical"]]
+E       AssertionError: assert [] == [['Analytical']]
+E         
+E         Right contains one more item: ['Analytical']
+E         Use -v to get more diff
+
+tests\test_trait_predictions_cache.py:328: AssertionError
+_____ test_traits_distribution_collection_reuses_cache_after_trait_rename _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF6B01CED0>
+
+    def test_traits_distribution_collection_reuses_cache_after_trait_rename(monkeypatch):
+        owner = _TraitsCacheOwner((("uid:one", "row"),))
+        old_signature = (("Old Name", "#ffffff", '{"signs":{"Leo":1}}'),)
+        new_signature = (("New Name", "#123456", '{"signs":{"Leo":1}}'),)
+        owner._traits_distribution_chart_likelihood_cache = {}
+        owner._traits_distribution_individual_likelihood_cache = {
+            (old_signature[0], 1): 82.0,
+        }
+        owner._traits_distribution_individual_profile_likelihood_cache = {
+            ('{"signs":{"Leo":1}}', 1): 82.0,
+        }
+        owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
+        owner._is_placeholder_chart = lambda _chart: False
+    
+        def fail_likelihoods(*_args, **_kwargs):
+            raise AssertionError("display-only trait edits should not force rescoring")
+    
+        monkeypatch.setattr(
+            "ephemeraldaddy.gui.features.charts.database_analytics.calculate_trait_likelihoods",
+            fail_likelihoods,
+        )
+    
+        result = owner._collect_traits_distribution_analytics(
+            [1],
+            trait_items=[{"name": "New Name", "color": "#123456", "profile": {"signs": {"Leo": 1}}}],
+            trait_signature=new_signature,
+            time_budget_seconds=None,
+        )
+    
+        assert result["partial"] is False
+>       assert result["totals"] == {"New Name": 0.82}
+E       AssertionError: assert {'New Name': 0.0} == {'New Name': 0.82}
+E         
+E         Differing items:
+E         {'New Name': 0.0} != {'New Name': 0.82}
+E         Use -v to get more diff
+
+tests\test_trait_predictions_cache.py:367: AssertionError
+__ test_traits_distribution_collection_passively_persists_uid_trait_metadata __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DF6B074590>
+
+    def test_traits_distribution_collection_passively_persists_uid_trait_metadata(monkeypatch):
+        owner = _TraitsCacheOwner((("uid:one", "row"),))
+        owner._traits_distribution_chart_likelihood_cache = {}
+        owner._traits_distribution_individual_likelihood_cache = {}
+        charts = {
+            1: SimpleNamespace(id=1, chart_uid="UIDTRAIT0001"),
+            2: SimpleNamespace(id=2, chart_uid="UIDTRAIT0002"),
+        }
+        owner._get_chart_for_filter = lambda chart_id: charts[int(chart_id)]
+        owner._is_placeholder_chart = lambda _chart: False
+        owner._debug_chart_label = lambda chart: str(getattr(chart, "id", ""))
+    
+        def fake_likelihoods(chart, trait_items, possible_scores=None):
+            return {"Creative": 80.0 if chart.id == 1 else 40.0}
+    
+        saved = []
+    
+        def fake_upsert(chart_uid, rows, *, trait_signature, norm_signature, chart_signature=""):
+            saved.append((chart_uid, rows, trait_signature, norm_signature))
+    
+        monkeypatch.setattr(
+            "ephemeraldaddy.gui.features.charts.database_analytics.calculate_trait_likelihoods",
+            fake_likelihoods,
+        )
+        monkeypatch.setattr("ephemeraldaddy.gui.features.charts.database_analytics.db.upsert_chart_trait_metadata", fake_upsert)
+    
+        result = owner._collect_traits_distribution_analytics(
+            [1, 2],
+            trait_items=[{"name": "Creative", "profile": {}}],
+            trait_signature=(("Creative", "#ffffff", "{}"),),
+            time_budget_seconds=None,
+        )
+    
+        assert result["partial"] is False
+>       assert [entry[0] for entry in saved] == ["UIDTRAIT0001", "UIDTRAIT0002"]
+E       AssertionError: assert [] == ['UIDTRAIT000...UIDTRAIT0002']
+E         
+E         Right contains 2 more items, first extra item: 'UIDTRAIT0001'
+E         Use -v to get more diff
+
+tests\test_trait_predictions_cache.py:405: AssertionError
+__ test_database_view_traits_search_lives_in_search_panel_and_uses_metadata ___
+
+    def test_database_view_traits_search_lives_in_search_panel_and_uses_metadata():
+        app_source = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
+        search_source = (ROOT / "ephemeraldaddy" / "gui" / "dbv_search_panel.py").read_text(encoding="utf-8")
+        predictions_source = (
+            ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
+        ).read_text(encoding="utf-8")
+        db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
+    
+>       assert 'add_collapsible_section("\U0001f9ecTraits")' in search_source
+E       assert 'add_collapsible_section("\U0001f9ecTraits")' in '"""Database View right-hand search panel UI builder.\\n\\nThis module intentionally owns Database View search-panel wid...  button_row.addWidget(clear_button)\\n    layout.addLayout(button_row)\\n\\n    layout.addStretch(1)\\n    return panel\\n'
+
+tests\test_traits_settings_source.py:74: AssertionError
+________ test_database_view_loads_selected_chart_by_uid_when_available ________
+
+    def test_database_view_loads_selected_chart_by_uid_when_available():
+        populate_source = APP_SOURCE.split("item = QListWidgetItem(label)", 1)[1].split(
+            "is_hypothetical = _chart_row_is_hypothetical", 1
+        )[0]
+        assert "item.setData(Qt.UserRole + 2" in populate_source
+        load_source = _indented_method_source(APP_SOURCE, "_load_chart_from_item")
+>       assert "chart_uid = str(item.data(Qt.UserRole + 2)" in load_source
+E       AssertionError: assert 'chart_uid = str(item.data(Qt.UserRole + 2)' in '    def _load_chart_from_item(self, item: QListWidgetItem) -> None:\n        chart_id = self._item_local_row_id(item)...f isinstance(parent, MainWindow):\n                parent._retarget_size_checker_to_main_view()\n        self.hide()\n'
+
+tests\test_uid_finalization_source.py:40: AssertionError
+___ test_similarity_modules_and_rectification_visible_labels_are_canonical ____
+
+    def test_similarity_modules_and_rectification_visible_labels_are_canonical():
+        chrome = _source("ephemeraldaddy/gui/window_chrome.py")
+        similarity_panel = _source(
+            "ephemeraldaddy/gui/features/charts/similarities/controller.py"
+        )
+        twins_window = _source(
+            "ephemeraldaddy/gui/features/charts/similar_charts_popout.py"
+        )
+        rectification = _source("ephemeraldaddy/gui/features/dialogues.py")
+    
+        assert '"Similarities Analysis"' in chrome
+        assert 'QLabel("Similarities Analysis")' in similarity_panel
+        assert '"\U0001f46f Astro Twin"' in chrome
+>       assert 'setWindowTitle(f"Astro Twin � {subject_name}")' in twins_window
+E       assert 'setWindowTitle(f"Astro Twin � {subject_name}")' in '# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use ...430])\n    if show_perceived_accuracy_controls:\n        _update_perceived_accuracy_tally(dialog)\n    return dialog\n'
+
+tests\test_user_facing_terminology_source.py:52: AssertionError
+____ test_astro_twin_calculator_and_similarities_analysis_remain_distinct _____
+
+    def test_astro_twin_calculator_and_similarities_analysis_remain_distinct():
+        app = _source("ephemeraldaddy/gui/app.py")
+        dev_tools = _source("ephemeraldaddy/gui/dev_tools.py")
+    
+        assert '"Show Similarities Analysis"' in app
+        assert '"Astro Twin Calculator"' in app
+>       assert '"Choose which algorithm generates Astro Twin Calculator results:"' in dev_tools
+E       assert '"Choose which algorithm generates Astro Twin Calculator results:"' in 'from __future__ import annotations\n\nimport weakref\nfrom pathlib import Path\nfrom typing import Callable\n\nimport...se the old Enneagram-specific name.\nbuild_enneagram_predictor_settings_section = build_predictions_settings_section\n'
+
+tests\test_user_facing_terminology_source.py:64: AssertionError
+- generated xml file: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\results\test-runs\pytest-20260814T143420Z.xml -
+=========================== short test summary info ===========================
+FAILED tests/test_appwide_input.py::test_modified_enter_shortcut_is_not_reserved_for_line_edit
+FAILED tests/test_astro_twin_settings_layout_source.py::test_placement_weighting_modes_have_item_and_selected_tooltips
+FAILED tests/test_backup_packages.py::test_create_backup_package_includes_known_sidecars
+FAILED tests/test_backup_packages.py::test_create_backup_package_skips_missing_optional_components
+FAILED tests/test_backup_packages.py::test_restore_backup_package_validates_checksum
+FAILED tests/test_backup_packages.py::test_restore_package_removes_sidecars_missing_from_manifest
+FAILED tests/test_backup_packages.py::test_restore_package_preserves_user_omitted_sidecars
+FAILED tests/test_backup_packages.py::test_create_backup_package_uses_custom_charts_source
+FAILED tests/test_backup_packages.py::test_restore_database_supports_full_package_and_legacy_db
+FAILED tests/test_chart_data_field_classification.py::test_every_persisted_chart_column_has_one_master_classification
+FAILED tests/test_chart_info_token_formatting_source.py::test_chart_info_ambiguous_short_tokens_require_uppercase_word_matches
+FAILED tests/test_chart_right_panel_state_and_tabs.py::test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible
+FAILED tests/test_chart_right_panel_state_and_tabs.py::test_schedule_render_for_active_tab_predictions_skips_cached_chart_token
+FAILED tests/test_chart_view_right_panel_layout_source.py::test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout
+FAILED tests/test_chart_view_right_panel_layout_source.py::test_property_managers_button_sits_below_settings_sections_with_padding
+FAILED tests/test_chart_view_right_panel_layout_source.py::test_dnd_alignment_popout_is_registered_and_configured
+FAILED tests/test_chart_view_right_panel_layout_source.py::test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating
+FAILED tests/test_chart_view_right_panel_layout_source.py::test_traits_predictions_default_to_manual_recalculation_with_cached_stale_display
+FAILED tests/test_chart_view_right_panel_layout_source.py::test_traits_prediction_prompt_label_is_reshown_after_table_results
+FAILED tests/test_chart_view_right_panel_layout_source.py::test_predictions_panel_rerenders_traits_for_each_chart_even_when_content_exists
+FAILED tests/test_chart_view_right_panel_layout_source.py::test_prediction_calculate_prompts_expand_and_center_contents
+FAILED tests/test_chart_view_save_integrity_regression_source.py::test_subjective_only_save_uses_lightweight_update_and_preserves_calculated_payloads
+FAILED tests/test_chart_view_session_completers_source.py::test_chart_view_tag_completers_preserve_session_tags_before_save
+FAILED tests/test_chart_view_sexiness_metadata.py::test_sexiness_module_is_hidden_by_default_and_configurable
+FAILED tests/test_chart_view_tag_crash_diagnostics_source.py::test_startup_debug_installs_persistent_native_crash_diagnostics
+FAILED tests/test_collapsible_subsection_background_source.py::test_database_search_top_categories_are_nested_sections
+FAILED tests/test_collapsible_subsection_background_source.py::test_database_search_subsections_use_standard_section_background
+FAILED tests/test_database_analytics_demand_refresh_source.py::test_database_analytics_flushes_pending_metrics_before_close_cache_save
+FAILED tests/test_database_analytics_enneagram_source.py::test_database_analytics_enneagram_popout_uses_standard_info_html
+FAILED tests/test_database_metrics_persistent_cache_source.py::test_incremental_refresh_reuses_same_changed_ids_for_every_section_step
+FAILED tests/test_database_search_subspecies_source.py::test_clear_and_active_filter_state_include_subspecies
+FAILED tests/test_database_view_hidden_chart_context_menu_source.py::test_show_hidden_setting_names_charts_explicitly
+FAILED tests/test_database_view_hidden_chart_context_menu_source.py::test_unhide_selected_charts_removes_ids_and_preserves_selection
+FAILED tests/test_database_view_hidden_chart_context_menu_source.py::test_hidden_charts_filter_is_conditionally_visible_in_search_panel
+FAILED tests/test_database_view_hidden_chart_context_menu_source.py::test_hidden_charts_filter_matches_hidden_id_set_only_when_visible
+FAILED tests/test_database_view_hydration_source.py::test_populate_list_skips_per_row_filter_engine_when_no_filters_are_active
+FAILED tests/test_database_view_performance.py::test_database_view_timer_starts_before_cold_dialog_construction
+FAILED tests/test_demo_mode_privacy_source.py::test_demo_mode_restores_saved_predictability_visibility_instead_of_forcing_visible
+FAILED tests/test_distinguishing_factors.py::test_database_distinction_repeated_gate_score_weights_extra_repetitions
+FAILED tests/test_dominance_thresholds.py::test_cosmid_air_water_evidence_requires_both_elements_to_be_dominant
+FAILED tests/test_enneagram_database_norm_predictions_source.py::test_enneagram_predictor_uses_analysis_enneagrams_reference_source
+FAILED tests/test_galaxy_explainer_intro_source.py::test_guide_bottom_panels_are_controlled_by_button_panel
+FAILED tests/test_human_design_electrochemistry_predictor.py::test_profile_relation_classifies_resonance_and_harmonics
+FAILED tests/test_human_design_electrochemistry_predictor.py::test_chart_calculation_settings_builds_gender_method_radios
+FAILED tests/test_human_design_electrochemistry_predictor.py::test_settings_consolidates_database_and_visualization_controls
+FAILED tests/test_metric_canvas_layout_controller.py::test_collapsed_canvas_uses_current_viewport_width_when_revealed
+FAILED tests/test_performance_metrics.py::test_developer_tools_exposes_requested_performance_setting_and_tooltip
+FAILED tests/test_prediction_cache_birth_data_signatures_source.py::test_predictions_manual_recalculation_setting_defaults_to_manual_and_blocks_trait_auto_load
+FAILED tests/test_prediction_cache_birth_data_signatures_source.py::test_stale_predictions_show_cached_data_before_optional_auto_refresh
+FAILED tests/test_prediction_norms_snapshot_source.py::test_chart_view_traits_keep_uid_metadata_visible_when_cache_is_stale_or_incomplete
+FAILED tests/test_predictions_settings_source.py::test_gender_guesser_render_routes_through_predictions_panel
+FAILED tests/test_property_manager_settings_height_source.py::test_property_manager_tab_fills_the_available_settings_height
+FAILED tests/test_rectification_engine_views_source.py::test_house_refinement_is_scoped_to_current_results
+FAILED tests/test_redundancy_consolidation.py::test_human_design_channel_records_preserve_all_circuit_topology_and_metadata
+FAILED tests/test_semantics_formating.py::test_historical_semantics_module_remains_compatible
+FAILED tests/test_similar_charts_hidden_visibility_source.py::test_similar_charts_app_passes_current_hidden_chart_visibility_to_candidates
+FAILED tests/test_similar_charts_hidden_visibility_source.py::test_chart_view_similar_charts_worker_receives_hidden_chart_visibility
+FAILED tests/test_similar_charts_hidden_visibility_source.py::test_trait_rankings_are_moved_to_rankings_panel
+FAILED tests/test_similar_charts_hidden_visibility_source.py::test_rankings_links_use_chart_uids_for_navigation_targets
+FAILED tests/test_similar_charts_hidden_visibility_source.py::test_trait_rankings_default_to_database_until_manual_rank_selected
+FAILED tests/test_similar_charts_hidden_visibility_source.py::test_hiding_current_trait_ranking_members_refreshes_cached_top_ten
+FAILED tests/test_similar_charts_popout.py::test_similar_chart_export_rows_include_z_score
+FAILED tests/test_similar_charts_popout.py::test_similar_match_blocks_include_z_score
+FAILED tests/test_similarities_json_export.py::test_similarities_python_export_includes_sample_count
+FAILED tests/test_similarity_algorithm_accuracy_refresh_source.py::test_manage_presets_navigates_to_property_manager_preset_field
+FAILED tests/test_similarity_calculator_settings.py::test_default_similarity_settings_match_requested_weights
+FAILED tests/test_tag_categories.py::test_property_manager_retains_its_original_category_labels
+FAILED tests/test_tag_categories.py::test_database_analytics_retains_original_labels_and_aliases
+FAILED tests/test_tag_chip_pill_style_source.py::test_chart_tags_live_in_chart_info_stack_not_subjective_notes_panel
+FAILED tests/test_tag_manager_parent_counts_source.py::test_tag_manager_parent_node_counts_include_exact_parent_tag_rows
+FAILED tests/test_time_sensitivity.py::test_time_sensitivity_html_color_codes_deltas_and_links_factors
+FAILED tests/test_time_sensitivity.py::test_overall_time_sensitivity_lists_all_definite_human_design_values
+FAILED tests/test_time_sensitivity.py::test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales
+FAILED tests/test_time_sensitivity.py::test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench
+FAILED tests/test_trait_prediction_chart_info.py::test_trait_info_explains_dominance_and_formats_evidence_headers
+FAILED tests/test_trait_predictions_cache.py::test_forced_trait_norm_refresh_recomputes_stale_cache
+FAILED tests/test_trait_predictions_cache.py::test_traits_distribution_likelihood_cache_persists_across_matching_sessions
+FAILED tests/test_trait_predictions_cache.py::test_traits_distribution_likelihood_cache_rejects_changed_chart_rows_only
+FAILED tests/test_trait_predictions_cache.py::test_traits_distribution_collection_stops_after_time_budget
+FAILED tests/test_trait_predictions_cache.py::test_traits_distribution_collection_uses_warm_cache_past_time_budget
+FAILED tests/test_trait_predictions_cache.py::test_traits_distribution_collection_scores_only_new_trait_when_existing_trait_cached
+FAILED tests/test_trait_predictions_cache.py::test_traits_distribution_collection_reuses_cache_after_trait_rename
+FAILED tests/test_trait_predictions_cache.py::test_traits_distribution_collection_passively_persists_uid_trait_metadata
+FAILED tests/test_traits_settings_source.py::test_database_view_traits_search_lives_in_search_panel_and_uses_metadata
+FAILED tests/test_uid_finalization_source.py::test_database_view_loads_selected_chart_by_uid_when_available
+FAILED tests/test_user_facing_terminology_source.py::test_similarity_modules_and_rectification_visible_labels_are_canonical
+FAILED tests/test_user_facing_terminology_source.py::test_astro_twin_calculator_and_similarities_analysis_remain_distinct
+================ 87 failed, 1180 passed in 1923.18s (0:32:03) =================
+------------------------------------------------------------------------
+Exit code: 1
+Text report: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\results\test-runs\pytest-20260814T143420Z.log
+JUnit report: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\results\test-runs\pytest-20260814T143420Z.xml
