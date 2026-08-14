@@ -5294,9 +5294,13 @@ class DatabaseAnalyticsChartsMixin:
                 if not chart_uid or profile_index < 0 or profile_index >= len(profile_keys):
                     skipped_entries += 1
                     continue
+                saved_chart_token = str(entry.get("chart_token", "") or "")
+                if not chart_is_current(chart_uid, saved_chart_token):
+                    skipped_entries += 1
+                    continue
                 profile_cache_key = (profile_keys[profile_index], chart_uid)
                 individual_profile_cache[profile_cache_key] = likelihood
-                individual_profile_token_cache[profile_cache_key] = str(entry.get("chart_token", "") or "")
+                individual_profile_token_cache[profile_cache_key] = saved_chart_token
         else:
             logger.info("Ignoring obsolete traits distribution likelihood cache version %s.", payload_version)
             return False
@@ -5424,6 +5428,12 @@ class DatabaseAnalyticsChartsMixin:
         trait_signature: tuple[tuple[str, str, str], ...] | None = None,
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
     ) -> dict[str, Any]:
+        """Legacy Database View row-ID adapter for UID-keyed trait analytics.
+
+        Numeric IDs are accepted only at the Qt/SQLite row boundary. All cache,
+        persistence, and Predictions callers must use
+        :meth:`_collect_traits_distribution_analytics_by_uids`.
+        """
         _predictions_debug(
             self,
             "Traits distribution collect start charts=%s traits=%s time_budget=%s",
@@ -5661,7 +5671,18 @@ class DatabaseAnalyticsChartsMixin:
         normalized_uids = tuple(
             sorted({str(uid or "").strip().upper() for uid in chart_uids if str(uid or "").strip()})
         )
-        chart_ids_by_uid = db.get_chart_ids_by_uid(normalized_uids) if normalized_uids else {}
+        # Prefer the already-hydrated Database View rows. Falling back to one
+        # batched database lookup keeps numeric row IDs confined to this
+        # persistence adapter and avoids an N+1 UID resolution path.
+        local_ids_by_uid = {
+            chart_uid: chart_id
+            for chart_id, chart_uid in self._traits_distribution_chart_uid_by_id().items()
+            if chart_uid in normalized_uids
+        }
+        missing_uids = tuple(uid for uid in normalized_uids if uid not in local_ids_by_uid)
+        chart_ids_by_uid = dict(local_ids_by_uid)
+        if missing_uids:
+            chart_ids_by_uid.update(db.get_chart_ids_by_uid(missing_uids))
         return self._collect_traits_distribution_analytics(
             set(chart_ids_by_uid.values()),
             trait_items=trait_items,

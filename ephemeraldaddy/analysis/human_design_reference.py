@@ -1174,6 +1174,7 @@ HD_CHANNELS = {
 
     "16-48": {
         "name": "Channel of the Wavelength",
+        "aliases": ("Channel of the Wavelength",),
         "gates": (16, 48),
         "centers": ("Throat", "Spleen"),
         "circuit": "Collective / Logic",
