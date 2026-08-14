@@ -295,3 +295,13 @@ def test_pending_database_refresh_state_is_uid_owned():
     assert "_manage_charts_pending_changed_ids" not in class_source
     assert "_manage_charts_pending_changed_uids" in class_source
     assert "get_chart_id_by_uid(chart_uid)" in pending_method
+
+
+def test_saved_chart_right_panel_consumers_use_uid_identity():
+    controller_source = Path("ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    fallback_source = Path("ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+
+    assert 'getattr(self._owner, "current_chart_uid", None) is not None' in controller_source
+    assert 'getattr(owner, "current_chart_uid", None) is not None' in fallback_source
+    assert "current_chart_id" not in controller_source
+    assert "current_chart_id" not in fallback_source
