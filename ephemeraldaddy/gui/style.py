@@ -997,6 +997,10 @@ QComboBox[loudSelection="true"] {
     background-color: __MIDDLE_PANEL_ACCENT_COLOR__;
     color: white;
 }
+QComboBox[loudSelection="true"]:disabled {
+    background: #444444;
+    color: #aaaaaa;
+}
 """.replace("__MIDDLE_PANEL_ACCENT_COLOR__", MIDDLE_PANEL_ACCENT_COLOR)
 
 WINDOW_CHROME_MENU_STYLE = """
