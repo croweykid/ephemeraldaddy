@@ -19407,6 +19407,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                         matches_filters = False
                     if not matches_filters:
                         continue
+                item_chart_uid = str(_chart_uid or "").strip().upper()
                 self._displayed_chart_rows_by_uid[item_chart_uid] = (
                     cid,
                     name,
@@ -19547,7 +19548,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     visible_label_parts.append(current_age_label)
                 label = "  ".join(part for part in visible_label_parts if part)
                 item = QListWidgetItem(label)
-                item_chart_uid = str(_chart_uid or "").strip().upper()
                 item.setData(Qt.UserRole, item_chart_uid)
                 item.setData(Qt.UserRole + 2, item_chart_uid)
                 item.setData(Qt.UserRole + 3, cid)
