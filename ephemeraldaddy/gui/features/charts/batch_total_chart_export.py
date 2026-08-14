@@ -1,4 +1,3 @@
-# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Batch total-chart export UI helpers for Database View."""
 from __future__ import annotations
 
@@ -125,14 +124,14 @@ class _ChartExportWorker(QObject):
 
     def __init__(
         self,
-        export_jobs: Sequence[tuple[int, str]],
+        export_jobs: Sequence[tuple[str, str]],
         *,
-        load_chart: Callable[[int], object],
-        write_export: Callable[[int, object, str, bool], None],
+        load_chart_by_uid: Callable[[str], object],
+        write_export: Callable[[str, object, str, bool], None],
     ) -> None:
         super().__init__()
         self._export_jobs = list(export_jobs)
-        self._load_chart = load_chart
+        self._load_chart_by_uid = load_chart_by_uid
         self._write_export = write_export
 
     @Slot()
@@ -140,9 +139,9 @@ class _ChartExportWorker(QObject):
         exported = 0
         total = len(self._export_jobs)
         try:
-            for index, (chart_id, file_path) in enumerate(self._export_jobs, start=1):
-                chart = self._load_chart(int(chart_id))
-                self._write_export(int(chart_id), chart, file_path, file_path.lower().endswith(".md"))
+            for index, (chart_uid, file_path) in enumerate(self._export_jobs, start=1):
+                chart = self._load_chart_by_uid(chart_uid)
+                self._write_export(chart_uid, chart, file_path, file_path.lower().endswith(".md"))
                 exported = index
                 self.progress.emit(index, total)
         except Exception as exc:
@@ -197,10 +196,10 @@ def _create_export_progress(parent) -> tuple[ChartExportProgressWidget, QTimer]:
 
 def _start_background_export(
     parent,
-    export_jobs: Sequence[tuple[int, str]],
+    export_jobs: Sequence[tuple[str, str]],
     *,
-    load_chart: Callable[[int], object],
-    write_export: Callable[[int, object, str, bool], None],
+    load_chart_by_uid: Callable[[str], object],
+    write_export: Callable[[str, object, str, bool], None],
     completion_message: Callable[[int, str], str],
     failure_message: Callable[[str], str],
     progress_state: tuple[ChartExportProgressWidget, QTimer] | None = None,
@@ -212,7 +211,7 @@ def _start_background_export(
         progress.set_fraction(0, max(len(export_jobs), 1))
 
     thread = QThread(parent)
-    worker = _ChartExportWorker(export_jobs, load_chart=load_chart, write_export=write_export)
+    worker = _ChartExportWorker(export_jobs, load_chart_by_uid=load_chart_by_uid, write_export=write_export)
     ui_bridge = _ChartExportUiBridge(parent)
     worker.moveToThread(thread)
 
@@ -295,23 +294,23 @@ def confirm_batch_export(parent, count: int) -> bool:
 
 def run_total_chart_export_flow(
     parent,
-    chart_ids: Sequence[int],
+    chart_uids: Sequence[str],
     *,
-    prompt_for_chart: Callable[[], int | None],
-    load_chart: Callable[[int], object],
+    prompt_for_chart: Callable[[], str | None],
+    load_chart_by_uid: Callable[[str], object],
     sanitize_token: Callable[[str], str],
-    write_export: Callable[[int, object, str, bool], None],
+    write_export: Callable[[str, object, str, bool], None],
 ) -> None:
-    chart_ids = list(chart_ids)
-    if not chart_ids:
-        chart_id = prompt_for_chart()
-        if chart_id is None:
+    chart_uids = list(chart_uids)
+    if not chart_uids:
+        chart_uid = prompt_for_chart()
+        if chart_uid is None:
             return
-        chart_ids = [chart_id]
-    if len(chart_ids) == 1:
-        _export_single(parent, chart_ids[0], load_chart, sanitize_token, write_export)
+        chart_uids = [chart_uid]
+    if len(chart_uids) == 1:
+        _export_single(parent, chart_uids[0], load_chart_by_uid, sanitize_token, write_export)
         return
-    if not confirm_batch_export(parent, len(chart_ids)):
+    if not confirm_batch_export(parent, len(chart_uids)):
         return
     directory = _choose_batch_export_directory(parent)
     if not directory:
@@ -335,13 +334,13 @@ def run_total_chart_export_flow(
     progress.anchor_to_parent()
     QApplication.processEvents()
     _show_loading_bar_hint(parent, progress)
-    export_jobs: list[tuple[int, str]] = []
+    export_jobs: list[tuple[str, str]] = []
     try:
-        for chart_id in chart_ids:
-            chart = load_chart(int(chart_id))
+        for chart_uid in chart_uids:
+            chart = load_chart_by_uid(chart_uid)
             name = (getattr(chart, "name", None) or "chart").strip() or "chart"
             path = _unique_path(Path(directory) / f"{sanitize_token(name)}-total-chart-export.md")
-            export_jobs.append((int(chart_id), str(path)))
+            export_jobs.append((chart_uid, str(path)))
     except Exception as exc:
         message_timer.stop()
         progress.deleteLater()
@@ -350,7 +349,7 @@ def run_total_chart_export_flow(
     _start_background_export(
         parent,
         export_jobs,
-        load_chart=load_chart,
+        load_chart_by_uid=load_chart_by_uid,
         write_export=write_export,
         completion_message=lambda exported, destination: f"Saved {exported} total chart exports to:\n{destination}",
         failure_message=lambda error: f"Could not export total charts:\n{error}",
@@ -371,9 +370,9 @@ def _choose_batch_export_directory(parent) -> str:
     return selected[0] if selected else ""
 
 
-def _export_single(parent, chart_id, load_chart, sanitize_token, write_export) -> None:
+def _export_single(parent, chart_uid, load_chart_by_uid, sanitize_token, write_export) -> None:
     try:
-        chart = load_chart(int(chart_id))
+        chart = load_chart_by_uid(chart_uid)
     except Exception as exc:
         QMessageBox.warning(parent, "Export chart", f"Unable to load selected chart.\n\n{exc}")
         return
@@ -392,8 +391,8 @@ def _export_single(parent, chart_id, load_chart, sanitize_token, write_export) -
         file_path = f"{file_path}{selected_extension}"
     _start_background_export(
         parent,
-        [(int(chart_id), file_path)],
-        load_chart=load_chart,
+        [(chart_uid, file_path)],
+        load_chart_by_uid=load_chart_by_uid,
         write_export=write_export,
         completion_message=lambda _exported, _destination: f"Saved total chart export to:\n{file_path}",
         failure_message=lambda error: f"Could not export total chart:\n{error}",

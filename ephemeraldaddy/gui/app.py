@@ -5468,7 +5468,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         labels: list[str] = []
         for row in rows:
             local_row_id, name, alias, *_rest = row
-            chart_uid = str(uid_by_local_row.get(int(local_row_id)) or "").strip().upper()
+            chart_uid = str(
+                uid_by_local_row.get(int(local_row_id)) or ""
+            ).strip().upper()
             if not chart_uid:
                 continue
             if disallow_placeholder_charts:
@@ -7274,7 +7276,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         dialog_title: str,
         submit_button_label: str = "Open Chart",
         placeholder_text: str = "Select chart name or alias",
-    ) -> int | None:
+    ) -> str | None:
         dialog = QDialog(self)
         dialog.setWindowTitle(dialog_title)
         dialog.setModal(True)
@@ -7283,19 +7285,27 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        chart_lookup: dict[str, int] = {}
+        rows = list(list_charts())
+        uid_by_local_row = get_chart_uid_map(row[0] for row in rows)
+        chart_lookup: dict[str, str] = {}
         labels: list[str] = []
-        for row in list_charts():
-            chart_id, name, alias, *_rest = row
-            chart_id = int(chart_id)
-            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
+        for row in rows:
+            local_row_id, name, alias, *_rest = row
+            chart_uid = str(uid_by_local_row.get(int(local_row_id)) or "").strip().upper()
+            if not chart_uid:
+                continue
+            display_name = name.strip() if isinstance(name, str) and name.strip() else "Unnamed Chart"
             alias_text = alias.strip() if isinstance(alias, str) and alias.strip() else ""
-            label = f"{display_name} ({alias_text})  [#{chart_id}]" if alias_text else f"{display_name}  [#{chart_id}]"
+            label = (
+                f"{display_name} ({alias_text})  [UID {chart_uid}]"
+                if alias_text
+                else f"{display_name}  [UID {chart_uid}]"
+            )
             labels.append(label)
-            chart_lookup[label] = chart_id
-            chart_lookup.setdefault(display_name, chart_id)
+            chart_lookup[label] = chart_uid
+            chart_lookup.setdefault(display_name, chart_uid)
             if alias_text:
-                chart_lookup.setdefault(alias_text, chart_id)
+                chart_lookup.setdefault(alias_text, chart_uid)
 
         chart_input = QLineEdit(dialog)
         chart_input.setPlaceholderText(placeholder_text)
@@ -7308,9 +7318,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         open_button = QPushButton(submit_button_label, dialog)
         layout.addWidget(open_button)
 
-        selected_chart_id: int | None = None
+        selected_chart_uid: str | None = None
 
-        def _resolve_chart_id(raw_value: str) -> int | None:
+        def _resolve_chart_uid(raw_value: str) -> str | None:
             query = raw_value.strip()
             if not query:
                 return None
@@ -7318,15 +7328,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if direct_match is not None:
                 return direct_match
             query_lower = query.lower()
-            for label, chart_id in chart_lookup.items():
+            for label, chart_uid in chart_lookup.items():
                 if query_lower == label.lower():
-                    return chart_id
+                    return chart_uid
             return None
 
         def _submit() -> None:
-            nonlocal selected_chart_id
-            selected_chart_id = _resolve_chart_id(chart_input.text())
-            if selected_chart_id is None:
+            nonlocal selected_chart_uid
+            selected_chart_uid = _resolve_chart_uid(chart_input.text())
+            if selected_chart_uid is None:
                 QMessageBox.warning(
                     dialog,
                     dialog_title,
@@ -7341,16 +7351,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if dialog.exec() != QDialog.Accepted:
             return None
-        return selected_chart_id
+        return selected_chart_uid
 
-    def _write_total_chart_export(self, chart_id: int, chart: object, file_path: str, markdown: bool) -> None:
+    def _write_total_chart_export(
+        self, chart_uid: str, chart: object, file_path: str, markdown: bool
+    ) -> None:
         algorithm_mode = _normalize_similar_charts_algorithm_mode(
             getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
         self._similar_charts_algorithm_mode = algorithm_mode
         similar_charts_section = _build_total_chart_similar_charts_section_for_chart(
             chart=chart,
-            subject_chart_id=chart_id,
+            subject_chart_id=get_chart_id_by_uid(chart_uid),
             markdown=markdown,
             chart_rows=list_charts(),
             load_chart_by_id=load_chart,
@@ -7373,22 +7385,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _on_export_selected_total_chart(self) -> None:
         _run_total_chart_export_flow(
             self,
-            self._selected_local_row_ids(),
+            self._selected_chart_uids(),
             prompt_for_chart=lambda: self._prompt_single_chart_selection(
                 dialog_title="Export chart analysis",
                 submit_button_label="Export chart analysis",
                 placeholder_text="Look up the chart to export…",
             ),
-            load_chart=load_chart,
+            load_chart_by_uid=load_chart_by_uid,
             sanitize_token=self._sanitize_export_token,
             write_export=self._write_total_chart_export,
         )
 
 
-    def _resolve_middle_panel_tool_chart_id(self, tool_title: str) -> int | None:
-        selected_chart_ids = self._selected_local_row_ids()
-        if len(selected_chart_ids) == 1:
-            return selected_chart_ids[0]
+    def _resolve_middle_panel_tool_chart_uid(self, tool_title: str) -> str | None:
+        selected_chart_uids = self._selected_chart_uids()
+        if len(selected_chart_uids) == 1:
+            return selected_chart_uids[0]
         return self._prompt_single_chart_selection(
             dialog_title=tool_title,
             submit_button_label=f"Open {tool_title}",
@@ -7405,8 +7417,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "chart_predictor_quiz": "Chart Predictor Quiz",
         }
         tool_title = tool_titles.get(tool_key, "Chart Tool")
-        chart_id = self._resolve_middle_panel_tool_chart_id(tool_title)
-        if chart_id is None:
+        chart_uid = self._resolve_middle_panel_tool_chart_uid(tool_title)
+        if chart_uid is None:
             return
 
         parent = self._owner_window()
@@ -7415,7 +7427,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         if tool_key == "synastry":
-            chart_uid = get_chart_uid(chart_id)
             chart_uids = self._prompt_composite_chart_selection(
                 default_first_chart_uid=chart_uid,
                 focus_second_input=True,
@@ -7428,7 +7439,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            chart = load_chart(chart_id)
+            chart = load_chart_by_uid(chart_uid)
         except Exception as exc:
             QMessageBox.warning(self, tool_title, f"Unable to load selected chart.\n\n{exc}")
             return
@@ -7446,12 +7457,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             parent._set_current_chart_uid(chart.chart_uid)
             parent.on_get_human_design_info()
         elif tool_key == "personal_transit":
-            parent._generate_current_transits_for_chart(chart, chart_id)
+            parent._generate_current_transits_for_chart(
+                chart, get_chart_id_by_uid(chart_uid)
+            )
         elif tool_key == "similar_charts":
             parent._show_similar_charts_popout(
                 requester=self,
                 chart_override=chart,
-                subject_chart_id_override=chart_id,
+                subject_chart_id_override=get_chart_id_by_uid(chart_uid),
                 opened_from_database_view=True,
             )
         elif tool_key == "gemstone_chart":
