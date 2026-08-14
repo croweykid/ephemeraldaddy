@@ -18985,8 +18985,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         def row_needs_weirdness_refresh(row: tuple[Any, ...]) -> bool:
             score = row[31] if len(row) > 31 else None
             try:
-                metadata = getattr(self, "_weirdness_cache_metadata_by_id", {}) or {}
-                formula_version, stored_norm_signature = metadata.get(int(row[0]), (None, ""))
+                metadata = getattr(self, "_weirdness_cache_metadata_by_uid", {}) or {}
+                chart_uid = str(row[30] or "").strip().upper()
+                formula_version, stored_norm_signature = metadata.get(chart_uid, (None, ""))
             except Exception:
                 formula_version, stored_norm_signature = (None, "")
             return (
@@ -19028,11 +19029,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 chart.weirdness_score = weirdness_score
             except Exception:
                 pass
-            metadata = getattr(self, "_weirdness_cache_metadata_by_id", None)
+            metadata = getattr(self, "_weirdness_cache_metadata_by_uid", None)
             if metadata is None:
                 metadata = {}
-                self._weirdness_cache_metadata_by_id = metadata
-            metadata[chart_id] = (_DISTINGUISHING_FORMULA_VERSION, norm_signature)
+                self._weirdness_cache_metadata_by_uid = metadata
+            chart_uid = str(row[30] or "").strip().upper()
+            if chart_uid:
+                metadata[chart_uid] = (_DISTINGUISHING_FORMULA_VERSION, norm_signature)
             mutable_row = list(row)
             if len(mutable_row) < 34:
                 mutable_row.extend([None] * (34 - len(mutable_row)))
@@ -19160,18 +19163,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 chart_uid = None
             except (TypeError, ValueError):
                 weirdness_score = None
-        try:
-            chart_id_for_metadata = int(padded[0])
-            metadata = getattr(self, "_weirdness_cache_metadata_by_id", None)
+        normalized_chart_uid = str(chart_uid or "").strip().upper()
+        if normalized_chart_uid:
+            metadata = getattr(self, "_weirdness_cache_metadata_by_uid", None)
             if metadata is None:
                 metadata = {}
-                self._weirdness_cache_metadata_by_id = metadata
-            metadata[chart_id_for_metadata] = (
+                self._weirdness_cache_metadata_by_uid = metadata
+            metadata[normalized_chart_uid] = (
                 int(padded[32]) if padded[32] is not None else None,
                 str(padded[33] or ""),
             )
-        except Exception:
-            pass
         return (
             int(padded[0]),
             padded[1],
@@ -27448,7 +27449,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             least_similar=least_similar,
             algorithm_mode=algorithm_mode,
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
-            hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence()),
+            hidden_chart_uids=set(self._hidden_chart_uids),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
         )
         worker.moveToThread(thread)

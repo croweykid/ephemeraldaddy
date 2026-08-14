@@ -119,3 +119,36 @@ def test_charts_controller_has_no_legacy_pending_id_callbacks():
     assert "clear_pending_changed_refreshes" in controller
     assert "get_pending_changed_ids" not in controller
     assert "clear_pending_changed_ids" not in controller
+
+
+def test_high_similarity_and_worker_callers_pass_hidden_uids():
+    app_source = _class_source("MainWindow")
+    similarities_source = Path(
+        "ephemeraldaddy/gui/features/charts/similarities_analysis.py"
+    ).read_text(encoding="utf-8")
+
+    high_similarity_call = APP_SOURCE[
+        APP_SOURCE.index("    def _show_high_similarity_chart_pairs"):
+        APP_SOURCE.index("    def _open_high_similarity_chart_uid")
+    ]
+    worker_call = app_source[
+        app_source.index("    def _start_similar_charts_worker"):
+        app_source.index("    def _forget_similar_charts_worker_job")
+    ]
+    high_similarity_function = similarities_source[
+        similarities_source.index("def show_high_similarity_chart_pairs("):
+    ]
+
+    assert "hidden_chart_uids=set(self._hidden_chart_uids)" in high_similarity_call
+    assert "hidden_chart_uids=set(self._hidden_chart_uids)" in worker_call
+    assert "hidden_chart_ids=" not in worker_call
+    assert "hidden_chart_uids: set[str] | None" in high_similarity_function
+    assert "get_chart_ids_by_uid(hidden_chart_uids or set())" in high_similarity_function
+
+
+def test_weirdness_metadata_cache_is_uid_keyed():
+    source = _class_source("ManageChartsDialog", "MainWindow")
+
+    assert "_weirdness_cache_metadata_by_uid" in source
+    assert "_weirdness_cache_metadata_by_id" not in source
+    assert "metadata[normalized_chart_uid]" in source
