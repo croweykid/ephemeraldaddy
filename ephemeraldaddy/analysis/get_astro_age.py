@@ -15,6 +15,7 @@ PLANET_AGES = {
     "Part of Fortune": 30,
 }
 
+#this is redundant
 PLANET_NAME_ALIASES = {
     "North Node": "Rahu",
     "South Node": "Ketu",

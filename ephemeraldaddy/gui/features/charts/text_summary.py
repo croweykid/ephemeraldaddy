@@ -289,7 +289,7 @@ def _display_body_with_glyph(body: str, *, use_lilith_alias: bool = False) -> st
         return display_body
     return f"{glyph} {display_body}"
 
-
+#this is redundant from "Aliases" in chart_data_output
 def _display_body_name(body: str, *, use_lilith_alias: bool = False) -> str:
     if body == "Lilith (mean)":
         return "Black☽ Lilith"

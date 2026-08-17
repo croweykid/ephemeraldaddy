@@ -324,6 +324,7 @@ def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
                 continue
     ENNEAGRAM_CATEGORY_WEIGHTS = merged
 
+#this is redundant and should be imported from a consolidated universal source of truth
 BODY_ALIASES = {
     "fortune": "Part of Fortune",
     "part of fortune": "Part of Fortune",

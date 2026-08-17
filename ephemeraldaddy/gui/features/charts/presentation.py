@@ -118,7 +118,7 @@ def abbreviate_nakshatra_label(nakshatra: str) -> str:
     abbreviated = abbreviated.replace("Ashadha", "Ash.", 1)
     return abbreviated
 
-
+#this is semi redundant - see aliases elsewhere in the codebase
 def abbreviate_body_label(body: str) -> str:
     """Return compact body labels used in dense UI contexts."""
     label = str(body).strip()

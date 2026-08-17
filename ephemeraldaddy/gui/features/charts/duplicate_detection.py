@@ -59,14 +59,14 @@ def _display_name(chart_uid: str, name: object, alias: object) -> str:
         return primary
     if secondary:
         return secondary
-    return f"UID {chart_uid}"
+    return f"UID {chart_id}"
 
 
 def _display_warning_name(chart_uid: str, name: object, alias: object) -> str:
     display_name = _display_name(chart_uid, name, alias)
     if display_name == f"UID {chart_uid}":
         return display_name
-    return f"UID {chart_uid}: {display_name}"
+    return f"{display_name}"
 
 
 def _append_duplicate_warning_section(
@@ -104,6 +104,7 @@ def _chart_birth_components(chart: Chart) -> tuple[int | None, int | None, int |
     )
 
 
+#list chart_ids here, not uids. It's all about sorting order. users don't care what the uid of the chart is.
 def build_duplicate_save_warning(
     chart: Chart,
     rows: Sequence[Sequence[object]],
@@ -156,7 +157,7 @@ def build_duplicate_save_warning(
             if proposed_tokens.intersection(existing_tokens):
                 if chart_uid not in matched_name_uids:
                     name_or_alias_matches.append(display_name)
-                    matched_name_uids.add(chart_uid)
+                    #matched_name_uids.add(chart_uid)
 
     if not exact_birth_date_matches and not birthday_matches and not name_or_alias_matches:
         return None
