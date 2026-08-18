@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
+
 import datetime
 import logging
 from typing import Any
@@ -35,9 +37,8 @@ from ephemeraldaddy.core.composite import (
     personal_transit_rules_for_mode,
 )
 from ephemeraldaddy.core.db import (
-    get_chart_uid_map,
     list_charts,
-    load_chart_by_uid,
+    load_chart,
 )
 from ephemeraldaddy.core.interpretations import (
     EPHEMERIS_MAX_DATE,
@@ -454,24 +455,17 @@ class TransitPanelController:
         h = self.host
         h._personal_transit_chart_lookup = {}
         choices: list[str] = []
-        rows = list(list_charts())
-        uid_by_local_row = get_chart_uid_map(row[0] for row in rows)
-        for row in rows:
-            local_row_id, name, alias, *_rest = row
-            chart_uid = str(
-                uid_by_local_row.get(int(local_row_id)) or ""
-            ).strip().upper()
-            if not chart_uid:
-                continue
+        for row in list_charts():
+            chart_id, name, alias, *_rest = row
             display_name = (
                 name.strip()
                 if isinstance(name, str) and name.strip()
-                else "Unnamed Chart"
+                else f"Chart {chart_id}"
             )
             if alias:
                 display_name = f"{display_name} ({alias})"
-            key = f"{display_name}  [UID {chart_uid}]"
-            h._personal_transit_chart_lookup[key] = chart_uid
+            key = f"{display_name}  [#{chart_id}]"
+            h._personal_transit_chart_lookup[key] = int(chart_id)
             choices.append(key)
         completer = QCompleter(choices, h.personal_transit_chart_input)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
@@ -499,17 +493,17 @@ class TransitPanelController:
         )
         return selected_local.astimezone(datetime.timezone.utc), include_time
 
-    def resolve_personal_transit_chart_uid(self) -> str | None:
+    def resolve_personal_transit_chart_id(self) -> int | None:
         h = self.host
         raw = h.personal_transit_chart_input.text().strip()
         if not raw:
             return None
-        chart_uid = h._personal_transit_chart_lookup.get(raw)
-        if chart_uid is not None:
-            return chart_uid
-        for label, candidate_uid in h._personal_transit_chart_lookup.items():
-            if raw.casefold() == label.casefold():
-                return candidate_uid
+        chart_id = h._personal_transit_chart_lookup.get(raw)
+        if chart_id is not None:
+            return chart_id
+        for label, candidate_id in h._personal_transit_chart_lookup.items():
+            if raw.lower() == label.lower():
+                return candidate_id
         return None
 
     def matching_personal_transit_labels(self, raw: str) -> list[str]:
@@ -535,8 +529,8 @@ class TransitPanelController:
     def on_personal_transit_enter_pressed(self) -> None:
         h = self.host
         raw = h.personal_transit_chart_input.text().strip()
-        chart_uid = self.resolve_personal_transit_chart_uid()
-        if chart_uid is not None:
+        chart_id = self.resolve_personal_transit_chart_id()
+        if chart_id is not None:
             self.generate_personal_transit()
             return
         matches = self.matching_personal_transit_labels(raw)
@@ -557,8 +551,8 @@ class TransitPanelController:
         h = self.host
         if h._personal_transit_generation_in_progress:
             return
-        chart_uid = self.resolve_personal_transit_chart_uid()
-        if chart_uid is None:
+        chart_id = self.resolve_personal_transit_chart_id()
+        if chart_id is None:
             QMessageBox.warning(
                 h,
                 "Generate Personal Transit",
@@ -566,7 +560,7 @@ class TransitPanelController:
             )
             return
         try:
-            natal_chart = load_chart_by_uid(chart_uid)
+            natal_chart = load_chart(chart_id)
         except ValueError as exc:
             QMessageBox.warning(h, "Generate Personal Transit", str(exc))
             return
@@ -590,7 +584,9 @@ class TransitPanelController:
             transit_chart.birth_place = place_label
             transit_chart.birthtime_unknown = not include_time
             transit_chart.retcon_time_used = False
-            natal_normalized = normalize_chart(natal_chart, chart_type="natal")
+            natal_normalized = normalize_chart(
+                natal_chart, chart_id=chart_id, chart_type="natal"
+            )
             transit_normalized = normalize_chart(transit_chart, chart_type="transit")
             transit_in_natal = assign_houses(
                 transit_normalized.bodies, natal_normalized.houses, layer="TRANSIT"
@@ -620,7 +616,7 @@ class TransitPanelController:
             )
         except Exception as exc:
             logger.exception(
-                "Failed to generate personal transit for chart_uid=%s", chart_uid
+                "Failed to generate personal transit for chart_id=%s", chart_id
             )
             QMessageBox.critical(
                 h,

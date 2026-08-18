@@ -259,46 +259,46 @@ def build_common_dominant_modes(
 class SimilaritiesBaselineProvider(Protocol):
     """Minimal app-facing interface needed to build similarities baselines."""
 
-    def _build_common_position_signs(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_position_signs(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_houses_in_positions(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_houses_in_positions(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_signs_in_houses(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_signs_in_houses(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_aspects(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_aspects(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_dominant_signs(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_dominant_signs(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_dominant_bodies(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_dominant_bodies(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_dominant_houses(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_dominant_houses(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_dominant_elements(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_dominant_elements(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_dominant_modes(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_dominant_modes(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_dominant_nakshatras(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_dominant_nakshatras(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_human_design_aggregates(self, chart_uids: list[str]) -> HumanDesignSharedAggregates: ...
+    def _build_common_human_design_aggregates(self, chart_ids: list[int]) -> HumanDesignSharedAggregates: ...
 
-    def _build_common_human_design_gates(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_human_design_gates(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_human_design_gate_lines(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_human_design_gate_lines(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_human_design_channels(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_human_design_channels(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_human_design_defined_centers(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_human_design_defined_centers(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_human_design_authorities(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_human_design_authorities(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_human_design_profiles(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_human_design_profiles(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
-    def _build_common_bazi_signs(self, chart_uids: list[str]) -> list[tuple[str, int, int]]: ...
+    def _build_common_bazi_signs(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
 class DissimilaritiesFactorProvider(Protocol):
     """App-facing interface used to build Database View dissimilarity exports."""
 
-    def _get_chart_for_filter_by_uid(self, chart_uid: str) -> Any | None: ...
+    def _get_chart_for_filter(self, chart_id: int) -> Any | None: ...
 
     def _similarities_body_label(self, body: str) -> str: ...
 
@@ -316,7 +316,7 @@ class DissimilaritiesFactorProvider(Protocol):
         self,
         section_title: str,
         label: str,
-        chart_uids: list[str],
+        chart_ids: list[int],
     ) -> str: ...
 
 
@@ -355,9 +355,9 @@ def _common_section_title_for_contrast(section_title: str) -> str:
 
 def _build_similarity_factor_counts(
     provider: DissimilaritiesFactorProvider,
-    chart_uids: list[str],
+    chart_ids: list[int],
 ) -> dict[str, tuple[dict[str, int], dict[str, int]]]:
-    charts = [provider._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+    charts = [provider._get_chart_for_filter(chart_id) for chart_id in chart_ids]
     charts = [chart for chart in charts if chart is not None]
     chart_count = len(charts)
     time_specific_chart_count = sum(1 for chart in charts if chart_uses_houses(chart))
@@ -510,17 +510,17 @@ def _build_similarity_factor_counts(
 
 def build_dissimilarity_export_sections(
     provider: DissimilaritiesFactorProvider,
-    selected_chart_uids: list[str],
-    db_chart_uids: list[str],
+    selected_chart_ids: list[int],
+    db_chart_ids: list[int],
     db_total_count: int,
 ) -> list[tuple[str, list[tuple[str, int, int, int, int, str, str]]]]:
     """Build export-ready pair-only contrast sections for Database View dissimilarities."""
 
-    pair_counts = _build_similarity_factor_counts(provider, selected_chart_uids)
-    db_counts = _build_similarity_factor_counts(provider, db_chart_uids)
+    pair_counts = _build_similarity_factor_counts(provider, selected_chart_ids)
+    db_counts = _build_similarity_factor_counts(provider, db_chart_ids)
     chart_unique_counts = [
-        _build_similarity_factor_counts(provider, [chart_uid])
-        for chart_uid in selected_chart_uids[:2]
+        _build_similarity_factor_counts(provider, [chart_id])
+        for chart_id in selected_chart_ids[:2]
     ]
     export_sections: list[tuple[str, list[tuple[str, int, int, int, int, str, str]]]] = []
     for section_title in _DISSIMILARITIES_SECTION_ORDER:
@@ -528,7 +528,7 @@ def build_dissimilarity_export_sections(
         db_section_title = _common_section_title_for_contrast(section_title)
         db_section_counts, db_section_totals = db_counts.get(section_title, ({}, {}))
         matches: list[tuple[str, int, int, int, int, str, str]] = []
-        selected_total_count = len(selected_chart_uids)
+        selected_total_count = len(selected_chart_ids)
         common_gate_numbers = {
             int(label.replace("Gate ", "", 1).strip())
             for label, gate_count in pair_counts.get("Gates in contrast", ({}, {}))[0].items()
@@ -564,7 +564,7 @@ def build_dissimilarity_export_sections(
                     provider._similarity_matching_chart_names(
                         db_section_title,
                         label,
-                        selected_chart_uids,
+                        selected_chart_ids,
                     ),
                     owner_key,
                 )
@@ -577,7 +577,7 @@ class SimilaritiesDbBaselineCache:
     """Memoize database-wide similarities baselines between selection refreshes."""
 
     def __init__(self) -> None:
-        self._cache_key: tuple[str, ...] | None = None
+        self._cache_key: tuple[int, ...] | None = None
         self._cache: dict[str, Any] | None = None
 
     def clear(self) -> None:
@@ -586,13 +586,13 @@ class SimilaritiesDbBaselineCache:
 
     def get(
         self,
-        db_chart_uids: list[str],
-        builder: Callable[[list[str]], dict[str, Any]],
+        db_chart_ids: list[int],
+        builder: Callable[[list[int]], dict[str, Any]],
     ) -> dict[str, Any]:
-        cache_key = tuple(db_chart_uids)
+        cache_key = tuple(int(chart_id) for chart_id in db_chart_ids)
         if self._cache_key == cache_key and self._cache is not None:
             return self._cache
-        baselines = builder(db_chart_uids)
+        baselines = builder(db_chart_ids)
         self._cache_key = cache_key
         self._cache = baselines
         return baselines
@@ -608,15 +608,15 @@ def _match_totals(matches: list[tuple[str, int, int]]) -> dict[str, int]:
 
 def build_similarity_db_baselines(
     provider: SimilaritiesBaselineProvider,
-    db_chart_uids: list[str],
+    db_chart_ids: list[int],
 ) -> dict[str, Any]:
     """Build database-wide counts used to compare Similarities Analysis results."""
 
-    common_positions = provider._build_common_position_signs(db_chart_uids)
-    common_houses_in_positions = provider._build_common_houses_in_positions(db_chart_uids)
-    common_signs_in_houses = provider._build_common_signs_in_houses(db_chart_uids)
-    common_aspects = provider._build_common_aspects(db_chart_uids)
-    common_hd_aggregates = provider._build_common_human_design_aggregates(db_chart_uids)
+    common_positions = provider._build_common_position_signs(db_chart_ids)
+    common_houses_in_positions = provider._build_common_houses_in_positions(db_chart_ids)
+    common_signs_in_houses = provider._build_common_signs_in_houses(db_chart_ids)
+    common_aspects = provider._build_common_aspects(db_chart_ids)
+    common_hd_aggregates = provider._build_common_human_design_aggregates(db_chart_ids)
     return {
         "common_positions": _match_counts(common_positions),
         "common_positions_totals": _match_totals(common_positions),
@@ -624,13 +624,13 @@ def build_similarity_db_baselines(
         "common_houses_in_positions_totals": _match_totals(common_houses_in_positions),
         "common_signs_in_houses": _match_counts(common_signs_in_houses),
         "common_signs_in_houses_totals": _match_totals(common_signs_in_houses),
-        "common_dominant_signs": _match_counts(provider._build_common_dominant_signs(db_chart_uids)),
-        "common_dominant_bodies": _match_counts(provider._build_common_dominant_bodies(db_chart_uids)),
-        "common_dominant_houses": _match_counts(provider._build_common_dominant_houses(db_chart_uids)),
-        "common_dominant_elements": _match_counts(provider._build_common_dominant_elements(db_chart_uids)),
-        "common_dominant_modes": _match_counts(provider._build_common_dominant_modes(db_chart_uids)),
+        "common_dominant_signs": _match_counts(provider._build_common_dominant_signs(db_chart_ids)),
+        "common_dominant_bodies": _match_counts(provider._build_common_dominant_bodies(db_chart_ids)),
+        "common_dominant_houses": _match_counts(provider._build_common_dominant_houses(db_chart_ids)),
+        "common_dominant_elements": _match_counts(provider._build_common_dominant_elements(db_chart_ids)),
+        "common_dominant_modes": _match_counts(provider._build_common_dominant_modes(db_chart_ids)),
         "common_dominant_nakshatras": _match_counts(
-            provider._build_common_dominant_nakshatras(db_chart_uids)
+            provider._build_common_dominant_nakshatras(db_chart_ids)
         ),
         "common_aspects": _match_counts(common_aspects),
         "common_aspects_totals": _match_totals(common_aspects),
@@ -640,7 +640,7 @@ def build_similarity_db_baselines(
         "common_hd_defined_centers": _match_counts(common_hd_aggregates.defined_centers),
         "common_hd_authorities": _match_counts(common_hd_aggregates.authorities),
         "common_hd_profiles": _match_counts(common_hd_aggregates.profiles),
-        "common_bazi_signs": _match_counts(provider._build_common_bazi_signs(db_chart_uids)),
+        "common_bazi_signs": _match_counts(provider._build_common_bazi_signs(db_chart_ids)),
     }
 
 
@@ -685,14 +685,14 @@ def close_similarities_loading_progress(progress: QProgressDialog | None) -> Non
     QApplication.processEvents(QEventLoop.AllEvents, 50)
 
 HighSimilarityOpenCallback = Callable[[str], bool]
-HighSimilarityLoadCharts = Callable[[list[str]], Mapping[str, Any]]
-HighSimilarityExcludePlaceholders = Callable[[list[str]], list[str]]
+HighSimilarityLoadCharts = Callable[[list[int]], Mapping[int, Any]]
+HighSimilarityExcludePlaceholders = Callable[[list[int]], list[int]]
 
 
 def show_high_similarity_chart_pairs_dialog(
     parent: QWidget,
-    pairs: list[tuple[float, str, str]],
-    charts_by_uid: Mapping[str, Any],
+    pairs: list[tuple[float, int, int]],
+    charts_by_id: Mapping[int, Any],
     *,
     open_chart_uid: HighSimilarityOpenCallback,
 ) -> None:
@@ -713,16 +713,16 @@ def show_high_similarity_chart_pairs_dialog(
             "<p>Click a chart name to open it in Chart Editor.</p>",
             "<ol>",
         ]
-        for percent, first_uid, second_uid in pairs:
-            first = charts_by_uid.get(first_uid)
-            second = charts_by_uid.get(second_uid)
-            first_href = _html_escape(first_uid)
-            second_href = _html_escape(second_uid)
+        for percent, first_id, second_id in pairs:
+            first = charts_by_id.get(first_id)
+            second = charts_by_id.get(second_id)
+            first_uid = _html_escape(str(getattr(first, "chart_uid", "") or ""))
+            second_uid = _html_escape(str(getattr(second, "chart_uid", "") or ""))
             first_name = _html_escape(str(getattr(first, "name", "") or "Unnamed"))
             second_name = _html_escape(str(getattr(second, "name", "") or "Unnamed"))
             lines.append(
-                f'<li><a href="chart:{first_href}">{first_name}</a> ↔ '
-                f'<a href="chart:{second_href}">{second_name}</a> — {percent:.1f}%</li>'
+                f'<li><a href="chart:{first_uid}">{first_name}</a> ↔ '
+                f'<a href="chart:{second_uid}">{second_name}</a> — {percent:.1f}%</li>'
             )
         lines.append("</ol>")
         browser.setHtml("".join(lines))
@@ -746,9 +746,9 @@ def show_high_similarity_chart_pairs_dialog(
 def show_high_similarity_chart_pairs(
     parent: QWidget,
     *,
-    chart_uids: list[str],
-    exclude_placeholder_chart_uids: HighSimilarityExcludePlaceholders,
-    load_charts_by_uids: HighSimilarityLoadCharts,
+    chart_ids: list[int],
+    exclude_placeholder_chart_ids: HighSimilarityExcludePlaceholders,
+    load_charts_by_id: HighSimilarityLoadCharts,
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     custom_settings: SimilarityCalculatorSettings | None = None,
     hidden_chart_uids: set[str] | None = None,
@@ -757,9 +757,8 @@ def show_high_similarity_chart_pairs(
 ) -> None:
     """Calculate and show database-wide chart pairs with 90-100% Astro Twin similarity."""
 
-    normalized_uids = sorted({str(uid or "").strip().upper() for uid in chart_uids if str(uid or "").strip()})
-    filtered_chart_uids = exclude_placeholder_chart_uids(normalized_uids)
-    if len(filtered_chart_uids) < 2:
+    filtered_chart_ids = exclude_placeholder_chart_ids(sorted(int(chart_id) for chart_id in chart_ids))
+    if len(filtered_chart_ids) < 2:
         QMessageBox.information(
             parent,
             "90-100% similarities",
@@ -767,61 +766,49 @@ def show_high_similarity_chart_pairs(
         )
         return
 
-    progress = QProgressDialog("Loading charts…", "Cancel", 0, len(filtered_chart_uids), parent)
+    progress = QProgressDialog("Loading charts…", "Cancel", 0, len(filtered_chart_ids), parent)
     progress.setWindowTitle("90-100% similarities")
     progress.setMinimumDuration(250)
     progress.setValue(0)
     QApplication.processEvents()
     try:
-        charts_by_uid = load_charts_by_uids(filtered_chart_uids)
+        charts_by_id = load_charts_by_id(filtered_chart_ids)
     except Exception as exc:
         progress.close()
         QMessageBox.critical(parent, "90-100% similarities", f"Could not load charts:\n{exc}")
         return
 
-    uid_chart_pairs = [
-        (chart_uid, chart)
-        for chart_uid, chart in charts_by_uid.items()
+    id_chart_pairs = [
+        (int(chart_id), chart)
+        for chart_id, chart in charts_by_id.items()
         if chart is not None
         and not bool(getattr(chart, "is_placeholder", False))
         and getattr(chart, "positions", None)
     ]
-    valid_pairs: list[tuple[float, str, str]] = []
+    valid_pairs: list[tuple[float, int, int]] = []
     progress.setLabelText("Calculating 90-100% Astro Twin pairs…")
-    progress.setMaximum(max(1, len(uid_chart_pairs)))
-    hidden_local_rows = set(get_chart_ids_by_uid(hidden_chart_uids or set()).values())
-    for index, (chart_uid, chart) in enumerate(uid_chart_pairs):
+    progress.setMaximum(max(1, len(id_chart_pairs)))
+    hidden_ids = set(get_chart_ids_by_uid(hidden_chart_uids or set()).values())
+    for index, (chart_id, chart) in enumerate(id_chart_pairs):
         if progress.wasCanceled():
             progress.close()
             return
-        candidate_uids = uid_chart_pairs[index + 1 :]
-        candidates = [
-            (int(candidate.id), candidate)
-            for _candidate_uid, candidate in candidate_uids
-            if getattr(candidate, "id", None) is not None
-        ]
-        local_row_id = getattr(chart, "id", None)
-        if candidates and local_row_id is not None:
+        candidates = id_chart_pairs[index + 1 :]
+        if candidates:
             matches = find_astro_twins(
                 chart,
                 candidates,
                 top_k=len(candidates),
-                exclude_chart_id=int(local_row_id),
+                exclude_chart_id=chart_id,
                 algorithm_mode=algorithm_mode,
                 custom_settings=custom_settings,
-                hidden_chart_ids=hidden_local_rows,
+                hidden_chart_ids=hidden_ids,
                 include_hidden_charts=include_hidden_charts,
             )
-            uid_by_local_row = {
-                int(candidate.id): candidate_uid
-                for candidate_uid, candidate in candidate_uids
-                if getattr(candidate, "id", None) is not None
-            }
             for match in matches:
                 percent = float(match.score) * 100.0
-                matched_uid = uid_by_local_row.get(int(match.chart_id))
-                if matched_uid and 90.0 <= percent <= 100.0:
-                    valid_pairs.append((percent, chart_uid, matched_uid))
+                if 90.0 <= percent <= 100.0:
+                    valid_pairs.append((percent, chart_id, int(match.chart_id)))
         progress.setValue(index + 1)
         QApplication.processEvents()
 
@@ -830,6 +817,6 @@ def show_high_similarity_chart_pairs(
     show_high_similarity_chart_pairs_dialog(
         parent,
         valid_pairs,
-        charts_by_uid,
+        charts_by_id,
         open_chart_uid=open_chart_uid,
     )

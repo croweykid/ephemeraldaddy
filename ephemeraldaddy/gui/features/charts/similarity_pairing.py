@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
+
 from dataclasses import dataclass
-from typing import Mapping
 
 
 @dataclass(frozen=True)
 class SimilarityInputState:
-    selected_chart_uids: list[str]
+    selected_chart_ids: list[int]
     first_checked: bool
     second_checked: bool
     first_input_value: str
@@ -15,110 +16,140 @@ class SimilarityInputState:
 
 @dataclass(frozen=True)
 class SimilarityPairResolution:
-    first_chart_uid: str | None
-    second_chart_uid: str | None
+    first_chart_id: int | None
+    second_chart_id: int | None
     guidance: str | None
     allow_click: bool
 
 
-def build_chart_lookup(
-    rows: list[tuple], chart_uids_by_local_row: Mapping[int, str]
-) -> tuple[dict[str, str], list[str]]:
-    lookup: dict[str, str] = {}
+def build_chart_lookup(rows: list[tuple]) -> tuple[dict[str, int], list[str]]:
+    lookup: dict[str, int] = {}
     labels: list[str] = []
     for row in rows:
-        local_row_id, name, alias, *_rest = row
-        chart_uid = chart_uids_by_local_row.get(int(local_row_id))
-        if not chart_uid:
-            continue
+        chart_id, name, alias, *_rest = row
         display_name = (
             name.strip()
             if isinstance(name, str) and name.strip()
-            else "Unnamed Chart"
+            else f"Chart {chart_id}"
         )
         if alias:
             display_name = f"{display_name} ({alias})"
         from_whence = str(row[3] or "").strip() if len(row) > 3 else ""
         if from_whence:
             display_name = f"{display_name} ({from_whence})"
-        lookup[display_name] = chart_uid
-        labels.append(display_name)
+        label = display_name
+        lookup[label] = int(chart_id)
+        labels.append(label)
     return lookup, labels
 
 
-def resolve_chart_uid(raw_value: str, chart_lookup: dict[str, str]) -> str | None:
+def resolve_chart_id(raw_value: str, chart_lookup: dict[str, int]) -> int | None:
     query = raw_value.strip()
     if not query:
         return None
-    chart_uid = chart_lookup.get(query)
-    if chart_uid is not None:
-        return chart_uid
-    for label, candidate_uid in chart_lookup.items():
-        if query.casefold() == label.casefold():
-            return candidate_uid
+    chart_id = chart_lookup.get(query)
+    if chart_id is not None:
+        return chart_id
+    for label, candidate_id in chart_lookup.items():
+        if query.lower() == label.lower():
+            return candidate_id
     return None
 
 
 def resolve_similarity_pair_targets(
     input_state: SimilarityInputState,
-    chart_lookup: dict[str, str],
+    chart_lookup: dict[str, int],
 ) -> SimilarityPairResolution:
-    selected_chart_uids = input_state.selected_chart_uids
-    first_input_uid = (
-        resolve_chart_uid(input_state.first_input_value, chart_lookup)
+    selected_chart_ids = input_state.selected_chart_ids
+    first_input_id = (
+        resolve_chart_id(input_state.first_input_value, chart_lookup)
         if input_state.first_checked
         else None
     )
-    second_input_uid = (
-        resolve_chart_uid(input_state.second_input_value, chart_lookup)
+    second_input_id = (
+        resolve_chart_id(input_state.second_input_value, chart_lookup)
         if input_state.second_checked
         else None
     )
 
     if not input_state.first_checked and not input_state.second_checked:
-        if len(selected_chart_uids) == 2:
+        if len(selected_chart_ids) == 2:
             return SimilarityPairResolution(
-                first_chart_uid=selected_chart_uids[0],
-                second_chart_uid=selected_chart_uids[1],
+                first_chart_id=selected_chart_ids[0],
+                second_chart_id=selected_chart_ids[1],
                 guidance=None,
                 allow_click=True,
             )
-        return SimilarityPairResolution(None, None, "Select charts to compare.", False)
+        return SimilarityPairResolution(
+            first_chart_id=None,
+            second_chart_id=None,
+            guidance="Select charts to compare.",
+            allow_click=False,
+        )
 
     if input_state.first_checked and input_state.second_checked:
-        if first_input_uid is None or second_input_uid is None:
+        if first_input_id is None or second_input_id is None:
             return SimilarityPairResolution(
-                None, None, "Ticked inputs must reference saved charts.", True
+                first_chart_id=None,
+                second_chart_id=None,
+                guidance="Ticked inputs must reference saved charts.",
+                allow_click=True,
             )
-        if first_input_uid == second_input_uid:
-            return SimilarityPairResolution(None, None, "Choose charts to compare.", True)
-        return SimilarityPairResolution(first_input_uid, second_input_uid, None, True)
-
-    checked_input_uid = first_input_uid if input_state.first_checked else second_input_uid
-    if checked_input_uid is None:
+        if first_input_id == second_input_id:
+            return SimilarityPairResolution(
+                first_chart_id=None,
+                second_chart_id=None,
+                guidance="Choose charts to compare.",
+                allow_click=True,
+            )
         return SimilarityPairResolution(
-            None,
-            None,
-            "Enter a saved chart name for the checked input, or select chart(s) from Database.",
-            True,
+            first_chart_id=first_input_id,
+            second_chart_id=second_input_id,
+            guidance=None,
+            allow_click=True,
         )
-    if len(selected_chart_uids) != 1:
+
+    checked_input_id = first_input_id if input_state.first_checked else second_input_id
+    if checked_input_id is None:
         return SimilarityPairResolution(
-            None,
-            None,
-            "Select exactly 1 additional chart when using one checked input.",
-            False,
+            first_chart_id=None,
+            second_chart_id=None,
+            guidance="Enter a saved chart name for the checked input, or select chart(s) from Database.",
+            allow_click=True,
         )
-    selected_chart_uid = selected_chart_uids[0]
-    if checked_input_uid == selected_chart_uid:
-        return SimilarityPairResolution(None, None, "Choose charts to compare.", True)
-    return SimilarityPairResolution(checked_input_uid, selected_chart_uid, None, True)
+    if len(selected_chart_ids) != 1:
+        return SimilarityPairResolution(
+            first_chart_id=None,
+            second_chart_id=None,
+            guidance="Select exactly 1 additional chart when using one checked input.",
+            allow_click=False,
+        )
+    selected_chart_id = selected_chart_ids[0]
+    if checked_input_id == selected_chart_id:
+        return SimilarityPairResolution(
+            first_chart_id=None,
+            second_chart_id=None,
+            guidance="Choose charts to compare.",
+            allow_click=True,
+        )
+    return SimilarityPairResolution(
+        first_chart_id=checked_input_id,
+        second_chart_id=selected_chart_id,
+        guidance=None,
+        allow_click=True,
+    )
 
 
-def similarity_breakdown_chart_uids(
+def similarity_breakdown_chart_ids(
     resolution: SimilarityPairResolution,
-) -> list[str] | None:
-    """Return the stable chart UIDs for a resolved pair-analysis breakdown."""
-    if resolution.first_chart_uid is None or resolution.second_chart_uid is None:
+) -> list[int] | None:
+    """Return the chart IDs that should feed the Similarities Analysis breakdown.
+
+    The pair-comparison controls can resolve two charts without those charts being
+    selected in the Database View list.  When a concrete pair is resolved, the
+    breakdown panel should analyze that pair exactly as if both charts were
+    selected.
+    """
+    if resolution.first_chart_id is None or resolution.second_chart_id is None:
         return None
-    return [resolution.first_chart_uid, resolution.second_chart_uid]
+    return [int(resolution.first_chart_id), int(resolution.second_chart_id)]

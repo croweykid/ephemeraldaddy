@@ -40,7 +40,7 @@ def test_multi_chart_export_shows_progress_before_export_work_begins():
     progress_show_index = flow_source.index("progress.show()")
     helper_source = _choose_batch_export_directory_source()
     process_events_index = helper_source.index("QApplication.processEvents()")
-    load_chart_index = flow_source.index("chart = load_chart_by_uid(chart_uid)")
+    load_chart_index = flow_source.index("chart = load_chart(int(chart_id))")
 
     assert directory_prompt_index < progress_show_index < load_chart_index
     assert process_events_index < helper_source.index("dialog.exec()")
