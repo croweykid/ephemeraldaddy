@@ -6,6 +6,7 @@ import ctypes
 import sys
 
 from PySide6.QtCore import QCoreApplication
+from PySide6.QtGui import QGuiApplication
 
 
 # Keep this value stable: default-constructed QSettings uses the Qt
@@ -24,27 +25,30 @@ def configure_pre_qapplication_identity() -> None:
     """
     QCoreApplication.setApplicationName(APP_DISPLAY_NAME)
     QCoreApplication.setOrganizationName(APP_DISPLAY_NAME)
-    QCoreApplication.setDesktopFileName(APP_DESKTOP_ID)
+    QGuiApplication.setDesktopFileName(APP_DESKTOP_ID)
 
-    if sys.platform == "win32":
-        try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
-                WINDOWS_APP_USER_MODEL_ID
-            )
-        except Exception:
-            pass
-    elif sys.platform == "darwin":
-        # This improves interpreter launches where Cocoa honors the process
-        # name. A real .app bundle remains the only fully reliable Dock identity.
-        try:
-            libc = ctypes.CDLL(None)
-            setprogname = getattr(libc, "setprogname", None)
-            if setprogname is not None:
-                setprogname.argtypes = [ctypes.c_char_p]
-                setprogname.restype = None
-                setprogname(APP_SHELL_DISPLAY_NAME.encode())
-        except Exception:
-            pass
+    if sys.platform.startswith("linux"):
+        QGuiApplication.setDesktopFileName(APP_DESKTOP_ID)
+
+    # if sys.platform == "win32":
+    #     try:
+    #         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
+    #             WINDOWS_APP_USER_MODEL_ID
+    #         )
+    #     except Exception:
+    #         pass
+    # elif sys.platform == "darwin":
+    #     # This improves interpreter launches where Cocoa honors the process
+    #     # name. A real .app bundle remains the only fully reliable Dock identity.
+    #     try:
+    #         libc = ctypes.CDLL(None)
+    #         setprogname = getattr(libc, "setprogname", None)
+    #         if setprogname is not None:
+    #             setprogname.argtypes = [ctypes.c_char_p]
+    #             setprogname.restype = None
+    #             setprogname(APP_SHELL_DISPLAY_NAME.encode())
+    #     except Exception:
+    #         pass
 
 
 def configure_qapplication_identity(app) -> None:

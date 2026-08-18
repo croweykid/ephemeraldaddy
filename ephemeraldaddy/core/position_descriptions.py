@@ -1650,47 +1650,47 @@ MIDHEAVEN_SIGN_DESCRIPTIONS: dict[str, str] = {
 
 
 #//////////////////////////////////////////OUTER PLANETS
-OUTER_PLANET_SIGN_DISCLAIMERS: dict[str, dict[str, str]] = {
-    "uranus": (
-        "prefix": (
-            "Pertaining to generational cohorts of roughly seven years, the prevailing "
-            "nature of the cohort is thought to be thus:\n\n"
-        ),
-        "suffix": (
-            "\n\nThat said, for someone with Uranus strongly aspected in their chart or "
-            "otherwise dominantly weighted, this generational description may feel "
-            "especially personal, and perhaps—in some regards—as though they are the "
-            "avatar of a generation."
-        ),
-    ),
+# OUTER_PLANET_SIGN_DISCLAIMERS: dict[str, dict[str, str]] = {
+#     "uranus": (
+#         "prefix": (
+#             "Pertaining to generational cohorts of roughly seven years, the prevailing "
+#             "nature of the cohort is thought to be thus:\n\n"
+#         ),
+#         "suffix": (
+#             "\n\nThat said, for someone with Uranus strongly aspected in their chart or "
+#             "otherwise dominantly weighted, this generational description may feel "
+#             "especially personal, and perhaps—in some regards—as though they are the "
+#             "avatar of a generation."
+#         ),
+#     ),
 
-    "neptune": (
-        "prefix": (
-            "Pertaining to generational cohorts of roughly fourteen years, the prevailing "
-            "nature of the cohort is thought to be thus:\n\n"
-        ),
-        "suffix": (
-            "\n\nThat said, for someone with Neptune strongly aspected in their chart or "
-            "otherwise dominantly weighted, this generational description may feel "
-            "especially personal, and perhaps—in some regards—as though they are the "
-            "avatar of a generation."
-        ),
-    ),
+#     "neptune": (
+#         "prefix": (
+#             "Pertaining to generational cohorts of roughly fourteen years, the prevailing "
+#             "nature of the cohort is thought to be thus:\n\n"
+#         ),
+#         "suffix": (
+#             "\n\nThat said, for someone with Neptune strongly aspected in their chart or "
+#             "otherwise dominantly weighted, this generational description may feel "
+#             "especially personal, and perhaps—in some regards—as though they are the "
+#             "avatar of a generation."
+#         ),
+#     ),
 
-    "pluto": (
-        "prefix": (
-            "Pertaining to generational cohorts spanning a messy twelve to thirty-one years, "
-            "depending upon Pluto's speed through a particular sign (and occasional 'backtracking'), the prevailing nature "
-            "of the cohort is thought to be thus:\n\n"
-        ),
-        "suffix": (
-            "\n\nThat said, for someone with Pluto strongly aspected in their chart or "
-            "otherwise dominantly weighted, this generational description may feel "
-            "especially personal, and perhaps—in some regards—as though they are the "
-            "avatar of an era."
-        ),
-    ),
-}
+#     "pluto": (
+#         "prefix": (
+#             "Pertaining to generational cohorts spanning a messy twelve to thirty-one years, "
+#             "depending upon Pluto's speed through a particular sign (and occasional 'backtracking'), the prevailing nature "
+#             "of the cohort is thought to be thus:\n\n"
+#         ),
+#         "suffix": (
+#             "\n\nThat said, for someone with Pluto strongly aspected in their chart or "
+#             "otherwise dominantly weighted, this generational description may feel "
+#             "especially personal, and perhaps—in some regards—as though they are the "
+#             "avatar of an era."
+#         ),
+#     ),
+# }
 
 URANUS_SIGN_DESCRIPTIONS: dict[str, str] = {
     "aries": (
