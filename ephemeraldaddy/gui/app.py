@@ -480,6 +480,7 @@ from ephemeraldaddy.gui.features.chart_editor.metric_canvas_layout import (
     MetricCanvasLayoutController,
 )
 from ephemeraldaddy.gui.features.chart_editor.controller import ChartEditorController
+from ephemeraldaddy.gui.features.chart_editor.session import ChartEditSession
 from ephemeraldaddy.gui.features.database_view.close_progress import DatabaseCloseProgress
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
@@ -25210,6 +25211,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # - Chart Editor Window: current_chart_uid is None (blank fields/new chart).
         # - Chart Edit Window: current_chart_uid is set (editing existing chart).
         self.current_chart_uid: str | None = None
+        self._chart_edit_session = ChartEditSession()
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
         self._loaded_birth_place = None
         self._loaded_lat = None
@@ -30194,6 +30196,27 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             top=0.90,
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
+
+    @property
+    def _lucygoosey(self) -> bool:
+        """Compatibility name backed by the migrating ChartEditSession."""
+        return self._chart_edit_session.is_dirty
+
+    @_lucygoosey.setter
+    def _lucygoosey(self, is_lucygoosey: bool) -> None:
+        if is_lucygoosey:
+            self._chart_edit_session.mark_dirty()
+        else:
+            self._chart_edit_session.mark_clean()
+
+    @property
+    def _metadata_autosave_requires_recalculation(self) -> bool:
+        """Compatibility name backed by the migrating ChartEditSession."""
+        return self._chart_edit_session.recalculation_required
+
+    @_metadata_autosave_requires_recalculation.setter
+    def _metadata_autosave_requires_recalculation(self, required: bool) -> None:
+        self._chart_edit_session.recalculation_required = bool(required)
 
     def _set_lucygoosey(self, is_lucygoosey: bool) -> None:
         self._lucygoosey = is_lucygoosey
@@ -35288,10 +35311,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if normalized_uid is None:
             raise ValueError("A persisted chart must have a non-empty chart UID")
         self.current_chart_uid = normalized_uid
+        self._chart_edit_session.active_chart_uid = normalized_uid
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
         self.current_chart_uid = None
+        self._chart_edit_session.active_chart_uid = None
 
     def _current_chart_uid_for_navigation(self) -> str | None:
         """Return the UID-owned navigation identity without an ID round trip."""
