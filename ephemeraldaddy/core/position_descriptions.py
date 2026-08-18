@@ -1806,11 +1806,11 @@ URANUS_SIGN_DESCRIPTIONS: dict[str, str] = {
         "that human beings themselves can begin looking like badly optimized procedures. "
         "At its best, however, this generation makes freedom operational. It asks whether "
         "daily life could be healthier, cleaner, smarter, less wasteful, and less absurdly "
-        "laborious—and then has the nerve to redesign the machinery. (Noteable inclusions: )"
-    ),
+        "laborious—and then has the nerve to redesign the machinery. (Noteable inclusions: Denis Diderot (invented early Encyclopedia), Nicholas I of Russia, Mary Shelley, Brigham Young, Joseph Stalin, Albert Einstein, Otto Weininger, AA Milne, Lionel de Rothschild (later London branch), James Joyce, Kahlil Gibran, Walter Gropius (inventor of Bauhaus), John Maynard Keynes, Benito Mussolini, Coco Chanel, Eleanor Roosevelt, Ann Coulter, Ghislaine Maxwell, Sean Hannity, Tom Suozzi, Keir Starmer, Naomi Wolf, Jon Stewart, Jamie Raskin, Ken Paxton, Joel Osteen, Joe Exotic, Quentin Tarantino, Jet Li, Michel Gondry, Mike Myers, Viktor Orban, George Conway, Chris Coons (Traitor 8 democrat), Lars Ulrich, Scott & Mark Kelly, Catherine Cortez Mastro (Traitor 8 democrat), Niall Ferguson, Dan Brown, Joss Whedon, Wendy Williams, Guillermo del Toro, Brett Kavanaugh, Dr. Dre, Chris Rock, Piers Morgan, Rodney King, Trent Reznor, Charlie Sheen, Rainn Wilson, Grigori Perelman, Adam Sandler, Gordon Ramsay, Kirsten Gillibrand, Sinead O'Connor, Sam Harris, Chrissy Houlahan, Pierre Omidyar (Ebay founder), Adam Savage, Joe Rogan, Alex Karp (Palantier), Warren G Ellis, Tony Hawk, Marine Le Pen, Ice Cube)"
+    ), #hilariously toxic line up. Even the ones I like on this list with any revolutionary social clout are mostly a little toxic. Ofc, there are plenty who never invented/pioneered anything, but since they're not participating in Uranian energy, I excluded them. Only iconoclasts get included on the 'notable Uranians of this Uranian era' lists.
 
     "libra": (
-        "This is a generation inclined to reconsider the agreements everybody has been "
+        "This is theoretically a generation inclined to reconsider the agreements everybody has been "
         "pretending are self-evident. Marriage, partnership, diplomacy, law, social etiquette, "
         "gender relations, contracts, fairness—Uranus in Libra tends to arrive when some of "
         "these arrangements have become so familiar that people have stopped noticing how "
@@ -1825,8 +1825,8 @@ URANUS_SIGN_DESCRIPTIONS: dict[str, str] = {
         "Libra insists that another person exists. The generation's best innovations therefore "
         "ask a difficult question: what would a genuinely voluntary relationship look like? "
         "Not merely a rebellious one, and not merely a respectable one, but an agreement that "
-        "both people would still choose if neither were socially required to stay. (Noteable inclusions: )"
-    ),
+        "both people would still choose if neither were socially required to stay. (Noteable inclusions: Adam Smith, Victor Hugo, Jean le Rond d'Alembert, Ralph Waldo Emerson, Nathaniel Hawthorne, John Russell Bartlett, John Stuart Mill, Giuseppe Garibaldi, Harriet Taylor Mill, Alice Paul, Ezra Pound, TS Eliot, Dale Carnegie, Ho Chi Minh, Man Ray, Egon Schiele, Thom Yorke, Alexander McQueen, Tucker Carlson, Dana White, Ayaan Hirsi Ali, Louis Theroux, Naomi Klein, Christopher Nolan, Kevin Smith, Hakeem Jeffries, Daniel Tosh, Soon-Yi Previn, Morgan Spurlock, Tom Anderson (Myspace), Aditya Chopra, Rosie Duffield, Julian Assange, Cory Doctorow, Sukhwinder Singh, Lance Armstrong, Kristi Noem, Justin Trudeau, Sundar Pichai, Sergei Brin & Larry Page, David Belle (father of parkour), Maya Forstater, Gackt, Tarana Burke (#MeToo), Tyra Banks, Alex Jones, Marjorie Taylor Greene, Steve-O, Todd Blanche)"
+    ), #not a very heinous lineup, for the most part. More positive contributions to scoiety than negative, in the broader scheme of things.
 
     "scorpio": (
         "This is a generation that tends to inherit several locked rooms and immediately "
@@ -1845,8 +1845,8 @@ URANUS_SIGN_DESCRIPTIONS: dict[str, str] = {
         "is refusing the childish bargain by which society maintains order through collective "
         "pretending. Uranus in Scorpio asks who benefits from silence, who controls the hidden "
         "machinery, and whether anything genuinely powerful ought to remain exempt from "
-        "inspection merely because everyone finds the subject uncomfortable. (Noteable inclusions: )"
-    ),
+        "inspection merely because everyone finds the subject uncomfortable. (Noteable inclusions: Charles Darwin, Catherine the Great, Antonin Artaud, Zora Neale Hurston, Lin-Manuel Miranda, Harriet Beecher Stowe, Psy, Volodymyr Zelenskyy, Fredrik Neij (Pirate Bay co-owner), Mehdi Hasan, J Paul Getty, Cori Bush, Jason Crow, Charles Dickens, Theo Von, Walter Benjamin, Robert Clive (East India Trading Company), Peter III of Russia (married to Catherine the Great), Norman Rockwell, Noah Porter, Martha Graham, Kiichiro Toyoda, Isabel Briggs Myers, Hadley Freeman, George VI (dissolved British India), F Scott Fitzgerald, Elissa Slotkin, Edward VII of UK (abdicated), Bram Cohen (Bittorrent engineer), Aldous Huxley, Ayumi Hamasaki, Tila Tequila, Peter Joseph, Ron DeSantis, Immanuel Kant, Kim Kardashian, Pete Hegseth, Jared Moskowitz, Kash Patel, Tulsi Gabbard, Emmanuel Macron, Jared Kushner, Dan Scavino)"
+    ), #noteworthy mainly in that, those of this most recent generation makeup the most vapid, inane portion of pop culture. It's a generation of flippant idiots with more opinions and volition than rationality or critical thought. But that was not true in prior eras I have within my database. Granted, with ~84 years between each cohort, it makes sense that history would have filtered out the chaff & kept only the most memorable & noteworthy. Are we going to be talking about Ryan Seacrest in 2065? Who were the Fergies of Kant's generation?
 
     "sagittarius": (
         "This is a generation that tends to regard intellectual borders the way certain "
@@ -1924,7 +1924,7 @@ URANUS_SIGN_DESCRIPTIONS: dict[str, str] = {
         "was oppressive; some of them were useful. But at its strongest, Uranus in Pisces "
         "releases imagination from stale assumptions about what must count as real, serious, "
         "separate, or possible. It changes culture by making previously unimaginable forms "
-        "of connection imaginable first. (Noteable inclusions: Martin Routh, Howard Zinn, Liberace, Erving Goffman, Lenny Bruce, George Plimpton, Gene Roddenberry, Mel Brooks, Michel Foucault, Uta Hagen, Sun Myung Moon, Steve Allen, Sammy Davis Jr., Paul I of Russia, James Lipton, Maila Nurmi, Maximilien Robespierre, Noah Webster, Norman Mailer, Paddy Chayefsky (wrote 'The Network'), Jamsetji Tata, James Monroe, JP Morgan, Frank Herbert, Eva Peron, Elizabeth II, Edward VI of UK, Edmond Adolphe de Rothschild (Swiss banking empire), Ed McMahon, David Keirsey, Chuck Berry, Bob Barker, Betty White, Betty Friedan, Barabara Bush, Alfred Marshall, Alexander Hamilton, Aaron Burr, Stan Lee, Rock Hudson, Hugh Hefner, Truman Capote, Johnny Carson, George P. Mitchell, George Armstrong Custer)"
+        "of connection imaginable first. (Noteable inclusions: Martin Routh, Howard Zinn, Liberace, Erving Goffman, Lenny Bruce, George Plimpton, Gene Roddenberry, Mel Brooks, Michel Foucault, Uta Hagen, Sun Myung Moon, Steve Allen, Sammy Davis Jr., Paul I of Russia, James Lipton, Maila Nurmi, Maximilien Robespierre, Noah Webster, Norman Mailer, Paddy Chayefsky (wrote 'The Network'), Jamsetji Tata, James Monroe, JP Morgan, Frank Herbert, Eva Peron, Elizabeth II, Edward VI of UK, Edmond Adolphe de Rothschild (Swiss banking empire), Ed McMahon, David Keirsey, Chuck Berry, Bob Barker, Betty White, Betty Friedan, Barbara Bush, Alfred Marshall, Alexander Hamilton, Aaron Burr, Stan Lee, Rock Hudson, Hugh Hefner, Truman Capote, Johnny Carson, George P. Mitchell, George Armstrong Custer)"
     ),
 }
 
