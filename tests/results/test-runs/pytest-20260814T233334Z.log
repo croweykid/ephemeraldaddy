@@ -1,0 +1,8 @@
+EphemeralDaddy test run
+Started (UTC): 20260814T233334Z
+Repository: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy
+Python: 3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]
+Operating system: Windows (10 10.0.19045)
+Platform: Windows-10-10.0.19045-SP0
+Command: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\venv\Scripts\python.exe -m pytest tests -ra --junitxml=C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\results\test-runs\pytest-20260814T233334Z.xml
+------------------------------------------------------------------------
