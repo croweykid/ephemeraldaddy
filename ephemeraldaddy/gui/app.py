@@ -31829,9 +31829,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
-        display_body = str(display_body_label or "").strip() or (_display_body_name(body_key) if body_key else "")
-        title = f"{display_body} in {sign_key}" if display_body else sign_key
-        cursor.insertText(f"{title}\n\n", title_fmt)
         position_description = (
             get_position_description(body_key, sign_key) if body_key else None
         )
@@ -31842,6 +31839,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             reset_cursor.movePosition(QTextCursor.Start)
             self.chart_info_output.setTextCursor(reset_cursor)
             return
+
+        display_body = str(display_body_label or "").strip() or (_display_body_name(body_key) if body_key else "")
+        title = f"{display_body} in {sign_key}" if display_body else sign_key
+        cursor.insertText(f"{title}\n\n", title_fmt)
         theme = DOMINANT_BODY_MEANINGS.get(body_key, {}).get("core_theme", "")
         if theme:
             theme_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
