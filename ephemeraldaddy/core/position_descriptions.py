@@ -2184,15 +2184,15 @@ POSITION_DESCRIPTIONS: dict[str, dict[str, str]] = {
     # "sun": SUN_SIGN_DESCRIPTIONS,
     "moon": MOON_SIGN_DESCRIPTIONS,
     "mercury": MERCURY_SIGN_DESCRIPTIONS,
-    # "venus": VENUS_SIGN_DESCRIPTIONS,
-    # "mars": MARS_SIGN_DESCRIPTIONS,
-    # "jupiter": JUPITER_SIGN_DESCRIPTIONS,
-    # "saturn": SATURN_SIGN_DESCRIPTIONS,
-    # "uranus": URANUS_SIGN_DESCRIPTIONS,
-    # "neptune": NEPTUNE_SIGN_DESCRIPTIONS,
+    "venus": VENUS_SIGN_DESCRIPTIONS,
+    "mars": MARS_SIGN_DESCRIPTIONS,
+    "jupiter": JUPITER_SIGN_DESCRIPTIONS,
+    "saturn": SATURN_SIGN_DESCRIPTIONS,
+    "uranus": URANUS_SIGN_DESCRIPTIONS,
+    "neptune": NEPTUNE_SIGN_DESCRIPTIONS,
     # "pluto": PLUTO_SIGN_DESCRIPTIONS,
     "as": RISING_SIGN_DESCRIPTIONS,  # aka rising, ASC, ascendant
-    # "mc": MIDHEAVEN_SIGN_DESCRIPTIONS,  # aka midheaven, medium coeli
+    "mc": MIDHEAVEN_SIGN_DESCRIPTIONS,  # aka midheaven, medium coeli
     # "ic": IC_SIGN_DESCRIPTIONS,  # aka imum coeli
     # "ds": DESCENDANT_SIGN_DESCRIPTIONS,  # aka descendant
 }
