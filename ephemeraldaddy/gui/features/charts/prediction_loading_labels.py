@@ -18,9 +18,8 @@ _ELLIPSIS_TIMER_ATTR = "_ephemeraldaddy_loading_ellipsis_timer"
 _ELLIPSIS_STATE_ATTR = "_ephemeraldaddy_loading_ellipsis_state"
 
 
-def _discard_timer(label: Any, timer_attr: str) -> None:
-    """Stop and detach a possibly already-destroyed Qt timer wrapper."""
-    timer = getattr(label, timer_attr, None)
+def _stop_timer(timer: Any) -> None:
+    """Stop one timer without assuming its C++ QObject still exists."""
     if isinstance(timer, QTimer):
         try:
             timer.stop()
@@ -28,8 +27,25 @@ def _discard_timer(label: Any, timer_attr: str) -> None:
         except RuntimeError:
             # Qt can destroy a child while its Python wrapper remains stored.
             pass
+
+
+def _discard_timer(label: Any, timer_attr: str, *, expected: Any = None) -> None:
+    """Stop and detach the current timer, or only a specified obsolete timer.
+
+    A timeout already queued from a replaced timer may run after a new timer is
+    stored on the same label.  In that case it must not stop the replacement.
+    """
     try:
-        delattr(label, timer_attr)
+        timer = getattr(label, timer_attr, None)
+    except RuntimeError:
+        timer = None
+    if expected is not None and timer is not expected:
+        _stop_timer(expected)
+        return
+    _stop_timer(timer)
+    try:
+        if getattr(label, timer_attr, None) is timer:
+            delattr(label, timer_attr)
     except (AttributeError, RuntimeError):
         pass
 
@@ -114,17 +130,17 @@ def start_prediction_loading_ellipsis(label: Any, message: str) -> None:
         try:
             current_text = str(label.text())
         except RuntimeError:
-            stop_prediction_loading_ellipsis(label)
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
             return
         if current_text and not current_text.startswith(message):
-            stop_prediction_loading_ellipsis(label)
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
             return
         state = int(getattr(label, _ELLIPSIS_STATE_ATTR, 0))
         try:
             label.setText(f"{message}{'.' * ((state % 3) + 1)}")
             setattr(label, _ELLIPSIS_STATE_ATTR, state + 1)
         except RuntimeError:
-            stop_prediction_loading_ellipsis(label)
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
 
     timer = QTimer(label)
     timer.timeout.connect(_tick)

@@ -1707,6 +1707,16 @@ def _traits_pending_cached_metadata(owner: Any) -> dict[str, Any] | None:
     signatures = getattr(owner, "_traits_prediction_pending_signatures", None)
     if chart is None or not isinstance(traits, list) or not traits or not isinstance(signatures, dict):
         return None
+    cache_key = str(getattr(owner, "_traits_prediction_pending_cache_key", "") or "")
+    cached_pending = getattr(owner, "_traits_prediction_pending_metadata", None)
+    if (
+        isinstance(cached_pending, dict)
+        and str(getattr(owner, "_traits_prediction_pending_metadata_cache_key", "") or "") == cache_key
+    ):
+        # render_traits_predictions already performed the persistent-cache read.
+        # Expansion and header clicks must not repeat the same SQLite/index
+        # queries before deciding whether a calculation is necessary.
+        return cached_pending
     cached_metadata = trait_metadata_for_chart(
         owner,
         chart,
@@ -1717,7 +1727,11 @@ def _traits_pending_cached_metadata(owner: Any) -> dict[str, Any] | None:
         norm_signature=signatures.get("norm_signature"),
         chart_signature=signatures.get("chart_signature"),
     )
-    return cached_metadata if isinstance(cached_metadata, dict) else None
+    if isinstance(cached_metadata, dict):
+        owner._traits_prediction_pending_metadata = cached_metadata
+        owner._traits_prediction_pending_metadata_cache_key = cache_key
+        return cached_metadata
+    return None
 
 
 def _traits_pending_cache_is_up_to_date(owner: Any) -> bool:
@@ -1981,7 +1995,10 @@ class _TraitPredictionsRefreshReceiver(QObject):
             return
         if getattr(self._owner, "_traits_prediction_render_token", None) is not finished_token:
             return
-        _apply_traits_prediction_metadata(self._owner, self._traits, metadata if isinstance(metadata, dict) else {})
+        resolved_metadata = metadata if isinstance(metadata, dict) else {}
+        self._owner._traits_prediction_pending_metadata = resolved_metadata
+        self._owner._traits_prediction_pending_metadata_cache_key = self._cache_key
+        _apply_traits_prediction_metadata(self._owner, self._traits, resolved_metadata)
 
     @Slot(object, str)
     def handle_failed(self, finished_token: object, error_message: str) -> None:
@@ -2174,6 +2191,8 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     _set_traits_updated_label(owner, None)
     owner._traits_prediction_chart = chart
     owner._traits_prediction_render_token = object()
+    owner._traits_prediction_pending_metadata = None
+    owner._traits_prediction_pending_metadata_cache_key = ""
     traits = list_traits(active_only=True)
     owner._traits_prediction_trait_lookup = {
         str(trait.get("name", "")).strip().casefold(): trait
@@ -2222,6 +2241,8 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         owner._traits_prediction_pending_traits = traits
         owner._traits_prediction_pending_cache_key = cache_key or ""
         owner._traits_prediction_pending_signatures = signatures
+        owner._traits_prediction_pending_metadata = cached_metadata
+        owner._traits_prediction_pending_metadata_cache_key = cache_key or ""
         _set_traits_prediction_section_expanded(owner, True)
         if bool(cached_metadata.get("stale")):
             _set_traits_header_action(owner, "recalculate")

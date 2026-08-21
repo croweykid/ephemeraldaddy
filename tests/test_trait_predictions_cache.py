@@ -11,6 +11,25 @@ from ephemeraldaddy.gui.features.charts import trait_predictions
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
 
 
+def test_pending_metadata_reuses_render_lookup_for_header_and_expansion(monkeypatch):
+    metadata = {"likelihoods": {"Creative": 75.0}, "stale": True}
+    owner = SimpleNamespace(
+        _traits_prediction_pending_chart=SimpleNamespace(chart_uid="UID1"),
+        _traits_prediction_pending_traits=[{"name": "Creative"}],
+        _traits_prediction_pending_signatures={"trait_signature": "traits"},
+        _traits_prediction_pending_cache_key="render-key",
+        _traits_prediction_pending_metadata=metadata,
+        _traits_prediction_pending_metadata_cache_key="render-key",
+    )
+
+    def fail_duplicate_lookup(*_args, **_kwargs):
+        raise AssertionError("header/expansion should reuse the render cache lookup")
+
+    monkeypatch.setattr(trait_predictions, "trait_metadata_for_chart", fail_duplicate_lookup)
+
+    assert trait_predictions._traits_pending_cached_metadata(owner) is metadata
+
+
 def test_load_trait_norm_cache_logs_and_skips_corrupt_cache(tmp_path, monkeypatch, caplog):
     cache_path = tmp_path / "trait_db_norms.json"
     cache_path.write_text("{not json", encoding="utf-8")

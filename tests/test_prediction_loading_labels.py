@@ -39,3 +39,17 @@ def test_stop_ellipsis_clears_timer_and_state(qt_app):
 
     assert not hasattr(label, "_ephemeraldaddy_loading_ellipsis_timer")
     assert not hasattr(label, "_ephemeraldaddy_loading_ellipsis_state")
+
+
+def test_obsolete_queued_tick_does_not_stop_replacement_timer(qt_app):
+    label = QLabel()
+    start_prediction_loading_ellipsis(label, "First load")
+    obsolete_timer = label._ephemeraldaddy_loading_ellipsis_timer
+    start_prediction_loading_ellipsis(label, "Replacement load")
+    replacement_timer = label._ephemeraldaddy_loading_ellipsis_timer
+
+    obsolete_timer.timeout.emit()
+
+    assert label._ephemeraldaddy_loading_ellipsis_timer is replacement_timer
+    assert replacement_timer.isActive()
+    stop_prediction_loading_ellipsis(label)
