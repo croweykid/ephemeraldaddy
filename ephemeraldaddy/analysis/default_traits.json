@@ -1,6 +1,8 @@
 {
   "DEX": {
     "name": "DEX",
+    "samples": [0,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -166,6 +168,8 @@
   },
   "agriculture": {
     "name": "agriculture",
+    "samples": [16,0],
+    "model": "observed",
     "signs": {
       "Aquarius": 22
     },
@@ -332,6 +336,7 @@
       58,
       0
     ],
+    "model": "observed",
     "signs": {
       "Capricorn": 13,
       "Libra": -18
@@ -467,6 +472,8 @@
   },
   "artist": {
     "name": "artist",
+    "samples": [72,0],
+    "model": "observed",
     "signs": {
       "Libra": -23
     },
@@ -4277,6 +4284,7 @@
   },
   "regular scientist": {
     "samples": 0,
+    "model": "theoretical",
     "signs": {
       "Virgo": 18,
       "Aquarius": 14,
