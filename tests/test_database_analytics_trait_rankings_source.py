@@ -28,3 +28,19 @@ def test_trait_rankings_prompt_skips_database_warm_until_trait_selected():
     assert "return" in inert_branch
     assert "_collect_traits_distribution_analytics" not in inert_branch
     assert "Select a trait from the dropdown above" in SOURCE
+
+
+def test_journal_backed_trait_ranking_cache_checks_scores_before_loading_charts():
+    # The standalone Ranking panel owns this method; keep this assertion here as
+    # an architecture guard for the shared Database Analytics ranking cache.
+    ranking_source = (
+        Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/ranking_panel.py"
+    ).read_text(encoding="utf-8")
+    method = ranking_source[
+        ranking_source.index("    def _rankings_trait_likelihood_cache_complete")
+        : ranking_source.index("    def _refresh_rankings_panel")
+    ]
+    assert "journal_backed_cache" in method
+    assert method.index("profile_cache_key in profile_cache") < method.index(
+        "chart = self._get_chart_for_filter(chart_id)"
+    )

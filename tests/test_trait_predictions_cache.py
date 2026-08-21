@@ -30,6 +30,58 @@ def test_pending_metadata_reuses_render_lookup_for_header_and_expansion(monkeypa
     assert trait_predictions._traits_pending_cached_metadata(owner) is metadata
 
 
+def test_v4_likelihood_cache_uses_change_journal_instead_of_rescanning_all_chart_tokens(
+    tmp_path, monkeypatch
+):
+    owner = _TraitsCacheOwner(())
+    owner._traits_distribution_likelihood_cache_loaded = False
+    cache_path = tmp_path / "traits.json"
+    owner._traits_distribution_likelihood_cache_path = lambda: cache_path
+    cache_path.write_text(
+        trait_predictions.json.dumps(
+            {
+                "version": 4,
+                "format": "profile_likelihoods_v2_change_journal",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "last_modified_at": "2026-01-02T00:00:00+00:00",
+                "db_change_sequence": 10,
+                "profiles": ["doctor-profile"],
+                "profile_entries": [
+                    {"profile": 0, "chart_uid": "UNCHANGED", "chart_token": "old-a", "likelihood": 70.0},
+                    {"profile": 0, "chart_uid": "CHANGED", "chart_token": "old-b", "likelihood": 80.0},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics.db.chart_changes_since",
+        lambda sequence: [
+            {
+                "sequence": 11,
+                "chart_uid": "CHANGED",
+                "change_type": "astro_data_edited",
+                "astro_data_changed": True,
+                "changed_at": "2026-01-03T00:00:00Z",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics.db.latest_chart_change_sequence",
+        lambda: 11,
+    )
+    owner._traits_distribution_chart_tokens = lambda: (_ for _ in ()).throw(
+        AssertionError("v4 cache must not fingerprint the whole database during load")
+    )
+
+    assert owner._load_traits_distribution_likelihood_cache() is True
+    cache = owner._traits_distribution_individual_profile_likelihood_cache
+    assert cache[("doctor-profile", "UNCHANGED")] == 70.0
+    assert ("doctor-profile", "CHANGED") not in cache
+    assert owner._traits_distribution_likelihood_cache_created_at == "2026-01-01T00:00:00+00:00"
+    assert owner._traits_distribution_likelihood_cache_dirty is True
+
+
 def test_load_trait_norm_cache_logs_and_skips_corrupt_cache(tmp_path, monkeypatch, caplog):
     cache_path = tmp_path / "trait_db_norms.json"
     cache_path.write_text("{not json", encoding="utf-8")

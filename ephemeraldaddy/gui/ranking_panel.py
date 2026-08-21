@@ -335,15 +335,14 @@ class RankingsPanelMixin:
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
-        chart_tokens = self._traits_distribution_chart_tokens()
+        journal_backed_cache = bool(
+            int(getattr(self, "_traits_distribution_likelihood_cache_change_sequence", 0) or 0)
+        )
+        chart_tokens: dict[str, str] | None = None
         for chart_id, chart_uid in sorted(chart_uids_by_id.items()):
             chart_uid = self._normalize_rankings_chart_uid(chart_uid)
             if not chart_uid or chart_uid in hidden_chart_uids:
                 continue
-            chart = self._get_chart_for_filter(chart_id)
-            if chart is None or self._is_placeholder_chart(chart):
-                continue
-
             chart_cache_key = (cache_revision, trait_signature, chart_uid)
             if isinstance(likelihood_cache, dict):
                 likelihoods = likelihood_cache.get(chart_cache_key)
@@ -355,7 +354,11 @@ class RankingsPanelMixin:
 
             if isinstance(profile_cache, dict) and isinstance(profile_token_cache, dict):
                 profile_cache_key = (selected_trait_key[2], chart_uid)
+                if journal_backed_cache and profile_cache_key in profile_cache:
+                    continue
                 cached_chart_token = str(profile_token_cache.get(profile_cache_key, "") or "")
+                if chart_tokens is None:
+                    chart_tokens = self._traits_distribution_chart_tokens()
                 current_chart_token = chart_tokens.get(chart_uid)
                 if (
                     cached_chart_token
@@ -364,6 +367,9 @@ class RankingsPanelMixin:
                 ):
                     continue
 
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
             return False
         return True
 

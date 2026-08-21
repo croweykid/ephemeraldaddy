@@ -426,7 +426,6 @@ def on_trait_archive_clicked(owner: Any) -> None:
     refresh_ranking_traits = getattr(owner, "_refresh_rankings_trait_choices_after_archive", None)
     if callable(refresh_ranking_traits):
         refresh_ranking_traits(trait_name=trait_name, archived=not archived)
-    _refresh_trait_predictions(owner)
 
 
 def on_trait_description_clicked(owner: Any) -> None:
