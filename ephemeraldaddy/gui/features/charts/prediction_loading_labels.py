@@ -15,6 +15,39 @@ _LOADING_TIMER_ATTR = "_ephemeraldaddy_loading_blink_timer"
 _LOADING_STATE_ATTR = "_ephemeraldaddy_loading_blink_state"
 _LOADING_STYLE_ATTR = "_ephemeraldaddy_loading_blink_previous_style"
 _ELLIPSIS_TIMER_ATTR = "_ephemeraldaddy_loading_ellipsis_timer"
+_ELLIPSIS_STATE_ATTR = "_ephemeraldaddy_loading_ellipsis_state"
+
+
+def _stop_timer(timer: Any) -> None:
+    """Stop one timer without assuming its C++ QObject still exists."""
+    if isinstance(timer, QTimer):
+        try:
+            timer.stop()
+            timer.deleteLater()
+        except RuntimeError:
+            # Qt can destroy a child while its Python wrapper remains stored.
+            pass
+
+
+def _discard_timer(label: Any, timer_attr: str, *, expected: Any = None) -> None:
+    """Stop and detach the current timer, or only a specified obsolete timer.
+
+    A timeout already queued from a replaced timer may run after a new timer is
+    stored on the same label.  In that case it must not stop the replacement.
+    """
+    try:
+        timer = getattr(label, timer_attr, None)
+    except RuntimeError:
+        timer = None
+    if expected is not None and timer is not expected:
+        _stop_timer(expected)
+        return
+    _stop_timer(timer)
+    try:
+        if getattr(label, timer_attr, None) is timer:
+            delattr(label, timer_attr)
+    except (AttributeError, RuntimeError):
+        pass
 
 
 def add_prediction_calculate_prompt(layout: Any) -> QLabel:
@@ -30,13 +63,7 @@ def add_prediction_calculate_prompt(layout: Any) -> QLabel:
 
 def stop_prediction_loading_blink(label: Any) -> None:
     """Stop a Predictions loading blink timer and restore the label's pre-loading style."""
-    timer = getattr(label, _LOADING_TIMER_ATTR, None)
-    if isinstance(timer, QTimer):
-        try:
-            timer.stop()
-            timer.deleteLater()
-        except RuntimeError:
-            pass
+    _discard_timer(label, _LOADING_TIMER_ATTR)
     previous_style = getattr(label, _LOADING_STYLE_ATTR, None)
     if previous_style is not None and hasattr(label, "setStyleSheet"):
         try:
@@ -48,6 +75,15 @@ def stop_prediction_loading_blink(label: Any) -> None:
             delattr(label, attr)
         except (AttributeError, RuntimeError):
             pass
+
+
+def stop_prediction_loading_ellipsis(label: Any) -> None:
+    """Stop and forget an ellipsis timer, including a stale Qt wrapper."""
+    _discard_timer(label, _ELLIPSIS_TIMER_ATTR)
+    try:
+        delattr(label, _ELLIPSIS_STATE_ATTR)
+    except (AttributeError, RuntimeError):
+        pass
 
 
 def start_prediction_loading_blink(label: Any) -> None:
@@ -86,26 +122,25 @@ def start_prediction_loading_blink(label: Any) -> None:
 
 def start_prediction_loading_ellipsis(label: Any, message: str) -> None:
     """Animate a centered loading message with one through three periods."""
-    previous_timer = getattr(label, _ELLIPSIS_TIMER_ATTR, None)
-    if isinstance(previous_timer, QTimer):
-        previous_timer.stop()
-        previous_timer.deleteLater()
+    stop_prediction_loading_ellipsis(label)
 
-    label._ephemeraldaddy_loading_ellipsis_state = 0
+    setattr(label, _ELLIPSIS_STATE_ATTR, 0)
 
     def _tick() -> None:
         try:
             current_text = str(label.text())
         except RuntimeError:
-            timer.stop()
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
             return
         if current_text and not current_text.startswith(message):
-            timer.stop()
-            timer.deleteLater()
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
             return
-        state = int(getattr(label, "_ephemeraldaddy_loading_ellipsis_state", 0))
-        label.setText(f"{message}{'.' * ((state % 3) + 1)}")
-        label._ephemeraldaddy_loading_ellipsis_state = state + 1
+        state = int(getattr(label, _ELLIPSIS_STATE_ATTR, 0))
+        try:
+            label.setText(f"{message}{'.' * ((state % 3) + 1)}")
+            setattr(label, _ELLIPSIS_STATE_ATTR, state + 1)
+        except RuntimeError:
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
 
     timer = QTimer(label)
     timer.timeout.connect(_tick)
