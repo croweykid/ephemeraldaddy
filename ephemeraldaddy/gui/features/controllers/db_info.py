@@ -37,8 +37,13 @@ from ephemeraldaddy.gui.style import (
     appwide_red_green_rgb_for_range,
 )
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+    PREDICTION_NORMS_SOURCE_MY_DATABASE,
+    PREDICTION_NORMS_SOURCE_OFFICIAL,
+    load_prediction_norms_source,
     prediction_norms_snapshot_path,
+    prediction_norms_source_metadata,
     refresh_prediction_norms_snapshot,
+    save_prediction_norms_source,
 )
 
 DATABASE_INFO_SETTINGS_SECTION_TITLE = "DB Stats"
@@ -299,6 +304,27 @@ def _set_prediction_norms_status(owner: Any, text: str) -> None:
         footer_writer(DATABASE_INFO_SETTINGS_SECTION_TITLE, text)
 
 
+def _prediction_norms_status_text() -> str:
+    metadata = prediction_norms_source_metadata()
+    if not metadata["available"]:
+        detail = "snapshot not generated" if metadata["source"] == PREDICTION_NORMS_SOURCE_MY_DATABASE else "catalog unavailable"
+    else:
+        generated = metadata["created_at"] or "generation date not supplied"
+        detail = f'{metadata["chart_count"]} charts; generated {html.escape(generated)}'
+    return (
+        f'<b>Active norms: {html.escape(metadata["label"])}</b> — {detail}. '
+        f'{html.escape(metadata["path"])}'
+    )
+
+
+def _select_prediction_norms_source(owner: Any, source: str) -> None:
+    save_prediction_norms_source(source)
+    if hasattr(owner, "_prediction_norms_snapshot_cache"):
+        owner._prediction_norms_snapshot_cache = None
+    owner._prediction_norms_revision = int(getattr(owner, "_prediction_norms_revision", 0) or 0) + 1
+    _set_prediction_norms_status(owner, _prediction_norms_status_text())
+
+
 def _refresh_prediction_norms(owner: Any) -> None:
     button = getattr(owner, "_settings_refresh_prediction_norms_button", None)
     if button is not None:
@@ -309,13 +335,21 @@ def _refresh_prediction_norms(owner: Any) -> None:
     )
     try:
         snapshot = refresh_prediction_norms_snapshot(owner, user_initiated=True)
+        save_prediction_norms_source(PREDICTION_NORMS_SOURCE_MY_DATABASE)
+        source_combo = getattr(owner, "_settings_prediction_norms_source_combo", None)
+        if source_combo is not None:
+            index = source_combo.findData(PREDICTION_NORMS_SOURCE_MY_DATABASE)
+            source_combo.blockSignals(True)
+            source_combo.setCurrentIndex(index)
+            source_combo.blockSignals(False)
         if hasattr(owner, "_prediction_norms_snapshot_cache"):
             owner._prediction_norms_snapshot_cache = snapshot
         chart_count = int(snapshot.get("chart_count", 0) or 0)
         trait_count = len(snapshot.get("trait_baselines", {}) or {})
         status = (
             f"Predictions norms refreshed for {chart_count} charts and {trait_count} traits. "
-            f"Saved to {html.escape(str(prediction_norms_snapshot_path()))}."
+            f"My Database is now active. Saved to "
+            f"{html.escape(str(prediction_norms_snapshot_path(PREDICTION_NORMS_SOURCE_MY_DATABASE)))}."
         )
         _set_prediction_norms_status(owner, status)
     except Exception as exc:
@@ -561,6 +595,19 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     )
     norms_button.clicked.connect(lambda _checked=False: _refresh_prediction_norms(owner))
     controls_row.addWidget(norms_button, 0, Qt.AlignLeft)
+    norms_source_combo = QComboBox()
+    apply_shared_dropdown_style(norms_source_combo)
+    norms_source_combo.setToolTip(
+        "Choose exactly one population baseline. Custom Traits use a separate local extension store."
+    )
+    norms_source_combo.addItem("Official", PREDICTION_NORMS_SOURCE_OFFICIAL)
+    norms_source_combo.addItem("My Database", PREDICTION_NORMS_SOURCE_MY_DATABASE)
+    selected_source_index = norms_source_combo.findData(load_prediction_norms_source())
+    norms_source_combo.setCurrentIndex(max(0, selected_source_index))
+    norms_source_combo.currentIndexChanged.connect(
+        lambda _index: _select_prediction_norms_source(owner, str(norms_source_combo.currentData()))
+    )
+    controls_row.addWidget(norms_source_combo, 0, Qt.AlignLeft)
     controls_row.addStretch(1)
     section_layout.addLayout(controls_row)
 
@@ -569,16 +616,15 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     owner._settings_db_info_collection_combo = collection_combo
     owner._settings_db_info_export_button = export_button
     owner._settings_refresh_prediction_norms_button = norms_button
-    owner._settings_prediction_norms_label = QLabel(
-        f"Predictions norms snapshot: {html.escape(str(prediction_norms_snapshot_path()))}"
-    )
+    owner._settings_prediction_norms_source_combo = norms_source_combo
+    owner._settings_prediction_norms_label = QLabel(_prediction_norms_status_text())
     owner._settings_prediction_norms_label.setWordWrap(True)
     owner._settings_prediction_norms_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
     footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
     if callable(footer_writer):
         _set_prediction_norms_status(
             owner,
-            f"Predictions norms snapshot: {html.escape(str(prediction_norms_snapshot_path()))}",
+            _prediction_norms_status_text(),
         )
     else:
         section_layout.addWidget(owner._settings_prediction_norms_label)

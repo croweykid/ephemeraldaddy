@@ -25,6 +25,16 @@ logger = logging.getLogger(__name__)
 PREDICTION_NORMS_SNAPSHOT_VERSION = 1
 PREDICTION_NORMS_SNAPSHOT_FILENAME = ".prediction_norms_snapshot.json"
 PREDICTION_NORMS_SNAPSHOT_PATH = db.DB_DIR / PREDICTION_NORMS_SNAPSHOT_FILENAME
+PREDICTION_NORMS_TRAIT_EXTENSIONS_FILENAME = ".prediction_norms_trait_extensions.json"
+PREDICTION_NORMS_TRAIT_EXTENSIONS_PATH = db.DB_DIR / PREDICTION_NORMS_TRAIT_EXTENSIONS_FILENAME
+PREDICTION_NORMS_SOURCE_FILENAME = ".prediction_norms_source.json"
+PREDICTION_NORMS_SOURCE_PATH = db.DB_DIR / PREDICTION_NORMS_SOURCE_FILENAME
+PREDICTION_NORMS_SOURCE_OFFICIAL = "official"
+PREDICTION_NORMS_SOURCE_MY_DATABASE = "my_database"
+PREDICTION_NORMS_SOURCES = (
+    PREDICTION_NORMS_SOURCE_OFFICIAL,
+    PREDICTION_NORMS_SOURCE_MY_DATABASE,
+)
 OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH = (
     Path(__file__).resolve().parents[3] / "analysis" / "default_prediction_norms.json"
 )
@@ -73,8 +83,36 @@ def _trait_payload(trait: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def prediction_norms_snapshot_path() -> Path:
-    return PREDICTION_NORMS_SNAPSHOT_PATH
+def load_prediction_norms_source() -> str:
+    """Return the explicitly selected population baseline source."""
+    try:
+        payload = json.loads(PREDICTION_NORMS_SOURCE_PATH.read_text(encoding="utf-8"))
+        source = str(payload.get("source", "") or "")
+    except (FileNotFoundError, TypeError, ValueError, OSError):
+        source = ""
+    return source if source in PREDICTION_NORMS_SOURCES else PREDICTION_NORMS_SOURCE_OFFICIAL
+
+
+def save_prediction_norms_source(source: str) -> str:
+    """Persist source selection without modifying either population snapshot."""
+    normalized = str(source or "").strip().lower()
+    if normalized not in PREDICTION_NORMS_SOURCES:
+        raise ValueError(f"Unsupported Predictions norms source: {source!r}")
+    PREDICTION_NORMS_SOURCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary = PREDICTION_NORMS_SOURCE_PATH.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps({"source": normalized}, indent=2), encoding="utf-8")
+    temporary.replace(PREDICTION_NORMS_SOURCE_PATH)
+    return normalized
+
+
+def prediction_norms_snapshot_path(source: str | None = None) -> Path:
+    """Resolve exactly one population-baseline path (never an overlay)."""
+    selected = source or load_prediction_norms_source()
+    if selected == PREDICTION_NORMS_SOURCE_OFFICIAL:
+        return OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH
+    if selected == PREDICTION_NORMS_SOURCE_MY_DATABASE:
+        return PREDICTION_NORMS_SNAPSHOT_PATH
+    raise ValueError(f"Unsupported Predictions norms source: {selected!r}")
 
 
 def _load_snapshot_file(snapshot_path: Path) -> dict[str, Any]:
@@ -90,43 +128,63 @@ def _load_snapshot_file(snapshot_path: Path) -> dict[str, Any]:
     return payload
 
 
-def _merge_prediction_norm_snapshots(
-    official: Mapping[str, Any], local: Mapping[str, Any]
+def load_prediction_norms_snapshot(
+    path: Path | None = None,
+    *,
+    source: str | None = None,
+    include_trait_extensions: bool = True,
 ) -> dict[str, Any]:
-    """Overlay writable local/custom norms onto the bundled read-only catalog."""
-    if not official:
-        return dict(local)
-    if not local:
-        return dict(official)
-    merged = dict(official)
-    for section in ("trait_baselines", "dnd_stat_raw_averages"):
-        values = dict(official.get(section, {}) or {})
-        values.update(dict(local.get(section, {}) or {}))
-        merged[section] = values
-    merged.update(
-        {
-            key: value
-            for key, value in local.items()
-            if key not in {"trait_baselines", "dnd_stat_raw_averages"}
-        }
-    )
-    merged["official_snapshot_id"] = str(official.get("snapshot_id", "") or "")
-    merged["local_snapshot_id"] = str(local.get("snapshot_id", "") or "")
-    merged["snapshot_id"] = _stable_hash(
-        {
-            "official": merged["official_snapshot_id"],
-            "local": merged["local_snapshot_id"],
-        }
-    )
-    return merged
+    """Load one population snapshot plus the explicit custom-Trait extension.
 
-
-def load_prediction_norms_snapshot(path: Path | None = None) -> dict[str, Any]:
+    The extension contributes only custom ``trait_baselines``. It can never
+    replace population data for other predictor sections, so Official and My
+    Database are never silently merged.
+    """
     if path is not None:
         return _load_snapshot_file(path)
-    official = _load_snapshot_file(OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH)
-    local = _load_snapshot_file(PREDICTION_NORMS_SNAPSHOT_PATH)
-    return _merge_prediction_norm_snapshots(official, local)
+    selected = source or load_prediction_norms_source()
+    population_path = prediction_norms_snapshot_path(selected)
+    population = _load_snapshot_file(population_path)
+    resolved = dict(population)
+    extension = (
+        _load_snapshot_file(PREDICTION_NORMS_TRAIT_EXTENSIONS_PATH)
+        if include_trait_extensions and selected == PREDICTION_NORMS_SOURCE_OFFICIAL
+        else {}
+    )
+    population_rows = dict(population.get("trait_baselines", {}) or {})
+    extension_rows = dict(extension.get("trait_baselines", {}) or {})
+    for key, row in extension_rows.items():
+        # Extensions fill custom-trait gaps; they never shadow a bundled row.
+        population_rows.setdefault(key, row)
+    resolved["trait_baselines"] = population_rows
+    resolved["active_source"] = selected
+    resolved["population_snapshot_path"] = str(population_path)
+    resolved["population_snapshot_id"] = str(population.get("snapshot_id", "") or "")
+    resolved["trait_extension_snapshot_id"] = str(extension.get("snapshot_id", "") or "")
+    resolved["snapshot_id"] = _stable_hash(
+        {
+            "source": selected,
+            "population": resolved["population_snapshot_id"],
+            "trait_extensions": resolved["trait_extension_snapshot_id"],
+        }
+    )
+    return resolved
+
+
+def prediction_norms_source_metadata(source: str | None = None) -> dict[str, Any]:
+    """Describe the selected population source for Settings without scanning charts."""
+    selected = source or load_prediction_norms_source()
+    path = prediction_norms_snapshot_path(selected)
+    payload = _load_snapshot_file(path)
+    return {
+        "source": selected,
+        "label": "Official" if selected == PREDICTION_NORMS_SOURCE_OFFICIAL else "My Database",
+        "path": str(path),
+        "available": bool(payload),
+        "created_at": str(payload.get("created_at", "") or ""),
+        "chart_count": int(payload.get("chart_count", 0) or 0),
+        "snapshot_id": str(payload.get("snapshot_id", "") or ""),
+    }
 
 
 def save_prediction_norms_snapshot(payload: dict[str, Any], path: Path | None = None) -> None:
@@ -137,11 +195,18 @@ def save_prediction_norms_snapshot(payload: dict[str, Any], path: Path | None = 
     temp_path.replace(snapshot_path)
 
 
+def _writable_trait_norms_path() -> Path:
+    """Return the modular Trait store for the active population source."""
+    if load_prediction_norms_source() == PREDICTION_NORMS_SOURCE_OFFICIAL:
+        return PREDICTION_NORMS_TRAIT_EXTENSIONS_PATH
+    return PREDICTION_NORMS_SNAPSHOT_PATH
+
+
 def remove_trait_from_prediction_norms_snapshot(
     *, trait_uid: str = "", trait_name: str = "", path: Path | None = None
 ) -> dict[str, Any]:
     """Remove one deleted trait without rebuilding unrelated norm baselines."""
-    snapshot_path = path or PREDICTION_NORMS_SNAPSHOT_PATH
+    snapshot_path = path or _writable_trait_norms_path()
     snapshot = _load_snapshot_file(snapshot_path)
     rows = snapshot.get("trait_baselines", {}) if isinstance(snapshot, dict) else {}
     if not snapshot or not isinstance(rows, dict):
@@ -179,7 +244,7 @@ def set_trait_retired_in_prediction_norms_snapshot(
     trait: Mapping[str, Any], *, retired: bool, path: Path | None = None
 ) -> dict[str, Any]:
     """Toggle one trait's scan eligibility while retaining its calculated norm."""
-    snapshot_path = path or PREDICTION_NORMS_SNAPSHOT_PATH
+    snapshot_path = path or _writable_trait_norms_path()
     snapshot = _load_snapshot_file(snapshot_path)
     if not snapshot:
         return snapshot
@@ -250,10 +315,13 @@ def prospective_trait_snapshot_token(
             "updated_trait_keys": sorted(_trait_key(trait) for trait in missing),
         }
     )
-    official_token = str(payload.get("official_snapshot_id", "") or "")
-    if not official_token:
-        return local_token
-    return _stable_hash({"official": official_token, "local": local_token})
+    return _stable_hash(
+        {
+            "source": payload.get("active_source", load_prediction_norms_source()),
+            "population": payload.get("population_snapshot_id", ""),
+            "trait_extensions": local_token,
+        }
+    )
 
 
 def dnd_stat_snapshot_averages(snapshot: Mapping[str, Any] | None = None) -> dict[str, float]:
@@ -395,8 +463,12 @@ def refresh_prediction_norms_snapshot(
         "dnd_alignment_trait_keys": [str(trait.get("name", "") or "") for trait in dnd_alignment_traits],
         "dnd_stat_raw_averages": dnd_stat_raw_averages,
     }
-    save_prediction_norms_snapshot(snapshot)
-    resolved_snapshot = load_prediction_norms_snapshot()
+    # A manual rebuild creates/replaces My Database only. The bundled Official
+    # catalog and the user's explicit source selection are independent.
+    save_prediction_norms_snapshot(snapshot, PREDICTION_NORMS_SNAPSHOT_PATH)
+    resolved_snapshot = load_prediction_norms_snapshot(
+        source=PREDICTION_NORMS_SOURCE_MY_DATABASE
+    )
     try:
         setattr(owner, "_prediction_norms_snapshot_cache", resolved_snapshot)
         setattr(owner, "_prediction_norms_revision", int(getattr(owner, "_prediction_norms_revision", 0) or 0) + 1)
@@ -417,14 +489,16 @@ def refresh_trait_norms_snapshot(owner: Any, traits: list[dict[str, Any]]) -> di
 
     averages = _database_trait_averages(owner, traits, force_refresh_stale=True)
     combined_snapshot = load_prediction_norms_snapshot()
-    snapshot = _load_snapshot_file(PREDICTION_NORMS_SNAPSHOT_PATH)
+    snapshot_path = _writable_trait_norms_path()
+    snapshot = _load_snapshot_file(snapshot_path)
     if not snapshot:
         snapshot = {
             "version": PREDICTION_NORMS_SNAPSHOT_VERSION,
             "snapshot_id": "",
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "chart_count": len(_owner_chart_uids(owner)),
-            "norm_signature": "custom_prediction_norms",
+            "snapshot_kind": "custom_trait_extensions",
+            "norm_signature": "custom_trait_extensions",
             "trait_baselines": {},
             "retired_trait_keys": [],
             "dnd_alignment_trait_keys": [],
@@ -449,7 +523,7 @@ def refresh_trait_norms_snapshot(owner: Any, traits: list[dict[str, Any]]) -> di
         {"previous": combined_snapshot.get("snapshot_id", ""), "updated_trait_keys": sorted(changed_keys)}
     )
     snapshot["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    save_prediction_norms_snapshot(snapshot)
+    save_prediction_norms_snapshot(snapshot, snapshot_path)
     try:
         owner._prediction_norms_snapshot_cache = load_prediction_norms_snapshot()
         owner._prediction_norms_revision = int(getattr(owner, "_prediction_norms_revision", 0) or 0) + 1

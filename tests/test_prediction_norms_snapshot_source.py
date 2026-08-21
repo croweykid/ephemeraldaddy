@@ -216,11 +216,13 @@ def test_snapshot_requires_matching_profile_hash_for_full_trait_coverage(tmp_pat
     assert missing_trait_norms([trait], snapshot) == [trait]
 
 
-def test_bundled_official_norms_are_read_only_base_with_local_trait_overlay(
+def test_population_source_is_exclusive_and_official_uses_custom_trait_extension(
     tmp_path, monkeypatch
 ):
     official_path = tmp_path / "official.json"
     local_path = tmp_path / "local.json"
+    extension_path = tmp_path / "extensions.json"
+    source_path = tmp_path / "source.json"
     official_path.write_text(
         json.dumps(
             {
@@ -241,14 +243,47 @@ def test_bundled_official_norms_are_read_only_base_with_local_trait_overlay(
         ),
         encoding="utf-8",
     )
+    extension_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "snapshot_id": "extension",
+                "trait_baselines": {
+                    "uid:custom": {"db_average": 62.0},
+                    "uid:official": {"db_average": 99.0},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(snapshot_module, "OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH", official_path)
     monkeypatch.setattr(snapshot_module, "PREDICTION_NORMS_SNAPSHOT_PATH", local_path)
+    monkeypatch.setattr(snapshot_module, "PREDICTION_NORMS_TRAIT_EXTENSIONS_PATH", extension_path)
+    monkeypatch.setattr(snapshot_module, "PREDICTION_NORMS_SOURCE_PATH", source_path)
 
-    merged = load_prediction_norms_snapshot()
+    official = load_prediction_norms_snapshot(source="official")
+    my_database = load_prediction_norms_snapshot(source="my_database")
 
-    assert set(merged["trait_baselines"]) == {"uid:official", "uid:custom"}
-    assert merged["official_snapshot_id"] == "official"
-    assert merged["local_snapshot_id"] == "local"
+    assert set(official["trait_baselines"]) == {"uid:official", "uid:custom"}
+    assert official["trait_baselines"]["uid:official"]["db_average"] == 51.0
+    assert official["population_snapshot_id"] == "official"
+    assert set(my_database["trait_baselines"]) == {"uid:custom"}
+    assert my_database["population_snapshot_id"] == "local"
+    assert my_database["trait_extension_snapshot_id"] == ""
+    assert json.loads(official_path.read_text(encoding="utf-8"))["snapshot_id"] == "official"
+
+
+def test_norm_source_selection_is_persisted_without_mutating_snapshots(tmp_path, monkeypatch):
+    source_path = tmp_path / "source.json"
+    official_path = tmp_path / "official.json"
+    official_path.write_text('{"version": 1, "snapshot_id": "official"}', encoding="utf-8")
+    monkeypatch.setattr(snapshot_module, "PREDICTION_NORMS_SOURCE_PATH", source_path)
+    monkeypatch.setattr(snapshot_module, "OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH", official_path)
+
+    assert snapshot_module.load_prediction_norms_source() == "official"
+    snapshot_module.save_prediction_norms_source("my_database")
+
+    assert snapshot_module.load_prediction_norms_source() == "my_database"
     assert json.loads(official_path.read_text(encoding="utf-8"))["snapshot_id"] == "official"
 
 
