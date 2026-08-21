@@ -83,6 +83,7 @@ from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
     start_prediction_loading_blink,
     start_prediction_loading_ellipsis,
     stop_prediction_loading_blink,
+    stop_prediction_loading_ellipsis,
 )
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
@@ -2005,6 +2006,7 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
         stop_prediction_loading_blink(label)
+        stop_prediction_loading_ellipsis(label)
         current_html = _current_traits_prediction_html(owner)
         if current_html:
             label.setText(current_html)
@@ -2041,6 +2043,7 @@ def _apply_traits_prediction_metadata(
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
         stop_prediction_loading_blink(label)
+        stop_prediction_loading_ellipsis(label)
         if not has_table:
             label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
             label.setVisible(True)
