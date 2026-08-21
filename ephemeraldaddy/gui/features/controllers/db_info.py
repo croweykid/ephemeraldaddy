@@ -308,7 +308,7 @@ def _refresh_prediction_norms(owner: Any) -> None:
         "Refreshing Predictions norms… this can take a while for large databases.",
     )
     try:
-        snapshot = refresh_prediction_norms_snapshot(owner)
+        snapshot = refresh_prediction_norms_snapshot(owner, user_initiated=True)
         if hasattr(owner, "_prediction_norms_snapshot_cache"):
             owner._prediction_norms_snapshot_cache = snapshot
         chart_count = int(snapshot.get("chart_count", 0) or 0)

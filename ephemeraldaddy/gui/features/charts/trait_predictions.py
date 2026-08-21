@@ -86,7 +86,6 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     load_prediction_norms_snapshot,
     missing_trait_norms,
     prospective_trait_snapshot_token,
-    refresh_trait_norms_snapshot,
     trait_snapshot_averages,
 )
 from ephemeraldaddy.gui.style import (
@@ -289,6 +288,10 @@ def _resize_traits_prediction_table_to_contents(table: QTableView) -> None:
     table.updateGeometry()
 
 TRAIT_DB_NORMS_CACHE_VERSION = 1
+
+
+class MissingTraitNormCoverage(RuntimeError):
+    """Raised when the selected static snapshot lacks requested trait profiles."""
 
 
 def _predictions_debug_enabled(owner: Any) -> bool:
@@ -962,13 +965,17 @@ def _database_trait_averages(
         snapshot_averages = trait_snapshot_averages(traits, snapshot)
         missing_traits = missing_trait_norms(traits, snapshot)
         if missing_traits:
-            _predictions_debug(
-                owner,
-                "Trait norms snapshot repairing missing analytical profiles traits=%s",
-                len(missing_traits),
+            missing_names = sorted(
+                str(trait.get("name", "") or "").strip()
+                for trait in missing_traits
+                if str(trait.get("name", "") or "").strip()
             )
-            refreshed = refresh_trait_norms_snapshot(owner, missing_traits)
-            snapshot_averages = trait_snapshot_averages(traits, refreshed)
+            raise MissingTraitNormCoverage(
+                "Static trait norms are missing or analytically outdated for: "
+                + ", ".join(missing_names)
+                + ". Add/edit those traits through Settings to calculate only those profiles, "
+                "or explicitly use Recalculate DB Norms to replace the complete snapshot."
+            )
         requested_names = {
             str(trait.get("name", "") or "").strip()
             for trait in traits

@@ -48,7 +48,8 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     assert "def render_traits_predictions" in predictions_source
     assert "calculate_trait_likelihoods" in predictions_source
     assert "def _trait_snapshot_norm_signature" in predictions_source
-    assert "refresh_trait_norms_snapshot(owner, missing_traits)" in predictions_source
+    assert "raise MissingTraitNormCoverage(" in predictions_source
+    assert "refresh_trait_norms_snapshot(owner, missing_traits)" not in predictions_source
     assert "def missing_trait_norms" in snapshot_source
     assert "TRAIT_DB_NORMS_CACHE_PATH" not in predictions_source
 

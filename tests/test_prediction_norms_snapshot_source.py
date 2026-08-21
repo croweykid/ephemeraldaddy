@@ -1,11 +1,16 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot as snapshot_module
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+    ExplicitNormRecalculationRequired,
     dnd_stat_snapshot_averages,
     load_prediction_norms_snapshot,
     missing_trait_norms,
     remove_trait_from_prediction_norms_snapshot,
+    refresh_prediction_norms_snapshot,
     save_prediction_norms_snapshot,
     set_trait_retired_in_prediction_norms_snapshot,
 )
@@ -37,8 +42,8 @@ def test_predictions_norm_snapshot_refresh_includes_dnd_alignment_traits():
 def test_chart_view_traits_prefer_shared_prediction_norm_snapshot():
     method = TRAIT_SOURCE.split("def _database_trait_averages", 1)[1].split("chart_ids = _database_chart_ids", 1)[0]
     assert "trait_snapshot_averages(traits, snapshot)" in method
-    assert "refresh_trait_norms_snapshot(owner, missing_traits)" in method
-    assert "Trait norm snapshot repair failed" in method
+    assert "raise MissingTraitNormCoverage(" in method
+    assert "refresh_trait_norms_snapshot(owner, missing_traits)" not in method
 
 
 def test_dnd_statblock_uses_shared_snapshot_averages_before_norm_charts():
@@ -87,7 +92,30 @@ def test_app_adapter_avoids_loading_norm_charts_when_snapshot_has_dnd_stat_avera
 
 def test_database_statistics_exposes_manual_refresh_norms_button():
     assert 'QPushButton("Recalculate DB Norms")' in DB_INFO_SOURCE
-    assert "refresh_prediction_norms_snapshot(owner)" in DB_INFO_SOURCE
+    assert "refresh_prediction_norms_snapshot(owner, user_initiated=True)" in DB_INFO_SOURCE
+
+
+def test_whole_database_norm_refresh_requires_explicit_user_action():
+    with pytest.raises(ExplicitNormRecalculationRequired):
+        refresh_prediction_norms_snapshot(object())
+
+    app_refresh = APP_SOURCE.split("def _refresh_prediction_norms_snapshot", 1)[1].split(
+        "def _prediction_norm_charts", 1
+    )[0]
+    assert "refresh_prediction_norms_snapshot(self, user_initiated=True)" in app_refresh
+
+
+def test_missing_trait_coverage_never_triggers_automatic_database_generation():
+    method = TRAIT_SOURCE.split("def _database_trait_averages", 1)[1].split(
+        "def trait_metadata_for_chart", 1
+    )[0]
+    snapshot_read_path = method.split("if not force_refresh_stale:", 1)[1].split(
+        "chart_uids = _database_chart_uids(owner)", 1
+    )[0]
+    assert "raise MissingTraitNormCoverage(" in snapshot_read_path
+    assert "refresh_trait_norms_snapshot" not in snapshot_read_path
+    assert "_database_chart_uids" not in snapshot_read_path
+    assert "_calculate_database_trait_averages_direct" not in snapshot_read_path
 
 
 def test_chart_view_traits_keep_uid_metadata_visible_when_cache_is_stale_or_incomplete():

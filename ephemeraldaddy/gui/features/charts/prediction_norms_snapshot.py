@@ -31,6 +31,10 @@ OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH = (
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
 
 
+class ExplicitNormRecalculationRequired(RuntimeError):
+    """Raised when code attempts a whole-database norm rebuild implicitly."""
+
+
 def _stable_hash(value: Any) -> str:
     try:
         payload = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
@@ -319,8 +323,15 @@ def _load_norm_charts(owner: Any) -> list[Any]:
     return charts
 
 
-def refresh_prediction_norms_snapshot(owner: Any) -> dict[str, Any]:
+def refresh_prediction_norms_snapshot(
+    owner: Any, *, user_initiated: bool = False
+) -> dict[str, Any]:
     """Rebuild the complete shared Predictions norm snapshot on explicit request."""
+    if not user_initiated:
+        raise ExplicitNormRecalculationRequired(
+            "Whole-database prediction norms can only be rebuilt by the explicit "
+            "Recalculate DB Norms action."
+        )
     charts = _load_norm_charts(owner)
     traits = list_traits(active_only=True)
     try:
