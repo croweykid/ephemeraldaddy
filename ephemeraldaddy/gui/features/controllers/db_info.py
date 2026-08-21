@@ -308,7 +308,7 @@ def _refresh_prediction_norms(owner: Any) -> None:
         "Refreshing Predictions norms… this can take a while for large databases.",
     )
     try:
-        snapshot = refresh_prediction_norms_snapshot(owner)
+        snapshot = refresh_prediction_norms_snapshot(owner, user_initiated=True)
         if hasattr(owner, "_prediction_norms_snapshot_cache"):
             owner._prediction_norms_snapshot_cache = snapshot
         chart_count = int(snapshot.get("chart_count", 0) or 0)
@@ -555,9 +555,9 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     )
     refresh_button.clicked.connect(lambda _checked=False: refresh_database_info(owner, force_recompute=True))
     controls_row.addWidget(refresh_button, 0, Qt.AlignLeft)
-    norms_button = QPushButton("Refresh Predictions Norms")
+    norms_button = QPushButton("Recalculate DB Norms")
     norms_button.setToolTip(
-        "Rebuild the shared static Predictions norm snapshot used by Chart View Traits, Fantasy RPG Alignment, and Fantasy RPG Statblocks."
+        "Explicitly replace the static Predictions norm snapshot from the current database. Normal chart edits never trigger this rebuild."
     )
     norms_button.clicked.connect(lambda _checked=False: _refresh_prediction_norms(owner))
     controls_row.addWidget(norms_button, 0, Qt.AlignLeft)
