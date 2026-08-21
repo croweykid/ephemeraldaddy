@@ -1676,6 +1676,24 @@ def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]
     trait_signature = _stable_json_hash(_trait_signature_payload(traits))
     legacy_trait_signature = _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
     trait_display_signature = _stable_json_hash(_trait_display_signature_payload(traits))
+    snapshot_token_provider = getattr(owner, "_prediction_norm_snapshot_token", None)
+    snapshot_token = ""
+    if callable(snapshot_token_provider):
+        try:
+            snapshot_token = str(snapshot_token_provider() or "")
+        except Exception:
+            snapshot_token = ""
+    if snapshot_token and snapshot_token != "prediction_norm_snapshot:missing":
+        # A static snapshot is itself the complete norm generation. Do not scan,
+        # normalize, hash, or sort the live database cohort on Chart Editor render.
+        norm_signature = f"prediction_norms_snapshot:{snapshot_token}"
+        return {
+            "trait_signature": trait_signature,
+            "legacy_trait_signature": legacy_trait_signature,
+            "trait_display_signature": trait_display_signature,
+            "norm_signature": norm_signature,
+            "chart_signature": _chart_trait_metadata_signature(chart),
+        }
     current_norm_state = _database_norm_state(owner)
     chart_uids = _database_chart_uids(owner)
     try:

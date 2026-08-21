@@ -224,10 +224,14 @@ def _mark_trait_definitions_changed(
 
 
 def _warm_trait_definitions(owner: Any, trait_names: set[str] | None = None) -> None:
-    """Warm persisted DB norm cache for selected traits without blocking other trait caches."""
-    from ephemeraldaddy.gui.features.charts.trait_predictions import warm_trait_database_norms
+    """Calculate only selected traits and merge them into the static norm snapshot."""
+    from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import refresh_trait_norms_snapshot
 
-    warm_trait_database_norms(owner, trait_names)
+    traits = list_traits(active_only=True)
+    if trait_names is not None:
+        normalized = {name.casefold() for name in trait_names}
+        traits = [trait for trait in traits if str(trait.get("name", "")).casefold() in normalized]
+    refresh_trait_norms_snapshot(owner, traits)
 
 
 def _validate_trait_source_text(source_path: Path, text: str) -> None:
@@ -311,7 +315,12 @@ def on_trait_delete_clicked(owner: Any) -> None:
         )
         return
     delete_trait(item.data(Qt.UserRole))
-    _mark_trait_definitions_changed(owner, trait_names={trait_name})
+    from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import remove_trait_from_prediction_norms_snapshot
+
+    owner._prediction_norms_snapshot_cache = remove_trait_from_prediction_norms_snapshot(
+        trait_uid=trait_uid, trait_name=trait_name
+    )
+    _mark_trait_definitions_changed(owner, trait_names={trait_name}, clear_likelihoods=False)
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -338,7 +347,8 @@ def on_trait_rename_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait rename failed", f"Trait could not be renamed: {exc}")
         return
-    _mark_trait_definitions_changed(owner, trait_names={old_name, clean_name})
+    # Names are presentation metadata; the UID-keyed analytical profile and its
+    # norm remain valid, so renaming must not trigger database rescoring.
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -381,7 +391,7 @@ def on_trait_recolor_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait recolor failed", f"Trait could not be recolored: {exc}")
         return
-    _mark_trait_definitions_changed(owner, trait_names={_trait_display_name(item)})
+    # Color is display-only and must not invalidate likelihoods or norm baselines.
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -403,10 +413,20 @@ def on_trait_archive_clicked(owner: Any) -> None:
         action = "reactivated" if archived else "archived"
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait could not be {action}: {exc}")
         return
+    from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import set_trait_retired_in_prediction_norms_snapshot
+
+    updated_trait = next(
+        (trait for trait in list_traits() if str(trait.get("uid") or "") == str(item.data(Qt.UserRole + 6) or "")),
+        {"uid": str(item.data(Qt.UserRole + 6) or ""), "name": trait_name},
+    )
+    owner._prediction_norms_snapshot_cache = set_trait_retired_in_prediction_norms_snapshot(
+        updated_trait, retired=not archived
+    )
     refresh_traits_settings_list(owner)
     refresh_ranking_traits = getattr(owner, "_refresh_rankings_trait_choices_after_archive", None)
     if callable(refresh_ranking_traits):
         refresh_ranking_traits(trait_name=trait_name, archived=not archived)
+    _refresh_trait_predictions(owner)
 
 
 def on_trait_description_clicked(owner: Any) -> None:
@@ -433,7 +453,7 @@ def on_trait_description_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait description could not be saved: {exc}")
         return
-    _mark_trait_definitions_changed(owner, trait_names={trait_name})
+    # Description is display-only and must not invalidate analytical caches.
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -488,7 +508,7 @@ def on_trait_edit_clicked(owner: Any) -> None:
         except Exception as exc:
             QMessageBox.warning(dialog, "Trait JSON invalid", f"Trait could not be saved: {exc}")
             return
-        _mark_trait_definitions_changed(owner, trait_names={trait_name})
+        _mark_trait_definitions_changed(owner, trait_names={trait_name}, clear_likelihoods=False)
         _warm_trait_definitions(owner, {trait_name})
         refresh_traits_settings_list(owner)
         _refresh_trait_predictions(owner)

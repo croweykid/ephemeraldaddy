@@ -2,6 +2,10 @@ from pathlib import Path
 
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     dnd_stat_snapshot_averages,
+    load_prediction_norms_snapshot,
+    remove_trait_from_prediction_norms_snapshot,
+    save_prediction_norms_snapshot,
+    set_trait_retired_in_prediction_norms_snapshot,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,7 +82,7 @@ def test_app_adapter_avoids_loading_norm_charts_when_snapshot_has_dnd_stat_avera
 
 
 def test_database_statistics_exposes_manual_refresh_norms_button():
-    assert 'QPushButton("Refresh Predictions Norms")' in DB_INFO_SOURCE
+    assert 'QPushButton("Recalculate DB Norms")' in DB_INFO_SOURCE
     assert "refresh_prediction_norms_snapshot(owner)" in DB_INFO_SOURCE
 
 
@@ -140,3 +144,59 @@ def test_trait_direct_database_averages_load_charts_by_uid_not_id():
     assert "db.load_chart(int(chart_id))" not in helper
     caller = TRAIT_SOURCE.split("def _database_trait_averages", 1)[1].split("def _trait_metadata_cache_key", 1)[0]
     assert "_calculate_database_trait_averages_direct(owner, chart_uids" in caller
+
+
+def test_static_snapshot_short_circuits_live_cohort_signature_work():
+    helper = TRAIT_SOURCE.split("def _trait_render_signatures", 1)[1].split(
+        "def _traits_pending_cached_metadata", 1
+    )[0]
+    snapshot_branch = helper.split(
+        'if snapshot_token and snapshot_token != "prediction_norm_snapshot:missing":', 1
+    )[1].split("current_norm_state = _database_norm_state(owner)", 1)[0]
+    assert "_database_norm_state(owner)" not in snapshot_branch
+    assert "_database_chart_uids(owner)" not in snapshot_branch
+    assert 'norm_signature = f"prediction_norms_snapshot:{snapshot_token}"' in snapshot_branch
+
+
+def test_deleted_trait_is_removed_without_rebuilding_other_snapshot_rows(tmp_path):
+    path = tmp_path / "norms.json"
+    original = {
+        "version": 1,
+        "snapshot_id": "before",
+        "trait_baselines": {
+            "uid:delete-me": {"uid": "delete-me", "name": "Delete Me", "db_average": 40.0},
+            "uid:keep-me": {"uid": "keep-me", "name": "Keep Me", "db_average": 60.0},
+        },
+        "retired_trait_keys": ["uid:delete-me", "uid:keep-me"],
+    }
+    save_prediction_norms_snapshot(original, path)
+
+    updated = remove_trait_from_prediction_norms_snapshot(trait_uid="delete-me", path=path)
+
+    assert set(updated["trait_baselines"]) == {"uid:keep-me"}
+    assert updated["trait_baselines"]["uid:keep-me"] == original["trait_baselines"]["uid:keep-me"]
+    assert updated["retired_trait_keys"] == ["uid:keep-me"]
+    assert load_prediction_norms_snapshot(path) == updated
+
+
+def test_archiving_retains_norm_and_only_toggles_retired_membership(tmp_path):
+    path = tmp_path / "norms.json"
+    original_row = {"uid": "stable", "name": "Stable", "db_average": 52.5}
+    save_prediction_norms_snapshot(
+        {
+            "version": 1,
+            "snapshot_id": "stable-snapshot",
+            "trait_baselines": {"uid:stable": original_row},
+            "retired_trait_keys": [],
+        },
+        path,
+    )
+    trait = {"uid": "stable", "name": "Stable", "profile": {}}
+
+    archived = set_trait_retired_in_prediction_norms_snapshot(trait, retired=True, path=path)
+    reactivated = set_trait_retired_in_prediction_norms_snapshot(trait, retired=False, path=path)
+
+    assert archived["trait_baselines"]["uid:stable"] == original_row
+    assert archived["retired_trait_keys"] == ["uid:stable"]
+    assert reactivated["trait_baselines"]["uid:stable"] == original_row
+    assert reactivated["retired_trait_keys"] == []
