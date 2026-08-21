@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "snapshot_id": "official_ephemeraldaddy_norms_v1",
+  "source": "bundled_official",
+  "read_only": true,
+  "complete": false,
+  "chart_count": 0,
+  "created_at": "",
+  "norm_signature": "official_ephemeraldaddy_norms_v1",
+  "trait_baselines": {},
+  "retired_trait_keys": [],
+  "dnd_alignment_trait_keys": [],
+  "dnd_stat_raw_averages": {}
+}

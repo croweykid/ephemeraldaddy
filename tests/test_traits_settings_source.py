@@ -37,6 +37,9 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     predictions_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
     ).read_text(encoding="utf-8")
+    snapshot_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "prediction_norms_snapshot.py"
+    ).read_text(encoding="utf-8")
     db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
     db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
 
@@ -44,11 +47,11 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     assert "_render_traits_predictions(self, chart)" in app_source
     assert "def render_traits_predictions" in predictions_source
     assert "calculate_trait_likelihoods" in predictions_source
-    assert "TRAIT_DB_NORMS_CACHE_PATH" in predictions_source
-    assert "def warm_trait_database_norms" in predictions_source
-    assert "force_refresh_stale=True" in predictions_source
-    assert "def clear_trait_norm_cache" in predictions_source
-    assert "_load_trait_norm_cache()" in predictions_source
+    assert "def _trait_snapshot_norm_signature" in predictions_source
+    assert "raise MissingTraitNormCoverage(" in predictions_source
+    assert "refresh_trait_norms_snapshot(owner, missing_traits)" not in predictions_source
+    assert "def missing_trait_norms" in snapshot_source
+    assert "TRAIT_DB_NORMS_CACHE_PATH" not in predictions_source
 
 
 def test_prediction_norm_rows_use_full_database_not_displayed_filter_scope():
@@ -71,7 +74,8 @@ def test_database_view_traits_search_lives_in_search_panel_and_uses_metadata():
     ).read_text(encoding="utf-8")
     db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
 
-    assert 'add_collapsible_section("🧬Traits")' in search_source
+    assert 'add_collapsible_section("Traits Present", nested=True)' in search_source
+    assert 'add_collapsible_section("Traits Absent", nested=True)' in search_source
     assert "def collect_search_trait_filter_sets" in search_source
     assert "def chart_matches_trait_filters" in search_source
     assert "collect_search_trait_filter_sets(self)" in app_source
@@ -98,18 +102,15 @@ def test_chart_view_trait_metadata_is_incremental_by_trait_signature():
     assert 'row.get("trait_signature", trait_signature)' in db_source
 
 
-def test_trait_database_norm_cache_uses_scaled_refresh_threshold():
+def test_trait_norms_use_static_snapshot_without_dynamic_refresh_threshold():
     predictions_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
     ).read_text(encoding="utf-8")
 
-    assert "TRAIT_DB_NORMS_MAX_STALE_RATIO = DATABASE_NORMS_STALE_RATIO" in predictions_source
-    assert "def _database_norm_refresh_threshold" in predictions_source
-    assert "return database_norms_refresh_threshold(chart_count)" in predictions_source
-    assert "_database_norm_state_is_fresh(cached_state, current_norm_state)" in predictions_source
-    assert "def _database_norm_signature_for_traits" in predictions_source
-    assert "fresh_signatures.add(cached_signature)" in predictions_source
-    assert "database_statistics_threshold" in predictions_source
+    assert "def _trait_snapshot_norm_signature" in predictions_source
+    assert "prospective_trait_snapshot_token" in predictions_source
+    assert "_database_norm_state_is_fresh" not in predictions_source
+    assert "_database_norm_signature_for_traits" not in predictions_source
 
 
 def test_trait_uid_source_and_metadata_wiring_are_present():

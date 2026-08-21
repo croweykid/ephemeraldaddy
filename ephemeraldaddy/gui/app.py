@@ -38117,7 +38117,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return prediction_norms_snapshot_token(self)
 
     def _refresh_prediction_norms_snapshot(self) -> dict[str, Any]:
-        snapshot = refresh_prediction_norms_snapshot(self)
+        snapshot = refresh_prediction_norms_snapshot(self, user_initiated=True)
         self._prediction_norms_snapshot_cache = snapshot
         return snapshot
 
