@@ -27,7 +27,7 @@ test = ["pytest>=8"]
 ephemeraldaddy = "ephemeraldaddy.gui.bootstrap:main"
 
 [tool.setuptools.package-data]
-"ephemeraldaddy.analysis" = ["default_traits.json"]
+"ephemeraldaddy.analysis" = ["default_traits.json", "default_prediction_norms.json"]
 "ephemeraldaddy.gui" = ["fonts/*.ttf", "fonts/*.otf", "fonts/*.ttc", "fonts/*.md"]
 "ephemeraldaddy.gui.features.popouts" = ["assets/*.html"]
 

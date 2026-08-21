@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 PREDICTION_NORMS_SNAPSHOT_VERSION = 1
 PREDICTION_NORMS_SNAPSHOT_FILENAME = ".prediction_norms_snapshot.json"
 PREDICTION_NORMS_SNAPSHOT_PATH = db.DB_DIR / PREDICTION_NORMS_SNAPSHOT_FILENAME
+OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH = (
+    Path(__file__).resolve().parents[3] / "analysis" / "default_prediction_norms.json"
+)
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
 
 
@@ -70,8 +73,7 @@ def prediction_norms_snapshot_path() -> Path:
     return PREDICTION_NORMS_SNAPSHOT_PATH
 
 
-def load_prediction_norms_snapshot(path: Path | None = None) -> dict[str, Any]:
-    snapshot_path = path or PREDICTION_NORMS_SNAPSHOT_PATH
+def _load_snapshot_file(snapshot_path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -84,12 +86,108 @@ def load_prediction_norms_snapshot(path: Path | None = None) -> dict[str, Any]:
     return payload
 
 
+def _merge_prediction_norm_snapshots(
+    official: Mapping[str, Any], local: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Overlay writable local/custom norms onto the bundled read-only catalog."""
+    if not official:
+        return dict(local)
+    if not local:
+        return dict(official)
+    merged = dict(official)
+    for section in ("trait_baselines", "dnd_stat_raw_averages"):
+        values = dict(official.get(section, {}) or {})
+        values.update(dict(local.get(section, {}) or {}))
+        merged[section] = values
+    merged.update(
+        {
+            key: value
+            for key, value in local.items()
+            if key not in {"trait_baselines", "dnd_stat_raw_averages"}
+        }
+    )
+    merged["official_snapshot_id"] = str(official.get("snapshot_id", "") or "")
+    merged["local_snapshot_id"] = str(local.get("snapshot_id", "") or "")
+    merged["snapshot_id"] = _stable_hash(
+        {
+            "official": merged["official_snapshot_id"],
+            "local": merged["local_snapshot_id"],
+        }
+    )
+    return merged
+
+
+def load_prediction_norms_snapshot(path: Path | None = None) -> dict[str, Any]:
+    if path is not None:
+        return _load_snapshot_file(path)
+    official = _load_snapshot_file(OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH)
+    local = _load_snapshot_file(PREDICTION_NORMS_SNAPSHOT_PATH)
+    return _merge_prediction_norm_snapshots(official, local)
+
+
 def save_prediction_norms_snapshot(payload: dict[str, Any], path: Path | None = None) -> None:
     snapshot_path = path or PREDICTION_NORMS_SNAPSHOT_PATH
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = snapshot_path.with_suffix(f"{snapshot_path.suffix}.tmp")
     temp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     temp_path.replace(snapshot_path)
+
+
+def remove_trait_from_prediction_norms_snapshot(
+    *, trait_uid: str = "", trait_name: str = "", path: Path | None = None
+) -> dict[str, Any]:
+    """Remove one deleted trait without rebuilding unrelated norm baselines."""
+    snapshot_path = path or PREDICTION_NORMS_SNAPSHOT_PATH
+    snapshot = _load_snapshot_file(snapshot_path)
+    rows = snapshot.get("trait_baselines", {}) if isinstance(snapshot, dict) else {}
+    if not snapshot or not isinstance(rows, dict):
+        return snapshot
+    normalized_uid = str(trait_uid or "").strip()
+    normalized_name = str(trait_name or "").strip().casefold()
+    if normalized_uid:
+        removed_keys = {
+            key
+            for key, row in rows.items()
+            if isinstance(row, dict)
+            and str(row.get("uid", "") or "").strip() == normalized_uid
+        }
+    else:
+        removed_keys = {
+            key
+            for key, row in rows.items()
+            if isinstance(row, dict)
+            and normalized_name
+            and str(row.get("name", "") or "").strip().casefold() == normalized_name
+        }
+    if not removed_keys:
+        return snapshot
+    snapshot["trait_baselines"] = {key: row for key, row in rows.items() if key not in removed_keys}
+    retired = snapshot.get("retired_trait_keys", [])
+    snapshot["retired_trait_keys"] = [key for key in retired if key not in removed_keys]
+    snapshot["snapshot_id"] = _stable_hash(
+        {"previous": snapshot.get("snapshot_id", ""), "removed_trait_keys": sorted(removed_keys)}
+    )
+    save_prediction_norms_snapshot(snapshot, snapshot_path)
+    return snapshot if path is not None else load_prediction_norms_snapshot()
+
+
+def set_trait_retired_in_prediction_norms_snapshot(
+    trait: Mapping[str, Any], *, retired: bool, path: Path | None = None
+) -> dict[str, Any]:
+    """Toggle one trait's scan eligibility while retaining its calculated norm."""
+    snapshot_path = path or PREDICTION_NORMS_SNAPSHOT_PATH
+    snapshot = _load_snapshot_file(snapshot_path)
+    if not snapshot:
+        return snapshot
+    key = _trait_key(trait)
+    retired_keys = {str(value) for value in snapshot.get("retired_trait_keys", [])}
+    if retired:
+        retired_keys.add(key)
+    else:
+        retired_keys.discard(key)
+    snapshot["retired_trait_keys"] = sorted(retired_keys)
+    save_prediction_norms_snapshot(snapshot, snapshot_path)
+    return snapshot if path is not None else load_prediction_norms_snapshot()
 
 
 def prediction_norms_snapshot_token(owner: Any | None = None) -> str:
@@ -112,11 +210,46 @@ def trait_snapshot_averages(traits: list[dict[str, Any]], snapshot: Mapping[str,
         row = rows.get(_trait_key(trait))
         if not isinstance(row, dict):
             continue
+        if str(row.get("profile_hash", "") or "") != _stable_hash(trait.get("profile", {}) or {}):
+            continue
         try:
             averages[name] = float(row.get("db_average", 0.0))
         except (TypeError, ValueError):
             continue
     return averages
+
+
+def missing_trait_norms(
+    traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """Return active traits absent from the snapshot or changed analytically."""
+    averages = trait_snapshot_averages(traits, snapshot)
+    return [
+        trait
+        for trait in traits
+        if str(trait.get("name", "") or "").strip() not in averages
+    ]
+
+
+def prospective_trait_snapshot_token(
+    traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None
+) -> str:
+    """Return the token produced after merging the requested missing traits."""
+    payload = dict(snapshot or load_prediction_norms_snapshot())
+    missing = missing_trait_norms(traits, payload)
+    current_token = str(payload.get("snapshot_id", "") or "")
+    if not missing:
+        return current_token
+    local_token = _stable_hash(
+        {
+            "previous": current_token,
+            "updated_trait_keys": sorted(_trait_key(trait) for trait in missing),
+        }
+    )
+    official_token = str(payload.get("official_snapshot_id", "") or "")
+    if not official_token:
+        return local_token
+    return _stable_hash({"official": official_token, "local": local_token})
 
 
 def dnd_stat_snapshot_averages(snapshot: Mapping[str, Any] | None = None) -> dict[str, float]:
@@ -247,13 +380,68 @@ def refresh_prediction_norms_snapshot(owner: Any) -> dict[str, Any]:
         "chart_count": len(charts),
         "norm_signature": norm_signature,
         "trait_baselines": trait_baselines,
+        "retired_trait_keys": [],
         "dnd_alignment_trait_keys": [str(trait.get("name", "") or "") for trait in dnd_alignment_traits],
         "dnd_stat_raw_averages": dnd_stat_raw_averages,
     }
     save_prediction_norms_snapshot(snapshot)
+    resolved_snapshot = load_prediction_norms_snapshot()
     try:
-        setattr(owner, "_prediction_norms_snapshot_cache", snapshot)
+        setattr(owner, "_prediction_norms_snapshot_cache", resolved_snapshot)
         setattr(owner, "_prediction_norms_revision", int(getattr(owner, "_prediction_norms_revision", 0) or 0) + 1)
     except Exception:
         pass
-    return snapshot
+    return resolved_snapshot
+
+
+def refresh_trait_norms_snapshot(owner: Any, traits: list[dict[str, Any]]) -> dict[str, Any]:
+    """Calculate and merge only the supplied traits into the static snapshot.
+
+    This is the mutation path for a newly added or analytically edited custom
+    trait. Existing trait and predictor baselines remain untouched.
+    """
+    if not traits:
+        return load_prediction_norms_snapshot()
+    from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
+
+    averages = _database_trait_averages(owner, traits, force_refresh_stale=True)
+    combined_snapshot = load_prediction_norms_snapshot()
+    snapshot = _load_snapshot_file(PREDICTION_NORMS_SNAPSHOT_PATH)
+    if not snapshot:
+        snapshot = {
+            "version": PREDICTION_NORMS_SNAPSHOT_VERSION,
+            "snapshot_id": "",
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "chart_count": len(_owner_chart_uids(owner)),
+            "norm_signature": "custom_prediction_norms",
+            "trait_baselines": {},
+            "retired_trait_keys": [],
+            "dnd_alignment_trait_keys": [],
+            "dnd_stat_raw_averages": {},
+        }
+    rows = snapshot.setdefault("trait_baselines", {})
+    changed_keys: list[str] = []
+    for trait in traits:
+        name = str(trait.get("name", "") or "").strip()
+        if not name or name not in averages:
+            continue
+        payload = _trait_payload(trait)
+        rows[payload["key"]] = {
+            **payload,
+            "source": "custom_trait",
+            "db_average": float(averages[name]),
+        }
+        changed_keys.append(payload["key"])
+    if not changed_keys:
+        return snapshot
+    snapshot["snapshot_id"] = _stable_hash(
+        {"previous": combined_snapshot.get("snapshot_id", ""), "updated_trait_keys": sorted(changed_keys)}
+    )
+    snapshot["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    save_prediction_norms_snapshot(snapshot)
+    try:
+        owner._prediction_norms_snapshot_cache = load_prediction_norms_snapshot()
+        owner._prediction_norms_revision = int(getattr(owner, "_prediction_norms_revision", 0) or 0) + 1
+    except Exception:
+        pass
+    return load_prediction_norms_snapshot()
