@@ -14,6 +14,7 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     save_prediction_norms_snapshot,
     set_trait_retired_in_prediction_norms_snapshot,
 )
+from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot as snapshot_module
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
