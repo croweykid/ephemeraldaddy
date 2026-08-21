@@ -210,9 +210,6 @@ def _mark_trait_definitions_changed(
     clear_likelihoods: bool = True,
 ) -> None:
     """Invalidate trait-derived caches after a trait definition changes."""
-    from ephemeraldaddy.gui.features.charts.trait_predictions import clear_trait_norm_cache
-
-    clear_trait_norm_cache(trait_names)
     clear_trait_possible_score_cache()
     if clear_likelihoods:
         clear_traits_cache = getattr(owner, "_clear_traits_distribution_analytics_cache", None)

@@ -82,19 +82,6 @@ def test_v4_likelihood_cache_uses_change_journal_instead_of_rescanning_all_chart
     assert owner._traits_distribution_likelihood_cache_dirty is True
 
 
-def test_load_trait_norm_cache_logs_and_skips_corrupt_cache(tmp_path, monkeypatch, caplog):
-    cache_path = tmp_path / "trait_db_norms.json"
-    cache_path.write_text("{not json", encoding="utf-8")
-    monkeypatch.setattr(trait_predictions, "TRAIT_DB_NORMS_CACHE_PATH", cache_path)
-    caplog.set_level("DEBUG", logger="ephemeraldaddy.gui.features.charts.trait_predictions")
-
-    assert trait_predictions._load_trait_norm_cache() == {}
-
-    assert "Traits panel skipped corrupt DB norm cache" in caplog.text
-    assert str(cache_path) in caplog.text
-
-
-
 class _TraitsCacheOwner(DatabaseAnalyticsChartsMixin):
     def __init__(self, rows_token, chart_rows=None):
         self.rows_token = rows_token
@@ -122,100 +109,30 @@ def _chart_row(chart_id: int, name: str, chart_uid: str, *, datetime_iso: str = 
     return tuple(row)
 
 
-def test_stale_trait_norm_cache_remains_usable_until_background_refresh(tmp_path, monkeypatch):
-    cache_path = tmp_path / "trait_db_norms.json"
-    monkeypatch.setattr(trait_predictions, "TRAIT_DB_NORMS_CACHE_PATH", cache_path)
-    trait = {"name": "Creative", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
-    cache_key = trait_predictions._trait_norm_cache_key(("UID1", "UID2"), trait)
-    renamed_trait = {"name": "Renamed", "color": "#123456", "profile": {"signs": {"Leo": 1}}}
-    assert trait_predictions._trait_norm_cache_key(("UID1", "UID2"), renamed_trait) == cache_key
-    cache_path.write_text(
-        trait_predictions.json.dumps(
-            {
-                "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
-                "entries": {
-                    cache_key: {
-                        "trait_name": "Creative",
-                        "db_average": 63.5,
-                        "chart_count": 10,
-                        "norm_state": {
-                            "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
-                            "chart_count": 10,
-                            "chart_tokens": {"UID1": "old"},
-                        },
-                        "norm_signature": "old-norm-signature",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
+def test_explicit_trait_norm_generation_scores_only_requested_profiles():
+    trait = {"uid": "creative", "name": "Creative", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
     owner = _TraitsCacheOwner(
         (("uid:one", "row"),),
         chart_rows=[
-            (1, "One", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID1"),
-            (2, "Two", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID2"),
-            (3, "Three", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID3"),
-        ],
-    )
-
-    def fail_collect(*_args, **_kwargs):
-        raise AssertionError("stale persistent DB norms should remain readable synchronously")
-
-    owner._collect_traits_distribution_analytics = fail_collect
-    owner._traits_distribution_signature = lambda traits: tuple(
-        (item["name"], "#ffffff", repr(item.get("profile", {}))) for item in traits
-    )
-
-    assert trait_predictions._database_trait_averages(owner, [trait]) == {"Creative": 63.5}
-    assert trait_predictions._database_norm_signature_for_traits(owner, [trait]) == "old-norm-signature"
-
-
-def test_forced_trait_norm_refresh_recomputes_stale_cache(tmp_path, monkeypatch):
-    cache_path = tmp_path / "trait_db_norms.json"
-    monkeypatch.setattr(trait_predictions, "TRAIT_DB_NORMS_CACHE_PATH", cache_path)
-    trait = {"name": "Creative", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
-    cache_key = trait_predictions._trait_norm_cache_key(("UID1", "UID2"), trait)
-    cache_path.write_text(
-        trait_predictions.json.dumps(
-            {
-                "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
-                "entries": {
-                    cache_key: {
-                        "trait_name": "Creative",
-                        "db_average": 63.5,
-                        "chart_count": 1,
-                        "norm_state": {
-                            "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
-                            "chart_count": 1,
-                            "chart_tokens": {"UID1": "old"},
-                        },
-                        "norm_signature": "old-norm-signature",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-    owner = _TraitsCacheOwner(
-        (("uid:one", "row"),),
-        chart_rows=[
-            (1, "One", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID1"),
-            (2, "Two", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID2"),
+            _chart_row(1, "One", "UID1"),
+            _chart_row(2, "Two", "UID2"),
         ],
     )
     owner._traits_distribution_signature = lambda traits: tuple(
         (item["name"], "#ffffff", repr(item.get("profile", {}))) for item in traits
     )
 
-    def collect(_chart_uids, *, trait_items, trait_signature):
+    def collect(_chart_uids, *, trait_items, trait_signature, time_budget_seconds):
         assert set(_chart_uids) == {"UID1", "UID2"}
         assert [item["name"] for item in trait_items] == ["Creative"]
+        assert time_budget_seconds is None
         return {"trait_names": ["Creative"], "totals": {"Creative": 1.7}, "chart_count": 2}
 
     owner._collect_traits_distribution_analytics_by_uids = collect
 
-    assert trait_predictions._database_trait_averages(owner, [trait], force_refresh_stale=True) == {"Creative": 85.0}
+    assert trait_predictions._database_trait_averages(
+        owner, [trait], force_refresh_stale=True
+    ) == {"Creative": 85.0}
 
 
 def test_database_chart_uids_reads_appended_list_charts_uid_slot(monkeypatch):

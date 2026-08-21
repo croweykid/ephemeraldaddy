@@ -74,16 +74,20 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.database_norms_cache import (
-    DATABASE_NORMS_CACHE_FILENAME,
-    DATABASE_NORMS_STALE_RATIO,
     analytical_mapping_signature,
-    database_norms_refresh_threshold,
 )
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
     start_prediction_loading_blink,
     start_prediction_loading_ellipsis,
     stop_prediction_loading_blink,
     stop_prediction_loading_ellipsis,
+)
+from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+    load_prediction_norms_snapshot,
+    missing_trait_norms,
+    prospective_trait_snapshot_token,
+    refresh_trait_norms_snapshot,
+    trait_snapshot_averages,
 )
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
@@ -285,8 +289,8 @@ def _resize_traits_prediction_table_to_contents(table: QTableView) -> None:
     table.updateGeometry()
 
 TRAIT_DB_NORMS_CACHE_VERSION = 1
-TRAIT_DB_NORMS_CACHE_PATH = db.DB_DIR / DATABASE_NORMS_CACHE_FILENAME
-TRAIT_DB_NORMS_MAX_STALE_RATIO = DATABASE_NORMS_STALE_RATIO
+
+
 def _predictions_debug_enabled(owner: Any) -> bool:
     return bool(getattr(owner, "_predictions_thread_debug", False))
 
@@ -665,11 +669,6 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
     )
 
 
-def _database_norm_refresh_threshold(chart_count: int) -> int:
-    """Return how many birth-data cohort changes justify refreshing DB norms."""
-    return database_norms_refresh_threshold(chart_count)
-
-
 def _database_norm_chart_token_source(owner: Any) -> tuple[tuple[str, str], ...]:
     """Return stable tokens for the non-placeholder charts that define DB norms."""
     rows_provider = getattr(owner, "_prediction_norm_rows", None)
@@ -736,25 +735,6 @@ def _database_norm_state(owner: Any) -> dict[str, Any]:
     return _owner_memoized(owner, "_traits_prediction_database_norm_state_cache", _build)
 
 
-def _database_norm_state_change_count(saved_state: dict[str, Any], current_state: dict[str, Any]) -> int:
-    saved_tokens = saved_state.get("chart_tokens", {}) if isinstance(saved_state, dict) else {}
-    current_tokens = current_state.get("chart_tokens", {}) if isinstance(current_state, dict) else {}
-    if not isinstance(saved_tokens, dict) or not isinstance(current_tokens, dict):
-        return max(
-            int(saved_state.get("chart_count", 0) or 0) if isinstance(saved_state, dict) else 0,
-            int(current_state.get("chart_count", 0) or 0) if isinstance(current_state, dict) else 0,
-        )
-    all_uids = set(saved_tokens) | set(current_tokens)
-    return sum(1 for uid in all_uids if saved_tokens.get(uid) != current_tokens.get(uid))
-
-
-def _database_norm_state_is_fresh(saved_state: dict[str, Any], current_state: dict[str, Any]) -> bool:
-    saved_count = int(saved_state.get("chart_count", 0) or 0) if isinstance(saved_state, dict) else 0
-    current_count = int(current_state.get("chart_count", 0) or 0) if isinstance(current_state, dict) else 0
-    threshold = _database_norm_refresh_threshold(max(saved_count, current_count))
-    return _database_norm_state_change_count(saved_state, current_state) < threshold
-
-
 def _database_norm_signature_from_state(state: dict[str, Any]) -> str:
     """Return the DB-norm generation used by per-chart metadata."""
     return _stable_json_hash(
@@ -765,42 +745,6 @@ def _database_norm_signature_from_state(state: dict[str, Any]) -> str:
             "chart_tokens": state.get("chart_tokens", {}),
         }
     )
-
-
-def _database_norm_signature_for_traits(
-    owner: Any,
-    traits: list[dict[str, Any]],
-    *,
-    current_norm_state: dict[str, Any] | None = None,
-    chart_uids: tuple[str, ...] | None = None,
-) -> str:
-    """Return the active DB norm signature, preserving it until the refresh threshold is crossed."""
-    current_norm_state = current_norm_state if current_norm_state is not None else _database_norm_state(owner)
-    cache_entries = _load_trait_norm_cache()
-    fresh_signatures: set[str] = set()
-    stale_signatures: set[str] = set()
-    chart_uids = chart_uids if chart_uids is not None else _database_chart_uids(owner)
-    for trait in traits:
-        cache_key = _trait_norm_cache_key(chart_uids, trait)
-        cached = cache_entries.get(cache_key or "")
-        cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
-        cached_signature = str(cached.get("norm_signature", "")).strip() if isinstance(cached, dict) else ""
-        if not cached_signature:
-            continue
-        if _database_norm_state_is_fresh(cached_state, current_norm_state):
-            fresh_signatures.add(cached_signature)
-        else:
-            stale_signatures.add(cached_signature)
-    if fresh_signatures:
-        return sorted(fresh_signatures)[0]
-    if stale_signatures:
-        _predictions_debug(
-            owner,
-            "Trait DB norm signature using stale persistent cache while background refresh can update it signatures=%s",
-            sorted(stale_signatures),
-        )
-        return sorted(stale_signatures)[0]
-    return _database_norm_signature_from_state(current_norm_state)
 
 
 def _trait_definition_signature(trait: dict[str, Any]) -> str:
@@ -950,78 +894,13 @@ def _trait_display_signature_payload(traits: list[dict[str, Any]]) -> dict[str, 
     }
 
 
-def _trait_norm_cache_key(chart_uids: tuple[str, ...], trait: dict[str, Any]) -> str | None:
-    name = str(trait.get("name", "")).strip()
-    if not name or bool(trait.get("archived", False)):
-        return None
-    payload = {
-        "version": TRAIT_DB_NORMS_CACHE_VERSION,
-        "cache_scope": "appwide_database_norms",
-        "refresh_policy": "database_statistics_threshold",
-        "norm_kind": "trait_database_average",
-        "trait_uid": str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
-        "analytical_profile": _trait_analytical_profile(trait.get("profile", {})),
-    }
-    return _stable_json_hash(payload)
-
-
-def _load_trait_norm_cache() -> dict[str, dict[str, Any]]:
-    try:
-        payload = json.loads(TRAIT_DB_NORMS_CACHE_PATH.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {}
-    except Exception as exc:
-        logger.warning(
-            "Traits panel skipped corrupt DB norm cache %s: %s",
-            TRAIT_DB_NORMS_CACHE_PATH,
-            exc,
-            exc_info=True,
-        )
-        return {}
-    if not isinstance(payload, dict) or payload.get("version") != TRAIT_DB_NORMS_CACHE_VERSION:
-        logger.warning(
-            "Traits panel skipped DB norm cache %s because it has an unsupported format or version.",
-            TRAIT_DB_NORMS_CACHE_PATH,
-        )
-        return {}
-    entries = payload.get("entries", {})
-    if not isinstance(entries, dict):
-        logger.warning(
-            "Traits panel skipped DB norm cache entries from %s because entries is not a mapping.",
-            TRAIT_DB_NORMS_CACHE_PATH,
-        )
-        return {}
-    return entries
-
-
-def _save_trait_norm_cache(entries: dict[str, dict[str, Any]]) -> None:
-    try:
-        TRAIT_DB_NORMS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = TRAIT_DB_NORMS_CACHE_PATH.with_suffix(f"{TRAIT_DB_NORMS_CACHE_PATH.suffix}.tmp")
-        temp_path.write_text(
-            json.dumps(
-                {"version": TRAIT_DB_NORMS_CACHE_VERSION, "entries": entries},
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ),
-            encoding="utf-8",
-        )
-        temp_path.replace(TRAIT_DB_NORMS_CACHE_PATH)
-    except Exception:
-        return
-
-
-def clear_trait_norm_cache(trait_names: set[str] | None = None) -> None:
-    """Clear persisted DB norm cache entries for selected traits or all traits."""
-    if trait_names is None:
-        TRAIT_DB_NORMS_CACHE_PATH.unlink(missing_ok=True)
-        return
-    normalized_names = {name.casefold() for name in trait_names}
-    entries = _load_trait_norm_cache()
-    for key, entry in list(entries.items()):
-        if str(entry.get("trait_name", "")).casefold() in normalized_names:
-            entries.pop(key, None)
-    _save_trait_norm_cache(entries)
+def _trait_snapshot_norm_signature(
+    traits: list[dict[str, Any]], snapshot: dict[str, Any] | None = None
+) -> str:
+    """Return the current or deterministically pending static snapshot generation."""
+    resolved_snapshot = snapshot if snapshot is not None else load_prediction_norms_snapshot()
+    token = prospective_trait_snapshot_token(traits, resolved_snapshot)
+    return f"prediction_norms_snapshot:{token}"
 
 
 def _calculate_database_trait_averages_direct(
@@ -1079,148 +958,67 @@ def _database_trait_averages(
 ) -> dict[str, float]:
     _predictions_debug(owner, "Trait DB averages requested traits=%s", len(traits))
     if not force_refresh_stale:
-        snapshot_provider = getattr(owner, "_prediction_norm_snapshot_trait_averages", None)
-        if callable(snapshot_provider):
-            try:
-                snapshot_averages = snapshot_provider(traits)
-            except Exception as exc:
-                logger.warning("Traits panel could not read shared Predictions norms snapshot: %s", exc, exc_info=True)
-                snapshot_averages = {}
-            if isinstance(snapshot_averages, dict):
-                requested_names = {
-                    str(trait.get("name", "") or "").strip()
-                    for trait in traits
-                    if str(trait.get("name", "") or "").strip()
-                }
-                if requested_names and requested_names.issubset(set(snapshot_averages)):
-                    _predictions_debug(
-                        owner,
-                        "Trait DB averages served from shared Predictions snapshot traits=%s",
-                        len(requested_names),
-                    )
-                    return {name: float(snapshot_averages[name]) for name in requested_names}
+        snapshot = load_prediction_norms_snapshot()
+        snapshot_averages = trait_snapshot_averages(traits, snapshot)
+        missing_traits = missing_trait_norms(traits, snapshot)
+        if missing_traits:
+            _predictions_debug(
+                owner,
+                "Trait norms snapshot repairing missing analytical profiles traits=%s",
+                len(missing_traits),
+            )
+            refreshed = refresh_trait_norms_snapshot(owner, missing_traits)
+            snapshot_averages = trait_snapshot_averages(traits, refreshed)
+        requested_names = {
+            str(trait.get("name", "") or "").strip()
+            for trait in traits
+            if str(trait.get("name", "") or "").strip()
+        }
+        unresolved = sorted(requested_names - set(snapshot_averages))
+        if unresolved:
+            raise RuntimeError(
+                "Trait norm snapshot repair failed for: " + ", ".join(unresolved)
+            )
+        return {name: float(snapshot_averages[name]) for name in requested_names}
     chart_uids = _database_chart_uids(owner)
-    current_norm_state = _database_norm_state(owner)
     collect = getattr(owner, "_collect_traits_distribution_analytics_by_uids", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
     if not chart_uids:
-        return {}
+        raise RuntimeError("Trait norm generation requires at least one persisted chart UID.")
     if not callable(collect) or not callable(signature_builder):
-        return _calculate_database_trait_averages_direct(owner, chart_uids, traits)
-    averages: dict[str, float] = {}
-    cache_entries = _load_trait_norm_cache()
-    missing_traits: list[dict[str, Any]] = []
-    for trait in traits:
-        name = str(trait.get("name", "")).strip()
-        cache_key = _trait_norm_cache_key(chart_uids, trait)
-        cached = cache_entries.get(cache_key or "")
-        cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
-        if isinstance(cached, dict):
-            try:
-                cached_is_fresh = _database_norm_state_is_fresh(cached_state, current_norm_state)
-                if not cached_is_fresh:
-                    _predictions_debug(
-                        owner,
-                        "Trait DB average using stale persistent norm trait=%s cached_chart_count=%s current_chart_count=%s",
-                        name,
-                        cached.get("chart_count"),
-                        current_norm_state.get("chart_count"),
-                    )
-                    if force_refresh_stale:
-                        missing_traits.append(trait)
-                        continue
-                averages[name] = float(cached["db_average"])
-                continue
-            except (KeyError, TypeError, ValueError):
-                pass
-        missing_traits.append(trait)
-    if not missing_traits:
-        _predictions_debug(owner, "Trait DB averages served entirely from persistent cache traits=%s", len(averages))
-        try:
-            trait_uids_by_name = {
-                str(trait.get("name", "")).strip(): _trait_uid_for_item(trait)
-                for trait in traits
-                if str(trait.get("name", "")).strip()
-            }
-            db.upsert_trait_baseline_snapshot(
-                norm_signature=_database_norm_signature_from_state(current_norm_state),
-                trait_signature=_stable_json_hash(_trait_signature_payload(traits)),
-                rows=[
-                    {
-                        "trait_name": name,
-                        "trait_uid": trait_uids_by_name.get(name, ""),
-                        "db_average": average,
-                    }
-                    for name, average in averages.items()
-                ],
-                chart_count=int(current_norm_state.get("chart_count", 0) or 0),
-                norm_state=current_norm_state,
-            )
-        except Exception as exc:
-            logger.warning("Traits panel could not persist DB baseline snapshot: %s", exc, exc_info=True)
+        averages = _calculate_database_trait_averages_direct(owner, chart_uids, traits)
+        if len(averages) != len(traits):
+            raise RuntimeError("Trait norm generation did not score every requested trait.")
         return averages
-
-    try:
-        _predictions_debug(owner, "Trait DB averages collecting missing traits=%s chart_uids=%s", len(missing_traits), len(chart_uids))
-        analytics = collect(chart_uids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
-    except Exception as exc:
-        logger.warning("Traits panel could not collect Database Analytics trait averages: %s", exc, exc_info=True)
-        direct_averages = _calculate_database_trait_averages_direct(owner, chart_uids, missing_traits)
-        averages.update(direct_averages)
-        return averages
+    _predictions_debug(
+        owner,
+        "Trait DB averages calculating requested profiles=%s chart_uids=%s",
+        len(traits),
+        len(chart_uids),
+    )
+    analytics = collect(
+        chart_uids,
+        trait_items=traits,
+        trait_signature=signature_builder(traits),
+        time_budget_seconds=None,
+    )
     chart_count = max(0, int(analytics.get("chart_count", 0)))
     if not chart_count:
-        direct_averages = _calculate_database_trait_averages_direct(owner, chart_uids, missing_traits)
-        averages.update(direct_averages)
-        return averages
+        raise RuntimeError("Trait norm generation returned no scored database charts.")
     totals = analytics.get("totals", {})
+    averages: dict[str, float] = {}
     for trait_name in analytics.get("trait_names", []):
         name = str(trait_name)
-        db_average = (float(totals.get(name, 0.0)) / float(chart_count)) * 100.0
-        averages[name] = db_average
-        trait_item = next((trait for trait in missing_traits if str(trait.get("name", "")).strip() == name), None)
-        cache_key = _trait_norm_cache_key(chart_uids, trait_item or {})
-        if cache_key:
-            cache_entries[cache_key] = {
-                "trait_name": name,
-                "db_average": db_average,
-                "chart_count": chart_count,
-                "norm_state": current_norm_state,
-                "norm_signature": _database_norm_signature_from_state(current_norm_state),
-            }
-    _save_trait_norm_cache(cache_entries)
-    try:
-        trait_uids_by_name = {
-            str(trait.get("name", "")).strip(): _trait_uid_for_item(trait)
-            for trait in traits
-            if str(trait.get("name", "")).strip()
-        }
-        db.upsert_trait_baseline_snapshot(
-            norm_signature=_database_norm_signature_from_state(current_norm_state),
-            trait_signature=_stable_json_hash(_trait_signature_payload(traits)),
-            rows=[
-                {
-                    "trait_name": name,
-                    "trait_uid": trait_uids_by_name.get(name, ""),
-                    "db_average": average,
-                }
-                for name, average in averages.items()
-            ],
-            chart_count=chart_count,
-            norm_state=current_norm_state,
-        )
-    except Exception as exc:
-        logger.warning("Traits panel could not persist DB baseline snapshot: %s", exc, exc_info=True)
+        averages[name] = (float(totals.get(name, 0.0)) / float(chart_count)) * 100.0
+    requested_names = {
+        str(trait.get("name", "") or "").strip()
+        for trait in traits
+        if str(trait.get("name", "") or "").strip()
+    }
+    if set(averages) != requested_names:
+        missing = sorted(requested_names - set(averages))
+        raise RuntimeError("Trait norm generation omitted: " + ", ".join(missing))
     return averages
-
-
-def warm_trait_database_norms(owner: Any, trait_names: set[str] | None = None) -> dict[str, float]:
-    """Precompute and persist DB norms for selected active traits."""
-    traits = list_traits(active_only=True)
-    if trait_names is not None:
-        normalized_names = {name.casefold() for name in trait_names}
-        traits = [trait for trait in traits if str(trait.get("name", "")).casefold() in normalized_names]
-    return _database_trait_averages(owner, traits, force_refresh_stale=True)
 
 
 def trait_metadata_for_chart(
@@ -1250,7 +1048,7 @@ def trait_metadata_for_chart(
 
     trait_signature = trait_signature or _stable_json_hash(_trait_signature_payload(traits))
     legacy_trait_signature = legacy_trait_signature or _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
-    norm_signature = norm_signature or _database_norm_signature_for_traits(owner, traits)
+    norm_signature = norm_signature or _trait_snapshot_norm_signature(traits)
     chart_signature = chart_signature or _chart_trait_metadata_signature(chart)
     chart_uid = _chart_uid_for_trait_metadata(chart)
     signature = (TRAIT_DB_NORMS_CACHE_VERSION, chart_uid, trait_signature, norm_signature, chart_signature)
@@ -1610,7 +1408,7 @@ def _trait_predictions_cache_key(
     trait_display_signature = trait_display_signature or _stable_json_hash(_trait_display_signature_payload(traits))
     if norm_signature is None:
         try:
-            norm_signature = _database_norm_signature_for_traits(owner, traits)
+            norm_signature = _trait_snapshot_norm_signature(traits)
         except Exception as exc:
             logger.warning(
                 "Traits panel could not build DB norm signature for view cache: %s",
@@ -1676,40 +1474,14 @@ def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]
     trait_signature = _stable_json_hash(_trait_signature_payload(traits))
     legacy_trait_signature = _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
     trait_display_signature = _stable_json_hash(_trait_display_signature_payload(traits))
-    snapshot_token_provider = getattr(owner, "_prediction_norm_snapshot_token", None)
-    snapshot_token = ""
-    if callable(snapshot_token_provider):
-        try:
-            snapshot_token = str(snapshot_token_provider() or "")
-        except Exception:
-            snapshot_token = ""
-    if snapshot_token and snapshot_token != "prediction_norm_snapshot:missing":
-        # A static snapshot is itself the complete norm generation. Do not scan,
-        # normalize, hash, or sort the live database cohort on Chart Editor render.
-        norm_signature = f"prediction_norms_snapshot:{snapshot_token}"
-        return {
-            "trait_signature": trait_signature,
-            "legacy_trait_signature": legacy_trait_signature,
-            "trait_display_signature": trait_display_signature,
-            "norm_signature": norm_signature,
-            "chart_signature": _chart_trait_metadata_signature(chart),
-        }
-    current_norm_state = _database_norm_state(owner)
-    chart_uids = _database_chart_uids(owner)
-    try:
-        norm_signature = _database_norm_signature_for_traits(
-            owner,
-            traits,
-            current_norm_state=current_norm_state,
-            chart_uids=chart_uids,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Traits panel could not build DB norm signature for render pass: %s",
-            exc,
-            exc_info=True,
-        )
-        norm_signature = "norm:unavailable"
+    snapshot = load_prediction_norms_snapshot()
+    missing_traits = missing_trait_norms(traits, snapshot)
+    if missing_traits:
+        # Missing profiles are repaired as one trait-scoped worker operation.
+        # Use its deterministic future token now; never fall back to a live DB
+        # cohort signature or hide partial coverage behind a "present" snapshot.
+        _predictions_debug(owner, "Trait render awaiting snapshot repair traits=%s", len(missing_traits))
+    norm_signature = _trait_snapshot_norm_signature(traits, snapshot)
     return {
         "trait_signature": trait_signature,
         "legacy_trait_signature": legacy_trait_signature,

@@ -1,12 +1,15 @@
+import json
 from pathlib import Path
 
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     dnd_stat_snapshot_averages,
     load_prediction_norms_snapshot,
+    missing_trait_norms,
     remove_trait_from_prediction_norms_snapshot,
     save_prediction_norms_snapshot,
     set_trait_retired_in_prediction_norms_snapshot,
 )
+from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot as snapshot_module
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
@@ -33,8 +36,9 @@ def test_predictions_norm_snapshot_refresh_includes_dnd_alignment_traits():
 
 def test_chart_view_traits_prefer_shared_prediction_norm_snapshot():
     method = TRAIT_SOURCE.split("def _database_trait_averages", 1)[1].split("chart_ids = _database_chart_ids", 1)[0]
-    assert '_prediction_norm_snapshot_trait_averages' in method
-    assert 'return {name: float(snapshot_averages[name]) for name in requested_names}' in method
+    assert "trait_snapshot_averages(traits, snapshot)" in method
+    assert "refresh_trait_norms_snapshot(owner, missing_traits)" in method
+    assert "Trait norm snapshot repair failed" in method
 
 
 def test_dnd_statblock_uses_shared_snapshot_averages_before_norm_charts():
@@ -90,7 +94,8 @@ def test_chart_view_traits_keep_uid_metadata_visible_when_cache_is_stale_or_inco
     cached_only_method = TRAIT_SOURCE.split("def trait_metadata_for_chart", 1)[1].split("if cached_only:\n        return None", 1)[0]
     assert "if cached_only and (cached_rows_by_name or stale_rows_by_name):" in cached_only_method
     assert "rows previously persisted for this chart UID remain displayable" in cached_only_method
-    assert "metadata[\"stale\"] = True" in cached_only_method
+    assert "display_is_stale =" in cached_only_method
+    assert "metadata = _metadata_from_vectors(" in cached_only_method
 
 
 def test_rankings_panel_traits_prefer_shared_prediction_norm_snapshot():
@@ -150,12 +155,73 @@ def test_static_snapshot_short_circuits_live_cohort_signature_work():
     helper = TRAIT_SOURCE.split("def _trait_render_signatures", 1)[1].split(
         "def _traits_pending_cached_metadata", 1
     )[0]
-    snapshot_branch = helper.split(
-        'if snapshot_token and snapshot_token != "prediction_norm_snapshot:missing":', 1
-    )[1].split("current_norm_state = _database_norm_state(owner)", 1)[0]
-    assert "_database_norm_state(owner)" not in snapshot_branch
-    assert "_database_chart_uids(owner)" not in snapshot_branch
-    assert 'norm_signature = f"prediction_norms_snapshot:{snapshot_token}"' in snapshot_branch
+    assert "missing_trait_norms(traits, snapshot)" in helper
+    assert "_trait_snapshot_norm_signature(traits, snapshot)" in helper
+    assert "_database_norm_state(owner)" not in helper
+    assert "_database_chart_uids(owner)" not in helper
+    assert "norm_signature = _trait_snapshot_norm_signature(traits, snapshot)" in helper
+    assert "get_chart_uid(" not in helper
+    assert "get_chart_id_by_uid(" not in helper
+    assert "get_chart_ids_by_uid(" not in helper
+
+
+def test_snapshot_requires_matching_profile_hash_for_full_trait_coverage(tmp_path):
+    trait = {"uid": "doctor", "name": "Doctor", "profile": {"signs": {"Aries": 1}}}
+    path = tmp_path / "norms.json"
+    save_prediction_norms_snapshot(
+        {
+            "version": 1,
+            "snapshot_id": "partial",
+            "trait_baselines": {
+                "uid:doctor": {
+                    "uid": "doctor",
+                    "name": "Doctor",
+                    "profile_hash": "stale-profile",
+                    "db_average": 55.0,
+                }
+            },
+        },
+        path,
+    )
+    snapshot = load_prediction_norms_snapshot(path)
+
+    assert missing_trait_norms([trait], snapshot) == [trait]
+
+
+def test_bundled_official_norms_are_read_only_base_with_local_trait_overlay(
+    tmp_path, monkeypatch
+):
+    official_path = tmp_path / "official.json"
+    local_path = tmp_path / "local.json"
+    official_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "snapshot_id": "official",
+                "trait_baselines": {"uid:official": {"db_average": 51.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    local_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "snapshot_id": "local",
+                "trait_baselines": {"uid:custom": {"db_average": 62.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(snapshot_module, "OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH", official_path)
+    monkeypatch.setattr(snapshot_module, "PREDICTION_NORMS_SNAPSHOT_PATH", local_path)
+
+    merged = load_prediction_norms_snapshot()
+
+    assert set(merged["trait_baselines"]) == {"uid:official", "uid:custom"}
+    assert merged["official_snapshot_id"] == "official"
+    assert merged["local_snapshot_id"] == "local"
+    assert json.loads(official_path.read_text(encoding="utf-8"))["snapshot_id"] == "official"
 
 
 def test_deleted_trait_is_removed_without_rebuilding_other_snapshot_rows(tmp_path):
@@ -177,6 +243,28 @@ def test_deleted_trait_is_removed_without_rebuilding_other_snapshot_rows(tmp_pat
     assert updated["trait_baselines"]["uid:keep-me"] == original["trait_baselines"]["uid:keep-me"]
     assert updated["retired_trait_keys"] == ["uid:keep-me"]
     assert load_prediction_norms_snapshot(path) == updated
+
+
+def test_deleted_uid_trait_does_not_remove_uidless_baseline_with_same_name(tmp_path):
+    path = tmp_path / "norms.json"
+    save_prediction_norms_snapshot(
+        {
+            "version": 1,
+            "snapshot_id": "before",
+            "trait_baselines": {
+                "uid:custom-good": {"uid": "custom-good", "name": "Good", "db_average": 61.0},
+                "profile:alignment-good": {"uid": "", "name": "Good", "db_average": 54.0},
+            },
+            "retired_trait_keys": [],
+        },
+        path,
+    )
+
+    updated = remove_trait_from_prediction_norms_snapshot(
+        trait_uid="custom-good", trait_name="Good", path=path
+    )
+
+    assert set(updated["trait_baselines"]) == {"profile:alignment-good"}
 
 
 def test_archiving_retains_norm_and_only_toggles_retired_membership(tmp_path):
