@@ -2537,6 +2537,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._sort_mode = "alpha" #default sorting mode 1/2 of "manage charts" DB windows
         self._sort_descending = False
         self._chart_rows = []
+        # Disposable persistence adapters built from hydrated rows. UIDs remain
+        # authoritative; these maps only prevent SQLite from having to
+        # rediscover an already-loaded UID/local-row-ID pair in UI hot paths.
+        self._chart_uid_by_local_row_id: dict[int, str] = {}
+        self._local_row_id_by_chart_uid: dict[str, int] = {}
         self._active_chart_rows_by_uid: dict[str, tuple[Any, ...]] = {}
         self._displayed_chart_rows_by_uid: dict[str, tuple[Any, ...]] = {}
         self._prediction_norms_revision = 0
@@ -3696,20 +3701,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return DB_DIR / DATABASE_METRICS_PERSISTENT_CACHE_FILENAME
 
     def _database_metrics_rows_token(self) -> tuple[tuple[str, str], ...]:
-        row_ids: list[int] = []
-        rows_by_id: dict[int, Any] = {}
+        row_tokens: list[tuple[str, str]] = []
         for row in getattr(self, "_chart_rows", []) or []:
             try:
                 chart_id = int(row[0])
             except Exception:
                 continue
-            row_ids.append(chart_id)
-            rows_by_id[chart_id] = row
-        uid_by_id = get_chart_uid_map(row_ids)
-        row_tokens: list[tuple[str, str]] = []
-        for chart_id in row_ids:
-            chart_uid = str(uid_by_id.get(chart_id) or f"legacy-id:{chart_id}").strip().upper()
-            row = rows_by_id[chart_id]
+            chart_uid = str(row[30] or f"legacy-id:{chart_id}").strip().upper()
             row_tokens.append((chart_uid, repr(tuple(row[1:]))))
         return tuple(sorted(row_tokens))
 
@@ -7486,7 +7484,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         for chart_uid in getattr(self, "_selected_chart_uid_order", []):
             if chart_uid in copied_uids:
                 continue
-            chart_id = get_chart_id_by_uid(chart_uid)
+            chart_id = self._local_row_id_by_chart_uid.get(chart_uid)
             name = str(chart_names_by_id.get(chart_id) if chart_id is not None else "").strip()
             if name:
                 selected_names.append(name)
@@ -7508,11 +7506,34 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _current_local_row_id(self) -> int | None:
         """Resolve the UID-owned current chart at the SQLite boundary."""
-        return get_chart_id_by_uid(self.current_chart_uid)
+        chart_uid = self._normalized_chart_uid_key(self.current_chart_uid)
+        if chart_uid is None:
+            return None
+        local_row_id = self._local_row_id_by_chart_uid.get(chart_uid)
+        if local_row_id is not None:
+            return local_row_id
+        return get_chart_id_by_uid(chart_uid)
+
+    def _rebuild_hydrated_chart_identity_indexes(self) -> None:
+        """Index UID/local-row-ID pairs already present in ``_chart_rows``."""
+        pairs = (
+            (int(row[0]), str(row[30] or "").strip().upper())
+            for raw_row in self._chart_rows
+            if (row := self._normalize_chart_row(raw_row)) is not None
+        )
+        self._chart_uid_by_local_row_id = {
+            local_row_id: chart_uid
+            for local_row_id, chart_uid in pairs
+            if chart_uid
+        }
+        self._local_row_id_by_chart_uid = {
+            chart_uid: local_row_id
+            for local_row_id, chart_uid in self._chart_uid_by_local_row_id.items()
+        }
 
     def _hidden_local_row_ids_for_persistence(self) -> set[int]:
         """Resolve UID-owned hidden state for legacy row-based persistence APIs."""
-        return set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
+        return set(self._local_row_ids_for_uids(self._hidden_chart_uids))
 
     @staticmethod
     def _normalized_item_chart_uid(item: QListWidgetItem | None) -> str | None:
@@ -7539,7 +7560,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for raw_uid in chart_uids
             if (chart_uid := self._normalized_chart_uid_key(raw_uid))
         ]
-        ids_by_uid = get_chart_ids_by_uid(ordered_uids)
+        ids_by_uid = {
+            chart_uid: self._local_row_id_by_chart_uid[chart_uid]
+            for chart_uid in ordered_uids
+            if chart_uid in self._local_row_id_by_chart_uid
+        }
+        missing_uids = [chart_uid for chart_uid in ordered_uids if chart_uid not in ids_by_uid]
+        if missing_uids:
+            ids_by_uid.update(get_chart_ids_by_uid(missing_uids))
         return [int(ids_by_uid[chart_uid]) for chart_uid in ordered_uids if chart_uid in ids_by_uid]
 
     def _selected_local_row_ids(
@@ -7608,7 +7636,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 ordered_ids.append(int(raw_chart_id))
             except (TypeError, ValueError):
                 continue
-        chart_uid_map = get_chart_uid_map(ordered_ids)
+        chart_uid_map = {
+            chart_id: self._chart_uid_by_local_row_id[chart_id]
+            for chart_id in ordered_ids
+            if chart_id in self._chart_uid_by_local_row_id
+        }
+        missing_ids = [chart_id for chart_id in ordered_ids if chart_id not in chart_uid_map]
+        if missing_ids:
+            chart_uid_map.update(get_chart_uid_map(missing_ids))
         ordered_uids = [
             str(chart_uid_map[chart_id]).strip().upper()
             for chart_id in ordered_ids
@@ -7734,7 +7769,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         refresh_batch_similarity_chart_options(self, choices)
 
     def _is_placeholder_local_row_id(self, chart_id: int) -> bool:
-        row = self._active_chart_rows_by_uid.get(str(get_chart_uid(chart_id) or "").strip().upper())
+        chart_uid = self._chart_uid_by_local_row_id.get(int(chart_id))
+        row = self._active_chart_rows_by_uid.get(chart_uid or "")
         if row is not None and _chart_row_is_non_aggregable(row):
             return True
         chart = self._get_chart_for_filter(int(chart_id))
@@ -7754,7 +7790,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         ]
 
     def _is_similarities_placeholder_local_row_id(self, chart_id: int) -> bool:
-        row = self._active_chart_rows_by_uid.get(str(get_chart_uid(chart_id) or "").strip().upper())
+        chart_uid = self._chart_uid_by_local_row_id.get(int(chart_id))
+        row = self._active_chart_rows_by_uid.get(chart_uid or "")
         if row is not None and _chart_row_is_placeholder(row):
             return True
         chart = self._get_chart_for_filter(int(chart_id))
@@ -19107,6 +19144,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 f"Couldn't list saved charts:\n{e}",
             )
             self._chart_rows = []
+        self._rebuild_hydrated_chart_identity_indexes()
         self._rankings_data_dirty = True
         if refresh_tag_completers:
             if progress_callback:
@@ -19280,7 +19318,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not getattr(self, "_show_hidden_charts", False):
             hidden_chart_ids = set(self._hidden_local_row_ids_for_persistence())
             rows = [row for row in rows if int(row[0]) not in hidden_chart_ids]
-        self._active_chart_rows_by_uid = {str(row[30] or "").strip().upper(): row for row in rows if str(row[30] or "").strip()}
+        self._active_chart_rows_by_uid = {
+            str(row[30] or "").strip().upper(): row
+            for row in rows
+            if str(row[30] or "").strip()
+        }
         self._displayed_chart_rows_by_uid = {}
         self._active_collection_total_count = len(rows)
         if progress_callback:
@@ -20380,7 +20422,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not self._has_active_chart_filters():
             return True
 
-        chart_row = self._active_chart_rows_by_uid.get(str(get_chart_uid(chart_id) or "").strip().upper())
+        chart_uid = self._chart_uid_by_local_row_id.get(int(chart_id))
+        chart_row = self._active_chart_rows_by_uid.get(chart_uid or "")
         if search_country or search_city or search_state:
             birth_place_value = chart_row[5] if chart_row else None
             if birth_place_value is None:
