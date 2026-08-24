@@ -185,8 +185,7 @@ def refresh_traits_settings_list(owner: Any) -> None:
         f"{count} trait{'s' if count != 1 else ''} available "
         f"({bundled_count} bundled default, {custom_count} custom); "
         f"{archived_count} archived and excluded from Predictions. "
-        f"{count} of {TRAIT_RECOMMENDED_WORKING_SET_LIMIT} traits currently defined "
-        "(recommended working set)."
+        f"{count} of {TRAIT_RECOMMENDED_WORKING_SET_LIMIT} traits currently defined." #recommended maximum, until this feature is performance-optimized.
     )
     footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
     if callable(footer_writer):
