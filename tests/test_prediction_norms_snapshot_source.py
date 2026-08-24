@@ -13,6 +13,7 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     refresh_prediction_norms_snapshot,
     save_prediction_norms_snapshot,
     set_trait_retired_in_prediction_norms_snapshot,
+    trait_norm_unavailability_reasons,
 )
 from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot as snapshot_module
 
@@ -29,6 +30,38 @@ def test_predictions_norm_snapshot_module_defines_shared_static_payload():
     assert "def refresh_prediction_norms_snapshot" in SNAPSHOT_SOURCE
     assert '"trait_baselines"' in SNAPSHOT_SOURCE
     assert '"dnd_stat_raw_averages"' in SNAPSHOT_SOURCE
+
+
+def test_trait_norm_unavailability_reasons_distinguish_missing_changed_and_invalid_rows():
+    traits = [
+        {"uid": "missing", "name": "Missing", "profile": {"signs": {"Aries": 1}}},
+        {"uid": "changed", "name": "Changed", "profile": {"signs": {"Taurus": 1}}},
+        {"uid": "invalid", "name": "Invalid", "profile": {"signs": {"Gemini": 1}}},
+    ]
+    snapshot = {
+        "trait_baselines": {
+            "uid:changed": {"profile_hash": "old", "db_average": 50.0},
+            "uid:invalid": {
+                "profile_hash": snapshot_module._stable_hash(traits[2]["profile"]),
+                "db_average": "not-a-number",
+            },
+        }
+    }
+
+    reasons = trait_norm_unavailability_reasons(traits, snapshot)
+
+    assert reasons == {
+        "Missing": "no stored DB norm exists for this trait profile",
+        "Changed": "the trait's analytical profile changed after its DB norm was calculated",
+        "Invalid": "the stored db_average value is not numeric",
+    }
+
+
+def test_trait_norm_refresh_requests_one_partial_safe_batch():
+    refresh_source = SNAPSHOT_SOURCE.split("def refresh_trait_norms_snapshot", 1)[1]
+
+    assert "_database_trait_averages(\n            owner,\n            traits," in refresh_source
+    assert "allow_partial=True" in refresh_source
 
 
 def test_predictions_norm_snapshot_refresh_includes_dnd_alignment_traits():

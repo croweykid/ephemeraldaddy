@@ -300,6 +300,34 @@ def missing_trait_norms(
     ]
 
 
+def trait_norm_unavailability_reasons(
+    traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None
+) -> dict[str, str]:
+    """Explain why each requested trait cannot use a stored norm."""
+    payload = dict(snapshot or load_prediction_norms_snapshot())
+    rows = payload.get("trait_baselines", {}) if isinstance(payload, dict) else {}
+    rows = rows if isinstance(rows, dict) else {}
+    reasons: dict[str, str] = {}
+    for trait in traits:
+        name = str(trait.get("name", "") or "").strip() or "<unnamed>"
+        row = rows.get(_trait_key(trait))
+        if not isinstance(row, dict):
+            reasons[name] = "no stored DB norm exists for this trait profile"
+            continue
+        stored_hash = str(row.get("profile_hash", "") or "")
+        current_hash = _stable_hash(trait.get("profile", {}) or {})
+        if stored_hash != current_hash:
+            reasons[name] = "the trait's analytical profile changed after its DB norm was calculated"
+            continue
+        try:
+            float(row["db_average"])
+        except KeyError:
+            reasons[name] = "the stored norm row has no db_average value"
+        except (TypeError, ValueError):
+            reasons[name] = "the stored db_average value is not numeric"
+    return reasons
+
+
 def prospective_trait_snapshot_token(
     traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None
 ) -> str:
@@ -493,7 +521,12 @@ def refresh_trait_norms_snapshot(owner: Any, traits: list[dict[str, Any]]) -> di
     # recorded independently so one unscorable profile does not hide the norms
     # successfully produced for its peers.
     try:
-        result = _database_trait_averages(owner, traits, force_refresh_stale=True)
+        result = _database_trait_averages(
+            owner,
+            traits,
+            force_refresh_stale=True,
+            allow_partial=True,
+        )
     except Exception as exc:
         result = {}
         logger.error("Trait norm reassessment failed: %s", exc, exc_info=True)
@@ -504,7 +537,9 @@ def refresh_trait_norms_snapshot(owner: Any, traits: list[dict[str, Any]]) -> di
         for trait in traits:
             name = str(trait.get("name", "") or "").strip() or "<unnamed>"
             if name not in result:
-                failures[name] = "trait norm calculation returned no result"
+                failures[name] = (
+                    "no average was returned; the profile could not be scored against the persisted chart set"
+                )
                 logger.error("Trait norm reassessment returned no result for %s", name)
                 continue
             try:

@@ -60,7 +60,8 @@ def test_traits_settings_can_reassess_only_unavailable_profiles():
     ).read_text(encoding="utf-8")
 
     assert 'QPushButton("Reassess unavailable traits")' in settings_source
-    assert "missing_trait_norms(traits, load_prediction_norms_snapshot())" in settings_source
+    assert "missing_trait_norms(traits, snapshot)" in settings_source
+    assert "trait_norm_unavailability_reasons(missing, snapshot)" in settings_source
     assert "class _TraitNormReassessmentWorker(QObject)" in settings_source
     assert "worker = _TraitNormReassessmentWorker(owner, missing)" in settings_source
     assert "thread.started.connect(worker.run)" in settings_source

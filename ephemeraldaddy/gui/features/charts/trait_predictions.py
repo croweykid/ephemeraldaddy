@@ -963,6 +963,7 @@ def _database_trait_averages(
     traits: list[dict[str, Any]],
     *,
     force_refresh_stale: bool = False,
+    allow_partial: bool = False,
 ) -> dict[str, float]:
     _predictions_debug(owner, "Trait DB averages requested traits=%s", len(traits))
     if not force_refresh_stale:
@@ -1026,7 +1027,7 @@ def _database_trait_averages(
         for trait in traits
         if str(trait.get("name", "") or "").strip()
     }
-    if set(averages) != requested_names:
+    if set(averages) != requested_names and not allow_partial:
         missing = sorted(requested_names - set(averages))
         raise RuntimeError("Trait norm generation omitted: " + ", ".join(missing))
     return averages

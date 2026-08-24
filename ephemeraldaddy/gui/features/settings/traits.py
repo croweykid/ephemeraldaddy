@@ -266,15 +266,18 @@ def on_reassess_unavailable_traits_clicked(owner: Any) -> None:
     from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
         load_prediction_norms_snapshot,
         missing_trait_norms,
+        trait_norm_unavailability_reasons,
     )
 
     dialog_parent = _settings_dialog_for(owner)
     traits = list_traits(active_only=True)
-    missing = missing_trait_norms(traits, load_prediction_norms_snapshot())
+    snapshot = load_prediction_norms_snapshot()
+    missing = missing_trait_norms(traits, snapshot)
     if not missing:
         QMessageBox.information(dialog_parent, "Trait norms up to date", "All active traits already have current DB norms.")
         return
     names = [str(trait.get("name", "") or "").strip() for trait in missing]
+    unavailable_reasons = trait_norm_unavailability_reasons(missing, snapshot)
     button = getattr(owner, "_traits_reassess_unavailable_button", None)
     if isinstance(button, QPushButton):
         button.setEnabled(False)
@@ -293,7 +296,13 @@ def on_reassess_unavailable_traits_clicked(owner: Any) -> None:
         repaired = [name for name in names if name and name not in failures]
         message = f"Reassessed {len(names)} unavailable trait(s); {len(repaired)} repaired."
         if failures:
-            message += " Failed: " + ", ".join(sorted(failures)) + ". See the terminal for details."
+            details = "; ".join(f"{name}: {reason}" for name, reason in sorted(failures.items()))
+            message += f"\n\nNot repaired:\n{details}\n\nSee the terminal for technical details."
+        if unavailable_reasons:
+            details = "; ".join(
+                f"{name}: {reason}" for name, reason in sorted(unavailable_reasons.items())
+            )
+            message += f"\n\nWhy reassessment was needed:\n{details}"
         QMessageBox.information(dialog_parent, "Trait norm reassessment complete", message)
         _refresh_trait_predictions(owner)
 
