@@ -142,14 +142,32 @@ def test_rankings_panel_traits_prefer_shared_prediction_norm_snapshot():
     method = ranking_panel_source.split("def _refresh_rankings_panel", 1)[1].split(
         "def _refresh_sign_dominance_rankings", 1
     )[0]
-    assert "trait_snapshot_averages(trait_items)" in method
+    assert "trait_snapshot_averages(ranking_trait_items)" in method
     assert "requested_trait_names.issubset(set(snapshot_averages))" in method
     assert "_rankings_trait_likelihood_cache_complete" in method
-    assert method.index("trait_snapshot_averages(trait_items)") < method.index("_collect_traits_distribution_analytics")
+    assert method.index("trait_snapshot_averages(ranking_trait_items)") < method.index("_collect_traits_distribution_analytics")
     snapshot_fast_path = method.split(
         "if requested_trait_names and requested_trait_names.issubset(set(snapshot_averages)):", 1
     )[1].split("if not database_values:", 1)[0]
     assert "_collect_traits_distribution_analytics" not in snapshot_fast_path
+
+
+def test_rankings_panel_warms_only_the_selected_trait_and_continues_partial_passes():
+    ranking_panel_source = (ROOT / "ephemeraldaddy" / "gui" / "ranking_panel.py").read_text(encoding="utf-8")
+    method = ranking_panel_source.split("def _refresh_rankings_panel", 1)[1].split(
+        "def _refresh_sign_dominance_rankings", 1
+    )[0]
+    continuation = ranking_panel_source.split("def _schedule_rankings_traits_continuation", 1)[1].split(
+        "def _refresh_rankings_panel", 1
+    )[0]
+
+    assert 'if str(trait.get("name", "")).strip() == selected_trait_name' in method
+    assert "trait_items=ranking_trait_items" in method
+    assert "time_budget_seconds=0.1" in method
+    assert 'if bool(database_analytics.get("partial", False)):' in method
+    assert "self._schedule_rankings_traits_continuation(selected_trait_name)" in method
+    assert "QTimer.singleShot(0, continue_ranking)" in continuation
+    assert 'self._refresh_rankings_panel({"traits"})' in continuation
 
 
 def test_restore_window_settings_refreshes_open_rankings_panel_after_widgets_exist():
