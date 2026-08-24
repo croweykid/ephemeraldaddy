@@ -10,7 +10,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.interpretations import (
@@ -373,6 +373,43 @@ class RankingsPanelMixin:
             return False
         return True
 
+    def _schedule_rankings_traits_continuation(self, selected_trait_name: str) -> None:
+        """Continue an incomplete trait ranking without blocking the UI thread.
+
+        The analytics collector deliberately observes a time budget.  A Rankings
+        refresh used to consume one budget and then simply leave the partial
+        result on screen forever.  Keep asking it for another small slice; the
+        per-chart cache makes every slice resume at the first missing chart.
+        """
+        token = (
+            str(selected_trait_name or ""),
+            int(getattr(self, "_database_metrics_cache_revision", 0)),
+        )
+        self._rankings_traits_continuation_token = token
+
+        def continue_ranking() -> None:
+            if getattr(self, "_rankings_traits_continuation_token", None) != token:
+                return
+            combo = getattr(self, "rankings_trait_combo", None)
+            if not isinstance(combo, QComboBox) or str(combo.currentData() or "") != token[0]:
+                return
+            rankings_visible = (
+                getattr(self, "_active_left_panel", None) == "rankings"
+                and bool(getattr(self, "_left_panel_visible", False))
+            )
+            is_collapsed = getattr(self, "_is_left_panel_collapsed", None)
+            if callable(is_collapsed) and is_collapsed():
+                rankings_visible = False
+            if not rankings_visible:
+                # The queued callback is the only continuation for this partial
+                # pass.  Preserve it as dirty work so showing Rankings again
+                # restarts warmup through _refresh_visible_rankings_sections.
+                self._rankings_data_dirty = True
+                return
+            self._refresh_rankings_panel({"traits"})
+
+        QTimer.singleShot(0, continue_ranking)
+
     def _refresh_rankings_panel(self, sections: set[str] | None = None) -> None:
         if not hasattr(self, "rankings_traits_label"):
             return
@@ -392,14 +429,28 @@ class RankingsPanelMixin:
             return
         selected_trait_name = self._sync_rankings_trait_combo()
         trait_items = list_traits(active_only=True)
-        trait_signature = self._traits_distribution_signature(trait_items)
+        # Ranking one trait must not warm every active trait for every chart.
+        # Besides doing unnecessary work, that made an 8-second partial pass
+        # advance only a few charts.  A one-trait signature is independently
+        # cacheable and is sufficient both for ranking and its DB comparison.
+        ranking_trait_items = (
+            [
+                trait
+                for trait in trait_items
+                if str(trait.get("name", "")).strip() == selected_trait_name
+            ]
+            if selected_trait_name
+            else []
+        )
+        trait_signature = self._traits_distribution_signature(ranking_trait_items)
         database_values: dict[str, float] = {}
+        snapshot_database_values: dict[str, float] = {}
         cache_warmed = False
         parsed_percent: float | None = 100.0
         if selected_trait_name:
-            requested_trait_names = {name for name, _color, _profile in trait_signature}
+            requested_trait_names = {selected_trait_name}
             try:
-                snapshot_averages = trait_snapshot_averages(trait_items)
+                snapshot_averages = trait_snapshot_averages(ranking_trait_items)
             except Exception:
                 snapshot_averages = {}
             if requested_trait_names and requested_trait_names.issubset(set(snapshot_averages)):
@@ -407,6 +458,7 @@ class RankingsPanelMixin:
                     name: float(snapshot_averages[name]) / 100.0
                     for name in requested_trait_names
                 }
+                snapshot_database_values = dict(database_values)
                 cache_warmed = True
                 parsed_percent = 100.0
                 if not isinstance(getattr(self, "_traits_distribution_chart_likelihood_cache", None), dict):
@@ -421,8 +473,11 @@ class RankingsPanelMixin:
             if not database_values:
                 database_analytics = self._collect_traits_distribution_analytics(
                     database_chart_ids,
-                    trait_items=trait_items,
+                    trait_items=ranking_trait_items,
                     trait_signature=trait_signature,
+                    # Yield frequently so the progress text and the rest of the
+                    # application remain responsive while a cold cache warms.
+                    time_budget_seconds=0.1,
                 )
                 database_count = max(0, int(database_analytics.get("chart_count", 0)))
                 totals = database_analytics.get("totals", {})
@@ -431,8 +486,18 @@ class RankingsPanelMixin:
                     name: (float(totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
                     for name in names
                 }
+                # Norms define the comparison baseline.  The local collector is
+                # invoked here only to populate missing per-chart scores.
+                if snapshot_database_values:
+                    database_values = snapshot_database_values
                 cache_warmed = database_count > 0 and not bool(database_analytics.get("partial", False))
                 parsed_percent = database_analytics.get("parsed_percent", 100.0)
+                if bool(database_analytics.get("partial", False)):
+                    self._schedule_rankings_traits_continuation(selected_trait_name)
+                else:
+                    self._rankings_traits_continuation_token = None
+            else:
+                self._rankings_traits_continuation_token = None
         database_chart_uids = tuple(
             sorted(
                 str(chart_uid).strip().upper()

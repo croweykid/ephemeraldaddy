@@ -50,3 +50,16 @@ def test_rankings_sections_refresh_independently_when_visible():
     )[0]
     assert 'if "traits" not in requested_sections:' in refresh
     assert 'if "sign_dominance" in requested_sections:' in refresh
+
+
+def test_hidden_partial_trait_ranking_is_resumed_when_rankings_reopens():
+    continuation = RANKINGS_SOURCE.split(
+        "def _schedule_rankings_traits_continuation", 1
+    )[1].split("def _refresh_rankings_panel", 1)[0]
+
+    assert 'getattr(self, "_active_left_panel", None) == "rankings"' in continuation
+    assert 'getattr(self, "_left_panel_visible", False)' in continuation
+    assert 'getattr(self, "_is_left_panel_collapsed", None)' in continuation
+    assert "if not rankings_visible:" in continuation
+    assert "self._rankings_data_dirty = True" in continuation
+    assert "self._refresh_rankings_panel({\"traits\"})" in continuation
