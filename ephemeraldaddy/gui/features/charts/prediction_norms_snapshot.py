@@ -489,18 +489,29 @@ def refresh_trait_norms_snapshot(owner: Any, traits: list[dict[str, Any]]) -> di
 
     averages: dict[str, float] = {}
     failures: dict[str, str] = {}
-    # A malformed/unscorable profile must not prevent independent profiles from
-    # being repaired. Score separately so every omission has an explicit cause.
-    for trait in traits:
-        name = str(trait.get("name", "") or "").strip() or "<unnamed>"
-        try:
-            result = _database_trait_averages(owner, [trait], force_refresh_stale=True)
-            if name not in result:
-                raise RuntimeError("trait norm calculation returned no result")
-            averages[name] = float(result[name])
-        except Exception as exc:
+    # Score the complete set in one chart traversal. Missing results are still
+    # recorded independently so one unscorable profile does not hide the norms
+    # successfully produced for its peers.
+    try:
+        result = _database_trait_averages(owner, traits, force_refresh_stale=True)
+    except Exception as exc:
+        result = {}
+        logger.error("Trait norm reassessment failed: %s", exc, exc_info=True)
+        for trait in traits:
+            name = str(trait.get("name", "") or "").strip() or "<unnamed>"
             failures[name] = str(exc)
-            logger.error("Trait norm reassessment failed for %s: %s", name, exc, exc_info=True)
+    else:
+        for trait in traits:
+            name = str(trait.get("name", "") or "").strip() or "<unnamed>"
+            if name not in result:
+                failures[name] = "trait norm calculation returned no result"
+                logger.error("Trait norm reassessment returned no result for %s", name)
+                continue
+            try:
+                averages[name] = float(result[name])
+            except (TypeError, ValueError) as exc:
+                failures[name] = str(exc)
+                logger.error("Trait norm reassessment returned an invalid result for %s: %s", name, exc)
     try:
         owner._trait_norm_refresh_failures = failures
     except Exception:

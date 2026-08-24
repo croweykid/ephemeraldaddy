@@ -61,7 +61,10 @@ def test_traits_settings_can_reassess_only_unavailable_profiles():
 
     assert 'QPushButton("Reassess unavailable traits")' in settings_source
     assert "missing_trait_norms(traits, load_prediction_norms_snapshot())" in settings_source
-    assert "refresh_trait_norms_snapshot(owner, missing)" in settings_source
+    assert "class _TraitNormReassessmentWorker(QObject)" in settings_source
+    assert "worker = _TraitNormReassessmentWorker(owner, missing)" in settings_source
+    assert "thread.started.connect(worker.run)" in settings_source
+    assert "refresh_trait_norms_snapshot(self._owner, self._traits)" in settings_source
 
 
 def test_prediction_norm_rows_use_full_database_not_displayed_filter_scope():
