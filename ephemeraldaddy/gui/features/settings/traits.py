@@ -112,6 +112,15 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     owner._traits_edit_button.clicked.connect(lambda _checked=False: on_trait_edit_clicked(owner))
     traits_second_button_row.addWidget(owner._traits_edit_button)
 
+    owner._traits_reassess_unavailable_button = QPushButton("Reassess unavailable traits")
+    owner._traits_reassess_unavailable_button.setToolTip(
+        "Calculate DB norms only for active traits whose norm is missing or analytically outdated."
+    )
+    owner._traits_reassess_unavailable_button.clicked.connect(
+        lambda _checked=False: on_reassess_unavailable_traits_clicked(owner)
+    )
+    traits_second_button_row.addWidget(owner._traits_reassess_unavailable_button)
+
     owner._traits_description_button = QPushButton("Add description…")
     owner._traits_description_button.clicked.connect(lambda _checked=False: on_trait_description_clicked(owner))
     traits_second_button_row.addWidget(owner._traits_description_button)
@@ -229,6 +238,40 @@ def _warm_trait_definitions(owner: Any, trait_names: set[str] | None = None) -> 
         normalized = {name.casefold() for name in trait_names}
         traits = [trait for trait in traits if str(trait.get("name", "")).casefold() in normalized]
     refresh_trait_norms_snapshot(owner, traits)
+
+
+def on_reassess_unavailable_traits_clicked(owner: Any) -> None:
+    """Repair only missing/stale active Trait norms, never the complete snapshot."""
+    from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+        load_prediction_norms_snapshot,
+        missing_trait_norms,
+        refresh_trait_norms_snapshot,
+    )
+
+    dialog_parent = _settings_dialog_for(owner)
+    traits = list_traits(active_only=True)
+    missing = missing_trait_norms(traits, load_prediction_norms_snapshot())
+    if not missing:
+        QMessageBox.information(dialog_parent, "Trait norms up to date", "All active traits already have current DB norms.")
+        return
+    names = [str(trait.get("name", "") or "").strip() for trait in missing]
+    button = getattr(owner, "_traits_reassess_unavailable_button", None)
+    if isinstance(button, QPushButton):
+        button.setEnabled(False)
+    try:
+        refresh_trait_norms_snapshot(owner, missing)
+        failures = dict(getattr(owner, "_trait_norm_refresh_failures", {}) or {})
+        repaired = [name for name in names if name and name not in failures]
+        message = f"Reassessed {len(names)} unavailable trait(s); {len(repaired)} repaired."
+        if failures:
+            message += " Failed: " + ", ".join(sorted(failures)) + ". See the terminal for details."
+        QMessageBox.information(dialog_parent, "Trait norm reassessment complete", message)
+        _refresh_trait_predictions(owner)
+    except Exception as exc:
+        QMessageBox.warning(dialog_parent, "Trait norm reassessment failed", str(exc))
+    finally:
+        if isinstance(button, QPushButton):
+            button.setEnabled(True)
 
 
 def _validate_trait_source_text(source_path: Path, text: str) -> None:

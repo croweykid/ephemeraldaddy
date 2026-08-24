@@ -487,7 +487,24 @@ def refresh_trait_norms_snapshot(owner: Any, traits: list[dict[str, Any]]) -> di
         return load_prediction_norms_snapshot()
     from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
 
-    averages = _database_trait_averages(owner, traits, force_refresh_stale=True)
+    averages: dict[str, float] = {}
+    failures: dict[str, str] = {}
+    # A malformed/unscorable profile must not prevent independent profiles from
+    # being repaired. Score separately so every omission has an explicit cause.
+    for trait in traits:
+        name = str(trait.get("name", "") or "").strip() or "<unnamed>"
+        try:
+            result = _database_trait_averages(owner, [trait], force_refresh_stale=True)
+            if name not in result:
+                raise RuntimeError("trait norm calculation returned no result")
+            averages[name] = float(result[name])
+        except Exception as exc:
+            failures[name] = str(exc)
+            logger.error("Trait norm reassessment failed for %s: %s", name, exc, exc_info=True)
+    try:
+        owner._trait_norm_refresh_failures = failures
+    except Exception:
+        pass
     combined_snapshot = load_prediction_norms_snapshot()
     snapshot_path = _writable_trait_norms_path()
     snapshot = _load_snapshot_file(snapshot_path)

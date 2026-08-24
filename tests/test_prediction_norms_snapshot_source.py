@@ -42,7 +42,7 @@ def test_predictions_norm_snapshot_refresh_includes_dnd_alignment_traits():
 def test_chart_view_traits_prefer_shared_prediction_norm_snapshot():
     method = TRAIT_SOURCE.split("def _database_trait_averages", 1)[1].split("chart_ids = _database_chart_ids", 1)[0]
     assert "trait_snapshot_averages(traits, snapshot)" in method
-    assert "raise MissingTraitNormCoverage(" in method
+    assert "Traits panel bypassed unavailable profiles" in method
     assert "refresh_trait_norms_snapshot(owner, missing_traits)" not in method
 
 
@@ -112,10 +112,18 @@ def test_missing_trait_coverage_never_triggers_automatic_database_generation():
     snapshot_read_path = method.split("if not force_refresh_stale:", 1)[1].split(
         "chart_uids = _database_chart_uids(owner)", 1
     )[0]
-    assert "raise MissingTraitNormCoverage(" in snapshot_read_path
+    assert "return {name: float(snapshot_averages[name])" in snapshot_read_path
     assert "refresh_trait_norms_snapshot" not in snapshot_read_path
     assert "_database_chart_uids" not in snapshot_read_path
     assert "_calculate_database_trait_averages_direct" not in snapshot_read_path
+
+
+def test_missing_trait_coverage_returns_available_norms_and_logs_omissions():
+    method = TRAIT_SOURCE.split("def _database_trait_averages", 1)[1].split(
+        "def trait_metadata_for_chart", 1
+    )[0]
+    assert 'logger.warning("Traits panel bypassed unavailable profiles: %s", reason)' in method
+    assert "if name in snapshot_averages" in method
 
 
 def test_chart_view_traits_keep_uid_metadata_visible_when_cache_is_stale_or_incomplete():

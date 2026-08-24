@@ -480,6 +480,11 @@ def _on_trait_prediction_link_activated(owner: Any, target: str) -> None:
     if str(target or "") == "trait-predictions:calculate":
         _start_traits_prediction_calculation(owner)
         return
+    if str(target or "") == "trait-predictions:failures":
+        detail = str(getattr(owner, "_traits_prediction_failure_detail", "") or "")
+        if detail:
+            QMessageBox.information(owner, "Traits that failed to load", detail)
+        return
     parts = str(target or "").split(":", 1)
     if len(parts) != 2 or parts[0] != "trait":
         return
@@ -970,12 +975,13 @@ def _database_trait_averages(
                 for trait in missing_traits
                 if str(trait.get("name", "") or "").strip()
             )
-            raise MissingTraitNormCoverage(
+            reason = (
                 "Static trait norms are missing or analytically outdated for: "
                 + ", ".join(missing_names)
                 + ". Add/edit those traits through Settings to calculate only those profiles, "
-                "or explicitly use Recalculate DB Norms to replace the complete snapshot."
+                "or use Reassess unavailable traits to repair only those profiles."
             )
+            logger.warning("Traits panel bypassed unavailable profiles: %s", reason)
         requested_names = {
             str(trait.get("name", "") or "").strip()
             for trait in traits
@@ -983,10 +989,8 @@ def _database_trait_averages(
         }
         unresolved = sorted(requested_names - set(snapshot_averages))
         if unresolved:
-            raise RuntimeError(
-                "Trait norm snapshot repair failed for: " + ", ".join(unresolved)
-            )
-        return {name: float(snapshot_averages[name]) for name in requested_names}
+            logger.warning("Traits panel bypassed unresolved trait norm profiles: %s", ", ".join(unresolved))
+        return {name: float(snapshot_averages[name]) for name in requested_names if name in snapshot_averages}
     chart_uids = _database_chart_uids(owner)
     collect = getattr(owner, "_collect_traits_distribution_analytics_by_uids", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
@@ -1352,6 +1356,16 @@ def trait_metadata_for_chart(
         likelihoods=likelihoods,
         database_averages=database_averages,
     )
+    unavailable_names = sorted(active_trait_names - set(database_averages))
+    if unavailable_names:
+        detail = (
+            "Static trait norms are missing or analytically outdated for: "
+            + ", ".join(unavailable_names)
+            + ". Use Settings > Traits > Reassess unavailable traits to calculate only these profiles."
+        )
+        logger.warning("Traits panel rendered partial results; %s", detail)
+        metadata["unavailable_traits"] = unavailable_names
+        metadata["unavailable_trait_reason"] = detail
     _apply_trait_metadata_to_chart(chart, metadata, trait_uids_by_name, signature)
     if chart_uid is not None:
         rows_for_persistence = [
@@ -1706,8 +1720,20 @@ def _trait_predictions_html_from_metadata(
         key=lambda item: item[3],
     )
     return (
-        _trait_table("Above avg traits", above_avg_traits, color_by_name),
-        _trait_table("Below avg traits", below_avg_traits, color_by_name),
+        _trait_table("Above avg traits", above_avg_traits, color_by_name) + _trait_failure_footnote(metadata),
+        _trait_table("Below avg traits", below_avg_traits, color_by_name) + _trait_failure_footnote(metadata),
+    )
+
+
+def _trait_failure_footnote(metadata: dict[str, Any]) -> str:
+    """Return a quiet user-facing footnote while keeping diagnostics out of the caption."""
+    names = [str(name) for name in metadata.get("unavailable_traits", []) if str(name)]
+    if not names:
+        return ""
+    return (
+        '<br><span style="color:#d9534f; font-style:italic;">'
+        f"The following traits failed to load: {html.escape(', '.join(names))}. "
+        '<a href="trait-predictions:failures">🛈</a></span>'
     )
 
 
@@ -1856,13 +1882,16 @@ def _apply_traits_prediction_metadata(
     _set_traits_prediction_rows(owner, rows)
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
+        failure_detail = str(metadata.get("unavailable_trait_reason", "") or "")
+        owner._traits_prediction_failure_detail = failure_detail
+        label.setToolTip(failure_detail)
         stop_prediction_loading_blink(label)
         stop_prediction_loading_ellipsis(label)
         if not has_table:
             label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
             label.setVisible(True)
-        elif prefix_html:
-            label.setText(prefix_html)
+        elif prefix_html or failure_detail:
+            label.setText(f"{prefix_html}{_trait_failure_footnote(metadata)}")
             label.setVisible(True)
         elif not rows:
             label.setText("No traits meet the 5% deviation threshold.")

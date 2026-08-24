@@ -48,10 +48,20 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     assert "def render_traits_predictions" in predictions_source
     assert "calculate_trait_likelihoods" in predictions_source
     assert "def _trait_snapshot_norm_signature" in predictions_source
-    assert "raise MissingTraitNormCoverage(" in predictions_source
+    assert "Traits panel bypassed unavailable profiles" in predictions_source
     assert "refresh_trait_norms_snapshot(owner, missing_traits)" not in predictions_source
     assert "def missing_trait_norms" in snapshot_source
     assert "TRAIT_DB_NORMS_CACHE_PATH" not in predictions_source
+
+
+def test_traits_settings_can_reassess_only_unavailable_profiles():
+    settings_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'QPushButton("Reassess unavailable traits")' in settings_source
+    assert "missing_trait_norms(traits, load_prediction_norms_snapshot())" in settings_source
+    assert "refresh_trait_norms_snapshot(owner, missing)" in settings_source
 
 
 def test_prediction_norm_rows_use_full_database_not_displayed_filter_scope():
