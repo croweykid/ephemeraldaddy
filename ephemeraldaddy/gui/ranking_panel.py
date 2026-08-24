@@ -393,9 +393,18 @@ class RankingsPanelMixin:
             combo = getattr(self, "rankings_trait_combo", None)
             if not isinstance(combo, QComboBox) or str(combo.currentData() or "") != token[0]:
                 return
-            if getattr(self, "_active_left_panel", None) != "rankings":
-                return
-            if not getattr(self, "_left_panel_visible", False):
+            rankings_visible = (
+                getattr(self, "_active_left_panel", None) == "rankings"
+                and bool(getattr(self, "_left_panel_visible", False))
+            )
+            is_collapsed = getattr(self, "_is_left_panel_collapsed", None)
+            if callable(is_collapsed) and is_collapsed():
+                rankings_visible = False
+            if not rankings_visible:
+                # The queued callback is the only continuation for this partial
+                # pass.  Preserve it as dirty work so showing Rankings again
+                # restarts warmup through _refresh_visible_rankings_sections.
+                self._rankings_data_dirty = True
                 return
             self._refresh_rankings_panel({"traits"})
 
