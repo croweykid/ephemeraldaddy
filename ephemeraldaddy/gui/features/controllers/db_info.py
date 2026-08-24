@@ -363,6 +363,19 @@ def _refresh_prediction_norms(owner: Any) -> None:
             button.setEnabled(True)
 
 
+def add_prediction_norms_recalculation_tool(owner: Any, section_layout: Any) -> QPushButton:
+    """Add the destructive full norm rebuild exclusively to Developer Tools."""
+    norms_button = QPushButton("Recalculate DB Norms")
+    norms_button.setToolTip(
+        "Explicitly replace the static Predictions norm snapshot from the current database. "
+        "This developer maintenance operation can take a long time; normal chart edits never trigger it."
+    )
+    norms_button.clicked.connect(lambda _checked=False: _refresh_prediction_norms(owner))
+    section_layout.addWidget(norms_button)
+    owner._settings_refresh_prediction_norms_button = norms_button
+    return norms_button
+
+
 def refresh_database_info(owner: Any, *, force_recompute: bool = False) -> None:
     output_label = getattr(owner, "_settings_db_info_label", None)
     if output_label is None:
@@ -589,12 +602,6 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     )
     refresh_button.clicked.connect(lambda _checked=False: refresh_database_info(owner, force_recompute=True))
     controls_row.addWidget(refresh_button, 0, Qt.AlignLeft)
-    norms_button = QPushButton("Recalculate DB Norms")
-    norms_button.setToolTip(
-        "Explicitly replace the static Predictions norm snapshot from the current database. Normal chart edits never trigger this rebuild."
-    )
-    norms_button.clicked.connect(lambda _checked=False: _refresh_prediction_norms(owner))
-    controls_row.addWidget(norms_button, 0, Qt.AlignLeft)
     norms_source_combo = QComboBox()
     apply_shared_dropdown_style(norms_source_combo)
     norms_source_combo.setToolTip(
@@ -615,7 +622,6 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
 
     owner._settings_db_info_collection_combo = collection_combo
     owner._settings_db_info_export_button = export_button
-    owner._settings_refresh_prediction_norms_button = norms_button
     owner._settings_prediction_norms_source_combo = norms_source_combo
     owner._settings_prediction_norms_label = QLabel(_prediction_norms_status_text())
     owner._settings_prediction_norms_label.setWordWrap(True)

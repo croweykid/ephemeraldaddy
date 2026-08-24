@@ -587,6 +587,7 @@ from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
 )
 from ephemeraldaddy.gui.features.controllers.db_info import (
     add_database_info_settings_section,
+    add_prediction_norms_recalculation_tool,
 )
 from ephemeraldaddy.gui.features.transits import TransitPanelController
 from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
@@ -22605,6 +22606,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Developer Tools")
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
+
+        add_prediction_norms_recalculation_tool(self, dev_tools_section)
 
         size_checker_button = QPushButton("Toggle Size Checker")
         size_checker_button.clicked.connect(self._toggle_size_checker)
