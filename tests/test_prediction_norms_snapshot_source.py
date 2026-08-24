@@ -91,7 +91,10 @@ def test_app_adapter_avoids_loading_norm_charts_when_snapshot_has_dnd_stat_avera
 
 
 def test_database_statistics_exposes_manual_refresh_norms_button():
-    assert 'QPushButton("Recalculate DB Norms")' in DB_INFO_SOURCE
+    database_stats_builder = DB_INFO_SOURCE.split("def add_database_info_settings_section", 1)[1]
+    assert 'QPushButton("Recalculate DB Norms")' not in database_stats_builder
+    assert "def add_prediction_norms_recalculation_tool" in DB_INFO_SOURCE
+    assert "add_prediction_norms_recalculation_tool(self, dev_tools_section)" in APP_SOURCE
     assert "refresh_prediction_norms_snapshot(owner, user_initiated=True)" in DB_INFO_SOURCE
 
 
