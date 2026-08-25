@@ -1337,7 +1337,7 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
     relatives_label.setStyleSheet("font-weight: 700; color: #f5f5f5;")
     layout.addWidget(relatives_label)
 
-    relatives_help = QLabel("Link relatives already in the database by name, alias, or UID.")
+    relatives_help = QLabel("Link relatives already in the database by name or alias.")
     relatives_help.setWordWrap(True)
     relatives_help.setStyleSheet("color: #bdbdbd;")
     layout.addWidget(relatives_help)
@@ -2213,7 +2213,7 @@ def _ensure_photo_gallery_chart_uid(owner: QWidget) -> str | None:
     choice = QMessageBox.question(
         owner,
         "Save chart before adding photos?",
-        "Photo Gallery entries are linked by chart UID. Save this chart before adding photos?",
+        "Photo Gallery entries require a saved chart. Save this chart before adding photos?",
         QMessageBox.Yes | QMessageBox.No,
         QMessageBox.Yes,
     )
@@ -2399,7 +2399,7 @@ def _build_photo_gallery_panel(owner: QWidget) -> QWidget:
 
     help_label = QLabel(
         "Photos are resized to 96 ppi with maximum dimensions of 1920×1080 px "
-        "and stored in the external photo gallery database linked by chart UID."
+        "and stored in the external photo gallery database linked to this chart."
     )
     help_label.setWordWrap(True)
     help_label.setStyleSheet("color: #bdbdbd;")

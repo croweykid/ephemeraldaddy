@@ -20,7 +20,7 @@ def build_related_chart_choices(
     *,
     current_chart_uid: str | None,
 ) -> list[str]:
-    """Return deduplicated name, alias, and UID choices for another chart."""
+    """Return user-facing name and alias choices for another chart."""
     excluded_uid = str(current_chart_uid or "").strip().upper()
     choices: list[str] = []
     seen: set[str] = set()
@@ -28,7 +28,7 @@ def build_related_chart_choices(
         chart_uid = str(record.chart_uid or "").strip().upper()
         if not chart_uid or chart_uid == excluded_uid:
             continue
-        for raw_choice in (record.name, record.alias, chart_uid):
+        for raw_choice in (record.name, record.alias):
             choice = str(raw_choice or "").strip()
             key = choice.casefold()
             if choice and key not in seen:

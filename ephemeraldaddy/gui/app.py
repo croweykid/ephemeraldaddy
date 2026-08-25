@@ -2544,6 +2544,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._local_row_id_by_chart_uid: dict[str, int] = {}
         self._active_chart_rows_by_uid: dict[str, tuple[Any, ...]] = {}
         self._displayed_chart_rows_by_uid: dict[str, tuple[Any, ...]] = {}
+        self._display_chart_id_by_chart_uid: dict[str, int] = {}
         self._prediction_norms_revision = 0
         self._chart_cache = {}
         # Dialog-side chart selection/render state mirrors MainWindow attributes
@@ -19344,6 +19345,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if str(row[30] or "").strip()
         }
         self._displayed_chart_rows_by_uid = {}
+        self._display_chart_id_by_chart_uid = {}
         self._active_collection_total_count = len(rows)
         if progress_callback:
             progress_callback("Sorting Database rows…", 94)
@@ -19512,6 +19514,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     _weirdness_score,
                 )
                 display_position = rendered_row_count + 1
+                if item_chart_uid:
+                    self._display_chart_id_by_chart_uid[item_chart_uid] = display_position
                 display_name = name or "Unnamed"
                 chart = (
                     self._get_chart_for_filter(cid)
@@ -26064,10 +26068,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.reminds_me_of_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
         reminds_me_of_content_layout.addWidget(self.reminds_me_of_subheader)
         self.reminds_me_of_input = QLineEdit()
-        self.reminds_me_of_input.setPlaceholderText("Existing chart name, alias, or UID")
+        self.reminds_me_of_input.setPlaceholderText("Existing chart name or alias")
         self.reminds_me_of_input.setToolTip(
-            "Enter an existing chart name, alias, or Chart UID. "
-            "EphemeralDaddy stores each added chart's stable ID so later renames still work."
+            "Enter an existing chart name or alias. Links remain intact if a chart is renamed."
         )
         self._update_reminds_me_of_completer()
         self.reminds_me_of_input.installEventFilter(self)
@@ -26386,7 +26389,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         alternate_chart_layout.setSpacing(6)
         alternate_chart_layout.addWidget(QLabel("Alternate chart of"))
         self.alternate_chart_input = QLineEdit()
-        self.alternate_chart_input.setPlaceholderText("Existing chart name, alias, or UID")
+        self.alternate_chart_input.setPlaceholderText("Existing chart name or alias")
         self.alternate_chart_input.setToolTip(
             "For Hypothetical charts only: link this chart as an alternate rectification of one existing chart."
         )
@@ -27758,8 +27761,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._similar_charts_export_rows.append(
                 {
                     "rank": rank,
-                    "chart_id": match.chart_id,  # LEGACY export resolver only; Chart View exports display chart_uid.
+                    "chart_id": match.chart_id,  # Persistence-only compatibility field.
                     "chart_uid": chart_uid,
+                    "display_chart_id": self._display_chart_id_by_chart_uid.get(
+                        chart_uid.strip().upper()
+                    ),
                     "chart_name": match.chart_name,
                     "similarity_percent": round(similarity_percent, 1),
                     "similarity_band": band_label,
@@ -28716,6 +28722,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             similarity_average=similarity_average,
             similarity_standard_deviation=similarity_standard_deviation,
         )
+        for row in [*most_rows, *least_rows]:
+            chart_uid = str(row.get("chart_uid", "") or "").strip().upper()
+            row["display_chart_id"] = self._display_chart_id_by_chart_uid.get(chart_uid)
         lines: list[str] = []
         if is_markdown:
             lines.extend(build_similar_charts_export_lines(subject_name=subject_name, rows=[], is_markdown=True))
@@ -33193,7 +33202,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         current_chart_id = self._current_local_row_id()
         current_chart_id = int(current_chart_id) if current_chart_id is not None else None
         chart_rows = list_charts()
-        chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
         display_names = get_chart_display_name_map(row[0] for row in chart_rows)
         choices: list[str] = []
         seen: set[str] = set()
@@ -33204,7 +33212,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             chart_type = _normalize_gui_source(row[14] if len(row) > 14 else "")
             if chart_type == SOURCE_HYPOTHETICAL:
                 continue
-            for raw_choice in (display_names.get(chart_id), row[2], chart_uids.get(chart_id)):
+            for raw_choice in (display_names.get(chart_id), row[2]):
                 choice = str(raw_choice or "").strip()
                 if not choice:
                     continue
@@ -33226,7 +33234,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         display_name = get_chart_display_name_by_uid(chart_uid) if chart_uid else ""
         line_edit.blockSignals(True)
-        line_edit.setText(display_name or str(chart_uid or ""))
+        line_edit.setText(display_name)
         line_edit.blockSignals(False)
 
     def _on_alternate_chart_input_finished(self) -> None:
@@ -33242,7 +33250,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             QMessageBox.information(
                 self,
                 "Chart not found",
-                "Choose one existing non-hypothetical chart name, alias, or Chart UID from autocomplete.",
+                "Choose one existing non-hypothetical chart name or alias from autocomplete.",
             )
             return
         self._set_alternate_chart_state(chart_uid)
@@ -34365,7 +34373,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         chips: list[str] = []
         for chart_uid in current_uids:
-            display_name = get_chart_display_name_by_uid(chart_uid) or chart_uid
+            display_name = get_chart_display_name_by_uid(chart_uid) or "Unknown chart"
             encoded_uid = urllib.parse.quote(chart_uid, safe="")
             chips.append(
                 "<span style='display:inline-block;"
@@ -34400,7 +34408,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 QMessageBox.information(
                     self,
                     "Chart not found",
-                    "Choose an existing chart name, alias, or Chart UID from autocomplete before adding it.",
+                    "Choose an existing chart name or alias from autocomplete before adding it.",
                 )
             return
         current_uids = parse_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
@@ -34551,7 +34559,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             QMessageBox.information(
                 self,
                 "Relative not found",
-                "Choose one existing chart name, alias, or UID from autocomplete.",
+                "Choose one existing chart name or alias from autocomplete.",
             )
             return
         relative_uids = self._material_relative_uids_for_save()
