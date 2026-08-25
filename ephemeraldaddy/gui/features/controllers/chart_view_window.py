@@ -1348,7 +1348,12 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
     relative_input_layout.setSpacing(4)
     relative_input = QLineEdit()
     relative_input.setPlaceholderText("Search database relatives by name")
-    refresh_material_relatives_completer(relative_input, current_chart_uid=None)
+    display_chart_ids = getattr(owner, "_database_view_display_chart_ids_by_uid", None)
+    refresh_material_relatives_completer(
+        relative_input,
+        current_chart_uid=None,
+        display_chart_ids_by_uid=(display_chart_ids() if callable(display_chart_ids) else None),
+    )
     relative_input.returnPressed.connect(owner._add_material_relative_from_input)
     setattr(owner, "material_facts_relative_search_edit", relative_input)
     relative_input_layout.addWidget(relative_input, 1)

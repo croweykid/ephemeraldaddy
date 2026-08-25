@@ -135,6 +135,6 @@ def test_chart_view_similar_charts_export_rows_keep_uid_internal_and_display_ran
 
     assert 'chart_uid = str(getattr(match, "chart_uid", "") or "").strip() or str(get_chart_uid(int(match.chart_id)) or "").strip()' in method
     assert '"chart_uid": chart_uid' in method
-    assert '"display_chart_id": self._display_chart_id_by_chart_uid.get(' in method
+    assert '"display_chart_id": self._database_view_display_chart_id(chart_uid)' in method
     assert 'Chart View exports display chart_uid' not in method
     assert "f'{rank_label} #{match.chart_id}" not in method

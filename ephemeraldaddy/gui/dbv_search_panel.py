@@ -1525,9 +1525,11 @@ def update_tag_completers(
     update_reminds_me_of_completer = getattr(window, "_update_reminds_me_of_completer", None)
     if callable(update_reminds_me_of_completer):
         update_reminds_me_of_completer()
+    display_chart_ids = getattr(window, "_database_view_display_chart_ids_by_uid", None)
     refresh_material_relatives_completer(
         getattr(window, "material_facts_relative_search_edit", None),
         current_chart_uid=getattr(window, "current_chart_uid", None),
+        display_chart_ids_by_uid=(display_chart_ids() if callable(display_chart_ids) else None),
     )
     if refresh_location_completers:
         window._update_location_completers()

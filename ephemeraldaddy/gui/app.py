@@ -603,6 +603,10 @@ from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
 from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
     refresh_material_relatives_completer,
 )
+from ephemeraldaddy.gui.features.chart_editor.related_chart_choices import (
+    RelatedChartChoiceRecord,
+    build_related_chart_choice_map,
+)
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     _chart_right_panel_prediction_render_token,
@@ -26887,6 +26891,19 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return None
         return manage_dialog
 
+    def _database_view_display_chart_ids_by_uid(self) -> dict[str, int]:
+        """Snapshot Database View's current-sort presentation ranks for Chart Editor."""
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        if not isinstance(manage_dialog, ManageChartsDialog):
+            return {}
+        return dict(getattr(manage_dialog, "_display_chart_id_by_chart_uid", {}))
+
+    def _database_view_display_chart_id(self, chart_uid: str | None) -> int | None:
+        normalized_uid = str(chart_uid or "").strip().upper()
+        if not normalized_uid:
+            return None
+        return self._database_view_display_chart_ids_by_uid().get(normalized_uid)
+
     def _keep_similar_charts_popout_in_front(self, dialog: QDialog | None) -> None:
         if dialog is None:
             return
@@ -27763,9 +27780,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     "rank": rank,
                     "chart_id": match.chart_id,  # Persistence-only compatibility field.
                     "chart_uid": chart_uid,
-                    "display_chart_id": self._display_chart_id_by_chart_uid.get(
-                        chart_uid.strip().upper()
-                    ),
+                    "display_chart_id": self._database_view_display_chart_id(chart_uid),
                     "chart_name": match.chart_name,
                     "similarity_percent": round(similarity_percent, 1),
                     "similarity_band": band_label,
@@ -28724,7 +28739,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
         for row in [*most_rows, *least_rows]:
             chart_uid = str(row.get("chart_uid", "") or "").strip().upper()
-            row["display_chart_id"] = self._display_chart_id_by_chart_uid.get(chart_uid)
+            row["display_chart_id"] = self._database_view_display_chart_id(chart_uid)
         lines: list[str] = []
         if is_markdown:
             lines.extend(build_similar_charts_export_lines(subject_name=subject_name, rows=[], is_markdown=True))
@@ -34326,25 +34341,27 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
         display_names = get_chart_display_name_map(row[0] for row in chart_rows)
 
-        choices: list[str] = []
-        seen: set[str] = set()
+        records: list[RelatedChartChoiceRecord] = []
         for row in chart_rows:
             chart_id = int(row[0])
             if current_chart_id is not None and chart_id == current_chart_id:
                 continue
-            for raw_choice in (
-                display_names.get(chart_id),
-                row[2],
-                chart_uids.get(chart_id),
-            ):
-                choice = str(raw_choice or "").strip()
-                if not choice:
-                    continue
-                choice_key = choice.casefold()
-                if choice_key in seen:
-                    continue
-                choices.append(choice)
-                seen.add(choice_key)
+            chart_uid = str(chart_uids.get(chart_id, "") or "").strip().upper()
+            records.append(
+                RelatedChartChoiceRecord(
+                    chart_uid=chart_uid,
+                    name=str(display_names.get(chart_id) or ""),
+                    alias=str(row[2] or ""),
+                    from_whence=str(row[22] or "") if len(row) > 22 else "",
+                    display_chart_id=self._database_view_display_chart_id(chart_uid),
+                )
+            )
+        choice_uids = build_related_chart_choice_map(
+            records,
+            current_chart_uid=self._current_chart_uid_for_navigation(),
+        )
+        choices = list(choice_uids)
+        line_edit.setProperty("remindsMeOfUidByChoice", choice_uids)
 
         existing_completer = getattr(line_edit, "_reminds_me_of_completer", None)
         if isinstance(existing_completer, QCompleter):
@@ -34399,8 +34416,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         line_edit = getattr(self, "reminds_me_of_input", None)
         if not isinstance(line_edit, QLineEdit):
             return
-        chart_uid = find_chart_uid_by_name(
-            line_edit.text(),
+        entered_text = line_edit.text().strip()
+        choice_uids = line_edit.property("remindsMeOfUidByChoice")
+        chart_uid = (
+            choice_uids.get(entered_text)
+            if isinstance(choice_uids, dict)
+            else None
+        ) or find_chart_uid_by_name(
+            entered_text,
             exclude_chart_id=self._current_local_row_id(),
         )
         if not chart_uid:
@@ -34554,7 +34577,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         text = line_edit.text().strip()
         if not text:
             return
-        chart_uid = find_chart_uid_by_name(text, exclude_chart_id=self._current_local_row_id())
+        choice_uids = line_edit.property("relatedChartUidByChoice")
+        chart_uid = (
+            choice_uids.get(text)
+            if isinstance(choice_uids, dict)
+            else None
+        ) or find_chart_uid_by_name(text, exclude_chart_id=self._current_local_row_id())
         if not chart_uid:
             QMessageBox.information(
                 self,
@@ -35597,6 +35625,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         refresh_material_relatives_completer(
             self.material_facts_relative_search_edit,
             current_chart_uid=self._current_chart_uid_for_navigation(),
+            display_chart_ids_by_uid=self._database_view_display_chart_ids_by_uid(),
         )
         record_performance_metric(
             "chart_editor.load.related_choice_snapshot",
