@@ -3586,6 +3586,8 @@ def append_database(
     source: Path,
     *,
     progress_callback: Callable[[str, str, str, int, int], None] | None = None,
+    import_key: str | None = None,
+    import_source: Path | None = None,
 ) -> dict[str, Any]:
     """Append charts from a legacy database or an EphemeralDaddy backup package."""
     source = Path(source)
@@ -3594,6 +3596,7 @@ def append_database(
     if source.suffix.lower() == BACKUP_PACKAGE_FILENAME_SUFFIX:
         from ephemeraldaddy.core.backups import (
             LEGACY_CHARTS_COMPONENT_KEY,
+            pending_backup_append_key,
             staged_backup_component,
         )
 
@@ -3602,7 +3605,12 @@ def append_database(
             LEGACY_CHARTS_COMPONENT_KEY,
             progress_callback=progress_callback,
         ) as charts_source:
-            return append_database(charts_source, progress_callback=progress_callback)
+            return append_database(
+                charts_source,
+                progress_callback=progress_callback,
+                import_key=pending_backup_append_key(),
+                import_source=source,
+            )
 
     source_conn = sqlite3.connect(source)
     source_conn.row_factory = sqlite3.Row
@@ -3637,6 +3645,26 @@ def append_database(
         pending_reminds_me_of_updates: list[tuple[int, list[str]]] = []
 
         with target_conn:
+            target_conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS backup_append_log (
+                    import_key TEXT PRIMARY KEY,
+                    source_path TEXT NOT NULL,
+                    completed_at TEXT NOT NULL,
+                    result_json TEXT NOT NULL
+                )
+                """
+            )
+            if import_key:
+                completed_row = target_conn.execute(
+                    "SELECT result_json FROM backup_append_log WHERE import_key = ?",
+                    (import_key,),
+                ).fetchone()
+                if completed_row is not None:
+                    logger.info("Backup append %s was already committed; skipping replay.", import_key)
+                    completed_result = json.loads(str(completed_row[0]))
+                    completed_result["already_completed"] = True
+                    return completed_result
             for row_index, row in enumerate(source_rows, start=1):
                 source_id_raw = row["id"] if "id" in source_columns else row_index
                 try:
@@ -3916,17 +3944,37 @@ def append_database(
                         imported_chart_id,
                     ),
                 )
+            result = {
+                "imported": imported,
+                "imported_uids": imported_uids,
+                "skipped": skipped,
+                "warnings": warned,
+                "issues": issues,
+            }
+            if import_key:
+                target_conn.execute(
+                    """
+                    INSERT INTO backup_append_log
+                        (import_key, source_path, completed_at, result_json)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        import_key,
+                        str(import_source or source),
+                        now_iso,
+                        json.dumps(result, sort_keys=True),
+                    ),
+                )
+                logger.info(
+                    "Committed backup append %s with %s imported chart(s).",
+                    import_key,
+                    imported,
+                )
     finally:
         source_conn.close()
         target_conn.close()
 
-    return {
-        "imported": imported,
-        "imported_uids": imported_uids,
-        "skipped": skipped,
-        "warnings": warned,
-        "issues": issues,
-    }
+    return result
 
 
 def check_database_health() -> tuple[bool, str]:

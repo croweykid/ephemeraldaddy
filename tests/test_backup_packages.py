@@ -209,3 +209,24 @@ def test_staged_component_reports_member_progress(package_paths, tmp_path):
     assert updates[0][:3] == ("Database import", "extracting", "backup files")
     assert updates[0][3] == 0
     assert updates[-1][3] == updates[-1][4]
+
+
+def test_missing_pending_source_cleans_staged_data(package_paths, tmp_path):
+    pending_dir = backups._pending_append_directory()
+    pending_dir.mkdir(parents=True)
+    (pending_dir / backups.PENDING_APPEND_STATE_FILENAME).write_text(
+        json.dumps({"source": str(tmp_path / "missing.edbackup")}), encoding="utf-8"
+    )
+    (pending_dir / "large-sidecar.db").write_bytes(b"staged")
+
+    assert backups.pending_backup_append_source() is None
+    assert not pending_dir.exists()
+
+
+def test_unreadable_pending_state_cleans_staged_data(package_paths):
+    pending_dir = backups._pending_append_directory()
+    pending_dir.mkdir(parents=True)
+    (pending_dir / backups.PENDING_APPEND_STATE_FILENAME).write_text("not-json", encoding="utf-8")
+
+    assert backups.pending_backup_append_source() is None
+    assert not pending_dir.exists()

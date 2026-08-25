@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
+import uuid
 import zipfile
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
@@ -237,9 +238,26 @@ def pending_backup_append_source() -> Path | None:
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        if _pending_append_directory().exists():
+            cancel_pending_backup_append()
         return None
     source = Path(str(state.get("source") or ""))
-    return source if source.exists() else None
+    if not source.exists():
+        cancel_pending_backup_append()
+        return None
+    return source
+
+
+def pending_backup_append_key() -> str | None:
+    """Return the stable key used to make a resumed append idempotent."""
+
+    state_path = _pending_append_directory() / PENDING_APPEND_STATE_FILENAME
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    import_key = str(state.get("import_key") or "").strip()
+    return import_key or None
 
 
 def cancel_pending_backup_append() -> None:
@@ -284,7 +302,14 @@ def staged_backup_component(
         state = {}
     if str(state.get("source") or "") != str(source.resolve()):
         cancel_pending_backup_append()
-        state = {"source": str(source.resolve()), "extracted_members": []}
+        state = {
+            "source": str(source.resolve()),
+            "import_key": uuid.uuid4().hex,
+            "extracted_members": [],
+        }
+        _save_pending_append_state(state)
+    elif not str(state.get("import_key") or "").strip():
+        state["import_key"] = uuid.uuid4().hex
         _save_pending_append_state(state)
     extracted_members = set(state.get("extracted_members") or [])
 

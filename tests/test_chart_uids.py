@@ -1,6 +1,8 @@
 import sqlite3
 from datetime import datetime, timezone
 
+import pytest
+
 import ephemeraldaddy.core.db as db
 from ephemeraldaddy.core import backups
 
@@ -305,6 +307,39 @@ def test_append_database_accepts_edbackup_package(tmp_path, monkeypatch):
     rows = target_conn.execute("SELECT name, chart_uid FROM charts ORDER BY id ASC").fetchall()
     target_conn.close()
     assert ("Packaged", "PACKAGEUID000001") in rows
+
+
+def test_resumed_edbackup_append_does_not_replay_committed_import(tmp_path, monkeypatch):
+    target_path = tmp_path / "target.db"
+    source_path = tmp_path / "source.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", target_path)
+
+    target_conn = db._get_conn()
+    target_conn.close()
+    source_conn = sqlite3.connect(source_path)
+    db._ensure_schema(source_conn)
+    with source_conn:
+        _insert_minimal_chart(source_conn, chart_uid="RESUMEUID0000001", name="Once")
+    source_conn.close()
+    package = backups.create_backup_package(
+        tmp_path / "resume.edbackup",
+        component_source_overrides={"charts": source_path},
+        included_component_keys={"charts"},
+    )
+
+    with pytest.raises(RuntimeError, match="crash after commit"):
+        with backups.staged_backup_component(package, "charts") as staged_charts:
+            db.append_database(
+                staged_charts, import_key=backups.pending_backup_append_key()
+            )
+            raise RuntimeError("crash after commit")
+
+    resumed = db.append_database(package)
+    assert resumed["already_completed"] is True
+    with sqlite3.connect(target_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM charts").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM backup_append_log").fetchone()[0] == 1
 
 
 def test_load_chart_keeps_chart_uid_projection_aligned(tmp_path, monkeypatch):
