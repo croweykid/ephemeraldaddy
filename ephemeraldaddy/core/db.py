@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Iterable, List, Mapping, Tuple, Optional
+from typing import Any, Callable, Iterable, List, Mapping, Tuple, Optional
 
 from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import (
@@ -3582,7 +3582,11 @@ def restore_database(source: Path) -> None:
     _invalidate_table_columns_cache()
 
 
-def append_database(source: Path) -> dict[str, Any]:
+def append_database(
+    source: Path,
+    *,
+    progress_callback: Callable[[str, str, str, int, int], None] | None = None,
+) -> dict[str, Any]:
     """Append charts from a legacy database or an EphemeralDaddy backup package."""
     source = Path(source)
     if not source.exists():
@@ -3593,8 +3597,12 @@ def append_database(source: Path) -> dict[str, Any]:
             staged_backup_component,
         )
 
-        with staged_backup_component(source, LEGACY_CHARTS_COMPONENT_KEY) as charts_source:
-            return append_database(charts_source)
+        with staged_backup_component(
+            source,
+            LEGACY_CHARTS_COMPONENT_KEY,
+            progress_callback=progress_callback,
+        ) as charts_source:
+            return append_database(charts_source, progress_callback=progress_callback)
 
     source_conn = sqlite3.connect(source)
     source_conn.row_factory = sqlite3.Row
@@ -3622,6 +3630,8 @@ def append_database(source: Path) -> dict[str, Any]:
         }
 
         source_rows = source_conn.execute("SELECT * FROM charts ORDER BY id ASC").fetchall()
+        if progress_callback is not None:
+            progress_callback("Database import", "appending", "charts", 0, len(source_rows))
         now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
         source_uid_remap: dict[str, str] = {}
         pending_reminds_me_of_updates: list[tuple[int, list[str]]] = []
@@ -3886,6 +3896,14 @@ def append_database(source: Path) -> dict[str, Any]:
                 )
                 imported += 1
                 imported_uids.append(new_chart_uid)
+                if progress_callback is not None:
+                    progress_callback(
+                        "Database import", "appending", "charts", row_index, len(source_rows)
+                    )
+            if progress_callback is not None:
+                progress_callback(
+                    "Database import", "appending", "charts", len(source_rows), len(source_rows)
+                )
             for imported_chart_id, source_reminds_me_of_uids in pending_reminds_me_of_updates:
                 remapped_uids = [
                     source_uid_remap.get(source_uid, source_uid)

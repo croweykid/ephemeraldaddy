@@ -194,3 +194,18 @@ def test_staged_component_extracts_all_members_and_resumes(package_paths, tmp_pa
         assert _read_sqlite_value(staged_charts, "charts") == "charts-value"
     assert backups.pending_backup_append_source() is None
     assert not backups._pending_append_directory().exists()
+
+
+def test_staged_component_reports_member_progress(package_paths, tmp_path):
+    _sqlite(package_paths["charts"], "charts", "charts-value")
+    package = backups.create_backup_package(tmp_path / "progress.edbackup")
+    updates: list[tuple[str, str, str, int, int]] = []
+
+    with backups.staged_backup_component(
+        package, "charts", progress_callback=lambda *update: updates.append(update)
+    ):
+        pass
+
+    assert updates[0][:3] == ("Database import", "extracting", "backup files")
+    assert updates[0][3] == 0
+    assert updates[-1][3] == updates[-1][4]

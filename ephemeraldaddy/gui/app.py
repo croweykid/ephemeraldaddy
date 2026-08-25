@@ -930,6 +930,9 @@ from ephemeraldaddy.gui.features.database_view.collections import (
     prompt_chart_selection_for_collection_add,
     show_collection_confirmation,
 )
+from ephemeraldaddy.gui.features.database_view.import_progress import (
+    DatabaseImportProgressLabel,
+)
 from ephemeraldaddy.gui.features.charts.aspect_popout_mixin import AspectPopoutMixin
 from ephemeraldaddy.gui.features.charts.duplicate_detection import (
     DuplicateLikelihood,
@@ -3173,7 +3176,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_sort_button_label()
         list_layout.addWidget(list_header_row)
         list_layout.addWidget(self.list_widget, 1)
-        self.charts_header_label = QLabel()
+        self.charts_header_label = DatabaseImportProgressLabel()
         self.charts_header_label.setTextFormat(Qt.RichText)
         self.charts_header_label.setStyleSheet(SELECTION_SUMMARY_LABEL_STYLE)
         self._update_selection_header()
@@ -17961,7 +17964,21 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            result = append_database(Path(file_path))
+            def update_import_progress(
+                task_name: str,
+                verb: str,
+                items: str,
+                current: int,
+                total: int,
+            ) -> None:
+                self.charts_header_label.set_import_progress(
+                    task_name, verb, items, current, total
+                )
+                QApplication.processEvents()
+
+            result = append_database(
+                Path(file_path), progress_callback=update_import_progress
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -17972,7 +17989,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     f"Backup path: {backup_path}"
                 ),
             )
+            self.charts_header_label.clear_import_progress()
             return
+
+        self.charts_header_label.clear_import_progress()
 
         imported_uids = {
             str(chart_uid).strip().upper()

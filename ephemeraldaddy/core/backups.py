@@ -13,7 +13,7 @@ from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Literal
+from typing import Any, Callable, Iterable, Literal
 
 from ephemeraldaddy.core import db as chart_db
 from ephemeraldaddy.core.material_facts import personal_identifiers_path
@@ -30,6 +30,7 @@ PENDING_APPEND_DIRECTORY_NAME = ".pending_backup_append"
 PENDING_APPEND_STATE_FILENAME = "state.json"
 
 BackupComponentKind = Literal["sqlite", "json", "file"]
+BackupProgressCallback = Callable[[str, str, str, int, int], None]
 
 
 @dataclass(frozen=True)
@@ -257,7 +258,12 @@ def _save_pending_append_state(state: dict[str, Any]) -> None:
 
 
 @contextmanager
-def staged_backup_component(source: Path, component_key: str):
+def staged_backup_component(
+    source: Path,
+    component_key: str,
+    *,
+    progress_callback: BackupProgressCallback | None = None,
+):
     """Persistently stage all package members and yield one validated component.
 
     Staging every member preserves the complete append payload. Progress is
@@ -309,7 +315,18 @@ def staged_backup_component(source: Path, component_key: str):
                     f"Backup package is missing component file: {component_key}"
                 ) from exc
             extract_root = extract_dir.resolve()
-            for archive_member in archive.infolist():
+            archive_members = archive.infolist()
+            completed_count = sum(
+                1
+                for archive_member in archive_members
+                if archive_member.filename in extracted_members
+                and (extract_dir / archive_member.filename).exists()
+            )
+            if progress_callback is not None:
+                progress_callback(
+                    "Database import", "extracting", "backup files", completed_count, len(archive_members)
+                )
+            for archive_member in archive_members:
                 target = (extract_dir / archive_member.filename).resolve()
                 if not target.is_relative_to(extract_root):
                     raise ValueError(f"Unsafe backup package path: {archive_member.filename}")
@@ -319,6 +336,15 @@ def staged_backup_component(source: Path, component_key: str):
                 extracted_members.add(archive_member.filename)
                 state["extracted_members"] = sorted(extracted_members)
                 _save_pending_append_state(state)
+                completed_count += 1
+                if progress_callback is not None:
+                    progress_callback(
+                        "Database import",
+                        "extracting",
+                        "backup files",
+                        completed_count,
+                        len(archive_members),
+                    )
 
         staged_path = (extract_dir / member.filename).resolve()
         if not staged_path.is_relative_to(extract_dir.resolve()):
