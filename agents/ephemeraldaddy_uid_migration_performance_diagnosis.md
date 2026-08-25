@@ -4,27 +4,32 @@
 
 The UID migration itself is not the fundamental performance problem.
 
-The likely regression is that several hot UI paths now repeatedly translate between stable `chart_uid` values and local SQLite integer row IDs by calling database helper functions. Before the migration, many of those paths used already-loaded integer IDs or direct Python dictionary lookups.
+The likely regression is that several hot UI paths now repeatedly translate between stable `chart_uid` values and the SQLite `charts.id` primary key by calling database helper functions. Before the migration, many of those paths used already-loaded integers or direct Python dictionary lookups.
 
 That turns operations that were formerly cheap in-memory lookups into repeated SQLite queries, sometimes once per chart during filtering, rendering, selection handling, or analytics refreshes.
 
 The architectural goal of making `chart_uid` the authoritative durable identity is sound. The runtime lookup strategy is not.
 
-There are three distinct concepts that must not be conflated:
+## Critical clarification: EphemeralDaddy has only two chart-reference concepts
 
-1. **`chart_uid` — internal durable identity.** A static, unique reference used internally for persistence, relationships, caches, cross-feature references, and durable links. It is not ordinary user-facing information.
-2. **Chart ID — user-facing sort rank.** A short, friendly ordinal indicating where a chart ranks under the Database View middle panel's current sorting method. It is presentation state, not durable identity.
-3. **Local SQLite row ID — runtime/persistence handle.** An implementation-level integer used to address the local database efficiently. It may be retained in RAM as a disposable runtime handle, but it must not be treated as durable chart identity or confused with the user-facing Chart ID rank.
+There are **two**, and only two, application-level chart references:
 
-The recommended design is:
+1. **`chart_uid` — internal durable identity.** A static, unique reference used internally for persistence, relationships, caches, cross-feature references, and durable links.
+2. **Chart ID — user-facing current-sort rank.** A short, friendly ordinal indicating where a chart ranks under the Database View middle panel's current sorting method.
+
+The SQLite column `charts.id` is **not a third chart identity**. It is simply the table's integer primary key and may remain useful as private database plumbing. It should not be promoted into application semantics, presented to users as Chart ID, or treated as another durable reference system.
+
+Likewise, names such as `local_row_id`, `_current_local_row_id()`, `_local_row_ids_for_uids()`, and related terminology are migration-era implementation vocabulary for `charts.id`. They should be treated as transitional/legacy naming, not as evidence that EphemeralDaddy requires a third form of chart identity.
+
+The recommended design is therefore:
 
 - `chart_uid` remains the durable, authoritative internal application identity.
 - UIDs should never normally be shown to users. The sole intended user-visible UID surface is Chart Data Output when the user has explicitly enabled UID display under **Settings > Dev Tools**.
 - User-facing Chart IDs remain useful and should continue to represent the chart's current sort rank in Database View.
-- Local SQLite row IDs remain available as ephemeral runtime/persistence handles.
-- The application keeps in-memory bidirectional UID ↔ local-row-ID indexes for already-hydrated charts.
-- SQLite UID/row-ID translation is used only at true persistence/hydration boundaries or as a fallback.
-- New code should name implementation-level integers `local_row_id` (or equivalent), not `chart_id`, when they are not the user-facing sort rank.
+- `charts.id` may continue to exist as a private SQLite primary key for efficient database operations, joins, and already-hydrated row access.
+- Any UID ↔ `charts.id` mapping needed for performance should remain an internal persistence/runtime optimization, not become a third application-level identity model.
+- SQLite UID/primary-key translation should occur only at true persistence/hydration boundaries or as a fallback; already-known mappings should be reused in memory.
+- New code should reserve `chart_id` for the actual user-facing Chart ID rank. Where direct access to `charts.id` is unavoidable in DB-layer code, name it in a way that makes its database-only role obvious, such as `sqlite_row_id` or `db_row_pk`. Do not proliferate `local_row_id` as a new application concept.
 
 ---
 
@@ -63,13 +68,22 @@ Therefore Chart ID:
 
 A changing Chart ID is not an identity failure; changing with sort order is its intended semantics.
 
-## Local SQLite row ID
+## SQLite `charts.id`
 
-A local SQLite integer row key is neither the durable chart identity nor the user-facing sort rank. It is an implementation handle.
+The database schema currently contains:
 
-It is useful because it is cheap to retain and efficient for local database access. The migration should not force the application to discard it from RAM and repeatedly ask SQLite to recover it from a UID.
+```sql
+id        INTEGER PRIMARY KEY AUTOINCREMENT
+chart_uid TEXT
+```
 
-Where older code calls a local SQLite row key `chart_id`, that name is ambiguous and should be treated as legacy terminology. New or touched code should distinguish `local_row_id` from the user-facing Chart ID rank.
+`charts.id` is database plumbing. It is neither the durable chart identity nor the user-facing Chart ID rank.
+
+It can remain because integer primary keys are cheap and useful for SQLite operations. Removing it is not required to achieve the intended two-reference model. The important rule is containment: code outside persistence/runtime plumbing should not begin treating `charts.id` as another form of chart identity.
+
+Where migration-era code calls this value `chart_id`, that name is ambiguous legacy terminology. Where migration-era code calls it `local_row_id`, that name should likewise be understood as a transitional alias for `charts.id`, not as a new architectural identifier that needs to spread through the application.
+
+The application should not build product behavior around a third `local_row_id` concept. If an already-hydrated row carries its SQLite primary key, that is simply cached database state.
 
 ---
 
@@ -83,7 +97,7 @@ Before the migration, code could do a direct lookup such as:
 row = self._active_chart_rows_by_id.get(int(chart_id))
 ```
 
-In this historical example, `chart_id` is functioning as a local row key; it should not be confused with the user-facing current-sort Chart ID described above.
+In this historical example, the variable named `chart_id` was actually functioning as the SQLite `charts.id` primary key. It should not be confused with the intended user-facing current-sort Chart ID.
 
 During the UID migration, this became effectively:
 
@@ -137,11 +151,11 @@ This is the strongest candidate for appwide slowdown after the migration.
 
 ---
 
-## 2. `current_chart_id` Was Replaced With Repeated UID → ID Resolution
+## 2. `current_chart_id` Was Replaced With Repeated UID → SQLite Primary-Key Resolution
 
 Commit `c6ed52983d...` removed retained `current_chart_id` controller state and introduced `_current_local_row_id()`.
 
-The naming change toward `local_row_id` is important because the integer being recovered here is an internal database handle, not the user-facing current-sort Chart ID.
+That helper name should be read as migration-era terminology for recovering the SQLite `charts.id` primary key. It is **not** a third chart-reference concept that the application is intended to preserve.
 
 In some classes, it initially became:
 
@@ -182,22 +196,22 @@ So code that used to read a Python attribute can now hit SQLite repeatedly.
 
 ### Partial Repair Already Exists
 
-The current `MainWindow._current_local_row_id()` appears to have been improved so that it first reuses the already-loaded chart's local row ID:
+The current `MainWindow._current_local_row_id()` appears to have been improved so that it first reuses the already-loaded chart's SQLite primary key:
 
 ```python
 latest_chart = getattr(self, "_latest_chart", None)
 
 if latest_uid == current_uid:
-    local_row_id = int(getattr(latest_chart, "id", 0) or 0)
-    if local_row_id > 0:
-        return local_row_id
+    sqlite_row_id = int(getattr(latest_chart, "id", 0) or 0)
+    if sqlite_row_id > 0:
+        return sqlite_row_id
 
 return get_chart_id_by_uid(current_uid)
 ```
 
 The source comment explicitly says this avoids another UID-to-ID query on every autosave or refresh check.
 
-That is the correct direction.
+That is the correct performance direction. The architectural cleanup is to keep this behavior confined to DB/runtime plumbing rather than allow `local_row_id` to become a third identity model.
 
 However, the equivalent Database View path still appears to use the simple database-query version.
 
@@ -207,11 +221,11 @@ However, the equivalent Database View path still appears to use the simple datab
 
 ---
 
-## 3. Selection State Now Reconstructs Local Row IDs From UIDs
+## 3. Selection State Now Reconstructs SQLite Primary Keys From UIDs
 
 PR #2184 intentionally removed parallel cached integer selection state and retained only UID-owned selection state.
 
-That is architecturally clean for durable selection identity, but it causes unnecessary reconstruction work when the corresponding local row handles are already known.
+That is architecturally correct for durable selection identity, but it causes unnecessary reconstruction work when the corresponding hydrated database row already carries `charts.id`.
 
 The newer flow includes:
 
@@ -230,17 +244,19 @@ def _local_row_ids_for_uids(...):
 
 `get_chart_ids_by_uid()` is sensibly batched, so this is much better than an N+1 query.
 
-However, it still means Database View can query SQLite to rediscover local row IDs for charts that are already loaded into the UI.
+However, it still means Database View can query SQLite to rediscover `charts.id` values for charts that are already loaded into the UI.
 
-The migration also changed `_populate_list()` so that it can call this conversion rather than reading retained integer-selection state directly.
+The migration also changed `_populate_list()` so that it can call this conversion rather than reading retained integer state directly.
 
 ### Key distinction
 
 It is reasonable for UID state to be authoritative for selection identity.
 
-It is unnecessary for the application to deliberately forget the matching local row ID while the chart is already loaded.
+It is unnecessary for the application to deliberately forget an already-known SQLite row primary key while the chart is loaded.
 
-The user-facing Chart ID rank is a separate presentation value and should be derived from the current Database View ordering rather than substituted for either UID or local row ID.
+Retaining that integer alongside a hydrated row does **not** create a third chart identity. It is just cached database state.
+
+The user-facing Chart ID rank is separate presentation state and should be derived from the current Database View ordering.
 
 ### Confidence
 
@@ -248,9 +264,9 @@ The user-facing Chart ID rank is a separate presentation value and should be der
 
 ---
 
-## 4. Database Analytics Cache Now Performs Extra Local-Row-ID ↔ UID Translation
+## 4. Database Analytics Cache Now Performs Extra SQLite-ID ↔ UID Translation
 
-The metrics migration changed internal snapshot storage from integer local-row-ID keys to UID keys.
+The metrics migration changed internal snapshot storage from integer `charts.id` keys to UID keys.
 
 That change is reasonable because cache identity should survive reordering and local database details.
 
@@ -278,7 +294,7 @@ and iteration helpers perform another:
 uid_by_id = get_chart_uid_map(ids)
 ```
 
-This is not necessarily catastrophic because these are batched queries, but it means a subsystem explicitly designed around caching is repeatedly consulting SQLite simply to translate identities of records it has already hydrated.
+This is not necessarily catastrophic because these are batched queries, but it means a subsystem explicitly designed around caching is repeatedly consulting SQLite simply to translate database primary keys for records it has already hydrated.
 
 That weakens the performance benefit of the cache.
 
@@ -302,7 +318,9 @@ Trait Rankings was then changed to reuse already-hydrated Database View identity
 
 This is important because it confirms that the UID migration already generated this exact performance class in at least one subsystem.
 
-The fix applied there should be generalized across Database View, filtering, analytics, and other hot paths.
+The performance lesson should be generalized across Database View, filtering, analytics, and other hot paths: if the row is already hydrated, reuse what the row already knows.
+
+This does **not** imply that a `local_row_id` application concept needs to be preserved or expanded.
 
 ---
 
@@ -336,11 +354,13 @@ It does **not** adequately explain persistent appwide slowness after caches shou
 
 # Root Cause
 
-The migration appears to have conflated three separate concepts:
+The migration conflated different layers of the application:
 
-1. **Durable internal identity** — `chart_uid`
+1. **Durable internal chart identity** — `chart_uid`
 2. **User-facing current-sort rank** — Chart ID
-3. **Runtime/persistence lookup representation** — local SQLite row ID
+3. **Private database implementation state** — SQLite `charts.id`
+
+Only the first two are application-level chart-reference concepts.
 
 `chart_uid` should absolutely be authoritative for:
 
@@ -355,51 +375,68 @@ It should **not** become normal user-facing copy. Except for the explicit Dev To
 
 User-facing Chart IDs should remain available because they communicate something useful that UIDs do not: where the chart currently ranks under the selected Database View sorting method.
 
-A local SQLite row ID is still useful as an ephemeral runtime adapter. It should be retained in memory when already known, but should not be confused with either the durable UID or the displayed Chart ID rank.
+SQLite `charts.id` may continue to exist and may be retained in hydrated row objects or private lookup structures when that avoids redundant database work. But this is an implementation optimization, not a third identity system.
 
 The mistake is not using UIDs.
 
-The mistake is repeatedly asking SQLite to translate values that were already known when the rows were hydrated, while also allowing terminology to blur UID identity, displayed Chart ID rank, and local database row handles.
+The mistake is repeatedly asking SQLite to translate values that were already known when rows were hydrated, while allowing ambiguous names such as `chart_id` and `local_row_id` to blur the boundary between product semantics and database plumbing.
 
 ---
 
 # Recommended Architecture
 
-Maintain UID authority while preserving both display-rank semantics and efficient runtime handles.
-
-For example:
+## Application-level model: exactly two references
 
 ```python
 # Durable internal identity
 chart_uid: str
 
-# Ephemeral runtime indexes for hydrated rows
-_chart_uid_by_local_row_id: dict[int, str]
-_local_row_id_by_chart_uid: dict[str, int]
-
 # User-facing presentation state derived from current Database View ordering
-_display_chart_id_by_chart_uid: dict[str, int]
+chart_id: int
 ```
 
-Build the runtime UID ↔ local-row-ID maps when Database View rows are loaded:
+Conceptually:
 
-```python
-self._chart_uid_by_local_row_id = {}
-self._local_row_id_by_chart_uid = {}
+```text
+chart_uid
+    static
+    unique
+    internal
+    durable
 
-for row in self._chart_rows:
-    local_row_id = int(row[0])
-    uid = str(row[30] or "").strip().upper()
-
-    if uid:
-        self._chart_uid_by_local_row_id[local_row_id] = uid
-        self._local_row_id_by_chart_uid[uid] = local_row_id
+chart_id
+    short
+    user-facing
+    current-sort rank
+    intentionally changeable
 ```
 
-Build or derive the displayed Chart ID rank from the Database View's current sorted order rather than from durable identity:
+There is no third `local_row_id` application identity.
+
+## Persistence/runtime implementation detail
+
+SQLite may continue to use:
+
+```sql
+charts.id INTEGER PRIMARY KEY AUTOINCREMENT
+```
+
+and already-hydrated rows may retain that integer so the application does not repeatedly query SQLite for information it already has.
+
+If a persistence-layer map materially improves performance, it can exist privately, for example:
 
 ```python
-self._display_chart_id_by_chart_uid = {
+# Persistence/runtime optimization only; not chart identity.
+_uid_by_sqlite_row_id: dict[int, str]
+_sqlite_row_id_by_uid: dict[str, int]
+```
+
+Such maps should be built at hydration boundaries and kept within the layer that needs them. Their existence does not imply that callers should start passing a third identifier throughout the GUI.
+
+Build or derive the displayed Chart ID rank from the Database View's current sorted order:
+
+```python
+_display_chart_id_by_chart_uid = {
     uid: rank
     for rank, uid in enumerate(current_sorted_chart_uids, start=1)
 }
@@ -407,75 +444,49 @@ self._display_chart_id_by_chart_uid = {
 
 The exact implementation may differ, but the semantic separation should remain explicit.
 
-Then hot-path code should use the RAM maps.
-
 ---
 
 # Specific Changes Recommended
 
-## `_chart_matches_filters()`
+## `_chart_matches_filters()` and placeholder checks
 
-Avoid:
-
-```python
-chart_uid = get_chart_uid(local_row_id)
-```
-
-Use the already-loaded row or in-memory map.
-
-Example:
+Avoid per-call database translation such as:
 
 ```python
-chart_uid = self._chart_uid_by_local_row_id.get(int(local_row_id))
-row = self._active_chart_rows_by_uid.get(chart_uid or "")
+chart_uid = get_chart_uid(sqlite_row_id)
 ```
+
+If the function is operating on an already-hydrated row, get the UID from that row or from a private in-memory persistence map.
+
+The goal is not to introduce `local_row_id` more deeply. The goal is to stop querying SQLite for information already present in memory.
 
 ---
 
-## `_is_placeholder_local_row_id()`
+## `_selected_local_row_ids()` / `_local_row_ids_for_uids()`
 
-Avoid per-call database translation.
+These names should be considered migration-era transitional vocabulary.
 
-Use:
+Selection ownership should remain UID-based.
 
-```python
-chart_uid = self._chart_uid_by_local_row_id.get(int(local_row_id))
-row = self._active_chart_rows_by_uid.get(chart_uid or "")
-```
-
----
-
-## `_is_similarities_placeholder_local_row_id()`
-
-Same fix as above.
-
----
-
-## `_selected_local_row_ids()`
-
-Resolve from:
-
-```python
-self._local_row_id_by_chart_uid
-```
-
-instead of SQLite whenever possible.
-
-Only use `get_chart_ids_by_uid()` for UIDs missing from the hydrated map.
+If a selected UID needs its underlying SQLite row for a database operation, first use already-hydrated row state or a private persistence map. Only use `get_chart_ids_by_uid()` for genuinely missing rows.
 
 Do not use the displayed Chart ID rank as a persistence lookup key.
+
+Longer term, helpers should be renamed or collapsed so they do not suggest that `local_row_id` is a third form of chart identity.
 
 ---
 
 ## `_current_local_row_id()`
 
-Preferred order:
+This helper likewise represents a migration-era DB-access concern, not product semantics.
 
-1. `self._latest_chart.id`, if it belongs to `current_chart_uid`
-2. in-memory UID → local-row-ID map
-3. `get_chart_id_by_uid()` only as fallback
+When a database operation genuinely requires `charts.id`, preferred order is:
 
-Again, this local row ID is not the displayed Chart ID rank.
+1. reuse the already-loaded chart row's `id` if available
+2. use a private hydrated UID ↔ SQLite-primary-key map if already available
+3. query SQLite by UID only as a fallback
+
+Do not surface this integer as Chart ID, and do not propagate it farther than necessary.
 
 ---
 
@@ -489,24 +500,27 @@ get_chart_uid_map(...)
 
 inside cache iteration when the same UID mappings are already represented by hydrated Database View rows or cache metadata.
 
-The cache should carry or reuse identity maps for its lifetime.
+The cache should carry or reuse necessary DB plumbing internally for its lifetime.
 
-Analytics output that displays a Chart ID should use the current Database View sort rank, not expose the underlying UID and not casually expose the local SQLite row key.
+Analytics output that displays a Chart ID should use the current Database View sort rank. It should not expose UID except through the explicit Dev Tools Chart Data Output setting, and it should not expose SQLite `charts.id` as though it were Chart ID.
 
 ---
 
 ## Similar Charts / Similarities
 
-Similar Charts and Similarities should use UID for durable internal references and relationship identity, while using hydrated in-memory UID ↔ local-row-ID maps for runtime access.
+Similar Charts and Similarities should use UID for durable internal references and relationship identity.
+
+When already-hydrated rows or chart objects are available, reuse them rather than repeatedly resolving UID ↔ `charts.id` through SQLite.
 
 When presenting a chart to the user:
 
 - show the chart's normal name/alias and, where a numeric identifier is useful, its current user-facing Chart ID rank
 - do not display the UID
+- do not display SQLite `charts.id` as Chart ID
 - do not use the current Chart ID rank as a durable relationship key
-- do not query SQLite repeatedly merely to translate UID ↔ local row ID inside scoring, filtering, rendering, or refresh loops
+- do not query SQLite repeatedly merely to recover a database primary key for a row already present in memory
 
-This distinction is especially important during the current migration because older helpers named `*_chart_id` may refer to local database row keys rather than the intended user-facing current-sort Chart ID. Such helpers should be audited by semantics, not renamed mechanically.
+This distinction is especially important during the current migration because older helpers named `*_chart_id` may actually refer to `charts.id`, while some newer helpers named `*_local_row_id` refer to exactly the same underlying database value. Such helpers should be audited by semantics, not renamed mechanically.
 
 ---
 
@@ -514,19 +528,21 @@ This distinction is especially important during the current migration because ol
 
 The migration should follow these rules:
 
+> EphemeralDaddy has two chart-reference concepts: UID and Chart ID.  
 > UID is durable internal identity.  
 > Chart ID is user-facing current-sort rank.  
-> Local row ID is an internal runtime/persistence handle.  
-> SQLite converts UID ↔ local row ID at hydration and persistence boundaries.  
-> RAM converts UID ↔ local row ID everywhere else.
+> SQLite `charts.id` is private database plumbing, not a third chart identity.  
+> `local_row_id` is transitional terminology for that plumbing, not an architectural target.  
+> Reuse already-hydrated database state in RAM rather than repeatedly querying SQLite for UID ↔ primary-key translation.
 
 And for display:
 
 > Never show a chart UID in ordinary UI.  
 > Only show UID in Chart Data Output when explicitly enabled under Settings > Dev Tools.  
-> Use Chart ID when a compact user-facing numeric reference or current-sort rank is useful.
+> Use Chart ID when a compact user-facing numeric reference or current-sort rank is useful.  
+> Never substitute SQLite `charts.id` for the user-facing Chart ID rank merely because both are integers.
 
-This preserves the UID-first internal architecture, the useful user-facing Chart ID concept, and the performance advantages of already-hydrated local database handles.
+This preserves the UID-first internal architecture, the intended user-facing Chart ID concept, and the performance advantages of already-hydrated database rows without inventing a third identifier model.
 
 ---
 
@@ -540,7 +556,7 @@ Most likely major regression.
 
 ---
 
-## 2. Repeated `_current_local_row_id()` / UID → local-row-ID lookups
+## 2. Repeated UID → SQLite-primary-key lookups
 
 **Confidence: High**
 
@@ -548,11 +564,11 @@ Especially relevant to frequently called UI and autosave paths.
 
 ---
 
-## 3. Selection UID → local-row-ID reconstruction
+## 3. Selection UID → SQLite-primary-key reconstruction
 
 **Confidence: High**
 
-Batched, but still unnecessary repeated database work.
+Batched, but still unnecessary repeated database work when rows are already hydrated.
 
 ---
 
@@ -584,7 +600,9 @@ Important commits/PRs examined during diagnosis include:
 - `70efa812a1...` — **Fix Database View UID row caching**
 - `c33001b4c5...` — **Finish UID migration for trait prediction caches**
 
-The migration's stated objective included reducing redundant SQLite lookups. The remaining hot-path UID/local-row-ID translations appear to work against that objective.
+Those historical commit names contain `row ID` terminology because that is how the migration was implemented at the time. They should not be read as defining a desired third application-level identifier.
+
+The migration's stated objective included reducing redundant SQLite lookups. The remaining hot-path UID/`charts.id` translations appear to work against that objective.
 
 ---
 
@@ -592,16 +610,17 @@ The migration's stated objective included reducing redundant SQLite lookups. The
 
 The UID migration should not be rolled back, and Chart IDs should not be eliminated from the user experience.
 
-The correct fix is to separate:
+EphemeralDaddy should have exactly two chart-reference concepts:
 
-- durable internal identity (`chart_uid`)
-- user-facing current-sort rank (Chart ID)
-- local runtime/persistence indexing (local SQLite row ID)
+- **`chart_uid`** — static, unique, internal durable identity
+- **Chart ID** — short, user-facing current-sort rank
+
+SQLite `charts.id` may continue to exist because it is useful database plumbing. It should remain private implementation state and should not be elevated into a third chart identity.
+
+`local_row_id` should therefore be treated as transitional migration terminology, not as an application concept that needs to be preserved or expanded.
 
 Keep UID as the single source of truth for durable chart identity.
 
 Keep Chart ID as the short, readable indicator of current Database View sort rank.
 
-Keep local integer row IDs as cached, disposable runtime handles for SQLite-backed data that is already loaded.
-
-Do not expose UIDs unless the user explicitly enables them in Dev Tools, and do not query SQLite to rediscover a UID/local-row-ID pair the application already knows.
+Keep SQLite primary-key handling contained to persistence/runtime code, reuse already-hydrated values when available, and do not query SQLite to rediscover information the application already has in memory.
