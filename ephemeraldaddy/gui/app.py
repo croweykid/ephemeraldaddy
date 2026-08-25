@@ -724,7 +724,12 @@ from ephemeraldaddy.core.material_facts import (
     load_personal_identifiers,
     save_personal_identifiers_by_uid,
 )
-from ephemeraldaddy.core.backups import BACKUP_PACKAGE_SUFFIX, create_backup_package
+from ephemeraldaddy.core.backups import (
+    BACKUP_PACKAGE_SUFFIX,
+    cancel_pending_backup_append,
+    create_backup_package,
+    pending_backup_append_source,
+)
 from ephemeraldaddy.core.db import (
     DB_PATH,
     DB_DIR,
@@ -17932,13 +17937,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _on_import_csv(self) -> None:
         self._on_import_csv_type_1()
 
-    def _on_append_database(self) -> None:
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Append database",
-            "",
-            "EphemeralDaddy Backup Packages (*.edbackup);;Legacy Charts Database (*.db)",
-        )
+    def _on_append_database(self, resume_source: Path | None = None) -> None:
+        file_path = str(resume_source or "")
+        if not file_path:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Append database",
+                "",
+                "EphemeralDaddy Backup Packages (*.edbackup);;Legacy Charts Database (*.db)",
+            )
         if not file_path:
             return
 
@@ -18022,6 +18029,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if details:
             dialog.setDetailedText(details)
         dialog.exec()
+
+    def _prompt_to_resume_pending_database_append(self) -> None:
+        source = pending_backup_append_source()
+        if source is None:
+            return
+        prompt = QMessageBox(self)
+        prompt.setWindowTitle("Incomplete database import")
+        prompt.setText("A database import was interrupted. Resume import or cancel?")
+        cancel_button = prompt.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        resume_button = prompt.addButton("Resume", QMessageBox.ButtonRole.AcceptRole)
+        prompt.setDefaultButton(resume_button)
+        prompt.exec()
+        if prompt.clickedButton() is cancel_button:
+            cancel_pending_backup_append()
+            return
+        self._on_append_database(source)
 
     def _on_rename_selected_chart(self) -> None:
         selected_items = self.list_widget.selectedItems()
@@ -39537,6 +39560,9 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
             startup_progress=startup_loading.update_status
         ),
     )
+    manage_dialog = getattr(window, "_manage_charts_dialog", None)
+    if manage_dialog is not None:
+        QTimer.singleShot(0, manage_dialog._prompt_to_resume_pending_database_append)
     logger.info("GUI startup complete; entering Qt event loop.")
 
     if not getattr(app, "_edd_running", False):
