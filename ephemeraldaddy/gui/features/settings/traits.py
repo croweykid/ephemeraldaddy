@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -43,6 +43,28 @@ from ephemeraldaddy.analysis.traits import (
 
 
 TRAIT_RECOMMENDED_WORKING_SET_LIMIT = 100
+
+
+class _TraitNormReassessmentWorker(QObject):
+    """Run database-wide trait scoring without blocking the Qt event loop."""
+
+    finished = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, owner: Any, traits: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self._owner = owner
+        self._traits = traits
+
+    @Slot()
+    def run(self) -> None:
+        from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import refresh_trait_norms_snapshot
+
+        try:
+            refresh_trait_norms_snapshot(self._owner, self._traits)
+            self.finished.emit(dict(getattr(self._owner, "_trait_norm_refresh_failures", {}) or {}))
+        except Exception as exc:
+            self.failed.emit(str(exc))
 
 
 def _settings_dialog_for(owner: Any) -> QWidget:
@@ -244,33 +266,64 @@ def on_reassess_unavailable_traits_clicked(owner: Any) -> None:
     from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
         load_prediction_norms_snapshot,
         missing_trait_norms,
-        refresh_trait_norms_snapshot,
+        trait_norm_unavailability_reasons,
     )
 
     dialog_parent = _settings_dialog_for(owner)
     traits = list_traits(active_only=True)
-    missing = missing_trait_norms(traits, load_prediction_norms_snapshot())
+    snapshot = load_prediction_norms_snapshot()
+    missing = missing_trait_norms(traits, snapshot)
     if not missing:
         QMessageBox.information(dialog_parent, "Trait norms up to date", "All active traits already have current DB norms.")
         return
     names = [str(trait.get("name", "") or "").strip() for trait in missing]
+    unavailable_reasons = trait_norm_unavailability_reasons(missing, snapshot)
     button = getattr(owner, "_traits_reassess_unavailable_button", None)
     if isinstance(button, QPushButton):
         button.setEnabled(False)
-    try:
-        refresh_trait_norms_snapshot(owner, missing)
-        failures = dict(getattr(owner, "_trait_norm_refresh_failures", {}) or {})
+
+    thread = QThread(owner)
+    worker = _TraitNormReassessmentWorker(owner, missing)
+    worker.moveToThread(thread)
+    owner._trait_norm_reassessment_thread = thread
+    owner._trait_norm_reassessment_worker = worker
+
+    def restore_button() -> None:
+        if isinstance(button, QPushButton):
+            button.setEnabled(True)
+
+    def reassessment_finished(failures: dict[str, str]) -> None:
         repaired = [name for name in names if name and name not in failures]
         message = f"Reassessed {len(names)} unavailable trait(s); {len(repaired)} repaired."
         if failures:
-            message += " Failed: " + ", ".join(sorted(failures)) + ". See the terminal for details."
+            details = "; ".join(f"{name}: {reason}" for name, reason in sorted(failures.items()))
+            message += f"\n\nNot repaired:\n{details}\n\nSee the terminal for technical details."
+        if unavailable_reasons:
+            details = "; ".join(
+                f"{name}: {reason}" for name, reason in sorted(unavailable_reasons.items())
+            )
+            message += f"\n\nWhy reassessment was needed:\n{details}"
         QMessageBox.information(dialog_parent, "Trait norm reassessment complete", message)
         _refresh_trait_predictions(owner)
-    except Exception as exc:
-        QMessageBox.warning(dialog_parent, "Trait norm reassessment failed", str(exc))
-    finally:
-        if isinstance(button, QPushButton):
-            button.setEnabled(True)
+
+    def reassessment_failed(message: str) -> None:
+        QMessageBox.warning(dialog_parent, "Trait norm reassessment failed", message)
+
+    def release_worker() -> None:
+        restore_button()
+        owner._trait_norm_reassessment_thread = None
+        owner._trait_norm_reassessment_worker = None
+
+    thread.started.connect(worker.run)
+    worker.finished.connect(reassessment_finished, Qt.QueuedConnection)
+    worker.failed.connect(reassessment_failed, Qt.QueuedConnection)
+    worker.finished.connect(thread.quit)
+    worker.failed.connect(thread.quit)
+    worker.finished.connect(worker.deleteLater)
+    worker.failed.connect(worker.deleteLater)
+    thread.finished.connect(release_worker)
+    thread.finished.connect(thread.deleteLater)
+    thread.start()
 
 
 def _validate_trait_source_text(source_path: Path, text: str) -> None:
