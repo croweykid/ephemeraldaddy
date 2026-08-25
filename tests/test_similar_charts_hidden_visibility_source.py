@@ -116,6 +116,21 @@ def test_trait_rankings_are_moved_to_rankings_panel():
     assert '"♏ Sign Dominance"' in ranking_panel_source
     assert 'self.rankings_trait_combo' in ranking_panel_source
     assert 'self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
+    assert 'most_sign_heading = QLabel("Most Dominant Sign")' in ranking_panel_source
+    assert 'least_sign_heading = QLabel("Least Dominant Sign")' in ranking_panel_source
+    assert 'self.rankings_least_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
+
+
+def test_rankings_panel_least_sign_mode_filters_and_displays_every_match():
+    ranking_panel_source = _ranking_panel_source()
+    method = ranking_panel_source.split("def _refresh_sign_dominance_ranking", 1)[1]
+
+    assert "value_direction = 1.0 if least else -1.0" in method
+    assert 'if (row.get("weights") or {})' in method
+    assert "min(" in method
+    assert 'for value in (row.get("weights") or {}).values()' in method
+    assert "display_limit = len(rows)" in method
+    assert "All charts whose least dominant sign is" in method
 
 
 def test_rankings_panel_uses_current_chart_uids_and_sequence_weight_loading():
