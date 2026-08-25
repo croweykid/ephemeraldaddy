@@ -513,6 +513,9 @@ from ephemeraldaddy.gui.features.chart_editor.wikipedia_biography import (
     fetch_wikipedia_biography_with_dialogs,
     parse_chart_birth_date,
 )
+from ephemeraldaddy.gui.features.import_export.web_profile_controller import (
+    confirm_manual_wikipedia_import,
+)
 from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
 from ephemeraldaddy.core.performance_metrics import (
     configure_performance_metrics_logging,
@@ -13273,6 +13276,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         query = raw_query
         profile_data: dict[str, Any] | None = None
         imported_from_astrotheme = False
+        finish_manually = False
         try:
             if raw_query.lower().startswith(("http://", "https://")):
                 query = raw_query
@@ -13449,12 +13453,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
             birth_place = str(wiki_data.get("birth_place", "")).strip()
             if not birth_place:
-                QMessageBox.information(
-                    self,
-                    "Astrotheme import",
-                    f"{selected_title} found on Wikipedia, but no birth place info is available; search abandoned.",
-                )
-                return
+                finish_manually = confirm_manual_wikipedia_import(self, selected_title)
+                if not finish_manually:
+                    logger.info(
+                        "Wikipedia import canceled because birthplace is unavailable "
+                        "(id=%s title=%r).",
+                        debug_id,
+                        selected_title,
+                    )
+                    return
 
             profile_data = {
                 "name": str(wiki_data.get("name") or selected_title),
@@ -13521,6 +13528,26 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         parent.biography_edit.setPlainText(str(profile_data.get("biography", "") or ""))
         parent._set_relationship_type_selection(["public figure"])
         parent._set_chart_type_selection(SOURCE_PUBLIC_DB)
+
+        if finish_manually:
+            parent.place_edit.setFocus()
+            if isinstance(parent, MainWindow):
+                was_maximized = self.isMaximized()
+                parent._show_chart_view_maximized(maximize=was_maximized, source_window=self)
+                parent._retarget_size_checker_to_main_view()
+                self.hide()
+            elif isinstance(parent, QWidget):
+                parent.showNormal()
+                parent.raise_()
+                parent.activateWindow()
+                self.hide()
+            logger.info(
+                "Wikipedia data loaded into a new chart draft for manual completion "
+                "(id=%s title=%r).",
+                debug_id,
+                selected_title,
+            )
+            return
 
         chart_result = parent._build_chart_from_inputs(show_feedback=True)
         if chart_result is None:
