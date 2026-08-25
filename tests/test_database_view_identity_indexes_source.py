@@ -39,6 +39,28 @@ def test_uid_to_row_resolution_only_queries_for_unhydrated_uids():
     assert "get_chart_ids_by_uid(missing_uids)" in method
 
 
+def test_row_to_uid_resolution_only_queries_for_unhydrated_rows():
+    method = _method_source("_chart_uids_by_local_row_id")
+
+    assert "self._chart_uid_by_local_row_id" in method
+    assert "if missing_ids:" in method
+    assert "get_chart_uid_map(missing_ids)" in method
+
+
+def test_metrics_cache_reuses_hydrated_identity_indexes():
+    refresh_method = _method_source("_refresh_database_metrics_cache")
+    iterate_method = _method_source("_iter_database_metric_snapshots_by_uid")
+    placeholder_method = _method_source("_filter_chart_ids_for_placeholders")
+
+    assert "self._chart_uids_by_local_row_id(active_ids)" in refresh_method
+    assert "cached_uid_by_id" not in refresh_method
+    assert "get_chart_uid_map" not in refresh_method
+    assert "self._chart_uids_by_local_row_id(ids)" in iterate_method
+    assert "get_chart_uid_map" not in iterate_method
+    assert "self._chart_uids_by_local_row_id(chart_ids)" in placeholder_method
+    assert "get_chart_uid_map" not in placeholder_method
+
+
 def test_refresh_builds_identity_indexes_at_hydration_boundary():
     method = _method_source("_refresh_charts")
 

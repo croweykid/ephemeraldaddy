@@ -4527,11 +4527,25 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     chart_uids.add(chart_uid)
         return chart_uids
 
-    @staticmethod
-    def _chart_uids_for_ids(chart_ids: Iterable[int]) -> set[str]:
+    def _chart_uids_by_local_row_id(
+        self, chart_ids: Iterable[int]
+    ) -> dict[int, str]:
+        """Resolve persistence IDs from hydrated identity state when possible."""
+        ordered_ids = list(dict.fromkeys(int(chart_id) for chart_id in chart_ids))
+        uids_by_id = {
+            chart_id: self._chart_uid_by_local_row_id[chart_id]
+            for chart_id in ordered_ids
+            if chart_id in self._chart_uid_by_local_row_id
+        }
+        missing_ids = [chart_id for chart_id in ordered_ids if chart_id not in uids_by_id]
+        if missing_ids:
+            uids_by_id.update(get_chart_uid_map(missing_ids))
+        return uids_by_id
+
+    def _chart_uids_for_ids(self, chart_ids: Iterable[int]) -> set[str]:
         return {
             str(chart_uid).strip().upper()
-            for chart_uid in get_chart_uid_map(chart_ids).values()
+            for chart_uid in self._chart_uids_by_local_row_id(chart_ids).values()
             if str(chart_uid or "").strip()
         }
 
@@ -10510,7 +10524,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             snapshot_sections = self._database_metrics_snapshot_sections
 
         active_ids = self._active_database_metric_chart_ids()
-        active_uid_by_id = get_chart_uid_map(active_ids)
+        active_uid_by_id = self._chart_uids_by_local_row_id(active_ids)
         active_uids = set(active_uid_by_id.values())
         if self._database_metrics_cache is None or force_full_refresh:
             cache = self._empty_database_metrics_cache()
@@ -10537,12 +10551,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if previous:
                 self._apply_snapshot_delta(cache, previous, -1)
 
-        cached_uid_by_id = get_chart_uid_map(set(cache["chart_ids"]))
-        new_uids = active_uids - set(cached_uid_by_id.values())
+        new_uids = active_uids - set(self._database_metric_snapshots_by_uid)
         changed_uids = (
             self._database_metrics_lucy_goosey_uids | new_uids
         ) & active_uids
-        changed_ids_by_uid = get_chart_ids_by_uid(changed_uids)
+        changed_ids_by_uid = {
+            chart_uid: self._local_row_id_by_chart_uid[chart_uid]
+            for chart_uid in changed_uids
+            if chart_uid in self._local_row_id_by_chart_uid
+        }
+        missing_changed_uids = changed_uids - set(changed_ids_by_uid)
+        if missing_changed_uids:
+            changed_ids_by_uid.update(get_chart_ids_by_uid(missing_changed_uids))
         for chart_uid, chart_id in changed_ids_by_uid.items():
             previous = self._database_metric_snapshots_by_uid.get(chart_uid)
             if previous:
@@ -10564,7 +10584,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         ids = list(chart_ids) if chart_ids is not None else list(
             (self._database_metrics_cache or {}).get("chart_ids", set())
         )
-        uid_by_id = get_chart_uid_map(ids)
+        uid_by_id = self._chart_uids_by_local_row_id(ids)
         for chart_id in ids:
             chart_uid = uid_by_id.get(chart_id)
             if not chart_uid:
@@ -10591,7 +10611,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if include_placeholders:
             return list(chart_ids)
         filtered_ids: list[int] = []
-        uid_by_id = get_chart_uid_map(chart_ids)
+        uid_by_id = self._chart_uids_by_local_row_id(chart_ids)
         for chart_id in chart_ids:
             chart_uid = uid_by_id.get(chart_id)
             if not chart_uid:
@@ -10732,7 +10752,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             loaded_charts = int(selection_cache["loaded_charts"])
             analytics_population_ids = chart_ids if loaded_charts else database_cache["chart_ids"]
             self._analysis_population_chart_uids = tuple(
-                get_chart_uid_map(analytics_population_ids).values()
+                self._chart_uids_by_local_row_id(analytics_population_ids).values()
             )
             include_sentiment_placeholders = bool(
                 getattr(self, "include_placeholder_sentiment_checkbox", None)
@@ -12899,8 +12919,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             self._analysis_chart_export_rows["name_distribution"] = (
                 self._render_name_distribution_section(
-                    chart_uids=get_chart_uid_map(chart_ids).values(),
-                    database_chart_uids=get_chart_uid_map(
+                    chart_uids=self._chart_uids_by_local_row_id(chart_ids).values(),
+                    database_chart_uids=self._chart_uids_by_local_row_id(
                         database_cache["chart_ids"]
                     ).values(),
                     loaded_charts=loaded_charts,
