@@ -1446,23 +1446,39 @@ class DatabaseAnalyticsChartsMixin:
         return ZODIAC_NAMES[int(normalized // 30) % 12]
 
     def _display_name_for_chart_id(self, chart_id: int) -> str:
-    """Resolve a display name from an internal SQLite row-key adapter.
+    # """Resolve a display name from an internal SQLite row-key adapter.
 
-    The integer argument is private database plumbing, not the user-facing
-    current-sort Chart ID. Never expose the SQLite key as display text.
-    """
-    try:
-        chart_db_key = int(chart_id)
-    except (TypeError, ValueError):
-        return "Unnamed Chart"
-    chart = self._get_chart_for_filter(chart_db_key)
-    chart_name = (
-        str(getattr(chart, "name", "") or "").strip()
-        if chart is not None
-        else ""
-    )
-    return chart_name or "Unnamed Chart"
+    # The integer argument is private database plumbing, not the user-facing
+    # current-sort Chart ID. Never expose the SQLite key as display text.
+    # """
+    # try:
+    #     chart_db_key = int(chart_id)
+    # except (TypeError, ValueError):
+    #     return "Unnamed Chart"
+    # chart = self._get_chart_for_filter(chart_db_key)
+    # chart_name = (
+    #     str(getattr(chart, "name", "") or "").strip()
+    #     if chart is not None
+    #     else ""
+    # )
+    # return chart_name or "Unnamed Chart"
 
+        """Resolve a display name from an internal SQLite row-key adapter.
+
+        The integer argument is private database plumbing, not the user-facing
+        current-sort Chart ID. Never expose the SQLite key as display text.
+        """
+        try:
+            chart_db_key = int(chart_id)
+        except (TypeError, ValueError):
+            return "Unnamed Chart"
+        chart = self._get_chart_for_filter(chart_db_key)
+        chart_name = (
+            str(getattr(chart, "name", "") or "").strip()
+            if chart is not None
+            else ""
+        )
+        return chart_name or "Unnamed Chart"
     def _analysis_matching_charts(
         self,
         chart_key: str,
