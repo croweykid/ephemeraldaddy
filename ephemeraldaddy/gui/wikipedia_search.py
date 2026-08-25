@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import html
 import json
 import re
 from collections.abc import Mapping
@@ -33,13 +34,6 @@ def _wikipedia_api_query(params: Mapping[str, Any]) -> dict[str, Any]:
 def _wikidata_api_query(params: Mapping[str, Any]) -> dict[str, Any]:
     """Call Wikidata with the same HTTP policy used for Wikipedia."""
     return _wikipedia_http_get_json(f"{WIKIDATA_API_URL}?{urlencode(params)}")
-
-
-def _wikipedia_http_get_text(url: str) -> str:
-    request = Request(url, headers={"User-Agent": WIKIPEDIA_USER_AGENT})
-    with urlopen(request, timeout=WIKIPEDIA_HTTP_TIMEOUT_SECONDS) as response:
-        payload = response.read()
-    return payload.decode("utf-8", errors="replace")
 
 
 def _query_pages_for_title(title: str) -> list[dict[str, Any]]:
@@ -97,6 +91,280 @@ def resolve_wikipedia_page_options(search_query: str) -> dict[str, Any]:
     if len(options) == 1:
         return {"status": "single", "title": options[0]}
     return {"status": "multiple", "options": options}
+
+
+def _wikipedia_page_wikitext(page_title: str) -> str:
+    """Fetch canonical source wikitext without depending on rendered article HTML."""
+    data = _wikipedia_api_query(
+        {
+            "action": "query",
+            "format": "json",
+            "formatversion": 2,
+            "prop": "revisions",
+            "rvprop": "content",
+            "rvslots": "main",
+            "redirects": 1,
+            "titles": page_title,
+        }
+    )
+    pages = data.get("query", {}).get("pages", [])
+    if not isinstance(pages, list) or not pages:
+        return ""
+    page = pages[0]
+    if not isinstance(page, dict) or page.get("missing") is True:
+        return ""
+    revisions = page.get("revisions", [])
+    if not isinstance(revisions, list) or not revisions:
+        return ""
+    revision = revisions[0]
+    if not isinstance(revision, dict):
+        return ""
+    slots = revision.get("slots", {})
+    if isinstance(slots, dict):
+        main = slots.get("main", {})
+        if isinstance(main, dict):
+            content = main.get("content")
+            if content is None:
+                content = main.get("*")
+            if isinstance(content, str):
+                return content
+    legacy_content = revision.get("*")
+    return legacy_content if isinstance(legacy_content, str) else ""
+
+
+def _extract_infobox_template(wikitext: str) -> str:
+    """Return the first balanced {{Infobox ...}} template from source wikitext."""
+    match = re.search(r"\{\{\s*infobox\b", wikitext, flags=re.IGNORECASE)
+    if match is None:
+        return ""
+
+    start = match.start()
+    depth = 0
+    i = start
+    while i < len(wikitext) - 1:
+        pair = wikitext[i : i + 2]
+        if pair == "{{":
+            depth += 1
+            i += 2
+            continue
+        if pair == "}}":
+            depth -= 1
+            i += 2
+            if depth == 0:
+                return wikitext[start:i]
+            continue
+        i += 1
+    return ""
+
+
+def _split_infobox_fields(template: str) -> list[str]:
+    """Split an infobox on top-level pipes, preserving nested templates/links."""
+    if not template.startswith("{{") or not template.endswith("}}"):
+        return []
+
+    fields: list[str] = []
+    current: list[str] = []
+    template_depth = 1
+    link_depth = 0
+    i = 2
+    end = len(template) - 2
+
+    while i < end:
+        pair = template[i : i + 2]
+        if pair == "{{":
+            template_depth += 1
+            current.append(pair)
+            i += 2
+            continue
+        if pair == "}}":
+            template_depth -= 1
+            current.append(pair)
+            i += 2
+            continue
+        if pair == "[[":
+            link_depth += 1
+            current.append(pair)
+            i += 2
+            continue
+        if pair == "]]":
+            link_depth = max(0, link_depth - 1)
+            current.append(pair)
+            i += 2
+            continue
+        if template[i] == "|" and template_depth == 1 and link_depth == 0:
+            fields.append("".join(current))
+            current = []
+            i += 1
+            continue
+        current.append(template[i])
+        i += 1
+
+    fields.append("".join(current))
+    return fields
+
+
+def _wikipedia_infobox_parameters(wikitext: str) -> dict[str, str]:
+    template = _extract_infobox_template(wikitext)
+    if not template:
+        return {}
+
+    fields = _split_infobox_fields(template)
+    if len(fields) < 2:
+        return {}
+
+    params: dict[str, str] = {}
+    for field in fields[1:]:
+        key, separator, value = field.partition("=")
+        if not separator:
+            continue
+        normalized_key = re.sub(r"[\s-]+", "_", key.strip().lower())
+        if normalized_key:
+            params[normalized_key] = value.strip()
+    return params
+
+
+def _valid_calendar_date(year: int, month: int, day: int) -> datetime.date | None:
+    if not 1 <= year <= 9999:
+        return None
+    try:
+        return datetime.date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _wikipedia_birth_date(value: str) -> datetime.date | None:
+    """Parse common Wikipedia birth-date templates plus plain full dates."""
+    value = str(value or "").strip()
+    if not value:
+        return None
+
+    template_match = re.search(
+        r"\{\{\s*([^|{}]+)\|([^{}]*)\}\}",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if template_match is not None:
+        template_name = re.sub(
+            r"[\s_-]+", " ", template_match.group(1).strip().lower()
+        )
+        if (
+            "birth date" in template_name
+            or template_name in {"bda", "dob", "date of birth"}
+        ):
+            tokens = [
+                token.strip()
+                for token in template_match.group(2).split("|")
+                if token.strip()
+            ]
+            named: dict[str, str] = {}
+            positional: list[str] = []
+            for token in tokens:
+                key, separator, token_value = token.partition("=")
+                if separator:
+                    named[key.strip().lower()] = token_value.strip()
+                else:
+                    positional.append(token)
+
+            if {"year", "month", "day"} <= named.keys():
+                try:
+                    parsed = _valid_calendar_date(
+                        int(named["year"]),
+                        int(named["month"]),
+                        int(named["day"]),
+                    )
+                except ValueError:
+                    parsed = None
+                if parsed is not None:
+                    return parsed
+
+            if len(positional) >= 3:
+                try:
+                    parsed = _valid_calendar_date(
+                        int(positional[0]),
+                        int(positional[1]),
+                        int(positional[2]),
+                    )
+                except ValueError:
+                    parsed = None
+                if parsed is not None:
+                    return parsed
+
+    iso_match = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", value)
+    if iso_match is not None:
+        parsed = _valid_calendar_date(*(int(part) for part in iso_match.groups()))
+        if parsed is not None:
+            return parsed
+
+    plain = _wikitext_to_plain_text(value)
+    plain = re.sub(r"\([^)]*\bage\b[^)]*\)", "", plain, flags=re.IGNORECASE).strip()
+    for date_format in ("%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%d %b %Y"):
+        try:
+            return datetime.datetime.strptime(plain, date_format).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _wikitext_to_plain_text(value: str) -> str:
+    """Reduce simple infobox wikitext to useful plain text for geocoding."""
+    text = str(value or "")
+    if not text:
+        return ""
+
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.DOTALL)
+    text = re.sub(
+        r"<ref\b[^>]*>.*?</ref\s*>",
+        " ",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    text = re.sub(r"<ref\b[^>]*/\s*>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<br\s*/?>", ", ", text, flags=re.IGNORECASE)
+
+    def replace_link(match: re.Match[str]) -> str:
+        return match.group(1).split("#", 1)[0].strip()
+
+    text = re.sub(r"\[\[([^|\]]+)(?:\|[^\]]*)?\]\]", replace_link, text)
+
+    def replace_simple_template(match: re.Match[str]) -> str:
+        body = match.group(1).strip()
+        bits = [bit.strip() for bit in body.split("|")]
+        name = re.sub(r"[\s_-]+", " ", bits[0].lower()) if bits else ""
+        if name in {"usa", "us", "united states"}:
+            return "United States"
+        if name in {"flag", "flagicon", "flag country"} and len(bits) > 1:
+            return bits[1]
+        return " "
+
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"\{\{([^{}]*)\}\}", replace_simple_template, text)
+
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("'''", "").replace("''", "")
+    text = html.unescape(text)
+    text = re.sub(r"\s*,\s*", ", ", text)
+    text = re.sub(r"(?:,\s*){2,}", ", ", text)
+    text = re.sub(r"\s+", " ", text).strip(" ,")
+    return text
+
+
+def _wikipedia_infobox_birth_data(
+    wikitext: str,
+) -> tuple[datetime.date | None, str]:
+    params = _wikipedia_infobox_parameters(wikitext)
+    birth_date_value = params.get("birth_date") or params.get("date_of_birth") or ""
+    birth_place_value = (
+        params.get("birth_place")
+        or params.get("birthplace")
+        or params.get("place_of_birth")
+        or ""
+    )
+    return (
+        _wikipedia_birth_date(birth_date_value),
+        _wikitext_to_plain_text(birth_place_value),
+    )
 
 
 def _wikidata_entity_for_wikipedia_title(
@@ -170,12 +438,9 @@ def _wikidata_birth_date(entity: Mapping[str, Any]) -> datetime.date | None:
         if match is None:
             continue
         year, month, day = (int(part) for part in match.groups())
-        if not 1 <= year <= 9999:
-            continue
-        try:
-            return datetime.date(year, month, day)
-        except ValueError:
-            continue
+        parsed = _valid_calendar_date(year, month, day)
+        if parsed is not None:
+            return parsed
     return None
 
 
@@ -239,26 +504,47 @@ def _wikidata_place_name(entity_id: str) -> str:
 
 
 def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
-    """Return structured birth data for a resolved English Wikipedia article.
+    """Return birth data without depending on Wikipedia's rendered HTML.
 
-    Wikipedia remains the page-resolution layer, while Wikidata supplies the
-    machine-readable birth date/place. This intentionally avoids depending on
-    Wikipedia's rendered HTML, parser implementation, or infobox CSS classes.
+    The canonical Wikipedia infobox source is preferred because it matches the
+    article the user sees and often contains more specific birthplace text.
+    Wikidata is a structured fallback for fields the infobox cannot supply.
     """
     normalized_title = str(page_title or "").strip()
     if not normalized_title:
         raise ValueError("Wikipedia title cannot be empty")
 
-    entity = _wikidata_entity_for_wikipedia_title(normalized_title)
-    if entity is None:
-        raise ValueError("No Wikidata entity is available for this Wikipedia page")
+    birth_date: datetime.date | None = None
+    birth_place = ""
 
-    birth_date = _wikidata_birth_date(entity)
+    try:
+        wikitext = _wikipedia_page_wikitext(normalized_title)
+        if wikitext:
+            birth_date, birth_place = _wikipedia_infobox_birth_data(wikitext)
+    except Exception:
+        # Wikipedia source retrieval/parsing is deliberately non-fatal because
+        # Wikidata remains an independent structured fallback.
+        pass
+
+    if birth_date is None or not birth_place:
+        try:
+            entity = _wikidata_entity_for_wikipedia_title(normalized_title)
+        except Exception:
+            entity = None
+
+        if entity is not None:
+            if birth_date is None:
+                birth_date = _wikidata_birth_date(entity)
+            if not birth_place:
+                try:
+                    birth_place = _wikidata_place_name(
+                        _wikidata_birth_place_id(entity)
+                    )
+                except Exception:
+                    birth_place = ""
+
     if birth_date is None:
         raise ValueError("No complete birthdate info is available")
-
-    birth_place_id = _wikidata_birth_place_id(entity)
-    birth_place = _wikidata_place_name(birth_place_id)
 
     page_slug = quote(normalized_title.replace(" ", "_"))
     page_url = f"https://en.wikipedia.org/wiki/{page_slug}"
