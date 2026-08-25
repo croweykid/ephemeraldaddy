@@ -2,6 +2,10 @@
 
 ## Executive Summary
 
+Below is an analysis of performance failure post-chart_ID-> UID migration. I reverted most of the changes, and that fixed the slowdown. But we learned a lesson, so I'm maintaining this document for future clarification, when we reattempt the migration:
+
+----Analysis below is correct, except when it recommended against reverting. Reverting was the trick. It fixed it. We'll need to redo a fair bit of work, but so be it.
+
 The UID migration itself is not the fundamental performance problem.
 
 The likely regression is that several hot UI paths now repeatedly translate between stable `chart_uid` values and the SQLite `charts.id` primary key by calling database helper functions. Before the migration, many of those paths used already-loaded integers or direct Python dictionary lookups.
@@ -147,7 +151,7 @@ Even with an index on `charts(chart_uid)`, repeatedly crossing the Python ↔ SQ
 
 **Very high.**
 
-This is the strongest candidate for appwide slowdown after the migration.
+This is the strongest candidate for appwide slowdown after the migration. 
 
 ---
 
