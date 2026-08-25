@@ -3583,10 +3583,18 @@ def restore_database(source: Path) -> None:
 
 
 def append_database(source: Path) -> dict[str, Any]:
-    """Append charts from another SQLite database into the active database."""
+    """Append charts from a legacy database or an EphemeralDaddy backup package."""
     source = Path(source)
     if not source.exists():
         raise FileNotFoundError(f"Database file not found: {source}")
+    if source.suffix.lower() == BACKUP_PACKAGE_FILENAME_SUFFIX:
+        from ephemeraldaddy.core.backups import (
+            LEGACY_CHARTS_COMPONENT_KEY,
+            staged_backup_component,
+        )
+
+        with staged_backup_component(source, LEGACY_CHARTS_COMPONENT_KEY) as charts_source:
+            return append_database(charts_source)
 
     source_conn = sqlite3.connect(source)
     source_conn.row_factory = sqlite3.Row

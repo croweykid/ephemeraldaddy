@@ -13679,7 +13679,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         button_specs = (
             ("Backup 📚", self._on_export_database, "manage_backup_database_button"),
             ("Restore 📚", self._on_import_database, "manage_restore_database_button"),
-            ("Append 📚", self._on_append_database_placeholder, None),
+            ("Append 📚", self._on_append_database, None),
             ("Refresh 📚", self._on_force_refresh_database_analysis, "manage_force_refresh_button"),
             ("Import from CSV", self._on_import_csv, None),
             ("Check for Duplicates", self._on_check_for_duplicates, None),
@@ -17932,12 +17932,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _on_import_csv(self) -> None:
         self._on_import_csv_type_1()
 
-    def _on_append_database_placeholder(self) -> None:
+    def _on_append_database(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Append database",
             "",
-            "Database Files (*.db)",
+            "EphemeralDaddy Backup Packages (*.edbackup);;Legacy Charts Database (*.db)",
         )
         if not file_path:
             return

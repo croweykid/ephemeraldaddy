@@ -8,7 +8,7 @@ import shutil
 import sqlite3
 import tempfile
 import zipfile
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -220,6 +220,53 @@ def _load_manifest(archive: zipfile.ZipFile) -> dict[str, Any]:
     if int(manifest.get("format_version", 0)) > BACKUP_PACKAGE_VERSION:
         raise ValueError("Backup package was created by a newer unsupported format")
     return manifest
+
+
+@contextmanager
+def staged_backup_component(source: Path, component_key: str):
+    """Yield a validated component from an EphemeralDaddy backup package."""
+
+    source = Path(source)
+    if not source.exists():
+        raise FileNotFoundError(f"Backup file not found: {source}")
+
+    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-backup-component-") as tmp_name:
+        extract_dir = Path(tmp_name) / "extract"
+        with zipfile.ZipFile(source) as archive:
+            manifest = _load_manifest(archive)
+            components = manifest.get("components")
+            if not isinstance(components, list):
+                raise ValueError("Backup package manifest has no components list")
+
+            entry = next(
+                (
+                    item
+                    for item in components
+                    if isinstance(item, dict) and str(item.get("key") or "") == component_key
+                ),
+                None,
+            )
+            if entry is None or entry.get("present") is False:
+                raise ValueError(f"Backup package does not contain component: {component_key}")
+
+            relative_path = str(entry.get("relative_path") or "")
+            try:
+                member = archive.getinfo(relative_path)
+            except KeyError as exc:
+                raise ValueError(
+                    f"Backup package is missing component file: {component_key}"
+                ) from exc
+            _safe_extract(archive, extract_dir)
+
+        staged_path = (extract_dir / member.filename).resolve()
+        if not staged_path.is_relative_to(extract_dir.resolve()):
+            raise ValueError(f"Unsafe backup package path for component {component_key}")
+        expected_hash = str(entry.get("sha256") or "")
+        if expected_hash and _sha256(staged_path) != expected_hash:
+            raise ValueError(f"Checksum mismatch for backup component: {component_key}")
+        if str(entry.get("kind") or "") == "sqlite":
+            _validate_sqlite(staged_path)
+        yield staged_path
 
 
 def _component_destinations() -> dict[str, Path]:

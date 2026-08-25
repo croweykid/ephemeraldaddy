@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 import ephemeraldaddy.core.db as db
+from ephemeraldaddy.core import backups
 
 
 def _insert_minimal_chart(
@@ -273,6 +274,37 @@ def test_append_database_regenerates_colliding_source_chart_uid(tmp_path, monkey
     source_uid = dict(rows)["Source"]
     assert source_uid != "SHAREDUID0000001"
     assert len(source_uid) >= 8
+
+
+def test_append_database_accepts_edbackup_package(tmp_path, monkeypatch):
+    target_path = tmp_path / "target.db"
+    source_path = tmp_path / "source.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", target_path)
+
+    target_conn = db._get_conn()
+    with target_conn:
+        _insert_minimal_chart(target_conn, chart_uid="TARGETUID0000001", name="Target")
+    target_conn.close()
+
+    source_conn = sqlite3.connect(source_path)
+    db._ensure_schema(source_conn)
+    with source_conn:
+        _insert_minimal_chart(source_conn, chart_uid="PACKAGEUID000001", name="Packaged")
+    source_conn.close()
+
+    package = backups.create_backup_package(
+        tmp_path / "source.edbackup",
+        component_source_overrides={"charts": source_path},
+        included_component_keys={"charts"},
+    )
+    result = db.append_database(package)
+
+    assert result["imported"] == 1
+    target_conn = sqlite3.connect(target_path)
+    rows = target_conn.execute("SELECT name, chart_uid FROM charts ORDER BY id ASC").fetchall()
+    target_conn.close()
+    assert ("Packaged", "PACKAGEUID000001") in rows
 
 
 def test_load_chart_keeps_chart_uid_projection_aligned(tmp_path, monkeypatch):
