@@ -724,7 +724,12 @@ from ephemeraldaddy.core.material_facts import (
     load_personal_identifiers,
     save_personal_identifiers_by_uid,
 )
-from ephemeraldaddy.core.backups import BACKUP_PACKAGE_SUFFIX, create_backup_package
+from ephemeraldaddy.core.backups import (
+    BACKUP_PACKAGE_SUFFIX,
+    cancel_pending_backup_append,
+    create_backup_package,
+    pending_backup_append_source,
+)
 from ephemeraldaddy.core.db import (
     DB_PATH,
     DB_DIR,
@@ -924,6 +929,9 @@ from ephemeraldaddy.gui.features.database_view.collections import (
     chart_drag_mime_data,
     prompt_chart_selection_for_collection_add,
     show_collection_confirmation,
+)
+from ephemeraldaddy.gui.features.database_view.import_progress import (
+    DatabaseImportProgressLabel,
 )
 from ephemeraldaddy.gui.features.charts.aspect_popout_mixin import AspectPopoutMixin
 from ephemeraldaddy.gui.features.charts.duplicate_detection import (
@@ -3168,7 +3176,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_sort_button_label()
         list_layout.addWidget(list_header_row)
         list_layout.addWidget(self.list_widget, 1)
-        self.charts_header_label = QLabel()
+        self.charts_header_label = DatabaseImportProgressLabel()
         self.charts_header_label.setTextFormat(Qt.RichText)
         self.charts_header_label.setStyleSheet(SELECTION_SUMMARY_LABEL_STYLE)
         self._update_selection_header()
@@ -13679,7 +13687,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         button_specs = (
             ("Backup 📚", self._on_export_database, "manage_backup_database_button"),
             ("Restore 📚", self._on_import_database, "manage_restore_database_button"),
-            ("Append 📚", self._on_append_database_placeholder, None),
+            ("Append 📚", self._on_append_database, None),
             ("Refresh 📚", self._on_force_refresh_database_analysis, "manage_force_refresh_button"),
             ("Import from CSV", self._on_import_csv, None),
             ("Check for Duplicates", self._on_check_for_duplicates, None),
@@ -17932,13 +17940,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _on_import_csv(self) -> None:
         self._on_import_csv_type_1()
 
-    def _on_append_database_placeholder(self) -> None:
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Append database",
-            "",
-            "Database Files (*.db)",
-        )
+    def _on_append_database(self, resume_source: Path | None = None) -> None:
+        file_path = str(resume_source or "")
+        if not file_path:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Append database",
+                "",
+                "EphemeralDaddy Backup Packages (*.edbackup);;Legacy Charts Database (*.db)",
+            )
         if not file_path:
             return
 
@@ -17954,7 +17964,21 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            result = append_database(Path(file_path))
+            def update_import_progress(
+                task_name: str,
+                verb: str,
+                items: str,
+                current: int,
+                total: int,
+            ) -> None:
+                self.charts_header_label.set_import_progress(
+                    task_name, verb, items, current, total
+                )
+                QApplication.processEvents()
+
+            result = append_database(
+                Path(file_path), progress_callback=update_import_progress
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -17965,7 +17989,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     f"Backup path: {backup_path}"
                 ),
             )
+            self.charts_header_label.clear_import_progress()
             return
+
+        self.charts_header_label.clear_import_progress()
 
         imported_uids = {
             str(chart_uid).strip().upper()
@@ -18022,6 +18049,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if details:
             dialog.setDetailedText(details)
         dialog.exec()
+
+    def _prompt_to_resume_pending_database_append(self) -> None:
+        source = pending_backup_append_source()
+        if source is None:
+            return
+        prompt = QMessageBox(self)
+        prompt.setWindowTitle("Incomplete database import")
+        prompt.setText("A database import was interrupted. Resume import or cancel?")
+        cancel_button = prompt.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        resume_button = prompt.addButton("Resume", QMessageBox.ButtonRole.AcceptRole)
+        prompt.setDefaultButton(resume_button)
+        prompt.exec()
+        if prompt.clickedButton() is cancel_button:
+            cancel_pending_backup_append()
+            return
+        self._on_append_database(source)
 
     def _on_rename_selected_chart(self) -> None:
         selected_items = self.list_widget.selectedItems()
@@ -39537,6 +39580,9 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
             startup_progress=startup_loading.update_status
         ),
     )
+    manage_dialog = getattr(window, "_manage_charts_dialog", None)
+    if manage_dialog is not None:
+        QTimer.singleShot(0, manage_dialog._prompt_to_resume_pending_database_append)
     logger.info("GUI startup complete; entering Qt event loop.")
 
     if not getattr(app, "_edd_running", False):

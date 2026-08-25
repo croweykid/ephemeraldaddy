@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
 import tempfile
+import uuid
 import zipfile
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Literal
+from typing import Any, Callable, Iterable, Literal
 
 from ephemeraldaddy.core import db as chart_db
 from ephemeraldaddy.core.material_facts import personal_identifiers_path
@@ -25,8 +27,11 @@ BACKUP_PACKAGE_SUFFIX = ".edbackup"
 BACKUP_PACKAGE_FILENAME_PREFIX = "ephemeraldaddy_backup_"
 PRE_RESTORE_BACKUP_FILENAME_PREFIX = "ephemeraldaddy_prerestore_backup_"
 LEGACY_CHARTS_COMPONENT_KEY = "charts"
+PENDING_APPEND_DIRECTORY_NAME = ".pending_backup_append"
+PENDING_APPEND_STATE_FILENAME = "state.json"
 
 BackupComponentKind = Literal["sqlite", "json", "file"]
+BackupProgressCallback = Callable[[str, str, str, int, int], None]
 
 
 @dataclass(frozen=True)
@@ -220,6 +225,165 @@ def _load_manifest(archive: zipfile.ZipFile) -> dict[str, Any]:
     if int(manifest.get("format_version", 0)) > BACKUP_PACKAGE_VERSION:
         raise ValueError("Backup package was created by a newer unsupported format")
     return manifest
+
+
+def _pending_append_directory() -> Path:
+    return chart_db.DB_DIR / PENDING_APPEND_DIRECTORY_NAME
+
+
+def pending_backup_append_source() -> Path | None:
+    """Return the source of an interrupted package append, if one exists."""
+
+    state_path = _pending_append_directory() / PENDING_APPEND_STATE_FILENAME
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        if _pending_append_directory().exists():
+            cancel_pending_backup_append()
+        return None
+    source = Path(str(state.get("source") or ""))
+    if not source.exists():
+        cancel_pending_backup_append()
+        return None
+    return source
+
+
+def pending_backup_append_key() -> str | None:
+    """Return the stable key used to make a resumed append idempotent."""
+
+    state_path = _pending_append_directory() / PENDING_APPEND_STATE_FILENAME
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    import_key = str(state.get("import_key") or "").strip()
+    return import_key or None
+
+
+def cancel_pending_backup_append() -> None:
+    """Discard files staged by an interrupted package append."""
+
+    shutil.rmtree(_pending_append_directory(), ignore_errors=True)
+
+
+def _save_pending_append_state(state: dict[str, Any]) -> None:
+    pending_dir = _pending_append_directory()
+    pending_dir.mkdir(parents=True, exist_ok=True)
+    state_path = pending_dir / PENDING_APPEND_STATE_FILENAME
+    temporary_path = state_path.with_suffix(".tmp")
+    temporary_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+    os.replace(temporary_path, state_path)
+
+
+@contextmanager
+def staged_backup_component(
+    source: Path,
+    component_key: str,
+    *,
+    progress_callback: BackupProgressCallback | None = None,
+):
+    """Persistently stage all package members and yield one validated component.
+
+    Staging every member preserves the complete append payload. Progress is
+    recorded after each archive member so an interrupted import can resume on
+    the next launch instead of expanding large sidecars again.
+    """
+
+    source = Path(source)
+    if not source.exists():
+        raise FileNotFoundError(f"Backup file not found: {source}")
+
+    pending_dir = _pending_append_directory()
+    extract_dir = pending_dir / "extract"
+    state_path = pending_dir / PENDING_APPEND_STATE_FILENAME
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        state = {}
+    if str(state.get("source") or "") != str(source.resolve()):
+        cancel_pending_backup_append()
+        state = {
+            "source": str(source.resolve()),
+            "import_key": uuid.uuid4().hex,
+            "extracted_members": [],
+        }
+        _save_pending_append_state(state)
+    elif not str(state.get("import_key") or "").strip():
+        state["import_key"] = uuid.uuid4().hex
+        _save_pending_append_state(state)
+    extracted_members = set(state.get("extracted_members") or [])
+
+    completed = False
+    try:
+        with zipfile.ZipFile(source) as archive:
+            manifest = _load_manifest(archive)
+            components = manifest.get("components")
+            if not isinstance(components, list):
+                raise ValueError("Backup package manifest has no components list")
+
+            entry = next(
+                (
+                    item
+                    for item in components
+                    if isinstance(item, dict) and str(item.get("key") or "") == component_key
+                ),
+                None,
+            )
+            if entry is None or entry.get("present") is False:
+                raise ValueError(f"Backup package does not contain component: {component_key}")
+
+            relative_path = str(entry.get("relative_path") or "")
+            try:
+                member = archive.getinfo(relative_path)
+            except KeyError as exc:
+                raise ValueError(
+                    f"Backup package is missing component file: {component_key}"
+                ) from exc
+            extract_root = extract_dir.resolve()
+            archive_members = archive.infolist()
+            completed_count = sum(
+                1
+                for archive_member in archive_members
+                if archive_member.filename in extracted_members
+                and (extract_dir / archive_member.filename).exists()
+            )
+            if progress_callback is not None:
+                progress_callback(
+                    "Database import", "extracting", "backup files", completed_count, len(archive_members)
+                )
+            for archive_member in archive_members:
+                target = (extract_dir / archive_member.filename).resolve()
+                if not target.is_relative_to(extract_root):
+                    raise ValueError(f"Unsafe backup package path: {archive_member.filename}")
+                if archive_member.filename in extracted_members and target.exists():
+                    continue
+                archive.extract(archive_member, extract_dir)
+                extracted_members.add(archive_member.filename)
+                state["extracted_members"] = sorted(extracted_members)
+                _save_pending_append_state(state)
+                completed_count += 1
+                if progress_callback is not None:
+                    progress_callback(
+                        "Database import",
+                        "extracting",
+                        "backup files",
+                        completed_count,
+                        len(archive_members),
+                    )
+
+        staged_path = (extract_dir / member.filename).resolve()
+        if not staged_path.is_relative_to(extract_dir.resolve()):
+            raise ValueError(f"Unsafe backup package path for component {component_key}")
+        expected_hash = str(entry.get("sha256") or "")
+        if expected_hash and _sha256(staged_path) != expected_hash:
+            raise ValueError(f"Checksum mismatch for backup component: {component_key}")
+        if str(entry.get("kind") or "") == "sqlite":
+            _validate_sqlite(staged_path)
+        yield staged_path
+        completed = True
+    finally:
+        if completed:
+            cancel_pending_backup_append()
 
 
 def _component_destinations() -> dict[str, Path]:
