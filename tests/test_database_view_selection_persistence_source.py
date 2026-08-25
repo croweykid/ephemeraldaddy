@@ -80,7 +80,7 @@ def test_copy_uses_persistent_selection_for_all_selected_chart_names():
     assert "self._reconcile_persistent_selection_with_database()" in method
     assert "_selected_chart_uid_order" in method
     assert "chart_uid in copied_uids" in method
-    assert "get_chart_id_by_uid(chart_uid)" in method
+    assert "self._local_row_id_by_chart_uid.get(chart_uid)" in method
     assert "_similar_charts_popout_chart_names_by_id" in method
     assert "\"\\n\".join(selected_names)" in copy_method
 

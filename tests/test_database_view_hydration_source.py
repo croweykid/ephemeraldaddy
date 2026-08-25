@@ -23,4 +23,4 @@ def test_populate_list_skips_per_row_filter_engine_when_no_filters_are_active():
     populate_method = _method_source("_populate_list")
 
     assert "has_active_chart_filters = self._has_active_chart_filters()" in populate_method
-    assert "if has_active_chart_filters:\n                    try:\n                        matches_filters = self._chart_matches_filters(cid)" in populate_method
+    assert "if has_active_chart_filters:\n                    try:\n                        matches_filters = self._chart_matches_filters(\n                            cid," in populate_method

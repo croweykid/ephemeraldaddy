@@ -5,6 +5,7 @@ That gives callers one stable lookup as descriptions for bodies other than the
 Moon are added over time.
 """
 
+#//////////////////////////////////////////INNER BODIES
 MOON_SIGN_DESCRIPTIONS: dict[str, str] = {
     "aries": (
         "An Aries Moon can become furious before anybody has technically done anything. "
@@ -416,7 +417,198 @@ MERCURY_SIGN_DESCRIPTIONS: dict[str, str] = {
     ),
 }
 
-
+VENUS_SIGN_DESCRIPTIONS: dict[str, str] = {
+    "aries": (
+        "Venus in Aries falls in love with the moment something becomes unmistakably alive. "
+        "Attraction needs heat, movement, nerve, and the refreshing possibility that the "
+        "other person may not immediately cooperate. A courtship without pursuit can feel "
+        "like receiving a prize one forgot entering to win.\n\n"
+        "They show affection directly: attention, teasing, invitations, sudden declarations, "
+        "and an eagerness to begin before caution has finished locating its objections. They "
+        "value independence in themselves and vitality in others. Taste tends toward the "
+        "bold, youthful, immediate, or striking rather than the delicately overconsidered. "
+        "They want love to feel chosen now, not merely preserved because everybody already "
+        "owns matching towels.\n\n"
+        "At their best, they are candid, playful, brave in affection, and willing to risk "
+        "rejection without turning desire into a tribunal. At their worst, conquest becomes "
+        "more compelling than knowledge, tenderness is mistaken for stagnation, and interest "
+        "expires once it no longer has to prove itself. Their task is to discover that a "
+        "relationship may remain alive after nobody is running away."
+    ),
+    "taurus": (
+        "Venus in Taurus wants love to become physically credible. It should arrive on time, "
+        "remember how they take their coffee, possess a pleasant smell, and refrain from "
+        "announcing that reliability is bourgeois. Desire begins in the senses and stays to "
+        "inspect the workmanship.\n\n"
+        "They give affection through touch, presence, comfort, gifts, food, loyalty, and the "
+        "gradual construction of shared habit. Their taste favors quality over novelty and "
+        "substance over clever packaging. They may take time to attach because attachment is "
+        "not, to them, a recreational opinion. Once someone has entered the private landscape "
+        "of familiar pleasures, removal feels less like a breakup than unauthorized zoning.\n\n"
+        "At their best, they are sensual, devoted, calming, and capable of making affection "
+        "durable without making it dull. At their worst, loyalty becomes possession, comfort "
+        "becomes policy, and an exhausted bond is preserved because change has terrible table "
+        "manners. Their task is to value continuity without confusing ownership with love."
+    ),
+    "gemini": (
+        "Venus in Gemini is attracted to the person who says the unexpected thing and then "
+        "understands the answer. Beauty without mental movement may be admired perfectly well "
+        "from across the room, where it cannot begin explaining the thesis of its own podcast.\n\n"
+        "Venus-in-Gemini folks express affection through conversation, jokes, questions, messages, gossip, "
+        "shared references, and the private vocabulary two people accidentally invent. "
+        "Variety keeps pleasure conscious. They enjoy many kinds of people, styles, and ideas "
+        "because attraction is exploratory rather than doctrinal. Flirtation may be less a "
+        "contract than a form of intelligent weather, which can confuse anyone already naming "
+        "the children.\n\n"
+        "At their best, they are curious, responsive, socially nimble, and able to keep "
+        "affection from becoming mentally upholstered. At their worst, possibilities are "
+        "collected to avoid consequence, sincerity is dissolved into cleverness, and closeness "
+        "ends whenever it stops producing new material. Their task is to let curiosity deepen "
+        "rather than merely relocate."
+    ),
+    "cancer": (
+        "Venus in Cancer falls in love partly with a person and partly with the possibility "
+        "of someday remembering this exact evening. Affection acquires emotional ancestry "
+        "almost immediately. By the third date, the restaurant may already be sacred.\n\n"
+        "They give love through care, protection, food, memory, familiarity, private humor, "
+        "and small acts that say, \"I have included your comfort in my understanding of the "
+        "world.\" Attraction needs safety enough for softness to appear without feeling "
+        "careless. Their taste often favors the intimate, nostalgic, handmade, domestic, or "
+        "personally meaningful. A generic expensive object may lose badly to an ugly object "
+        "with history.\n\n"
+        "At their best, they are tender, loyal, perceptive, and able to make love feel like "
+        "belonging without erasing individuality. At their worst, care becomes leverage, memory "
+        "becomes evidence, and indirect need waits to be recognized as a moral examination. "
+        "Their task is to offer nurture freely or request reciprocity plainly, instead of "
+        "secretly invoicing the beloved years later."
+    ),
+    "leo": (
+        "Venus in Leo does not understand why love should behave like an embarrassing medical "
+        "condition. If someone is adored, let them be adored competently—with warmth, style, "
+        "loyalty, and enough enthusiasm that they are not forced to consult indirect evidence.\n\n"
+        "They express affection generously and personally. Compliments should be specific, "
+        "gifts should contain some theatre, and romance should acknowledge that two remarkable "
+        "people have chosen to interrupt the general dullness with one another. They are drawn "
+        "to confidence, creativity, playfulness, dignity, and people who can both appreciate "
+        "them and withstand being appreciated at full volume.\n\n"
+        "At their best, they are radiant, faithful, celebratory, and able to make others feel "
+        "singular rather than merely approved. At their worst, admiration becomes rent, pride "
+        "makes repair undignified, and the relationship is judged by whether it continues to "
+        "cast them attractively. Their task is to give from abundance without turning affection "
+        "into an audience response system."
+    ),
+    "virgo": (
+        "Venus in Virgo rarely falls in love with humanity in the abstract. Humanity leaves "
+        "wet towels on the floor. They prefer the particular person whose habits, errors, "
+        "efforts, and oddly specific virtues have survived close inspection.\n\n"
+        "They express affection through attention, practical help, remembered details, "
+        "thoughtful correction, and the quiet removal of inconveniences. Their taste is "
+        "discriminating, restrained, precise, and frequently better than the amount of display "
+        "it receives. Attraction grows through competence, modesty, intelligence, cleanliness, "
+        "skill, and evidence that a person can participate in ordinary life without requiring "
+        "a rescue team and a commemorative banquet.\n\n"
+        "At their best, they love attentively, choose carefully, and improve shared life through "
+        "acts too exact to be generic. At their worst, discernment becomes disqualification, "
+        "service conceals anxiety, and both partners feel perpetually one revision short of "
+        "being lovable. Their task is to let devotion include acceptance, not merely excellent "
+        "maintenance."
+    ),
+    "libra": (
+        "Venus in Libra recognizes that attraction occurs between people, which sounds obvious "
+        "until one observes how many romances are actually two monologues sharing a restaurant. "
+        "They want response, proportion, atmosphere, and the exquisite relief of being met "
+        "with equal social intelligence.\n\n"
+        "They express affection through consideration, charm, beauty, tact, conversation, "
+        "companionship, and the continual adjustment by which two lives become graceful beside "
+        "one another. Their taste is relational: an object, outfit, room, or gesture succeeds "
+        "partly through harmony with its surroundings. They are drawn to elegance, fairness, "
+        "good manners, and people who can disagree without making civilization seem naive.\n\n"
+        "At their best, they are reciprocal, romantic, aesthetically gifted, and able to make "
+        "partnership an art rather than an administrative merger. At their worst, desirability "
+        "becomes identity, peace is purchased with ambiguity, and every choice is postponed "
+        "because another arrangement might look better from the doorway. Their task is to let "
+        "preference become definite enough to risk displeasing someone."
+    ),
+    "scorpio": (
+        "Venus in Scorpio does not want to be liked in the mild, breathable manner generally "
+        "recommended by sensible acquaintances. Attraction should matter enough to alter the "
+        "terms. Anything less begins to resemble an especially attentive networking event.\n\n"
+        "They express affection through exclusivity, loyalty, emotional exposure, erotic "
+        "intensity, difficult honesty, and a nearly forensic interest in what binds one person "
+        "to another. Trust is precious because it grants access to areas of the self they do "
+        "not leave standing open. Their taste favors depth, secrecy, potency, transformation, "
+        "and beauty that contains some evidence of consequence rather than simple prettiness.\n\n"
+        "At their best, they love with courage, concentration, devotion, and an unusual "
+        "willingness to remain present through difficulty. At their worst, intimacy becomes "
+        "ownership, jealousy impersonates insight, and every tender fact is stored beside the "
+        "possibility of future prosecution. Their task is to permit closeness without treating "
+        "freedom as evidence of insufficient feeling."
+    ),
+    "sagittarius": (
+        "Venus in Sagittarius is attracted to whatever enlarges life: a foreign place, an "
+        "unfamiliar mind, a dangerous amount of honesty, or someone who knows where the road "
+        "goes and does not immediately ask when they plan to settle down.\n\n"
+        "They express affection through enthusiasm, candor, humor, adventure, generosity, "
+        "shared learning, and invitations into wider experience. Attraction needs room to "
+        "move and a sense that the relationship is opening the world rather than placing it "
+        "under domestic arrest. Their taste can be eclectic, exuberant, cultural, philosophical, "
+        "or gloriously indifferent to whether all the objects technically belong together.\n\n"
+        "At their best, they are joyful, openhearted, encouraging, and able to love another "
+        "person without reducing them to a possession. At their worst, possibility is valued "
+        "more than presence, bluntness avoids responsibility for tact, and every reasonable limit or boundary is "
+        "treated as evidence that the universe wants them elsewhere. Their task is to discover "
+        "that commitment can be an expedition rather than the cancellation of one."
+    ),
+    "capricorn": (
+        "Venus in Capricorn takes affection seriously enough to distrust its opening remarks. "
+        "Anybody can be enchanted for three weeks. The interesting question is whether they "
+        "remain recognizable when inconvenience, responsibility, and a shared invoice enter "
+        "the relationship.\n\n"
+        "They express love through reliability, commitment, provision, respect, restraint, "
+        "and practical investment in a common future. Attraction often grows through competence, "
+        "self-possession, ambition, maturity, or evidence that a person has constructed a life "
+        "rather than merely developed opinions about one. Their taste favors quality, tradition, "
+        "structure, longevity, and objects that improve with age instead of begging to be "
+        "photographed immediately.\n\n"
+        "At their best, they are steadfast, discerning, protective, and capable of making love "
+        "credible over time. At their worst, affection becomes an achievement system, status "
+        "substitutes for value, and vulnerability is postponed until both parties have obtained "
+        "security clearance. Their task is to let love be serious without requiring it to pass "
+        "a professional review."
+    ),
+    "aquarius": (
+        "Venus in Aquarius wants to like the person they love, an eccentric requirement that "
+        "eliminates a surprising number of traditional arrangements. Attraction begins with "
+        "recognition: there you are, distinctly yourself, doing something nobody instructed "
+        "you to do.\n\n"
+        "They express affection through friendship, intellectual companionship, acceptance, "
+        "shared causes, unusual arrangements, and the granting of space without theatrical "
+        "suspicion. They value equality and resist roles that assign desire a uniform. Their "
+        "taste favors originality, invention, cultural edges, striking incongruity, and the "
+        "object everyone initially disliked before acquiring an inferior copy two years later.\n\n"
+        "At their best, they love without ownership, welcome difference, and create bonds in "
+        "which both people remain recognizably alive. At their worst, distance is renamed "
+        "freedom, emotional obligation is treated as ideological oppression, and uniqueness "
+        "becomes a competitive sport. Their task is to understand that intimacy can respect "
+        "independence while still requiring inconveniently personal participation."
+    ),
+    "pisces": (
+        "Venus in Pisces is attracted not only to who someone is but to every beautiful "
+        "possibility surrounding them. This is romantic, compassionate, and occasionally "
+        "unfair to the actual person, who may be standing nearby trying to explain that they "
+        "do not play the piano.\n\n"
+        "They express affection through empathy, imagination, forgiveness, tenderness, art, "
+        "sacrifice, and the soft collapse of ordinary divisions between self and beloved. "
+        "Their taste favors atmosphere, symbolism, music, fantasy, spiritual feeling, and "
+        "beauty too elusive to survive a product description. They can perceive loveliness "
+        "where others see damage, which is a gift until damage begins relying on the arrangement.\n\n"
+        "At their best, they are compassionate, enchanting, receptive, and capable of loving "
+        "without reducing another person to a list of merits. At their worst, idealization "
+        "replaces knowledge, rescue replaces reciprocity, and disappointment is blamed on "
+        "reality for failing to honor the casting decision. Their task is to keep the poetry "
+        "while allowing the beloved to remain an ordinary, accountable human being."
+    ),
+}
 
 MARS_SIGN_DESCRIPTIONS: dict[str, str] = {
     "aries": (
@@ -616,6 +808,462 @@ MARS_SIGN_DESCRIPTIONS: dict[str, str] = {
         "another beautiful possibility."
     ),
 }
+
+SATURN_SIGN_DESCRIPTIONS: dict[str, str] = {
+    "aries": (
+        "Saturn in Aries has the peculiar problem of wanting to go first and simultaneously "
+        "being convinced there is some regulation against it. They can spend an astonishing "
+        "amount of time standing at the edge of something they desperately want to do, "
+        "getting irritated with everybody else for not doing it, either. Then somebody less "
+        "qualified goes ahead, and this ruins their afternoon.\n\n"
+        "They tend to take initiative personally. It isn't merely a question of whether they "
+        "can act; it is whether they have the right to act, whether they'll look ridiculous, "
+        "whether they'll fail publicly, whether somebody will tell them they were too pushy. "
+        "Consequently they may alternate between hesitation and abrupt declarations of "
+        "independence that surprise everybody, including themselves. Their anger often has "
+        "a long administrative history behind it.\n\n"
+        "Their real education is in discovering that courage isn't the absence of inhibition. "
+        "It is what you do while inhibition is sitting there making remarks. Once they stop "
+        "waiting to feel completely entitled to exist on their own terms, they can develop "
+        "a formidable kind of self-command: not reckless, not timid, just capable of moving "
+        "before the committee in their head has finished voting."
+    ),
+
+    "taurus": (
+        "Saturn in Taurus can make a person behave as though every pleasant thing in life "
+        "has been issued on loan and somebody from the office may come collect it Thursday. "
+        "Money, food, comfort, affection, possessions—there is often a little catch in the "
+        "enjoyment of them, a suspicion that security is temporary and therefore ought to "
+        "be guarded with both hands.\n\n"
+        "They can become extremely serious about having enough. Enough money, enough time, "
+        "enough food in the cupboard, enough evidence that somebody isn't about to leave. "
+        "This sometimes makes them conservative in the literal sense: they conserve. They "
+        "keep the old chair. They save the receipt. They stay in situations past the point "
+        "when anybody else would have admitted the thing was over, because permanence has "
+        "become confused with safety.\n\n"
+        "Their task is not to renounce material security but to become competent at creating "
+        "it without worshipping it. Over time they can acquire a remarkably sane relationship "
+        "with resources. They learn what lasts, what merely costs a lot, what is genuinely "
+        "valuable, and eventually that having something is much less frightening when you "
+        "know you could build it again."
+    ),
+
+    "gemini": (
+        "Saturn in Gemini often behaves as though every sentence is going permanently on "
+        "record. They may know perfectly well what they mean until somebody asks them to "
+        "explain it, at which point three rival explanations appear and begin criticizing "
+        "one another. This can make them quiet when they're young, excessively precise, or "
+        "the sort of person who mentally revises a conversation six hours after it ended.\n\n"
+        "There is frequently anxiety around being misunderstood, sounding foolish, missing "
+        "some crucial piece of information, or discovering that everybody else received a "
+        "manual they somehow didn't. They may compensate by becoming encyclopedic. If they "
+        "cannot trust spontaneous cleverness, they will acquire knowledge deliberately, "
+        "carefully, sometimes obsessively. Their notebooks tend to know things their mouths "
+        "are still reluctant to admit.\n\n"
+        "Eventually the restraint can become intellectual discipline. Saturn in Gemini can "
+        "produce a mind that doesn't merely collect facts but tests them, organizes them, "
+        "and notices where language has been doing dishonest work. Their confidence comes "
+        "late because it is built rather than assumed. Once built, however, they can become "
+        "the person everybody consults when the clever people have finished contradicting "
+        "one another."
+    ),
+
+    "cancer": (
+        "Saturn in Cancer often grows up with the obscure impression that needing anybody "
+        "is embarrassing. This does not prevent them from needing people. It merely ensures "
+        "that the need is stored in a locked cabinet and expressed through things like "
+        "remembering what everyone eats, worrying whether they got home safely, and becoming "
+        "annoyed when nobody notices they have been taking care of everything.\n\n"
+        "Home and family can feel unusually consequential. There may be responsibility early, "
+        "emotional reserve in the household, complicated loyalty, or simply the sense that "
+        "belonging is something one must earn. They can become defensive precisely where "
+        "they are softest. Ask an ordinary question about their childhood and you may receive "
+        "either an architectural survey of the house or a joke delivered with suspiciously "
+        "excellent timing.\n\n"
+        "Their maturity consists in learning that emotional dependence and emotional "
+        "competence are not opposites. They become strongest when they stop treating tenderness "
+        "as an unsecured liability. At their best they can build the sort of home—literal "
+        "or otherwise—in which people are permitted to need one another without anybody "
+        "keeping score."
+    ),
+
+    "leo": (
+        "Saturn in Leo can make applause sound faintly accusatory. They may want desperately "
+        "to be seen and then become uncomfortable the instant everybody looks at them. "
+        "There is often an early suspicion that self-expression must be justified—that one "
+        "ought to possess an extraordinary talent, an excellent reason, or at minimum a "
+        "proper permit before making a spectacle of oneself.\n\n"
+        "This can produce peculiar relationships with pride. Some hide their ambition so "
+        "thoroughly that they resent people who display theirs. Others become perfectionists "
+        "about performance, romance, creativity, even humor. They don't merely want to make "
+        "something; they want to make something good enough that nobody can accuse them of "
+        "having wanted attention. This is an exhausting standard because wanting attention "
+        "is one of the most ordinary things in the world.\n\n"
+        "Their eventual strength lies in taking creativity seriously without making "
+        "self-expression a courtroom proceeding. When Saturn in Leo learns to tolerate being "
+        "visible, the result can be real authority rather than mere showmanship. They stop "
+        "performing for approval and begin making things because they have something worth "
+        "making. Strangely enough, this is usually when people start paying attention."
+    ),
+
+    "virgo": (
+        "Saturn in Virgo can discover a flaw in practically anything, including the method "
+        "by which they discovered the flaw. There is often a nervous seriousness about "
+        "competence: the conviction that mistakes are not merely mistakes but evidence in "
+        "some larger case concerning whether they ought to be trusted with anything at all.\n\n"
+        "They may work extremely hard and still feel behind. A task completed at ninety-eight "
+        "percent can bother them more than ten tasks completed badly bother somebody else. "
+        "This makes them useful, exacting, occasionally impossible, and very susceptible to "
+        "the belief that rest ought to be earned by finishing everything. Unfortunately, "
+        "everything has never shown much interest in being finished.\n\n"
+        "Their lesson is discrimination rather than perfection. They have to learn which "
+        "details matter, which standards actually improve the work, and which tiny defect "
+        "is simply being used as an excuse to postpone completion. Mature Saturn in Virgo "
+        "is extraordinarily capable because it no longer wastes precision on trivia. It "
+        "knows when to correct the sentence and when to send the letter."
+    ),
+
+    "libra": (
+        "Saturn in Libra can make two people choosing a restaurant resemble constitutional "
+        "negotiations. They take fairness seriously, sometimes so seriously that ordinary "
+        "desire becomes difficult to locate. Ask what they want and they may first need to "
+        "know what you want, what everybody else wants, what seems reasonable, and whether "
+        "their own preference would inconvenience the waiter.\n\n"
+        "Relationships are rarely casual territory for them. Partnership can carry fear, "
+        "duty, delay, high standards, or an almost legalistic concern with reciprocity. They "
+        "may remain alone because nobody seems serious enough, or remain attached because "
+        "ending something feels like violating an agreement whose terms nobody remembers "
+        "signing. Beneath all this is often a fear of being unfair—or of discovering that "
+        "fairness will not prevent somebody from leaving.\n\n"
+        "With age they can become exceptionally good at partnership because they learn that "
+        "balance is not achieved by erasing themselves. Real reciprocity requires two actual "
+        "people, not one person and one extremely courteous adaptation. Saturn in Libra grows "
+        "into the ability to make commitments with open eyes, clear terms, and enough backbone "
+        "to survive disagreement."
+    ),
+
+    "scorpio": (
+        "Saturn in Scorpio tends to assume there is more going on than anyone is saying, and "
+        "annoyingly enough they are often correct. Their difficulty is deciding what to do "
+        "with that knowledge. Trust can feel like handing somebody the combination to a safe "
+        "and hoping they remain in a philosophical mood forever.\n\n"
+        "They are often cautious around intimacy, dependency, shared money, secrets, sex, "
+        "power, and all the other arrangements in which another human being acquires the "
+        "ability to matter terribly. They may control what they reveal because vulnerability "
+        "seems irreversible. Occasionally they test people without admitting there is a test, "
+        "which produces the unfortunate situation where everybody has taken an examination "
+        "except the person supposedly being examined.\n\n"
+        "Their development involves learning the difference between control and resilience. "
+        "No amount of vigilance can make attachment risk-free. Saturn in Scorpio becomes "
+        "powerful when it realizes that survival does not depend upon preventing betrayal, "
+        "loss, or change. It depends upon knowing that none of those things gets the final "
+        "word."
+    ),
+
+    "sagittarius": (
+        "Saturn in Sagittarius can turn a person into the reluctant customs officer of their "
+        "own beliefs. Every conviction must show identification. Every grand theory gets its "
+        "luggage searched. They may want desperately to believe in something large and then "
+        "immediately begin asking irritating questions about where it came from and whether "
+        "the footnotes are any good.\n\n"
+        "There can be inhibition around faith, optimism, higher education, travel, or simply "
+        "the right to pronounce upon the meaning of things. Some compensate with rigid "
+        "certainty. Others become chronic skeptics who secretly envy people capable of "
+        "believing anything before breakfast. Either way, the underlying issue is often the "
+        "same: ideas matter too much to be accepted casually.\n\n"
+        "Their mature gift is earned conviction. Saturn in Sagittarius can construct a "
+        "worldview strong enough to survive contradiction because it has already interrogated "
+        "itself. They learn that skepticism need not end in cynicism and that seriousness "
+        "need not eliminate wonder. Eventually they stop asking for a philosophy that cannot "
+        "be disproved and begin looking for one sturdy enough to keep thinking with."
+    ),
+
+    "capricorn": (
+        "Saturn in Capricorn has a distressing tendency to regard life as something that "
+        "will begin properly once the work is finished. Since the work is never finished, "
+        "this can become an administrative problem. They are often aware of hierarchy, "
+        "expectation, reputation, time, and consequence long before anybody their age has "
+        "any decent reason to be thinking about such things.\n\n"
+        "They may be ambitious, but the ambition is rarely carefree. Success can feel less "
+        "like winning than avoiding a particular species of humiliation. They want to be "
+        "competent enough that nobody can dismiss them, secure enough that nobody can remove "
+        "them, established enough that they finally receive permission to relax. The "
+        "permission, naturally, never arrives in the mail.\n\n"
+        "Their great task is to become an authority without becoming subordinate to the idea "
+        "of authority. Once they stop measuring themselves exclusively by achievement, they "
+        "can use their formidable patience far more intelligently. It has been suggested that mature Saturn in Capricorn "
+        "builds things that last because it understands structure—not because it is frightened "
+        "of what might happen if it stops working for an afternoon.\n\n"
+        "As someone with Saturn in Capricorn, coming down off a 16 hour 'personal infrastructure' coding session, I cannot responsibly comment."
+    ),
+
+    "aquarius": (
+        "Saturn in Aquarius can feel lonely in a crowded room and then object when somebody "
+        "tries to include them. There is often a complicated relationship with belonging. "
+        "They want the group, but not its stupidity; friendship, but not compulsory intimacy; "
+        "community, but preferably one with sensible bylaws and an emergency exit.\n\n"
+        "They may feel socially different very early and respond by studying people almost "
+        "from the outside. Some become rigid about principles because principles are more "
+        "predictable than individuals. Others hide their eccentricities until they have "
+        "assembled enough evidence that the room can withstand them. Underneath the coolness "
+        "there is often considerable concern about rejection, conformity, and whether one "
+        "can remain fully oneself without becoming permanently exiled.\n\n"
+        "Their maturity lies in learning how to participate without surrendering independence. "
+        "Saturn in Aquarius can become an excellent architect of groups, systems, communities, "
+        "and ideas precisely because it takes collective life seriously. Eventually they "
+        "realize that belonging does not require sameness. In fact, any group demanding "
+        "sameness was probably badly designed."
+    ),
+
+    "pisces": (
+        "Saturn in Pisces has the difficult assignment of putting walls around things that "
+        "do not naturally possess walls. Feelings, imagination, intuition, sorrow, longing, "
+        "other people's problems—everything has an alarming tendency to seep across the "
+        "property line. Their first response may be to become unusually controlled, skeptical, "
+        "or practical, mostly because they know what happens when the doors are left open.\n\n"
+        "There can be fear of helplessness, confusion, dependency, or losing oneself in "
+        "something too large to manage. They may distrust their own sensitivity and attempt "
+        "to turn every intuition into a spreadsheet before admitting it exists. Alternatively "
+        "they may drift until circumstances impose the boundaries they were reluctant to "
+        "create themselves. Neither arrangement is especially comfortable.\n\n"
+        "Their development consists of giving form to the intangible without trying to "
+        "sterilize it. Mature Saturn in Pisces can make imagination usable, compassion "
+        "sustainable, and sensitivity discriminating. They learn that boundaries do not "
+        "destroy tenderness; they are often what allow tenderness to continue without "
+        "quietly consuming the person supplying it."
+    ),
+}
+
+JUPITER_SIGN_DESCRIPTIONS: dict[str, str] = {
+    "aries": (
+        "Jupiter in Aries has a touching faith in the proposition that something will "
+        "probably work if you begin doing it before anybody has time to object. They are "
+        "not always correct about this, naturally, but being wrong seldom discourages them "
+        "for very long. Half their luck comes from the fact that they are already through "
+        "the door while everybody else is still discussing whether the door is appropriate.\n\n"
+        "They grow through action, risk, competition, independence, and the discovery that "
+        "they can survive their own mistakes. Opportunity often appears when they volunteer, "
+        "start something, introduce themselves, challenge somebody, or simply refuse to wait "
+        "for permission. Their confidence can be infectious. It can also become ridiculous. "
+        "Jupiter enlarges whatever it touches, and in Aries this occasionally produces a "
+        "person who mistakes enthusiasm for reconnaissance.\n\n"
+        "At their best, though, they possess genuine moral courage. They are capable of "
+        "believing in beginnings when everybody else has become very sophisticated about "
+        "why beginnings are impossible. Their wisdom comes from discovering that optimism "
+        "is most useful when attached to initiative—and that bravery works better when it "
+        "has bothered to look where it is going."
+    ),
+
+    "taurus": (
+        "Jupiter in Taurus has the pleasant suspicion that the world may contain enough. "
+        "Enough food, enough money, enough music, enough afternoon, enough good chairs. "
+        "They tend to understand abundance in tangible terms and can become almost "
+        "philosophical about bread, gardens, fabrics, bank accounts, or the exact point at "
+        "which a tomato becomes worth discussing.\n\n"
+        "Growth tends to come slowly and solidly. They prosper by developing skills, "
+        "resources, property, patience, and an accurate sense of value. They are rarely "
+        "impressed by schemes promising transcendence by Tuesday. If something is worth "
+        "having, they generally prefer that it possess weight, utility, flavor, or at least "
+        "a decent warranty. This practicality can become complacency, of course. Jupiter "
+        "in Taurus is capable of treating comfort as evidence that no further thinking is "
+        "required.\n\n"
+        "Their deeper gift is stewardship. They can make things fruitful: land, money, "
+        "talent, relationships, institutions, even neglected objects nobody else thought "
+        "worth saving. Their optimism is not usually noisy. It is the quieter conviction "
+        "that care accumulates, that value can be cultivated, and that very few worthwhile "
+        "things improve by being yanked out of the ground to check the roots."
+    ),
+
+    "gemini": (
+        "Jupiter in Gemini can become interested in six subjects during a conversation and "
+        "three more while looking for the bathroom. They tend to experience information as "
+        "an invitation. One fact leads to another fact, which leads to an obscure biography, "
+        "a linguistic coincidence, two browser tabs, and somebody being told, \"No, listen, "
+        "this is actually fascinating.\"\n\n"
+        "They grow through conversation, reading, writing, travel, comparison, questions, "
+        "and exposure to people who know things they don't. Their luck often arrives through "
+        "contacts and accidental connections. The danger is obvious: breadth can become "
+        "scatter. They may possess twelve excellent introductions to subjects they have no "
+        "intention of finishing. Jupiter's confidence in Gemini can also produce the alarming "
+        "belief that having heard something twice constitutes research.\n\n"
+        "At their best they are intellectual pollinators. They carry ideas between worlds "
+        "that would otherwise never meet. They understand that intelligence is not merely "
+        "knowing the answer but recognizing what can be connected to what. Their wisdom is "
+        "plural, curious, provisional, and usually halfway through another sentence."
+    ),
+
+    "cancer": (
+        "Jupiter in Cancer tends to believe that generosity should involve feeding somebody. "
+        "Even their abstract kindness has a kitchen somewhere in it. They may accumulate "
+        "people the way certain houses accumulate mismatched mugs: gradually, sentimentally, "
+        "and with absolutely no intention of throwing any of them away.\n\n"
+        "They grow through family, memory, belonging, caretaking, ancestry, home, and the "
+        "development of emotional trust. Their intuition about what people need can be "
+        "remarkably good, although it sometimes arrives bundled with the assumption that "
+        "they ought to provide it. This can create overprotection, sentimental excess, or "
+        "the curious conviction that love entitles one to reorganize another person's life "
+        "for their own good.\n\n"
+        "Their strongest quality is emotional hospitality. They can create environments in "
+        "which people become larger because they feel safe enough to become specific. "
+        "Jupiter in Cancer understands that nourishment is not trivial. A meal, a room, a "
+        "family story, a remembered birthday—these can be small instruments for telling "
+        "somebody that existence has made space for them."
+    ),
+
+    "leo": (
+        "Jupiter in Leo usually has no philosophical objection to being magnificent. They "
+        "may occasionally object to the available audience, but magnificence itself seems "
+        "perfectly sound. There is often something expansive in their personality: warmth, "
+        "theatricality, humor, confidence, generosity, or simply the ability to enter a room "
+        "as though the room had been waiting for improved management.\n\n"
+        "They grow through creativity, play, leadership, romance, performance, and the "
+        "courage to take themselves seriously enough to make something personal. Their good "
+        "fortune often increases when they risk visibility. The difficulty is that Jupiter "
+        "can inflate Leo's natural appetite for recognition until admiration starts feeling "
+        "like oxygen. Then generosity becomes pageantry and confidence begins sending out "
+        "press releases.\n\n"
+        "At their best, however, they understand one of the nicer uses of charisma: making "
+        "other people feel more alive. Their enthusiasm gives permission. Their praise can "
+        "be extravagant and exactly what somebody needed. Mature Jupiter in Leo discovers "
+        "that the largest possible self is not the self receiving all the light, but the "
+        "one capable of producing some."
+    ),
+
+    "virgo": (
+        "Jupiter in Virgo has an odd relationship with grandiosity because its preferred "
+        "form of expansion is improving the filing system. Tell them to dream bigger and "
+        "they may reorganize the dream, remove three redundancies, correct the measurements, "
+        "and ask who has been responsible for inventory.\n\n"
+        "They grow through work, usefulness, technique, service, health, analysis, and the "
+        "steady accumulation of practical competence. Opportunity often appears disguised "
+        "as a problem nobody else wanted to solve. They can become extraordinarily skilled "
+        "because they assume almost anything can be improved by attention. The trouble is "
+        "that improvement can become endless. Jupiter here may magnify criticism until even "
+        "success arrives carrying a list of revisions.\n\n"
+        "Their wisdom is empirical and modest in the best sense. They understand that ideals "
+        "are only impressive if somebody can make them function on Wednesday afternoon. "
+        "At their strongest they improve systems without humiliating the people inside them, "
+        "and they know the difference between refinement and the compulsive inability to "
+        "leave a perfectly serviceable thing alone."
+    ),
+
+    "libra": (
+        "Jupiter in Libra has enormous faith in the possibility that two reasonable people "
+        "can work something out. This remains their position despite considerable historical "
+        "evidence concerning people. They are inclined toward negotiation, companionship, "
+        "beauty, diplomacy, and the hopeful idea that most unpleasantness can be reduced if "
+        "everybody would stop interrupting for five minutes.\n\n"
+        "They grow through partnership and exposure to perspectives unlike their own. Luck "
+        "often comes through alliances, introductions, social grace, collaboration, or simply "
+        "being liked by somebody who knows somebody. Their instinct for fairness can become "
+        "overextended into indecision. Jupiter in Libra occasionally grants every side of an "
+        "argument so much generous consideration that the original question dies of old age.\n\n"
+        "At their best they possess genuine civic intelligence. They know that harmony is "
+        "not merely everybody being pleasant; it requires proportion, mutual recognition, "
+        "and arrangements people can actually live with. Their optimism rests on relationship "
+        "itself—the belief that contact with another mind can improve one's own rather than "
+        "merely threaten it."
+    ),
+
+    "scorpio": (
+        "Jupiter in Scorpio rarely believes the first explanation. They may listen politely, "
+        "even sympathetically, but somewhere behind their eyes a second investigation has "
+        "already begun. They tend to assume that anything genuinely important has a basement, "
+        "and they are not especially afraid of stairs.\n\n"
+        "They grow through intensity, intimacy, research, crisis, psychology, shared resources, "
+        "taboo subjects, and experiences that force superficial explanations to retire. "
+        "Jupiter here can produce enormous emotional courage and equally enormous appetites. "
+        "They may overdo secrecy, suspicion, sex, money, power, or transformation itself, "
+        "becoming the sort of person who cannot simply change apartments without treating "
+        "the event as a symbolic death and rebirth.\n\n"
+        "Their real gift is regenerative intelligence. They understand that unpleasant truths "
+        "do not become less true because everybody has agreed not to mention them. At their "
+        "best they can enter difficult territory without becoming fascinated by difficulty "
+        "for its own sake. Their optimism is peculiar but durable: they believe that what is "
+        "buried can be found, what is damaged can change form, and very little is improved "
+        "by pretending it isn't there."
+    ),
+
+    "sagittarius": (
+        "Jupiter in Sagittarius is Jupiter at home, which can sometimes feel like giving a "
+        "philosophy professor a horse and several airline vouchers. They possess a natural "
+        "appetite for distance—geographical, intellectual, spiritual, moral. Somewhere else "
+        "there is another country, another theory, another book, another person with an "
+        "entirely different explanation of what everybody is doing here.\n\n"
+        "They grow through travel, education, teaching, belief, exploration, humor, risk, and "
+        "the discovery of larger contexts. Their confidence can be enormous. So can their "
+        "capacity for exaggeration. They are capable of converting one excellent experience "
+        "into a universal law before lunch. Conviction comes easily; qualification sometimes "
+        "has to chase it down the street.\n\n"
+        "At their best they enlarge people's sense of possibility. They are not merely "
+        "optimistic but orienting: they remind others that the immediate situation is not "
+        "the entire world. Their wisdom matures when enthusiasm learns humility. Then their "
+        "beliefs become invitations rather than sermons, and the horizon remains something "
+        "to move toward rather than something they claim to own."
+    ),
+
+    "capricorn": (
+        "Jupiter in Capricorn is suspicious of luck that has not filled out the necessary "
+        "paperwork. They may believe in opportunity, certainly, but they prefer opportunity "
+        "with a timetable, a budget, three references, and some indication that it intends "
+        "to remain solvent.\n\n"
+        "They grow through ambition, responsibility, organization, leadership, endurance, "
+        "and the gradual acquisition of authority. Their successes often compound because "
+        "they understand structures: which staircase actually reaches the next floor, which "
+        "rule can be ignored, which one cannot, and who quietly makes the decisions everyone "
+        "else attributes to the committee. Jupiter can make them highly successful, though "
+        "it may also enlarge status-consciousness until life resembles an annual report.\n\n"
+        "Their greatest strength is practical optimism. They do not necessarily expect things "
+        "to work out by themselves; they expect that something can be built which will work. "
+        "Mature Jupiter in Capricorn understands that institutions, reputations, and careers "
+        "are tools rather than verdicts on human worth. This frees them to accomplish a great "
+        "deal without requiring every accomplishment to explain why they deserve to exist."
+    ),
+
+    "aquarius": (
+        "Jupiter in Aquarius tends to become hopeful whenever somebody says, \"Nobody has "
+        "ever done it that way.\" This sounds less like a warning than an opening. They are "
+        "drawn toward systems, communities, inventions, unconventional people, social ideas, "
+        "and any arrangement that causes a respectable person to ask whether this is really "
+        "necessary.\n\n"
+        "They grow through friendship, collaboration, experimentation, technology, reform, "
+        "and participation in networks larger than themselves. Their luck often appears "
+        "through groups or unusual connections. They can be remarkably tolerant of difference "
+        "while becoming oddly intolerant of people they consider conventional. It is entirely "
+        "possible for Jupiter in Aquarius to announce that everyone must think independently "
+        "and then become annoyed when somebody independently reaches the wrong conclusion.\n\n"
+        "At their best they possess a generous social imagination. They can picture structures "
+        "that do not exist yet and treat unfamiliar people as potential collaborators rather "
+        "than intruders. Their optimism concerns the species more than the individual: the "
+        "stubborn belief that human arrangements are editable, and that 'that's how it's "
+        "always been done' is not much of an argument."
+    ),
+
+    "pisces": (
+        "Jupiter in Pisces can sympathize with practically anything if given enough time. "
+        "People, animals, abandoned buildings, fictional characters, somebody's terrible "
+        "painting in a thrift store—everything seems to possess some secret claim upon their "
+        "mercy. They have difficulty accepting the ordinary bureaucratic boundaries around "
+        "who or what is supposed to matter.\n\n"
+        "They grow through imagination, spirituality, art, compassion, solitude, dreams, "
+        "music, surrender, and experiences that loosen the distinction between one's private "
+        "life and the larger human condition. Their generosity can be extraordinary and also "
+        "spectacularly impractical. Jupiter here may expand empathy beyond judgment, producing "
+        "the dangerous idea that understanding somebody is approximately the same thing as "
+        "trusting them.\n\n"
+        "At their best they preserve forms of meaning that more literal minds discard too "
+        "quickly. They understand ambiguity, forgiveness, symbolism, and the strange fact "
+        "that people occasionally need something which cannot be itemized. Their wisdom "
+        "matures when compassion develops discrimination. Then they can remain open without "
+        "becoming indiscriminate, and generous without confusing boundlessness with goodness."
+    ),
+}
+
+
+
+
+
+#//////////////////////////////////////////OTHER
 
 RISING_SIGN_DESCRIPTIONS: dict[str, str] = {
     "aries": (
@@ -998,19 +1646,552 @@ MIDHEAVEN_SIGN_DESCRIPTIONS: dict[str, str] = {
     ),
 }
 
+
+
+
+#//////////////////////////////////////////OUTER PLANETS
+# OUTER_PLANET_SIGN_DISCLAIMERS: dict[str, dict[str, str]] = {
+#     "uranus": (
+#         "prefix": (
+#             "Pertaining to generational cohorts of roughly seven years, the prevailing "
+#             "nature of the cohort is thought to be thus:\n\n"
+#         ),
+#         "suffix": (
+#             "\n\nThat said, for someone with Uranus strongly aspected in their chart or "
+#             "otherwise dominantly weighted, this generational description may feel "
+#             "especially personal, and perhaps—in some regards—as though they are the "
+#             "avatar of a generation."
+#         ),
+#     ),
+
+#     "neptune": (
+#         "prefix": (
+#             "Pertaining to generational cohorts of roughly fourteen years, the prevailing "
+#             "nature of the cohort is thought to be thus:\n\n"
+#         ),
+#         "suffix": (
+#             "\n\nThat said, for someone with Neptune strongly aspected in their chart or "
+#             "otherwise dominantly weighted, this generational description may feel "
+#             "especially personal, and perhaps—in some regards—as though they are the "
+#             "avatar of a generation."
+#         ),
+#     ),
+
+#     "pluto": (
+#         "prefix": (
+#             "Pertaining to generational cohorts spanning a messy twelve to thirty-one years, "
+#             "depending upon Pluto's speed through a particular sign (and occasional 'backtracking'), the prevailing nature "
+#             "of the cohort is thought to be thus:\n\n"
+#         ),
+#         "suffix": (
+#             "\n\nThat said, for someone with Pluto strongly aspected in their chart or "
+#             "otherwise dominantly weighted, this generational description may feel "
+#             "especially personal, and perhaps—in some regards—as though they are the "
+#             "avatar of an era."
+#         ),
+#     ),
+# }
+
+URANUS_SIGN_DESCRIPTIONS: dict[str, str] = {
+    "aries": (
+        "This is a generation inclined to regard permission as a rather suspicious concept. "
+        "Its members tend to inherit rules about initiative, authority, competition, identity, "
+        "and who is supposedly allowed to begin things, and then discover that a remarkable "
+        "number of those rules are only being obeyed because everybody assumes somebody else "
+        "must have had a reason for inventing them.\n\n"
+        "Its rebellions are therefore direct. This cohort tends to prize autonomy, speed, "
+        "personal agency, and the right to define oneself without submitting the definition "
+        "for approval. It may produce abrupt political movements, new forms of individualism, "
+        "technologies that put previously centralized powers into individual hands, or entire "
+        "cultural fashions built around the exhilarating discovery that one can simply do "
+        "something oneself. Naturally, this can become adolescent on a civilizational scale. "
+        "A generation devoted to liberation can occasionally forget to ask what happens "
+        "after everybody has been liberated from everybody else.\n\n"
+        "Its contribution is the rediscovery of the beginning. Uranus in Aries generations "
+        "are often most useful when history has become excessively procedural and everybody "
+        "is standing around explaining why nothing can be done until twelve preliminary "
+        "conditions have been satisfied. Their peculiar talent is noticing that somebody "
+        "could simply start. (Noteable inclusions: Paul Almond (7-Up series), Ursula K Leguin, Carol Burnett, Michael Parenti, Ruth Ginsberg, Larry King, Walter Mischel, John Forbes Nash, Elvis Presley, Tom Wolfe, Toni Morrison, Thomas Malthus, Thomas Edison, Susan Brownmiller, Sally Miller Gearhart, Neil Armstrong, Jim Jones, Helmut Kohl, Gloria Steinem, Dhirubhai Ambani (petrochemical magnate), Alexander Graham Bell, Alexander III of Russia, Leopold II of Belgium, Philip Zimbardo, Clint Eastwood, Alejandro Jodorowsky, Jery Grotowski, Thomas Sowell, Beverly LaHaye, Yoko Ono, Louis Farrakhan, Andrew Jackson, Rupert Murdoch, Regis Philbin, Jayne Mansfield, Judi Dench, Barbara Walters, Pat Robertson, Jerry Falwell, Edmond James de Rothschild, Dianne Feinstein)"
+    ), #Generally seems best not to give these people power...lol Parenti, Almond, RBG, Neil Armstrong...we'd miss out on some of civilization's treasures. Damn, UKL on this list makes me wonder if the Wizard of Earthsea was autobiographical...
+
+    "taurus": (
+        "This is a generation that tends to discover that even the supposedly permanent "
+        "things are negotiable. Money, property, employment, agriculture, ownership, physical "
+        "comfort, the meaning of wealth—these arrangements may have been presented as natural "
+        "facts, but Uranus in Taurus has an unfortunate habit of checking the label and finding "
+        "a committee somewhere in the nineteenth century.\n\n"
+        "Its innovations tend to become physical very quickly. New currencies, new systems "
+        "of exchange, changing relationships to land and labor, unconventional ways of earning "
+        "a living, technological changes to food and resources, and sudden revisions in what "
+        "society considers valuable all belong comfortably here. The cohort may seem oddly "
+        "conservative and revolutionary at once. It does not necessarily want instability. "
+        "Quite the opposite. It often wants to replace an old stability with one that makes "
+        "more sense, and may become tremendously stubborn about its supposedly radical ideas "
+        "once it has installed them.\n\n"
+        "Its central question is embarrassingly practical: what is actually worth something? "
+        "Not what has an impressive price, not what one's grandparents were told to accumulate, "
+        "not what respectable people keep in a safe. What survives use? What feeds anybody? "
+        "What remains valuable when the accounting system changes? (Noteable inclusions: Jim Henson, 14th Dalai Lama, Terry Gilliam, Ridley Scott, Paul Simon, Raul Julia, David Peoples, Oscar Wilde, Don Delillo, Philip Glass, John McCain, Hunter S Thompson, Martha Stewart, Morgan Freeman, John Gottman, Gary Gygax, Chuck Norris, Woodrow Wilson, Tammy Wynette, Ti-Grace Atkinson, Ron Paul, James Traficant, Robin Morgan, Robert Lucas Jr., Napoleon I, Michael Eisner, Luciano Pavarotti, Kate Millett, Jane Fonda, David Ricardo, Germaine Greer, Francis Ford Coppola, Cecil John Rhodes, Al Pacino, John Lennon, Phil Donahue, Saddam Hussein, Jim Clyburn, Frederick Winslow Taylor, the Koch Bros, Mitch McConnell)"
+    ), #I find most of these people immensely sympathetic, and when they're not, it's because too status quo enthusiatic; too mired in anachronism & rigidity. But typically immensely stabilizing & solid at best, and a lot of their innovations seem to revolve around building something to last, revolutions in stability and permanence. Often the voices of reason among chaos. Often concerned with long term stability. However, sometimes they're propping up a dead institution, defending it to the death & profiting off of it personally.
+
+    "gemini": (
+        "This is a generation that treats information as though it has been improperly "
+        "contained. It tends to inherit established languages, educational systems, media, "
+        "communications networks, and accepted categories of knowledge, then begin opening "
+        "windows between all of them until people who were never expected to speak to one "
+        "another are suddenly arguing at considerable speed.\n\n"
+        "Uranus in Gemini cohorts often coincide symbolically with revolutions in communication, "
+        "transportation of ideas, language, education, journalism, and the technologies by "
+        "which one mind reaches another. They are fascinated by connections. This can produce "
+        "brilliant intellectual cross-pollination and also an impressive quantity of nonsense "
+        "moving faster than anyone can verify it. A democratized information system does not "
+        "only democratize wisdom. It also gives everybody's uncle a printing press.\n\n"
+        "The deeper impulse is to free thought from inherited routes. This generation tends "
+        "to distrust intellectual gatekeepers and prefers networks to hierarchies, conversation "
+        "to proclamation, and multiple provisional explanations to one official answer. Its "
+        "legacy is often a new mental infrastructure: after it has passed through, people may "
+        "not merely know different things. They may have changed how knowing travels. (Notable inclusions: John Trudell, David Lynch, Roger Waters, Christopher Hitchens, Salman Rushdie, Rutger Hauer, Peter Mark Roget, Nathan Mayer Roschild (London house), Michael Crichton, Max Weber, Joseph Stiglitz, James Patterson, Henry Ford, Harold Hamm, George V of UK, Fritjof Nansen, Dale Spender, Catharine MacKinnon, Auguste Lumiere, Alice Walker, Alexander I of Russia, Al Gore, Martin Scorsese, Michio Kaku, George Lucas, Cheech Marin, Ozzy Osbourne, Laura Mulvey ('the male gaze'), Jerry Garcia, Mick Jagger, Keith Richards, Bill Clinton, Andrea Dworkin, Lorne Michaels, Stephen Schwarzman (Blackstone CEO), Jerry Springer, Angus King, Benny Morris (Zionist historian), Vince McMahon, US President Cheeto)"
+    ), #seems like a lot of 'idea' people, most of whom arguably didn't have a lot of lingering practical effect in the corporeal space; a lot of talkers, influencers, cultural icons - but also a lot of emphasis on escapism/recreational diversions in many cases, rather than serious players. Ideas for ideas' sake rather than as a call to battle. There were a few notable exceptions to that: Cheeto, obv. And on the other end of the spectrum: John Trudell, extreme badass who took over Alacatraz in the name of AIM. But AIM didn't last, despite all that. It moved mountains then largely disintegrated overnight, despite the heroics and sacrifice (and maybe a little CIA involvement & media blackout). A lot of it makes you wonder if Cheeto might not have been a complete monster upon our global civilization if he weren't propped up as the front man for a bunch of absolute psychos with serious axes to grind; the rundown of Uranus in Gem sorta supports that - Cheeto's the one prominent MAGA cabinet member of this generation, and most of the rest of the Gem Uranus cohort are fairly socially innocuous in terms of broad, lingering material impact. Some 'assholes of the week', but rarely big bads with much staying power. Even the serious people rarely left a "serious" mark compared to other generations. It's with psychotic misfortune that the one who should most succeed as anamoly appears to be the most stupidly deranged democratically elected leader the world has possibly ever seen. The impact of Blackstone CEO Schwarzman has yet to be seen. Wondering how long he'll be relevant, given the rest of this cohort.
+
+    "cancer": (
+        "This is a generation that tends to discover something peculiar about home: everybody "
+        "talks as though it were natural, when in fact an enormous number of rules have been "
+        "quietly smuggled into the definition. Who constitutes a family, who raises children, "
+        "where one belongs, what domestic life ought to look like, what loyalty requires—"
+        "Uranus in Cancer has reason to become interested in all of it.\n\n"
+        "Its departures from convention often occur in the private sphere before the public "
+        "one realizes anything political is happening. New household structures, altered "
+        "gender and caregiving arrangements, migrations, changing ideas of parenthood, "
+        "unconventional communities, or technologies that transform domestic life may become "
+        "emblematic. What an earlier generation called 'just the way families are' starts "
+        "looking suspiciously like one historical arrangement among several possibilities.\n\n"
+        "There can be a restless quality to belonging itself. This cohort may want roots and "
+        "freedom simultaneously, which is an awkward architectural request. Its strongest "
+        "contribution is the idea that belonging need not be inherited intact. A home can be "
+        "constructed deliberately, kinship can be chosen as well as received, and loyalty "
+        "does not require preserving every custom that happened to arrive with the furniture. (Notable inclusions: best case scenarios are mostly artists/storytellers, then in terms of anyone pioneering/revolutionizing anything or responding at that scale (which is the point of Uranus), we get: Marcel Proust, Ted Andrews, Kerry Allen Livgren ('Kansas' singer/songwriter), Ken Burns, Gilbert Gottfried, Bill Murray, Arsenio Hall, Oprah Winfrey, Tony Blair, Steve Jobs, Simon Bolivar, Pablo Escobar, Bob Iger (took over Disney from Eisner), Nicholas II of Russia, Neil Peart (Rush), Marie Curie, Judith Butler, Jerome Powell (Fed Reserve 2018-2026), Henri Deterding, HG Wells, Craig Newmark, Carl Mayer von Rothchild (Naples branch, arguably most inert), Bernard Stiegler, Jill Stein, Al Sharpton, Suze Orman, Angela Merkel, Michael Moore, Jair Bolsonaro, Arianna Huffington, bell hooks, Xi Jinping, Steven Pinker, Emma Goldman, Arthur Schopenhauer, Rush Limbaugh, Harvey Weinstein, Chuck Schumer, Dr. Phil, RFK Jr., Jeffrey Epstein, Howard Stern, Benjamin Netanyahu)"
+    ), #status quo enthusiast, hypernationalists, obsessed with homeland, but mostly people who are just trying to live within the confines of their own small existence, is how it reads broadly. And those who stepped out of their own personal scope mostly tended to run amok for doing so - becoming obsessive in the idea that the world would become their scope, an extension of their freaky 'house rules'. Howard Stern & Epstein are weird additions to the list.
+
+    "leo": (
+        "This is a generation that tends to become dissatisfied with inherited arrangements "
+        "concerning fame, leadership, creativity, celebrity, performance, and who is permitted "
+        "to occupy the center of the room. It has a strong instinct that self-expression should "
+        "not require authorization from an academy, a studio, a monarch, a critic, or whichever "
+        "adult has appointed himself chairman of Good Taste.\n\n"
+        "Uranus in Leo can correspond symbolically with revolutions in entertainment and public "
+        "identity: new media personalities, unconventional leaders, youth cultures, new artistic "
+        "forms, and technologies that make performance available to people who previously would "
+        "have required institutional backing. The result can be wonderfully democratic and "
+        "occasionally unbearable. Once everybody has been told to express themselves, one "
+        "eventually encounters a fellow expressing himself for forty-seven consecutive minutes.\n\n"
+        "Still, this cohort's larger project is serious. It challenges the old idea that only "
+        "certain people are entitled to be exceptional. Its best legacy is not universal "
+        "celebrity but universal creative permission—the recognition that personal originality "
+        "is not a scarce natural resource distributed by important people in offices. (Notable inclusions: Erin Brockovich, Andrew Eldritch, Nick Rhodes, Peter Murphy, Robert Smith, John Galliano, David Twohy, Sioxsie Sioux, Martin Gore, Luc Besson, Frank Miller, Tim Burton, Nick Cave, Suzy Eddie Izzard, Kate Bush, Chuck Palahniuk, Bono, Winston Churchill, Thomas J. Watson Sr., Steve Case (AOL), Qiu Jin, Pete Burns, Neil Gaiman, Michael Faraday, Meg Whitman (Ebay), Julie Bindel, Harry Houdini, Ian Curtis, Isadora Duncan, James Mayer de Rothschild (Paris house), David Koresh, Elizaveta Petrovna of Russia, David Foster Wallace, Cornelius Vanderbilt, Susan Powter, Robert Greene, Charles Henry Babbage, Aubrey McClendon (Chesapeak Energy, leader in fracking tech), Alan Wilder, Henry Rollins, Jordan Peterson, Ellen DeGeneres, Joel Cheatwood (build empire around producing daytime TV family-drama reality talkshows), Dennis Rodman, Tony Abbot, Bill Cassidy, Theresa May, Montel Williams, Mike Pence, Herbert Hoover, Toby Keith, Tim Cook, Greg Mankiw, Dr. Oz, Boy George, Bill Maher, Bill Gates)"
+    ), #presided over the goth era, evidently. There's an odd status-quo contingency in the mix, too.
+
+    "virgo": (
+        "This is a generation that tends to become revolutionary about things other people "
+        "consider too mundane to deserve revolution. Workflows, medicine, labor, health, "
+        "maintenance, data, schedules, tools, techniques, systems of classification—these "
+        "may appear unromantic until somebody changes one of them and half of ordinary life "
+        "quietly changes with it.\n\n"
+        "Uranus in Virgo cohorts are inclined toward practical innovation. They may challenge "
+        "how work is organized, how bodies are understood, how services are delivered, how "
+        "information is sorted, or why nine employees are still performing a task a machine "
+        "could finish before breakfast. There is often a peculiar combination of reformist "
+        "energy and technical fussiness. They do not merely want a new system. They would "
+        "also like to know why the third column is misaligned.\n\n"
+        "Their rebellion is against inefficiency disguised as inevitability. The danger is "
+        "that human beings themselves can begin looking like badly optimized procedures. "
+        "At its best, however, this generation makes freedom operational. It asks whether "
+        "daily life could be healthier, cleaner, smarter, less wasteful, and less absurdly "
+        "laborious—and then has the nerve to redesign the machinery. (Noteable inclusions: Denis Diderot (invented early Encyclopedia), Nicholas I of Russia, Mary Shelley, Brigham Young, Joseph Stalin, Albert Einstein, Otto Weininger, AA Milne, Lionel de Rothschild (later London branch), James Joyce, Kahlil Gibran, Walter Gropius (inventor of Bauhaus), John Maynard Keynes, Benito Mussolini, Coco Chanel, Eleanor Roosevelt, Ann Coulter, Ghislaine Maxwell, Sean Hannity, Tom Suozzi, Keir Starmer, Naomi Wolf, Jon Stewart, Jamie Raskin, Ken Paxton, Joel Osteen, Joe Exotic, Quentin Tarantino, Jet Li, Michel Gondry, Mike Myers, Viktor Orban, George Conway, Chris Coons (Traitor 8 democrat), Lars Ulrich, Scott & Mark Kelly, Catherine Cortez Mastro (Traitor 8 democrat), Niall Ferguson, Dan Brown, Joss Whedon, Wendy Williams, Guillermo del Toro, Brett Kavanaugh, Dr. Dre, Chris Rock, Piers Morgan, Rodney King, Trent Reznor, Charlie Sheen, Rainn Wilson, Grigori Perelman, Adam Sandler, Gordon Ramsay, Kirsten Gillibrand, Sinead O'Connor, Sam Harris, Chrissy Houlahan, Pierre Omidyar (Ebay founder), Adam Savage, Joe Rogan, Alex Karp (Palantier), Warren G Ellis, Tony Hawk, Marine Le Pen, Ice Cube)"
+    ), #hilariously toxic line up. Even the ones I like on this list with any revolutionary social clout are mostly a little toxic. Ofc, there are plenty who never invented/pioneered anything, but since they're not participating in Uranian energy, I excluded them. Only iconoclasts get included on the 'notable Uranians of this Uranian era' lists.
+
+    "libra": (
+        "This is theoretically a generation inclined to reconsider the agreements everybody has been "
+        "pretending are self-evident. Marriage, partnership, diplomacy, law, social etiquette, "
+        "gender relations, contracts, fairness—Uranus in Libra tends to arrive when some of "
+        "these arrangements have become so familiar that people have stopped noticing how "
+        "strange they are.\n\n"
+        "Its revolutions often concern relationship itself. New forms of partnership may "
+        "emerge; old restrictions on intimacy may become indefensible; legal definitions of "
+        "equality can shift; aesthetic conventions may become dramatically more experimental. "
+        "The cohort tends to dislike inequality that has dressed itself attractively enough "
+        "to pass for manners. It may also become fascinated by arrangements that allow two "
+        "people to remain connected without either becoming the other's legal annex.\n\n"
+        "Its paradox is that it seeks both freedom and reciprocity. Uranus wants independence; "
+        "Libra insists that another person exists. The generation's best innovations therefore "
+        "ask a difficult question: what would a genuinely voluntary relationship look like? "
+        "Not merely a rebellious one, and not merely a respectable one, but an agreement that "
+        "both people would still choose if neither were socially required to stay. (Noteable inclusions: Adam Smith, Victor Hugo, Jean le Rond d'Alembert, Ralph Waldo Emerson, Nathaniel Hawthorne, John Russell Bartlett, John Stuart Mill, Giuseppe Garibaldi, Harriet Taylor Mill, Alice Paul, Ezra Pound, TS Eliot, Dale Carnegie, Ho Chi Minh, Man Ray, Egon Schiele, Thom Yorke, Alexander McQueen, Tucker Carlson, Dana White, Ayaan Hirsi Ali, Louis Theroux, Naomi Klein, Christopher Nolan, Kevin Smith, Hakeem Jeffries, Daniel Tosh, Soon-Yi Previn, Morgan Spurlock, Tom Anderson (Myspace), Aditya Chopra, Rosie Duffield, Julian Assange, Cory Doctorow, Sukhwinder Singh, Lance Armstrong, Kristi Noem, Justin Trudeau, Sundar Pichai, Sergei Brin & Larry Page, David Belle (father of parkour), Maya Forstater, Gackt, Tarana Burke (#MeToo), Tyra Banks, Alex Jones, Marjorie Taylor Greene, Steve-O, Todd Blanche)"
+    ), #not a very heinous lineup, for the most part. More positive contributions to scoiety than negative, in the broader scheme of things.
+
+    "scorpio": (
+        "This is a generation that tends to inherit several locked rooms and immediately "
+        "become interested in the keys. Sex, death, psychology, secrecy, debt, shared money, "
+        "institutional power, coercion, taboo, hidden systems of control—subjects that polite "
+        "society has arranged not to discuss become rather difficult to keep quiet around "
+        "Uranus in Scorpio.\n\n"
+        "Its collective innovations and rebellions tend to expose what has been concealed. "
+        "Private behavior becomes public argument. Hidden financial arrangements become "
+        "political questions. Psychological material once treated as shameful becomes "
+        "discussable. Sexual rules can change rapidly. Technologies may appear that alter "
+        "privacy, reproduction, surveillance, or access to information powerful institutions "
+        "would have preferred to keep to themselves.\n\n"
+        "This generation can become fascinated with exposure for its own sake, as though "
+        "discovering a secret automatically made one wise. It does not. But its deeper gift "
+        "is refusing the childish bargain by which society maintains order through collective "
+        "pretending. Uranus in Scorpio asks who benefits from silence, who controls the hidden "
+        "machinery, and whether anything genuinely powerful ought to remain exempt from "
+        "inspection merely because everyone finds the subject uncomfortable. (Noteable inclusions: Charles Darwin, Catherine the Great, Antonin Artaud, Zora Neale Hurston, Lin-Manuel Miranda, Harriet Beecher Stowe, Psy, Volodymyr Zelenskyy, Fredrik Neij (Pirate Bay co-owner), Mehdi Hasan, J Paul Getty, Cori Bush, Jason Crow, Charles Dickens, Theo Von, Walter Benjamin, Robert Clive (East India Trading Company), Peter III of Russia (married to Catherine the Great), Norman Rockwell, Noah Porter, Martha Graham, Kiichiro Toyoda, Isabel Briggs Myers, Hadley Freeman, George VI (dissolved British India), F Scott Fitzgerald, Elissa Slotkin, Edward VII of UK (abdicated), Bram Cohen (Bittorrent engineer), Aldous Huxley, Ayumi Hamasaki, Tila Tequila, Peter Joseph, Ron DeSantis, Immanuel Kant, Kim Kardashian, Pete Hegseth, Jared Moskowitz, Kash Patel, Tulsi Gabbard, Emmanuel Macron, Jared Kushner, Dan Scavino)"
+    ), #noteworthy mainly in that, those of this most recent generation makeup the most vapid, inane portion of pop culture. It's a generation of flippant idiots with more opinions and volition than rationality or critical thought. But that was not true in prior eras I have within my database. Granted, with ~84 years between each cohort, it makes sense that history would have filtered out the chaff & kept only the most memorable & noteworthy. Are we going to be talking about Ryan Seacrest in 2065? Who were the Fergies of Kant's generation?
+
+    "sagittarius": (
+        "This is a generation that tends to regard intellectual borders the way certain "
+        "people regard fences around public beaches. It wants to know who put them there. "
+        "Religion, higher education, publishing, ideology, nationality, travel, philosophy, "
+        "and grand explanations of the world all become candidates for renovation.\n\n"
+        "Uranus in Sagittarius cohorts often embody sudden expansions of perspective. They "
+        "may embrace internationalism, new educational systems, unconventional spiritual "
+        "movements, radical philosophies, mass travel, or technologies that make distant "
+        "cultures dramatically harder to imagine as abstractions. Their appetite for freedom "
+        "can be enormous. Unfortunately, so can their confidence that the latest emancipating "
+        "idea has solved the entire human problem. Every generation eventually produces "
+        "somebody who has read two books and returned with the new civilization.\n\n"
+        "Their strongest contribution is the liberation of possibility itself. They break "
+        "open provincial assumptions and make the larger world psychologically available. "
+        "At their best they do not replace one doctrine with another. They leave behind a "
+        "culture slightly less certain that any single school, nation, religion, or worldview "
+        "has exclusive possession of the map. (Noteable inclusions: Yolandi Visser, Dr. Seuss, John Adams, Ada Lovelace, Walt Whitman, Robert J Oppenheimer, Stella Adler, Henry David Thoreau, Walt Disney, Otto von Bismarck, Karl Marx, George Washington, Florence Nightingale, Deng Xiaoping, Chelsea Manning, Carl Rogers, Alexander II of Russia, Al Capone, Lady Gaga, Ben Shapiro, Milo Yiannopoulous, Zhang Yiming (Tiktok founder), Shivon Zillis, Priscilla Chan, Ray Kroc, Stephen N. Miller, Andrew Tate)"
+    ),
+
+    "capricorn": (
+        "This is a generation that tends to become acutely aware that institutions are made "
+        "by people, which is very inconvenient for institutions. Governments, corporations, "
+        "professional hierarchies, bureaucracies, systems of status, and official definitions "
+        "of success may all appear solid until Uranus in Capricorn begins knocking on the "
+        "walls and discovering which parts are plywood.\n\n"
+        "Its revolutionary temperament is unusually structural. Rather than simply rejecting "
+        "authority, it may redesign authority, decentralize organizations, introduce new "
+        "technologies into established institutions, or build alternative systems capable "
+        "of competing with old ones. This cohort often has little patience for ceremonial "
+        "power. A title means less than whether somebody can actually make the thing function. "
+        "This can produce ingenious reformers and also ruthless devotees of efficiency who "
+        "replace one hierarchy with a sleeker one and call the matter settled.\n\n"
+        "Its lasting question concerns legitimacy. Why does this person have authority? Why "
+        "does this institution exist? What function does this rule perform now, rather than "
+        "seventy years ago when somebody typed it on onionskin paper? Uranus in Capricorn "
+        "can leave behind institutions that look very different from those it inherited, "
+        "because it insists that structure must justify itself by working. (Noteable inclusions: Thomas Jefferson, Takeo Fujisawa, Soichiro Honda, Simone de Beauvoir, Sanford Meisner, Mayer Amschel Rothschild (visionary patriarch of the European banking dynasty), Leo Tolstoy, Ian Fleming, Robert Heinlein, Harry Styles, Joseph McCarthy, Benedict Arnold, Charlie Kirk, Charles Baudelaire, Ritchie Torres, John Wayne)"
+    ),
+
+    "aquarius": (
+        "This is a generation for whom the future can become almost embarrassingly literal. "
+        "Uranus is at home in Aquarius, and the combination has little natural respect for "
+        "the argument that today's social arrangements represent the final edition. Networks, "
+        "technology, communities, political ideals, scientific innovation, collective identity, "
+        "and the relationship between the individual and the group all become experimental "
+        "material.\n\n"
+        "These cohorts tend to accelerate new forms of connection. They may normalize social "
+        "structures that seemed eccentric only shortly before, build communities unconstrained "
+        "by geography, distribute information through novel systems, or challenge institutions "
+        "that claim to speak for everybody while listening to almost nobody. There is often "
+        "a strong egalitarian streak, although Aquarius has its own peculiar vanity: the "
+        "conviction that people who agree with the future are obviously more intelligent "
+        "than the unfortunate specimens still living in the present.\n\n"
+        "Its best achievement is not novelty itself but distributed possibility. Uranus in "
+        "Aquarius asks what becomes possible when information, organization, invention, and "
+        "social participation cease to belong exclusively to centralized authorities. The "
+        "answer can be liberating, unruly, brilliant, foolish, and occasionally all four "
+        "before lunch. (Noteable inclusions: Aleksandr Solzhenitsyn, Jane Jacobs, Nelson Mandela, Alan Turing, Frances Farmer, JD Salinger, Paul Harvey, Mark Twain, Francisco de Goya, Edith Piaf, Les Paul, Gene Kelly, William Burroughs, William Morris, Thomas J. Watson Jr. (IBM), Taiichi Ohno (Toyota systems architect), Robert McNamara, Orson Welles, Malala Yousafzai, Lewis Carroll, James Madison, Horatio Alger, Federico Felllini, Eiji Toyoda, Dmitri Mendeleev, Alessandro Volta, Chappell Roan, Albert Camus, Milton Friedman, Sam Walton, Nick Fuentes, Karoline Leavitt, Henry Flagler (Standard Oil), Mr. Beast)"
+    ),
+
+    "pisces": (
+        "This is a generation that tends to become restless with boundaries people cannot "
+        "adequately explain. The divisions between art and technology, spirituality and "
+        "psychology, private imagination and collective culture, reality and simulation, "
+        "self and community may begin to behave less like stone walls and more like pencil "
+        "marks somebody forgot were erasable.\n\n"
+        "Uranus in Pisces cohorts may innovate through images, music, altered media, immersive "
+        "technologies, unconventional spiritual movements, new approaches to consciousness, "
+        "or systems that connect people in ways difficult to describe using older categories. "
+        "Their rebellion is often less declarative than atmospheric. Something that once "
+        "seemed impossible simply becomes normal while older generations are still composing "
+        "an objection to it.\n\n"
+        "The danger is confusion masquerading as liberation. Not every dissolved distinction "
+        "was oppressive; some of them were useful. But at its strongest, Uranus in Pisces "
+        "releases imagination from stale assumptions about what must count as real, serious, "
+        "separate, or possible. It changes culture by making previously unimaginable forms "
+        "of connection imaginable first. (Noteable inclusions: Martin Routh, Howard Zinn, Liberace, Erving Goffman, Lenny Bruce, George Plimpton, Gene Roddenberry, Mel Brooks, Michel Foucault, Uta Hagen, Sun Myung Moon, Steve Allen, Sammy Davis Jr., Paul I of Russia, James Lipton, Maila Nurmi, Maximilien Robespierre, Noah Webster, Norman Mailer, Paddy Chayefsky (wrote 'The Network'), Jamsetji Tata, James Monroe, JP Morgan, Frank Herbert, Eva Peron, Elizabeth II, Edward VI of UK, Edmond Adolphe de Rothschild (Swiss banking empire), Ed McMahon, David Keirsey, Chuck Berry, Bob Barker, Betty White, Betty Friedan, Barbara Bush, Alfred Marshall, Alexander Hamilton, Aaron Burr, Stan Lee, Rock Hudson, Hugh Hefner, Truman Capote, Johnny Carson, George P. Mitchell, George Armstrong Custer)"
+    ),
+}
+
+NEPTUNE_SIGN_DESCRIPTIONS: dict[str, str] = {
+    "aries": (
+        "This is a generation inclined to romanticize action itself. It tends to inherit "
+        "some collective idea of courage, heroism, conquest, independence, or personal "
+        "will, and then pour an extraordinary amount of imagination into the question of "
+        "what it means to act decisively. Its heroes are likely to be people who move first, "
+        "refuse submission, begin movements, or make audacity look almost spiritual.\n\n"
+        "Neptune in Aries can produce collective fascination with pioneers, rebels, warriors, "
+        "entrepreneurs, athletes, revolutionaries, and anybody who appears to possess that "
+        "magical commodity called nerve. The difficulty is that Neptune does not merely "
+        "idealize courage. It can idealize aggression, impulsiveness, and self-assertion until "
+        "the person charging enthusiastically in the wrong direction acquires a very flattering "
+        "soundtrack. A culture may become intoxicated with the image of the heroic individual "
+        "while remaining curiously vague about what all this heroism is supposed to accomplish.\n\n"
+        "Its deeper longing is for unmediated existence: to act without paralysis, to know "
+        "what one wants, to become the sort of person who does not spend Thursday afternoon "
+        "conducting an internal referendum about whether to make a telephone call. At its "
+        "best, this generation gives imaginative force to initiative and reminds people that "
+        "conviction sometimes has to become behavior before it can become history."
+    ),
+
+    "taurus": (
+        "This is a generation inclined to dream in material terms. Its collective imagination "
+        "gathers around land, money, beauty, food, possessions, physical pleasure, nature, "
+        "security, and the very comforting idea that something solid might remain solid if "
+        "everybody behaves themselves. It can develop an almost devotional relationship to "
+        "whatever society has decided constitutes the good life.\n\n"
+        "Neptune in Taurus may produce idealized visions of prosperity, pastoral simplicity, "
+        "luxury, craftsmanship, ownership, or economic security. The beautiful house, the "
+        "productive farm, the respectable savings account, the perfect object made properly "
+        "and kept forever can acquire meanings considerably larger than themselves. Naturally, "
+        "this leaves the generation vulnerable to financial fantasies, seductive markets, "
+        "commodity manias, and the discovery that an object advertised as permanent has been "
+        "manufactured by somebody who intended to sell another one next year.\n\n"
+        "Its more enduring sensitivity concerns value itself. This cohort may eventually "
+        "become skeptical of the assumption that price and worth are the same thing. At its "
+        "best, Neptune in Taurus develops an almost poetic understanding of the physical world: "
+        "the dignity of useful objects, the sensual intelligence of the body, and the strange "
+        "fact that a meal, a piece of land, or something made carefully by hand can carry "
+        "meanings no balance sheet has ever managed to record."
+    ),
+
+    "gemini": (
+        "This is a generation whose collective imagination becomes entangled with language, "
+        "information, education, communication, and the circulation of ideas. It tends to "
+        "believe, at least for a while, that if everybody could only communicate more clearly, "
+        "exchange enough information, read enough things, and perhaps acquire a sufficiently "
+        "modern communications device, human misunderstanding might finally be brought under "
+        "reasonable control.\n\n"
+        "Neptune in Gemini can produce enormous fascination with journalism, literature, "
+        "broadcasting, conversation, networks of information, language, and whatever new "
+        "technology promises to connect one mind with another. It can also create impressive "
+        "confusion about what information actually is. Rumor acquires the appearance of fact; "
+        "advertising borrows the vocabulary of truth; cleverness gets mistaken for intelligence; "
+        "and a sufficiently repeated sentence can begin receiving invitations as though it "
+        "were an established principle.\n\n"
+        "Its real sensitivity is to the enchantment of words. This generation understands "
+        "that language does not merely describe reality; it persuades, seduces, obscures, "
+        "organizes, entertains, and occasionally manufactures it. At its best, Neptune in "
+        "Gemini produces storytellers and communicators capable of making distant minds feel "
+        "near. Its education consists in learning that connection is not automatically "
+        "understanding, and that an abundance of messages can still leave everybody wondering "
+        "what anybody meant."
+    ),
+
+    "cancer": (
+        "This is a generation inclined to place enormous imaginative weight upon home, family, "
+        "ancestry, childhood, motherhood, homeland, and belonging. It tends to inherit a "
+        "picture of domestic life carrying far more emotional significance than any actual "
+        "household could reasonably support. Somewhere there is supposed to be a home where "
+        "everybody remembers your name, nobody leaves, supper is at the correct hour, and "
+        "nothing important ever changes without asking permission.\n\n"
+        "Neptune in Cancer can produce powerful collective nostalgia. The family becomes an "
+        "ideal, the nation becomes a family, childhood becomes a lost country, and history "
+        "acquires remarkably flattering lighting. This can create beautiful traditions and "
+        "also sentimental distortions in which painful realities disappear because they "
+        "interfere with the photograph. A culture may become extremely attached to an "
+        "imaginary past that was apparently much nicer before anybody who actually lived "
+        "there begins describing it.\n\n"
+        "Yet the longing underneath it is genuine. This generation is unusually sensitive "
+        "to displacement, abandonment, memory, and the emotional meaning of place. At its "
+        "best, Neptune in Cancer enlarges the definition of belonging beyond bloodline and "
+        "inheritance. It understands that home is partly physical and partly an agreement "
+        "among people to make room for one another."
+    ),
+
+    "leo": (
+        "This is a generation inclined to dream about radiance. Fame, creativity, romance, "
+        "youth, glamour, performance, celebrity, leadership, and the special individual all "
+        "acquire a peculiar brightness. It tends to imagine that somewhere among ordinary "
+        "humanity there exist certain people who are more alive than everybody else and might "
+        "perhaps explain existence if photographed from the correct angle.\n\n"
+        "Neptune in Leo can produce enormous cultural fascination with stars in every sense "
+        "except the astronomical one. Actors, musicians, leaders, artists, romantic figures, "
+        "and public personalities become screens upon which millions of strangers project "
+        "their private longings. Entertainment can acquire near-religious significance. "
+        "Romance may be expected to arrive with excellent dialogue and flattering illumination, "
+        "which places ordinary affection at a considerable disadvantage.\n\n"
+        "The generation's deeper sensitivity concerns creative identity. It wants to believe "
+        "that a person can make something unmistakably their own and thereby become more fully "
+        "themselves. At its best, Neptune in Leo produces extraordinary art because it takes "
+        "imagination seriously. Its eventual disillusionment comes from discovering that "
+        "famous people remain people, applause remains noise, and creativity becomes much "
+        "more interesting once it no longer has to prove somebody exceptional."
+    ),
+
+    "virgo": (
+        "This is a generation inclined to dream about improvement. Health, work, medicine, "
+        "efficiency, cleanliness, service, routine, technique, and practical usefulness can "
+        "acquire almost moral significance. It tends to believe that enough careful adjustment "
+        "might finally produce a human life in which nothing aches, nothing is wasted, every "
+        "system functions, and nobody has left an unidentified jar in the refrigerator.\n\n"
+        "Neptune in Virgo can idealize medicine, labor, science, expertise, purity, dietary "
+        "systems, or the figure of the selfless worker. It may generate enormous faith in "
+        "technical solutions while simultaneously producing confusion about health, diagnosis, "
+        "work, and what exactly counts as being useful. The perfect system is forever being "
+        "designed. Unfortunately, human beings keep entering it with inconvenient bodies, "
+        "contradictory needs, and an almost deliberate refusal to behave like controlled "
+        "variables.\n\n"
+        "Its best contribution is compassion made practical. Neptune in Virgo does not merely "
+        "want suffering to be understood; it wants somebody to bring clean water, repair the "
+        "instrument, improve the procedure, and make sure the medication is labeled correctly. "
+        "Its maturity lies in learning that perfection is an imaginary destination, whereas "
+        "care is something one can actually do."
+    ),
+
+    "libra": (
+        "This is a generation inclined to dream about perfect relationship. Partnership, "
+        "marriage, diplomacy, beauty, justice, elegance, peace, and mutual understanding can "
+        "become collective ideals of almost unreasonable refinement. It wants to believe that "
+        "two people—or two countries, for that matter—might arrange themselves so gracefully "
+        "that nobody has to raise their voice or admit possessing an ugly motive.\n\n"
+        "Neptune in Libra can produce romantic idealism on a grand scale. Love becomes salvation; "
+        "beauty becomes goodness; social grace becomes evidence of character; and compromise "
+        "can be mistaken for harmony long after everybody involved has begun quietly resenting "
+        "the arrangement. A culture may become exceptionally skilled at making relationships "
+        "look civilized while avoiding the less decorative question of whether they are "
+        "actually fair.\n\n"
+        "Still, this cohort possesses unusual sensitivity to proportion, mutuality, and the "
+        "human longing to meet another person without domination. Its finest expressions can "
+        "be artistic, diplomatic, and relationally sophisticated. Neptune in Libra eventually "
+        "discovers that real peace is not the absence of unpleasantness. It is the much less "
+        "photogenic achievement of allowing difference without requiring either side to "
+        "disappear."
+    ),
+
+    "scorpio": (
+        "This is a generation inclined to imagine that the truth is probably hidden somewhere "
+        "underneath the official explanation. Sex, death, psychology, money, secrecy, crime, "
+        "power, compulsion, occult subjects, and everything society has designated unsuitable "
+        "for polite conversation acquire enormous fascination. The forbidden subject begins "
+        "to glow simply because somebody has forbidden it.\n\n"
+        "Neptune in Scorpio can blur the boundaries between intimacy and obsession, mystery "
+        "and paranoia, psychological insight and projection. Collective fascination with "
+        "sexual liberation, altered consciousness, hidden motives, conspiracies, criminality, "
+        "and unseen systems of power can become intense. This generation may correctly perceive "
+        "that respectable surfaces conceal a great deal, then make the understandable mistake "
+        "of assuming that whatever lies beneath the surface must therefore be profound.\n\n"
+        "Its deeper gift is emotional fearlessness. Neptune in Scorpio is capable of imagining "
+        "meaning in places other generations avoid looking. It can bring sympathy to subjects "
+        "previously treated only with shame and uncover psychological realities concealed by "
+        "decorum. Its maturity consists in realizing that darkness is not automatically depth, "
+        "secrecy is not automatically significance, and sometimes the hidden explanation is "
+        "merely somebody behaving badly in private."
+    ),
+
+    "sagittarius": (
+        "This is a generation inclined to dream on a very large scale. Religion, philosophy, "
+        "travel, higher education, ideology, foreign cultures, prophecy, and the meaning of "
+        "history itself can become charged with enormous imaginative importance. It wants a "
+        "worldview big enough to explain the whole arrangement, preferably one that also makes "
+        "the arrangement seem worthwhile.\n\n"
+        "Neptune in Sagittarius can produce spiritual revivals, ideological enthusiasms, "
+        "utopian movements, fascination with distant cultures, romantic ideas about travel, "
+        "and tremendous confidence in systems claiming to reveal what life is really about. "
+        "Its members may cross continents searching for wisdom and occasionally fail to notice "
+        "that the person selling it has established a gift shop. The longing for universal "
+        "truth makes this generation unusually vulnerable to universal nonsense.\n\n"
+        "Yet its idealism can enlarge civilization's imagination. This cohort often insists "
+        "that human beings belong to something larger than local custom and inherited doctrine. "
+        "At its best, Neptune in Sagittarius creates generous philosophies rather than rigid "
+        "ones. It learns that wonder survives uncertainty perfectly well, and that a belief "
+        "need not explain absolutely everything in order to illuminate something."
+    ),
+
+    "capricorn": (
+        "This is a generation inclined to project dreams onto institutions, achievement, "
+        "career, authority, business, government, status, and the people who appear to know "
+        "what they are doing. It may inherit tremendous faith in systems, or tremendous "
+        "suspicion of them, but either way the institution acquires an imaginative importance "
+        "considerably exceeding the load-bearing capacity.\n\n"
+        "Neptune in Capricorn can produce myths of success, entrepreneurial salvation, "
+        "corporate idealism, political nostalgia, glamorous professionalism, or the belief "
+        "that sufficiently competent management might resolve matters previously considered "
+        "part of the human condition. It can also dissolve confidence in authority when the "
+        "people behind the impressive titles turn out to be improvising like everybody else. "
+        "Few things are more educational than discovering that the adults in charge are only slightly less bewildered than the children.\n\n"
+        "The deeper longing here is for meaningful structure. This generation does not merely "
+        "believe in institutions; it wants institutions worthy of belief. Its disillusionments can "
+        "therefore be severe, but useful. At its best, Neptune in Capricorn imagines authority "
+        "as stewardship rather than ego-gratifying prestige and asks whether success might be measured by "
+        "what a structure actually sustains rather than whether or not the capitol dome is plated with gold."
+    ),
+
+    "aquarius": (
+        "This is a generation inclined to dream about humanity in the plural. Technology, "
+        "networks, friendship, social movements, communities, science, political ideals, "
+        "collective intelligence, and the future itself can acquire almost mystical importance. "
+        "It wants to believe that if human beings could only connect correctly, distribute "
+        "information properly, and stop organizing society according to several obviously "
+        "obsolete assumptions, an entirely different civilization might become possible.\n\n"
+        "Neptune in Aquarius can idealize communities, movements, digital networks, scientific "
+        "progress, egalitarian politics, and the wisdom of crowds. It may blur friendship and "
+        "audience, community and platform, solidarity and fashion. The collective can become "
+        "an abstraction so beautiful that actual individuals start seeming inconvenient. "
+        "There is always some danger in loving humanity principally because humanity has not "
+        "yet arrived at the meeting.\n\n"
+        "At its best, however, this generation possesses extraordinary social imagination. "
+        "It can picture forms of belonging that transcend geography, class, inherited identity, "
+        "and conventional institutions. Neptune in Aquarius asks not merely what technology "
+        "can do, but what kinds of human connection people will dream through it. Its mature "
+        "idealism remembers that a better future must eventually contain actual people, with "
+        "all their stubborn specificity intact."
+    ),
+
+    "pisces": (
+        "This is a generation in which Neptune is at home, and consequently the collective "
+        "imagination may become almost impossible to keep in its assigned department. Art, "
+        "spirituality, dreams, compassion, fantasy, altered states, mass media, collective "
+        "sorrow, mysticism, escapism, and the boundaries between private feeling and public "
+        "culture can all become unusually porous.\n\n"
+        "Neptune in Pisces generations may display enormous hunger for transcendence. They "
+        "can become fascinated with spirituality, immersive entertainment, fantasy worlds, "
+        "psychological sensitivity, collective healing, substances, virtual environments, "
+        "music, images, and anything capable of temporarily making ordinary existence feel "
+        "less definite. This can generate extraordinary art and equally extraordinary methods "
+        "of avoiding an unpleasant Tuesday. The same sensitivity that recognizes suffering "
+        "everywhere can also become exhausted by it and retreat into increasingly elaborate "
+        "substitutes for participation.\n\n"
+        "Its greatest possibility is radical compassion without sentimentality. Neptune in "
+        "Pisces can perceive connections that more categorical ages overlook: between people, "
+        "species, cultures, imagination, memory, and the emotional atmosphere of collective "
+        "life. Its difficult education is discrimination. Not every feeling is prophecy, not "
+        "every fantasy deserves obedience, and escaping the world is not the same thing as "
+        "transcending it. When this generation learns that distinction, its imagination can "
+        "become one of its most serious forms of intelligence."
+    ),
+}
+
+
+
 POSITION_DESCRIPTIONS: dict[str, dict[str, str]] = {
     # "sun": SUN_SIGN_DESCRIPTIONS,
     "moon": MOON_SIGN_DESCRIPTIONS,
     "mercury": MERCURY_SIGN_DESCRIPTIONS,
-    # "venus": VENUS_SIGN_DESCRIPTIONS,
-    # "mars": MARS_SIGN_DESCRIPTIONS,
-    # "jupiter": JUPITER_SIGN_DESCRIPTIONS,
-    # "saturn": SATURN_SIGN_DESCRIPTIONS,
-    # "uranus": URANUS_SIGN_DESCRIPTIONS,
-    # "neptune": NEPTUNE_SIGN_DESCRIPTIONS,
+    "venus": VENUS_SIGN_DESCRIPTIONS,
+    "mars": MARS_SIGN_DESCRIPTIONS,
+    "jupiter": JUPITER_SIGN_DESCRIPTIONS,
+    "saturn": SATURN_SIGN_DESCRIPTIONS,
+    "uranus": URANUS_SIGN_DESCRIPTIONS,
+    "neptune": NEPTUNE_SIGN_DESCRIPTIONS,
     # "pluto": PLUTO_SIGN_DESCRIPTIONS,
     "as": RISING_SIGN_DESCRIPTIONS,  # aka rising, ASC, ascendant
-    # "mc": MIDHEAVEN_SIGN_DESCRIPTIONS,  # aka midheaven, medium coeli
+    "mc": MIDHEAVEN_SIGN_DESCRIPTIONS,  # aka midheaven, medium coeli
     # "ic": IC_SIGN_DESCRIPTIONS,  # aka imum coeli
     # "ds": DESCENDANT_SIGN_DESCRIPTIONS,  # aka descendant
 }

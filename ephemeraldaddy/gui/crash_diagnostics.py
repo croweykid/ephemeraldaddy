@@ -128,7 +128,13 @@ def install_crash_diagnostics(*, debug_enabled: bool = False) -> Path | None:
     if target is not None and not faulthandler.is_enabled():
         try:
             faulthandler.enable(file=target, all_threads=True)
-        except RuntimeError as exc:
+        except (RuntimeError, OSError) as exc:
+            # faulthandler can fail while installing its native signal stack.
+            # Do not let optional crash diagnostics prevent the app from starting.
+            try:
+                faulthandler.disable()
+            except Exception:
+                pass
             logger.debug("Faulthandler unavailable for crash diagnostics: %s", exc)
     elif target is None:
         logger.debug("Faulthandler skipped because no diagnostics stream is available.")

@@ -480,6 +480,7 @@ from ephemeraldaddy.gui.features.chart_editor.metric_canvas_layout import (
     MetricCanvasLayoutController,
 )
 from ephemeraldaddy.gui.features.chart_editor.controller import ChartEditorController
+from ephemeraldaddy.gui.features.chart_editor.session import ChartEditSession
 from ephemeraldaddy.gui.features.database_view.close_progress import DatabaseCloseProgress
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
@@ -586,6 +587,7 @@ from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
 )
 from ephemeraldaddy.gui.features.controllers.db_info import (
     add_database_info_settings_section,
+    add_prediction_norms_recalculation_tool,
 )
 from ephemeraldaddy.gui.features.transits import TransitPanelController
 from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
@@ -732,7 +734,6 @@ from ephemeraldaddy.core.db import (
     load_chart,
     load_chart_by_uid,
     load_charts,
-    load_charts_by_uids,
     load_dominant_sign_weights,
     get_chart_uid,
     get_chart_uid_map,
@@ -767,7 +768,7 @@ from ephemeraldaddy.core.db import (
     find_self_tagged_chart,
     clear_self_tag_from_other_charts,
     resolve_user_age_details,
-    list_duplicate_exclusion_uids,
+    list_duplicate_exclusions,
     save_duplicate_exclusions_by_uids,
     delete_charts_by_uids,
 )
@@ -1260,7 +1261,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     SimilarityPairResolution,
     build_chart_lookup,
     resolve_similarity_pair_targets,
-    similarity_breakdown_chart_uids,
+    similarity_breakdown_chart_ids,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_worker import SimilarChartsWorker
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
@@ -2536,6 +2537,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._sort_mode = "alpha" #default sorting mode 1/2 of "manage charts" DB windows
         self._sort_descending = False
         self._chart_rows = []
+        # Disposable persistence adapters built from hydrated rows. UIDs remain
+        # authoritative; these maps only prevent SQLite from having to
+        # rediscover an already-loaded UID/local-row-ID pair in UI hot paths.
+        self._chart_uid_by_local_row_id: dict[int, str] = {}
+        self._local_row_id_by_chart_uid: dict[str, int] = {}
         self._active_chart_rows_by_uid: dict[str, tuple[Any, ...]] = {}
         self._displayed_chart_rows_by_uid: dict[str, tuple[Any, ...]] = {}
         self._prediction_norms_revision = 0
@@ -3695,20 +3701,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return DB_DIR / DATABASE_METRICS_PERSISTENT_CACHE_FILENAME
 
     def _database_metrics_rows_token(self) -> tuple[tuple[str, str], ...]:
-        row_ids: list[int] = []
-        rows_by_id: dict[int, Any] = {}
+        row_tokens: list[tuple[str, str]] = []
         for row in getattr(self, "_chart_rows", []) or []:
             try:
                 chart_id = int(row[0])
             except Exception:
                 continue
-            row_ids.append(chart_id)
-            rows_by_id[chart_id] = row
-        uid_by_id = get_chart_uid_map(row_ids)
-        row_tokens: list[tuple[str, str]] = []
-        for chart_id in row_ids:
-            chart_uid = str(uid_by_id.get(chart_id) or f"legacy-id:{chart_id}").strip().upper()
-            row = rows_by_id[chart_id]
+            chart_uid = str(row[30] or f"legacy-id:{chart_id}").strip().upper()
             row_tokens.append((chart_uid, repr(tuple(row[1:]))))
         return tuple(sorted(row_tokens))
 
@@ -5415,8 +5414,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _selected_transit_datetime_utc(self) -> tuple[datetime.datetime, bool]:
         return self.transit_panel_controller.selected_datetime_utc()
 
-    def _resolve_personal_transit_chart_uid(self) -> str | None:
-        return self.transit_panel_controller.resolve_personal_transit_chart_uid()
+    def _resolve_personal_transit_chart_id(self) -> int | None:
+        return self.transit_panel_controller.resolve_personal_transit_chart_id()
 
     def _matching_personal_transit_labels(self, raw: str) -> list[str]:
         return self.transit_panel_controller.matching_personal_transit_labels(raw)
@@ -5434,27 +5433,25 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.transit_panel_controller.generate_personal_transit()
 
     def _on_generate_composite_chart(self) -> None:
-        selected_chart_uids = self._selected_chart_uids()
-        if len(selected_chart_uids) != 2:
-            chart_uids = self._prompt_composite_chart_selection()
-            if chart_uids is None:
+        selected_chart_ids = self._selected_local_row_ids()
+        if len(selected_chart_ids) != 2:
+            chart_ids = self._prompt_composite_chart_selection()
+            if chart_ids is None:
                 return
-            self._generate_composite_chart_for_uids(*chart_uids)
+            self._generate_composite_chart_for_ids(*chart_ids)
             return
 
-        self._generate_composite_chart_for_uids(
-            selected_chart_uids[0], selected_chart_uids[1]
-        )
+        self._generate_composite_chart_for_ids(selected_chart_ids[0], selected_chart_ids[1])
 
     def _prompt_composite_chart_selection(
         self,
-        default_first_chart_uid: str | None = None,
-        default_second_chart_uid: str | None = None,
+        default_first_chart_id: int | None = None,
+        default_second_chart_id: int | None = None,
         focus_second_input: bool = False,
         dialog_title: str = "Generate Composite Chart",
         submit_button_label: str = "Synastrize!",
         disallow_placeholder_charts: bool = False,
-    ) -> tuple[str, str] | None:
+    ) -> tuple[int, int] | None:
         dialog = QDialog(self)
         dialog.setWindowTitle(dialog_title)
         dialog.setModal(True)
@@ -5463,34 +5460,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        rows = list(list_charts())
-        uid_by_local_row = get_chart_uid_map(row[0] for row in rows)
-        chart_lookup: dict[str, str] = {}
+        chart_lookup: dict[str, int] = {}
         labels: list[str] = []
-        for row in rows:
-            local_row_id, name, alias, *_rest = row
-            chart_uid = str(
-                uid_by_local_row.get(int(local_row_id)) or ""
-            ).strip().upper()
-            if not chart_uid:
+        for row in list_charts():
+            chart_id, name, alias, *_rest = row
+            chart_id = int(chart_id)
+            if disallow_placeholder_charts and self._is_placeholder_local_row_id(chart_id):
                 continue
-            if disallow_placeholder_charts:
-                active_row = self._active_chart_rows_by_uid.get(chart_uid)
-                if active_row is not None:
-                    is_placeholder = _chart_row_is_non_aggregable(active_row)
-                else:
-                    try:
-                        is_placeholder = self._is_placeholder_chart(load_chart_by_uid(chart_uid))
-                    except ValueError:
-                        continue
-                if is_placeholder:
-                    continue
-            display_name = name.strip() if isinstance(name, str) and name.strip() else "Unnamed Chart"
+            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
             if alias:
                 display_name = f"{display_name} ({alias})"
-            label = f"{display_name}  [UID {chart_uid}]"
+            label = f"{display_name}  [#{chart_id}]"
             labels.append(label)
-            chart_lookup[label] = chart_uid
+            chart_lookup[label] = chart_id
 
         first_chart_input = QLineEdit(dialog)
         first_chart_input.setPlaceholderText("Select first chart")
@@ -5505,16 +5487,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         second_chart_input = QLineEdit(dialog)
         second_chart_input.setPlaceholderText("Select second chart")
 
-        normalized_first_uid = str(default_first_chart_uid or "").strip().upper()
-        normalized_second_uid = str(default_second_chart_uid or "").strip().upper()
-        if normalized_first_uid:
-            for label, chart_uid in chart_lookup.items():
-                if chart_uid == normalized_first_uid:
+        if default_first_chart_id is not None:
+            for label, chart_id in chart_lookup.items():
+                if chart_id == default_first_chart_id:
                     first_chart_input.setText(label)
                     break
-        if normalized_second_uid:
-            for label, chart_uid in chart_lookup.items():
-                if chart_uid == normalized_second_uid:
+        if default_second_chart_id is not None:
+            for label, chart_id in chart_lookup.items():
+                if chart_id == default_second_chart_id:
                     second_chart_input.setText(label)
                     break
         second_completer = QCompleter(labels, second_chart_input)
@@ -5526,39 +5506,39 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         synastrize_button = QPushButton(submit_button_label, dialog)
         layout.addWidget(synastrize_button)
 
-        selected_chart_uids: tuple[str, str] | None = None
+        selected_chart_ids: tuple[int, int] | None = None
 
-        def _resolve_chart_uid(raw_value: str) -> str | None:
+        def _resolve_chart_id(raw_value: str) -> int | None:
             query = raw_value.strip()
             if not query:
                 return None
             direct_match = chart_lookup.get(query)
             if direct_match is not None:
                 return direct_match
-            for label, chart_uid in chart_lookup.items():
-                if query.casefold() == label.casefold():
-                    return chart_uid
+            for label, chart_id in chart_lookup.items():
+                if query.lower() == label.lower():
+                    return chart_id
             return None
 
         def _submit() -> None:
-            nonlocal selected_chart_uids
-            base_chart_uid = _resolve_chart_uid(first_chart_input.text())
-            overlay_chart_uid = _resolve_chart_uid(second_chart_input.text())
-            if base_chart_uid is None or overlay_chart_uid is None:
+            nonlocal selected_chart_ids
+            base_chart_id = _resolve_chart_id(first_chart_input.text())
+            overlay_chart_id = _resolve_chart_id(second_chart_input.text())
+            if base_chart_id is None or overlay_chart_id is None:
                 QMessageBox.warning(
                     dialog,
                     dialog_title,
                     "Select two saved charts from autocomplete before generating.",
                 )
                 return
-            if base_chart_uid == overlay_chart_uid:
+            if base_chart_id == overlay_chart_id:
                 QMessageBox.warning(
                     dialog,
                     dialog_title,
                     "Select two different charts.",
                 )
                 return
-            selected_chart_uids = (base_chart_uid, overlay_chart_uid)
+            selected_chart_ids = (base_chart_id, overlay_chart_id)
             dialog.accept()
 
         synastrize_button.clicked.connect(_submit)
@@ -5571,20 +5551,26 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if dialog.exec() != QDialog.Accepted:
             return None
-        return selected_chart_uids
+        return selected_chart_ids
 
-    def _generate_composite_chart_for_uids(
-        self, base_chart_uid: str, overlay_chart_uid: str
-    ) -> None:
+    def _generate_composite_chart_for_ids(self, base_chart_id: int, overlay_chart_id: int) -> None:
         try:
-            base_chart = load_chart_by_uid(base_chart_uid)
-            overlay_chart = load_chart_by_uid(overlay_chart_uid)
+            base_chart = load_chart(base_chart_id)
+            overlay_chart = load_chart(overlay_chart_id)
         except ValueError as exc:
             QMessageBox.warning(self, "Generate Composite Chart", str(exc))
             return
 
-        base_normalized = normalize_chart(base_chart, chart_type="natal")
-        overlay_normalized = normalize_chart(overlay_chart, chart_type="natal")
+        base_normalized = normalize_chart(
+            base_chart,
+            chart_id=base_chart_id,
+            chart_type="natal",
+        )
+        overlay_normalized = normalize_chart(
+            overlay_chart,
+            chart_id=overlay_chart_id,
+            chart_type="natal",
+        )
         overlay_in_base = assign_houses(
             overlay_normalized.bodies,
             base_normalized.houses,
@@ -7282,7 +7268,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         dialog_title: str,
         submit_button_label: str = "Open Chart",
         placeholder_text: str = "Select chart name or alias",
-    ) -> str | None:
+    ) -> int | None:
         dialog = QDialog(self)
         dialog.setWindowTitle(dialog_title)
         dialog.setModal(True)
@@ -7291,27 +7277,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        rows = list(list_charts())
-        uid_by_local_row = get_chart_uid_map(row[0] for row in rows)
-        chart_lookup: dict[str, str] = {}
+        chart_lookup: dict[str, int] = {}
         labels: list[str] = []
-        for row in rows:
-            local_row_id, name, alias, *_rest = row
-            chart_uid = str(uid_by_local_row.get(int(local_row_id)) or "").strip().upper()
-            if not chart_uid:
-                continue
-            display_name = name.strip() if isinstance(name, str) and name.strip() else "Unnamed Chart"
+        for row in list_charts():
+            chart_id, name, alias, *_rest = row
+            chart_id = int(chart_id)
+            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
             alias_text = alias.strip() if isinstance(alias, str) and alias.strip() else ""
-            label = (
-                f"{display_name} ({alias_text})  [UID {chart_uid}]"
-                if alias_text
-                else f"{display_name}  [UID {chart_uid}]"
-            )
+            label = f"{display_name} ({alias_text})  [#{chart_id}]" if alias_text else f"{display_name}  [#{chart_id}]"
             labels.append(label)
-            chart_lookup[label] = chart_uid
-            chart_lookup.setdefault(display_name, chart_uid)
+            chart_lookup[label] = chart_id
+            chart_lookup.setdefault(display_name, chart_id)
             if alias_text:
-                chart_lookup.setdefault(alias_text, chart_uid)
+                chart_lookup.setdefault(alias_text, chart_id)
 
         chart_input = QLineEdit(dialog)
         chart_input.setPlaceholderText(placeholder_text)
@@ -7324,9 +7302,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         open_button = QPushButton(submit_button_label, dialog)
         layout.addWidget(open_button)
 
-        selected_chart_uid: str | None = None
+        selected_chart_id: int | None = None
 
-        def _resolve_chart_uid(raw_value: str) -> str | None:
+        def _resolve_chart_id(raw_value: str) -> int | None:
             query = raw_value.strip()
             if not query:
                 return None
@@ -7334,15 +7312,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if direct_match is not None:
                 return direct_match
             query_lower = query.lower()
-            for label, chart_uid in chart_lookup.items():
+            for label, chart_id in chart_lookup.items():
                 if query_lower == label.lower():
-                    return chart_uid
+                    return chart_id
             return None
 
         def _submit() -> None:
-            nonlocal selected_chart_uid
-            selected_chart_uid = _resolve_chart_uid(chart_input.text())
-            if selected_chart_uid is None:
+            nonlocal selected_chart_id
+            selected_chart_id = _resolve_chart_id(chart_input.text())
+            if selected_chart_id is None:
                 QMessageBox.warning(
                     dialog,
                     dialog_title,
@@ -7357,18 +7335,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if dialog.exec() != QDialog.Accepted:
             return None
-        return selected_chart_uid
+        return selected_chart_id
 
-    def _write_total_chart_export(
-        self, chart_uid: str, chart: object, file_path: str, markdown: bool
-    ) -> None:
+    def _write_total_chart_export(self, chart_id: int, chart: object, file_path: str, markdown: bool) -> None:
         algorithm_mode = _normalize_similar_charts_algorithm_mode(
             getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
         self._similar_charts_algorithm_mode = algorithm_mode
         similar_charts_section = _build_total_chart_similar_charts_section_for_chart(
             chart=chart,
-            subject_chart_id=get_chart_id_by_uid(chart_uid),
+            subject_chart_id=chart_id,
             markdown=markdown,
             chart_rows=list_charts(),
             load_chart_by_id=load_chart,
@@ -7391,22 +7367,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _on_export_selected_total_chart(self) -> None:
         _run_total_chart_export_flow(
             self,
-            self._selected_chart_uids(),
+            self._selected_local_row_ids(),
             prompt_for_chart=lambda: self._prompt_single_chart_selection(
                 dialog_title="Export chart analysis",
                 submit_button_label="Export chart analysis",
                 placeholder_text="Look up the chart to export…",
             ),
-            load_chart_by_uid=load_chart_by_uid,
+            load_chart=load_chart,
             sanitize_token=self._sanitize_export_token,
             write_export=self._write_total_chart_export,
         )
 
 
-    def _resolve_middle_panel_tool_chart_uid(self, tool_title: str) -> str | None:
-        selected_chart_uids = self._selected_chart_uids()
-        if len(selected_chart_uids) == 1:
-            return selected_chart_uids[0]
+    def _resolve_middle_panel_tool_chart_id(self, tool_title: str) -> int | None:
+        selected_chart_ids = self._selected_local_row_ids()
+        if len(selected_chart_ids) == 1:
+            return selected_chart_ids[0]
         return self._prompt_single_chart_selection(
             dialog_title=tool_title,
             submit_button_label=f"Open {tool_title}",
@@ -7423,8 +7399,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "chart_predictor_quiz": "Chart Predictor Quiz",
         }
         tool_title = tool_titles.get(tool_key, "Chart Tool")
-        chart_uid = self._resolve_middle_panel_tool_chart_uid(tool_title)
-        if chart_uid is None:
+        chart_id = self._resolve_middle_panel_tool_chart_id(tool_title)
+        if chart_id is None:
             return
 
         parent = self._owner_window()
@@ -7433,19 +7409,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         if tool_key == "synastry":
-            chart_uids = self._prompt_composite_chart_selection(
-                default_first_chart_uid=chart_uid,
+            chart_ids = self._prompt_composite_chart_selection(
+                default_first_chart_id=chart_id,
                 focus_second_input=True,
                 dialog_title="Synastry Chart",
                 submit_button_label="Synastrize!",
             )
-            if chart_uids is None:
+            if chart_ids is None:
                 return
-            self._generate_composite_chart_for_uids(*chart_uids)
+            self._generate_composite_chart_for_ids(*chart_ids)
             return
 
         try:
-            chart = load_chart_by_uid(chart_uid)
+            chart = load_chart(chart_id)
         except Exception as exc:
             QMessageBox.warning(self, tool_title, f"Unable to load selected chart.\n\n{exc}")
             return
@@ -7463,14 +7439,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             parent._set_current_chart_uid(chart.chart_uid)
             parent.on_get_human_design_info()
         elif tool_key == "personal_transit":
-            parent._generate_current_transits_for_chart(
-                chart, get_chart_id_by_uid(chart_uid)
-            )
+            parent._generate_current_transits_for_chart(chart, chart_id)
         elif tool_key == "similar_charts":
             parent._show_similar_charts_popout(
                 requester=self,
                 chart_override=chart,
-                subject_chart_id_override=get_chart_id_by_uid(chart_uid),
+                subject_chart_id_override=chart_id,
                 opened_from_database_view=True,
             )
         elif tool_key == "gemstone_chart":
@@ -7510,7 +7484,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         for chart_uid in getattr(self, "_selected_chart_uid_order", []):
             if chart_uid in copied_uids:
                 continue
-            chart_id = get_chart_id_by_uid(chart_uid)
+            chart_id = self._local_row_id_by_chart_uid.get(chart_uid)
             name = str(chart_names_by_id.get(chart_id) if chart_id is not None else "").strip()
             if name:
                 selected_names.append(name)
@@ -7532,11 +7506,34 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _current_local_row_id(self) -> int | None:
         """Resolve the UID-owned current chart at the SQLite boundary."""
-        return get_chart_id_by_uid(self.current_chart_uid)
+        chart_uid = self._normalized_chart_uid_key(self.current_chart_uid)
+        if chart_uid is None:
+            return None
+        local_row_id = self._local_row_id_by_chart_uid.get(chart_uid)
+        if local_row_id is not None:
+            return local_row_id
+        return get_chart_id_by_uid(chart_uid)
+
+    def _rebuild_hydrated_chart_identity_indexes(self) -> None:
+        """Index UID/local-row-ID pairs already present in ``_chart_rows``."""
+        pairs = (
+            (int(row[0]), str(row[30] or "").strip().upper())
+            for raw_row in self._chart_rows
+            if (row := self._normalize_chart_row(raw_row)) is not None
+        )
+        self._chart_uid_by_local_row_id = {
+            local_row_id: chart_uid
+            for local_row_id, chart_uid in pairs
+            if chart_uid
+        }
+        self._local_row_id_by_chart_uid = {
+            chart_uid: local_row_id
+            for local_row_id, chart_uid in self._chart_uid_by_local_row_id.items()
+        }
 
     def _hidden_local_row_ids_for_persistence(self) -> set[int]:
         """Resolve UID-owned hidden state for legacy row-based persistence APIs."""
-        return set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
+        return set(self._local_row_ids_for_uids(self._hidden_chart_uids))
 
     @staticmethod
     def _normalized_item_chart_uid(item: QListWidgetItem | None) -> str | None:
@@ -7563,7 +7560,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for raw_uid in chart_uids
             if (chart_uid := self._normalized_chart_uid_key(raw_uid))
         ]
-        ids_by_uid = get_chart_ids_by_uid(ordered_uids)
+        ids_by_uid = {
+            chart_uid: self._local_row_id_by_chart_uid[chart_uid]
+            for chart_uid in ordered_uids
+            if chart_uid in self._local_row_id_by_chart_uid
+        }
+        missing_uids = [chart_uid for chart_uid in ordered_uids if chart_uid not in ids_by_uid]
+        if missing_uids:
+            ids_by_uid.update(get_chart_ids_by_uid(missing_uids))
         return [int(ids_by_uid[chart_uid]) for chart_uid in ordered_uids if chart_uid in ids_by_uid]
 
     def _selected_local_row_ids(
@@ -7632,7 +7636,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 ordered_ids.append(int(raw_chart_id))
             except (TypeError, ValueError):
                 continue
-        chart_uid_map = get_chart_uid_map(ordered_ids)
+        chart_uid_map = {
+            chart_id: self._chart_uid_by_local_row_id[chart_id]
+            for chart_id in ordered_ids
+            if chart_id in self._chart_uid_by_local_row_id
+        }
+        missing_ids = [chart_id for chart_id in ordered_ids if chart_id not in chart_uid_map]
+        if missing_ids:
+            chart_uid_map.update(get_chart_uid_map(missing_ids))
         ordered_uids = [
             str(chart_uid_map[chart_id]).strip().upper()
             for chart_id in ordered_ids
@@ -7741,10 +7752,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if (normalized := self._normalize_chart_row(row)) is not None
             and _chart_row_is_similarity_participant(normalized)
         ]
-        chart_lookup, choices = build_chart_lookup(
-            similarity_rows,
-            get_chart_uid_map(row[0] for row in similarity_rows),
-        )
+        chart_lookup, choices = build_chart_lookup(similarity_rows)
         self.similarities_controller.set_chart_lookup(chart_lookup)
         self._batch_similarity_chart_lookup = chart_lookup
 
@@ -7760,11 +7768,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             field.setCompleter(completer)
         refresh_batch_similarity_chart_options(self, choices)
 
-    def _is_placeholder_local_row_id(self, local_row_id: int) -> bool:
-        row = self._active_chart_rows_by_uid.get(str(get_chart_uid(local_row_id) or "").strip().upper())
+    def _is_placeholder_local_row_id(self, chart_id: int) -> bool:
+        chart_uid = self._chart_uid_by_local_row_id.get(int(chart_id))
+        row = self._active_chart_rows_by_uid.get(chart_uid or "")
         if row is not None and _chart_row_is_non_aggregable(row):
             return True
-        chart = self._get_chart_for_filter(int(local_row_id))
+        chart = self._get_chart_for_filter(int(chart_id))
         return self._is_placeholder_chart(chart)
 
     def _is_placeholder_chart(self, chart: Any | None) -> bool:
@@ -7773,48 +7782,33 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         # be excluded from metric snapshots and database-wide totals.
         return _chart_is_non_aggregable(chart)
 
-    def _exclude_placeholder_local_row_ids(self, local_row_ids: list[int]) -> list[int]:
+    def _exclude_placeholder_local_row_ids(self, chart_ids: list[int]) -> list[int]:
         return [
-            int(local_row_id)
-            for local_row_id in local_row_ids
-            if not self._is_placeholder_local_row_id(int(local_row_id))
+            int(chart_id)
+            for chart_id in chart_ids
+            if not self._is_placeholder_local_row_id(int(chart_id))
         ]
 
-    def _is_similarities_placeholder_local_row_id(self, local_row_id: int) -> bool:
-        row = self._active_chart_rows_by_uid.get(str(get_chart_uid(local_row_id) or "").strip().upper())
+    def _is_similarities_placeholder_local_row_id(self, chart_id: int) -> bool:
+        chart_uid = self._chart_uid_by_local_row_id.get(int(chart_id))
+        row = self._active_chart_rows_by_uid.get(chart_uid or "")
         if row is not None and _chart_row_is_placeholder(row):
             return True
-        chart = self._get_chart_for_filter(int(local_row_id))
+        chart = self._get_chart_for_filter(int(chart_id))
         return not _chart_is_similarity_participant(chart)
 
-    def _exclude_similarities_placeholder_local_row_ids(self, local_row_ids: list[int]) -> list[int]:
+    def _exclude_similarities_placeholder_local_row_ids(self, chart_ids: list[int]) -> list[int]:
         return [
-            int(local_row_id)
-            for local_row_id in local_row_ids
-            if not self._is_similarities_placeholder_local_row_id(int(local_row_id))
+            int(chart_id)
+            for chart_id in chart_ids
+            if not self._is_similarities_placeholder_local_row_id(int(chart_id))
         ]
 
-    def _is_similarity_participant_uid(self, chart_uid: str) -> bool:
-        normalized_uid = str(chart_uid or "").strip().upper()
-        if not normalized_uid:
-            return False
-        row = self._active_chart_rows_by_uid.get(normalized_uid)
-        if row is not None:
-            return _chart_row_is_similarity_participant(row)
-        try:
-            return _chart_is_similarity_participant(load_chart_by_uid(normalized_uid))
-        except ValueError:
-            return False
-
     def _resolve_similarity_pair_targets(
-        self, selected_chart_uids: list[str]
+        self, selected_chart_ids: list[int]
     ) -> SimilarityPairResolution:
         input_state = SimilarityInputState(
-            selected_chart_uids=[
-                chart_uid
-                for chart_uid in selected_chart_uids
-                if self._is_similarity_participant_uid(chart_uid)
-            ],
+            selected_chart_ids=self._exclude_similarities_placeholder_local_row_ids(selected_chart_ids),
             first_checked=bool(
                 self._similarities_first_use_checkbox
                 and self._similarities_first_use_checkbox.isChecked()
@@ -7843,9 +7837,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if self._similarities_pair_result_label is None:
             return
         resolution = self._resolve_similarity_pair_targets(
-            self._selected_chart_uids()
+            self._selected_local_row_ids()
         )
-        if resolution.first_chart_uid is None or resolution.second_chart_uid is None:
+        if resolution.first_chart_id is None or resolution.second_chart_id is None:
             QMessageBox.warning(
                 self,
                 "Calculate Similarity",
@@ -7857,8 +7851,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 or "Select 2 charts, or use chart inputs with “use this” checked."
             )
             return
-        first = load_chart_by_uid(resolution.first_chart_uid)
-        second = load_chart_by_uid(resolution.second_chart_uid)
+        first = self._get_chart_for_filter(resolution.first_chart_id)
+        second = self._get_chart_for_filter(resolution.second_chart_id)
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
@@ -7873,8 +7867,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             algorithm_mode=algorithm_mode,
             custom_settings=similarity_settings,
         )
-        first_name = str(getattr(first, "name", "") or f"UID {resolution.first_chart_uid}")
-        second_name = str(getattr(second, "name", "") or f"UID {resolution.second_chart_uid}")
+        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
+        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         similarity_percent = pair_result.score * 100.0
         band_label, band_color = self._similarity_band_for_percent(similarity_percent)
         component_summary = format_similarity_component_summary(
@@ -7891,15 +7885,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             f"</span> "
             f"({component_summary})."
         )
-        breakdown_chart_uids = similarity_breakdown_chart_uids(resolution)
-        if breakdown_chart_uids is not None:
-            self._update_similarities_analysis(breakdown_chart_uids)
+        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
+        if breakdown_chart_ids is not None:
+            self._update_similarities_analysis(breakdown_chart_ids)
 
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
-        resolution = self._resolve_similarity_pair_targets(self._selected_chart_uids())
-        if resolution.first_chart_uid is None or resolution.second_chart_uid is None:
+        resolution = self._resolve_similarity_pair_targets(self._selected_local_row_ids())
+        if resolution.first_chart_id is None or resolution.second_chart_id is None:
             QMessageBox.warning(
                 self,
                 "Calculate Dissimilarity",
@@ -7911,45 +7905,37 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 or "Select 2 charts, or use chart inputs with “use this” checked."
             )
             return
-        first = load_chart_by_uid(resolution.first_chart_uid)
-        second = load_chart_by_uid(resolution.second_chart_uid)
+        first = self._get_chart_for_filter(resolution.first_chart_id)
+        second = self._get_chart_for_filter(resolution.second_chart_id)
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
-        breakdown_chart_uids = similarity_breakdown_chart_uids(resolution)
-        if breakdown_chart_uids is None:
+        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
+        if breakdown_chart_ids is None:
             return
-        total_contrasts = self._update_dissimilarities_analysis(
-            breakdown_chart_uids
-        )
-        first_name = str(getattr(first, "name", "") or f"UID {resolution.first_chart_uid}")
-        second_name = str(getattr(second, "name", "") or f"UID {resolution.second_chart_uid}")
+        total_contrasts = self._update_dissimilarities_analysis(breakdown_chart_ids)
+        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
+        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         self._similarities_pair_result_label.setText(
             _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
 
-    def _update_dissimilarities_analysis(self, chart_uids: list[str]) -> int:
-        selected_chart_uids = [
-            chart_uid
-            for chart_uid in chart_uids
-            if self._is_similarity_participant_uid(chart_uid)
-        ]
-        if len(selected_chart_uids) != 2:
+    def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
+        selected_chart_ids = self._exclude_similarities_placeholder_local_row_ids(chart_ids)
+        if len(selected_chart_ids) != 2:
             self.similarities_controller.set_export_sections([])
             self.similarities_status_label.setText(
                 "Select non-placeholder charts to calculate dissimilarities."
             )
             return 0
 
-        db_chart_uids = [
-            str(normalized[30]).strip().upper()
+        db_chart_ids = [
+            int(normalized[0])
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
             and not _chart_row_is_non_aggregable(normalized)
-            and len(normalized) > 30
-            and str(normalized[30] or "").strip()
         ]
-        db_total_count = len(db_chart_uids)
+        db_total_count = len(db_chart_ids)
         progress = show_similarities_loading_progress(
             parent=self,
             message="Calculating dissimilarities analysis…",
@@ -7958,8 +7944,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             update_similarities_loading_progress(progress, "Finding pair-only contrast factors…")
             pair_sections = build_dissimilarity_export_sections(
                 self,
-                selected_chart_uids,
-                db_chart_uids,
+                selected_chart_ids,
+                db_chart_ids,
                 db_total_count,
             )
             self.similarities_controller.set_export_sections(pair_sections)
@@ -7999,7 +7985,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     section_list,
                     toggle,
                     [(match[0], match[1], match[2]) for match in matches],
-                    selection_total_count=len(selected_chart_uids),
+                    selection_total_count=len(selected_chart_ids),
                     db_match_counts=db_match_counts,
                     db_total_count=db_total_count,
                     db_total_counts_by_label=db_total_counts,
@@ -8197,14 +8183,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         ]
 
     def _build_common_position_signs(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        if len(chart_uids) < 2:
+        if len(chart_ids) < 2:
             return []
 
         charts = []
-        for chart_uid in chart_uids:
-            chart = self._get_chart_for_filter_by_uid(chart_uid)
+        for chart_id in chart_ids:
+            chart = self._get_chart_for_filter(chart_id)
             if chart is not None:
                 charts.append(chart)
         chart_count = len(charts)
@@ -8238,9 +8224,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
     def _build_common_houses_in_positions(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         if chart_count < 2:
@@ -8272,9 +8258,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(match_counts, chart_count)
 
     def _build_common_signs_in_houses(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         if chart_count < 2:
@@ -8295,9 +8281,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(match_counts, chart_count)
 
     def _build_common_dominant_signs(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8318,9 +8304,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
     def _build_common_dominant_bodies(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8349,9 +8335,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
     def _build_common_dominant_houses(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8427,21 +8413,21 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return {house_num for house_num, _weight in ranked[:3]}
 
     def _build_common_dominant_elements(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         return _build_common_dominant_elements(charts, self._sorted_similarity_matches)
 
     def _build_common_dominant_modes(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         return _build_common_dominant_modes(charts, self._sorted_similarity_matches)
 
     def _build_common_dominant_nakshatras(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8476,9 +8462,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._sorted_similarity_matches(nakshatra_counts, chart_count)
 
     def _build_common_aspects(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8524,9 +8510,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
     def _build_common_human_design_aggregates(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> HumanDesignSharedAggregates:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         return compute_common_human_design_aggregates(
             charts,
             extract_profile=self._extract_human_design_profile,
@@ -8538,39 +8524,39 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
     def _build_common_human_design_gates(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_uids).gates
+        return self._build_common_human_design_aggregates(chart_ids).gates
 
     def _build_common_human_design_gate_lines(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_uids).gate_lines
+        return self._build_common_human_design_aggregates(chart_ids).gate_lines
 
     def _build_common_human_design_channels(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_uids).channels
+        return self._build_common_human_design_aggregates(chart_ids).channels
 
     def _build_common_human_design_defined_centers(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_uids).defined_centers
+        return self._build_common_human_design_aggregates(chart_ids).defined_centers
 
     def _build_common_human_design_authorities(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_uids).authorities
+        return self._build_common_human_design_aggregates(chart_ids).authorities
 
     def _build_common_human_design_profiles(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        return self._build_common_human_design_aggregates(chart_uids).profiles
+        return self._build_common_human_design_aggregates(chart_ids).profiles
 
     def _build_common_bazi_signs(
-        self, chart_uids: list[str]
+        self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter_by_uid(chart_uid) for chart_uid in chart_uids]
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
         chart_count = len(charts)
         if chart_count < 2:
@@ -8595,11 +8581,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self,
         section_title: str,
         label: str,
-        chart_uids: list[str],
+        chart_ids: list[int],
     ) -> str:
         matching_names: list[str] = []
-        for chart_uid in chart_uids:
-            chart = self._get_chart_for_filter_by_uid(chart_uid)
+        for chart_id in chart_ids:
+            chart = self._get_chart_for_filter(int(chart_id))
             if chart is None:
                 continue
             include = False
@@ -8748,27 +8734,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 include = label in bazi_sign_weights_from_chart(chart)
 
             if include:
-                matching_names.append(str(getattr(chart, "name", "") or f"UID {chart_uid}"))
+                matching_names.append(self._display_name_for_chart_id(int(chart_id)))
         return ", ".join(matching_names)
 
-    def _update_similarities_analysis(self, chart_uids: list[str]) -> None:
-        selected_non_placeholder_chart_uids = [
-            chart_uid
-            for chart_uid in chart_uids
-            if self._is_similarity_participant_uid(chart_uid)
-        ]
-        db_chart_uids = [
-            str(normalized[30]).strip().upper()
+    def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
+        selected_non_placeholder_chart_ids = self._exclude_similarities_placeholder_local_row_ids(chart_ids)
+        db_chart_ids = [
+            int(normalized[0])
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
             and not _chart_row_is_non_aggregable(normalized)
-            and len(normalized) > 30
-            and str(normalized[30] or "").strip()
         ]
-        db_total_count = len(db_chart_uids)
-        resolution = self._resolve_similarity_pair_targets(
-            selected_non_placeholder_chart_uids
-        )
+        db_total_count = len(db_chart_ids)
+        resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
         for button, active_tooltip in (
             (self._similarities_pair_button, "Calculate similarity between the selected/input charts."),
             (self._dissimilarities_pair_button, "Calculate dissimilarity between the selected/input charts."),
@@ -8784,17 +8762,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 active_tooltip if resolution.allow_click else (resolution.guidance or "Select 2 charts to compare.")
             )
         if self._similarities_pair_result_label is not None:
-            resolution = self._resolve_similarity_pair_targets(
-                selected_non_placeholder_chart_uids
-            )
+            resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
             if not resolution.allow_click:
                 self._similarities_pair_result_label.setText(
                     resolution.guidance or "Select 2 charts to compare."
                 )
 
-        if len(selected_non_placeholder_chart_uids) < 2:
+        if len(selected_non_placeholder_chart_ids) < 2:
             self.similarities_controller.set_export_sections([])
-            if len(chart_uids) >= 2:
+            if len(chart_ids) >= 2:
                 self.similarities_status_label.setText(
                     "Placeholders are excluded from astrological similarities. "
                     "Select 2 or more non-placeholder charts."
@@ -8914,18 +8890,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 progress,
                 "Calculating selected-chart similarities…",
             )
-            common_positions = self._build_common_position_signs(selected_non_placeholder_chart_uids)
-            common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_uids)
-            common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_uids)
-            common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_uids)
-            common_dominant_bodies = self._build_common_dominant_bodies(selected_non_placeholder_chart_uids)
-            common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_uids)
-            common_dominant_elements = self._build_common_dominant_elements(selected_non_placeholder_chart_uids)
-            common_dominant_modes = self._build_common_dominant_modes(selected_non_placeholder_chart_uids)
-            common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_uids)
-            common_aspects = self._build_common_aspects(selected_non_placeholder_chart_uids)
+            common_positions = self._build_common_position_signs(selected_non_placeholder_chart_ids)
+            common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_ids)
+            common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_ids)
+            common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
+            common_dominant_bodies = self._build_common_dominant_bodies(selected_non_placeholder_chart_ids)
+            common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_ids)
+            common_dominant_elements = self._build_common_dominant_elements(selected_non_placeholder_chart_ids)
+            common_dominant_modes = self._build_common_dominant_modes(selected_non_placeholder_chart_ids)
+            common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
+            common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
             common_hd_aggregates = self._build_common_human_design_aggregates(
-                selected_non_placeholder_chart_uids
+                selected_non_placeholder_chart_ids
             )
             common_hd_gates = common_hd_aggregates.gates
             common_hd_gate_lines = common_hd_aggregates.gate_lines if common_hd_gates else []
@@ -8933,13 +8909,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             common_hd_defined_centers = common_hd_aggregates.defined_centers
             common_hd_authorities = common_hd_aggregates.authorities
             common_hd_profiles = common_hd_aggregates.profiles
-            common_bazi_signs = self._build_common_bazi_signs(selected_non_placeholder_chart_uids)
+            common_bazi_signs = self._build_common_bazi_signs(selected_non_placeholder_chart_ids)
             update_similarities_loading_progress(
                 progress,
                 "Loading cached database comparison baselines…",
             )
             db_baselines = self._similarities_db_baseline_cache.get(
-                db_chart_uids,
+                db_chart_ids,
                 lambda ids: build_similarity_db_baselines(self, ids),
             )
             db_common_positions = db_baselines["common_positions"]
@@ -8980,7 +8956,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Signs in positions in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_positions
@@ -8998,7 +8974,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Houses in positions in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_houses_in_positions
@@ -9016,7 +8992,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Signs in houses in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_signs_in_houses
@@ -9034,7 +9010,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Top 3 Dominant Signs in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_signs
@@ -9052,7 +9028,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Top 3 Dominant Bodies in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_bodies
@@ -9070,7 +9046,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Top 3 Dominant Houses in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_houses
@@ -9088,7 +9064,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Elemental Dominance in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_elements
@@ -9106,7 +9082,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Modal Dominance in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_modes
@@ -9124,7 +9100,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Dominant nakshatras in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_dominant_nakshatras
@@ -9142,7 +9118,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Aspects in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_aspects
@@ -9160,7 +9136,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Gates in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_gates
@@ -9178,7 +9154,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Gate Lines in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_gate_lines
@@ -9196,7 +9172,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Channels in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_channels
@@ -9214,7 +9190,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Defined Centers in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_defined_centers
@@ -9232,7 +9208,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Authorities in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_authorities
@@ -9250,7 +9226,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "Profiles in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_hd_profiles
@@ -9268,7 +9244,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             self._similarity_matching_chart_names(
                                 "BaZi signs in common",
                                 label,
-                                selected_non_placeholder_chart_uids,
+                                selected_non_placeholder_chart_ids,
                             ),
                         )
                         for label, match_count, total_count in common_bazi_signs
@@ -9305,18 +9281,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if total_matches > 0:
                 self.similarities_status_label.setText(
                     f"{total_matches} shared pattern(s) found across "
-                    f"{len(selected_non_placeholder_chart_uids)} selected chart(s), each present in at least 2 charts."
+                    f"{len(selected_non_placeholder_chart_ids)} selected chart(s), each present in at least 2 charts."
                 )
             else:
                 self.similarities_status_label.setText(
                     f"No shared similarities found in at least 2 charts across "
-                    f"{len(selected_non_placeholder_chart_uids)} selected chart(s)."
+                    f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
                 )
             self._set_similarities_section_matches(
                 self.similarities_common_positions_list,
                 self.similarities_common_positions_toggle,
                 common_positions,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_positions,
                 db_total_count=db_total_count,
                 db_total_counts_by_label=db_common_positions_totals,
@@ -9325,7 +9301,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_houses_in_positions_list,
                 self.similarities_houses_in_positions_toggle,
                 common_houses_in_positions,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_houses_in_positions,
                 db_total_count=db_total_count,
                 db_total_counts_by_label=db_common_houses_in_positions_totals,
@@ -9334,7 +9310,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_signs_in_houses_list,
                 self.similarities_signs_in_houses_toggle,
                 common_signs_in_houses,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_signs_in_houses,
                 db_total_count=db_total_count,
                 db_total_counts_by_label=db_common_signs_in_houses_totals,
@@ -9343,7 +9319,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_signs_list,
                 self.similarities_dominant_signs_toggle,
                 common_dominant_signs,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_dominant_signs,
                 db_total_count=db_total_count,
             )
@@ -9351,7 +9327,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_bodies_list,
                 self.similarities_dominant_bodies_toggle,
                 common_dominant_bodies,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_dominant_bodies,
                 db_total_count=db_total_count,
             )
@@ -9359,7 +9335,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_houses_list,
                 self.similarities_dominant_houses_toggle,
                 common_dominant_houses,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_dominant_houses,
                 db_total_count=db_total_count,
             )
@@ -9367,7 +9343,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_elements_list,
                 self.similarities_dominant_elements_toggle,
                 common_dominant_elements,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_dominant_elements,
                 db_total_count=db_total_count,
             )
@@ -9375,7 +9351,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_modes_list,
                 self.similarities_dominant_modes_toggle,
                 common_dominant_modes,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_dominant_modes,
                 db_total_count=db_total_count,
             )
@@ -9383,7 +9359,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_dominant_nakshatras_list,
                 self.similarities_dominant_nakshatras_toggle,
                 common_dominant_nakshatras,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_dominant_nakshatras,
                 db_total_count=db_total_count,
             )
@@ -9391,7 +9367,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_aspects_list,
                 self.similarities_common_aspects_toggle,
                 common_aspects,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_aspects,
                 db_total_count=db_total_count,
                 db_total_counts_by_label=db_common_aspects_totals,
@@ -9400,7 +9376,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_gates_list,
                 self.similarities_common_hd_gates_toggle,
                 common_hd_gates,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_hd_gates,
                 db_total_count=db_total_count,
             )
@@ -9409,7 +9385,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_gate_lines_list,
                 self.similarities_common_hd_gate_lines_toggle,
                 common_hd_gate_lines,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_hd_gate_lines,
                 db_total_count=db_total_count,
             )
@@ -9417,7 +9393,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_channels_list,
                 self.similarities_common_hd_channels_toggle,
                 common_hd_channels,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_hd_channels,
                 db_total_count=db_total_count,
             )
@@ -9425,7 +9401,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_defined_centers_list,
                 self.similarities_common_hd_defined_centers_toggle,
                 common_hd_defined_centers,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_hd_defined_centers,
                 db_total_count=db_total_count,
             )
@@ -9433,7 +9409,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_authorities_list,
                 self.similarities_common_hd_authorities_toggle,
                 common_hd_authorities,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_hd_authorities,
                 db_total_count=db_total_count,
             )
@@ -9441,7 +9417,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_hd_profiles_list,
                 self.similarities_common_hd_profiles_toggle,
                 common_hd_profiles,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_hd_profiles,
                 db_total_count=db_total_count,
             )
@@ -9449,7 +9425,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.similarities_common_bazi_signs_list,
                 self.similarities_common_bazi_signs_toggle,
                 common_bazi_signs,
-                selection_total_count=len(selected_non_placeholder_chart_uids),
+                selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_bazi_signs,
                 db_total_count=db_total_count,
             )
@@ -12940,9 +12916,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 )
 
         if update_similarities:
-            self._update_similarities_analysis(
-                list(get_chart_uid_map(chart_ids).values())
-            )
+            self._update_similarities_analysis(chart_ids)
             self._stabilize_left_scroll_panel_layout(self.similarities_analysis_panel_scroll)
 
         if update_database_metrics:
@@ -16732,22 +16706,20 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._populate_list()
 
     def _on_check_for_duplicates(self) -> None:
+        excluded_duplicate_pairs = list_duplicate_exclusions()
         rows = [
             normalized
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        uid_by_local_row = get_chart_uid_map(row[0] for row in rows)
-        excluded_duplicate_pairs = list_duplicate_exclusion_uids()
         duplicate_result = find_possible_duplicate_charts(
             rows,
-            chart_uids_by_local_row=uid_by_local_row,
-            load_chart_by_uid=self._get_chart_for_filter_by_uid,
+            load_chart=self._get_chart_for_filter,
             similarity_threshold_percent=65.0,
             similarity_ceiling_percent=100.0,
             excluded_pairs=excluded_duplicate_pairs,
         )
-        if not duplicate_result.duplicate_uids:
+        if not duplicate_result.duplicate_ids:
             self._possible_duplicate_chart_uids = set()
             self._possible_duplicate_related_names_by_uid = {}
             self._possible_duplicate_likelihoods_by_uid = {}
@@ -16764,17 +16736,32 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 "No possible duplicates were found from names, exact birth dates, or 65–100% chart similarity.",
             )
             return
-        self._possible_duplicate_chart_uids = set(duplicate_result.duplicate_uids)
-        self._possible_duplicate_related_names_by_uid = duplicate_result.related_names
-        self._possible_duplicate_likelihoods_by_uid = (
-            duplicate_result.likelihood_by_chart_uid
-        )
-        self._possible_duplicate_sort_keys_by_uid = (
-            duplicate_result.duplicate_sort_key_by_chart_uid
-        )
-        self._possible_duplicate_group_by_uid = (
-            duplicate_result.duplicate_group_by_chart_uid
-        )
+        uid_by_id = get_chart_uid_map(duplicate_result.duplicate_ids)
+        self._possible_duplicate_chart_uids = {
+            uid_by_id[chart_id]
+            for chart_id in duplicate_result.duplicate_ids
+            if chart_id in uid_by_id
+        }
+        self._possible_duplicate_related_names_by_uid = {
+            uid_by_id[chart_id]: value
+            for chart_id, value in duplicate_result.related_names.items()
+            if chart_id in uid_by_id
+        }
+        self._possible_duplicate_likelihoods_by_uid = {
+            uid_by_id[chart_id]: value
+            for chart_id, value in duplicate_result.likelihood_by_chart_id.items()
+            if chart_id in uid_by_id
+        }
+        self._possible_duplicate_sort_keys_by_uid = {
+            uid_by_id[chart_id]: value
+            for chart_id, value in duplicate_result.duplicate_sort_key_by_chart_id.items()
+            if chart_id in uid_by_id
+        }
+        self._possible_duplicate_group_by_uid = {
+            uid_by_id[chart_id]: value
+            for chart_id, value in duplicate_result.duplicate_group_by_chart_id.items()
+            if chart_id in uid_by_id
+        }
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._clear_persistent_selection()
@@ -19157,6 +19144,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 f"Couldn't list saved charts:\n{e}",
             )
             self._chart_rows = []
+        self._rebuild_hydrated_chart_identity_indexes()
         self._rankings_data_dirty = True
         if refresh_tag_completers:
             if progress_callback:
@@ -19330,7 +19318,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not getattr(self, "_show_hidden_charts", False):
             hidden_chart_ids = set(self._hidden_local_row_ids_for_persistence())
             rows = [row for row in rows if int(row[0]) not in hidden_chart_ids]
-        self._active_chart_rows_by_uid = {str(row[30] or "").strip().upper(): row for row in rows if str(row[30] or "").strip()}
+        self._active_chart_rows_by_uid = {
+            str(row[30] or "").strip().upper(): row
+            for row in rows
+            if str(row[30] or "").strip()
+        }
         self._displayed_chart_rows_by_uid = {}
         self._active_collection_total_count = len(rows)
         if progress_callback:
@@ -20430,7 +20422,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not self._has_active_chart_filters():
             return True
 
-        chart_row = self._active_chart_rows_by_uid.get(str(get_chart_uid(chart_id) or "").strip().upper())
+        chart_uid = self._chart_uid_by_local_row_id.get(int(chart_id))
+        chart_row = self._active_chart_rows_by_uid.get(chart_uid or "")
         if search_country or search_city or search_state:
             birth_place_value = chart_row[5] if chart_row else None
             if birth_place_value is None:
@@ -22657,6 +22650,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Developer Tools")
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
+        add_prediction_norms_recalculation_tool(self, dev_tools_section)
+
         size_checker_button = QPushButton("Toggle Size Checker")
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
@@ -23437,13 +23432,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _show_high_similarity_chart_pairs(self) -> None:
         show_high_similarity_chart_pairs(
             self,
-            chart_uids=list(getattr(self, "_active_chart_rows_by_uid", {})),
-            exclude_placeholder_chart_uids=lambda chart_uids: [
-                chart_uid
-                for chart_uid in chart_uids
-                if self._is_similarity_participant_uid(chart_uid)
-            ],
-            load_charts_by_uids=load_charts_by_uids,
+            chart_ids=list(get_chart_ids_by_uid(getattr(self, "_active_chart_rows_by_uid", {})).values()),
+            exclude_placeholder_chart_ids=self._exclude_similarities_placeholder_local_row_ids,
+            load_charts_by_id=load_charts,
             algorithm_mode=getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT),
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
             hidden_chart_uids=set(self._hidden_chart_uids),
@@ -25034,19 +25025,28 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             return
 
-        chart_uid = self._normalized_item_chart_uid(item)
-        if chart_uid is None:
+        chart_id_value = self._item_local_row_id(item)
+        if chart_id_value is None:
             QMessageBox.warning(
                 self,
                 "Personal Transit Chart",
                 "The selected row does not reference a saved chart.",
             )
             return
+        try:
+            chart_id = int(chart_id_value)
+        except (TypeError, ValueError):
+            QMessageBox.warning(
+                self,
+                "Personal Transit Chart",
+                "The selected row does not reference a valid chart id.",
+            )
+            return
 
         self._refresh_personal_transit_chart_options()
         selected_label = None
-        for label, candidate_uid in self._personal_transit_chart_lookup.items():
-            if candidate_uid == chart_uid:
+        for label, candidate_id in self._personal_transit_chart_lookup.items():
+            if candidate_id == chart_id:
                 selected_label = label
                 break
         if selected_label is None:
@@ -25257,6 +25257,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # - Chart Editor Window: current_chart_uid is None (blank fields/new chart).
         # - Chart Edit Window: current_chart_uid is set (editing existing chart).
         self.current_chart_uid: str | None = None
+        self._chart_edit_session = ChartEditSession()
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
         self._loaded_birth_place = None
         self._loaded_lat = None
@@ -28507,8 +28508,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
-        resolution = self._resolve_similarity_pair_targets(self._selected_chart_uids())
-        if resolution.first_chart_uid is None or resolution.second_chart_uid is None:
+        resolution = self._resolve_similarity_pair_targets(self._selected_local_row_ids())
+        if resolution.first_chart_id is None or resolution.second_chart_id is None:
             QMessageBox.warning(
                 self,
                 "Calculate Dissimilarity",
@@ -28520,41 +28521,37 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 or "Select 2 charts, or use chart inputs with “use this” checked."
             )
             return
-        first = load_chart_by_uid(resolution.first_chart_uid)
-        second = load_chart_by_uid(resolution.second_chart_uid)
+        first = self._get_chart_for_filter(resolution.first_chart_id)
+        second = self._get_chart_for_filter(resolution.second_chart_id)
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
-        breakdown_chart_uids = similarity_breakdown_chart_uids(resolution)
-        if breakdown_chart_uids is None:
+        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
+        if breakdown_chart_ids is None:
             return
-        total_contrasts = self._update_dissimilarities_analysis(
-            breakdown_chart_uids
-        )
-        first_name = str(getattr(first, "name", "") or f"UID {resolution.first_chart_uid}")
-        second_name = str(getattr(second, "name", "") or f"UID {resolution.second_chart_uid}")
+        total_contrasts = self._update_dissimilarities_analysis(breakdown_chart_ids)
+        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
+        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         self._similarities_pair_result_label.setText(
             _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
 
-    def _update_dissimilarities_analysis(self, chart_uids: list[str]) -> int:
-        selected_chart_uids = list(chart_uids)
-        if len(selected_chart_uids) != 2:
+    def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
+        selected_chart_ids = self._exclude_placeholder_local_row_ids(chart_ids)
+        if len(selected_chart_ids) != 2:
             self._similarities_export_sections = []
             self.similarities_status_label.setText(
                 "Select non-placeholder charts to calculate dissimilarities."
             )
             return 0
 
-        db_chart_uids = [
-            str(normalized[30]).strip().upper()
+        db_chart_ids = [
+            int(normalized[0])
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
             and not _chart_row_is_non_aggregable(normalized)
-            and len(normalized) > 30
-            and str(normalized[30] or "").strip()
         ]
-        db_total_count = len(db_chart_uids)
+        db_total_count = len(db_chart_ids)
         progress = show_similarities_loading_progress(
             parent=self,
             message="Calculating dissimilarities analysis…",
@@ -28563,8 +28560,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             update_similarities_loading_progress(progress, "Finding pair-only contrast factors…")
             pair_sections = build_dissimilarity_export_sections(
                 self,
-                selected_chart_uids,
-                db_chart_uids,
+                selected_chart_ids,
+                db_chart_ids,
                 db_total_count,
             )
             self._similarities_export_sections = pair_sections
@@ -28603,7 +28600,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     section_list,
                     toggle,
                     [(match[0], match[1], match[2]) for match in matches],
-                    selection_total_count=len(selected_chart_uids),
+                    selection_total_count=len(selected_chart_ids),
                     db_match_counts=db_match_counts,
                     db_total_count=db_total_count,
                     db_total_counts_by_label=db_total_counts,
@@ -30246,6 +30243,27 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
 
+    @property
+    def _lucygoosey(self) -> bool:
+        """Compatibility name backed by the migrating ChartEditSession."""
+        return self._chart_edit_session.is_dirty
+
+    @_lucygoosey.setter
+    def _lucygoosey(self, is_lucygoosey: bool) -> None:
+        if is_lucygoosey:
+            self._chart_edit_session.mark_dirty()
+        else:
+            self._chart_edit_session.mark_clean()
+
+    @property
+    def _metadata_autosave_requires_recalculation(self) -> bool:
+        """Compatibility name backed by the migrating ChartEditSession."""
+        return self._chart_edit_session.recalculation_required
+
+    @_metadata_autosave_requires_recalculation.setter
+    def _metadata_autosave_requires_recalculation(self, required: bool) -> None:
+        self._chart_edit_session.recalculation_required = bool(required)
+
     def _set_lucygoosey(self, is_lucygoosey: bool) -> None:
         self._lucygoosey = is_lucygoosey
 
@@ -31857,9 +31875,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
-        display_body = str(display_body_label or "").strip() or (_display_body_name(body_key) if body_key else "")
-        title = f"{display_body} in {sign_key}" if display_body else sign_key
-        cursor.insertText(f"{title}\n\n", title_fmt)
         position_description = (
             get_position_description(body_key, sign_key) if body_key else None
         )
@@ -31870,6 +31885,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             reset_cursor.movePosition(QTextCursor.Start)
             self.chart_info_output.setTextCursor(reset_cursor)
             return
+
+        display_body = str(display_body_label or "").strip() or (_display_body_name(body_key) if body_key else "")
+        title = f"{display_body} in {sign_key}" if display_body else sign_key
+        cursor.insertText(f"{title}\n\n", title_fmt)
         theme = DOMINANT_BODY_MEANINGS.get(body_key, {}).get("core_theme", "")
         if theme:
             theme_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
@@ -34422,12 +34441,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         on_chart_view_tag_remove_link(self, link)
 
     def _confirm_duplicate_chart_save(self, chart: Chart) -> bool:
-        duplicate_rows = list(list_charts())
-        warning = build_duplicate_save_warning(
-            chart,
-            duplicate_rows,
-            get_chart_uid_map(row[0] for row in duplicate_rows),
-        )
+        warning = build_duplicate_save_warning(chart, list_charts())
         if warning is None:
             return True
 
@@ -35344,10 +35358,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if normalized_uid is None:
             raise ValueError("A persisted chart must have a non-empty chart UID")
         self.current_chart_uid = normalized_uid
+        self._chart_edit_session.active_chart_uid = normalized_uid
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
         self.current_chart_uid = None
+        self._chart_edit_session.active_chart_uid = None
 
     def _current_chart_uid_for_navigation(self) -> str | None:
         """Return the UID-owned navigation identity without an ID round trip."""
@@ -38147,7 +38163,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return prediction_norms_snapshot_token(self)
 
     def _refresh_prediction_norms_snapshot(self) -> dict[str, Any]:
-        snapshot = refresh_prediction_norms_snapshot(self)
+        snapshot = refresh_prediction_norms_snapshot(self, user_initiated=True)
         self._prediction_norms_snapshot_cache = snapshot
         return snapshot
 
@@ -39114,37 +39130,43 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def on_get_synastry_chart(self) -> None:
         manage_dialog = self._get_or_create_manage_charts_dialog()
-        chart_uids = manage_dialog._prompt_composite_chart_selection(
-            default_first_chart_uid=self.current_chart_uid,
+        chart_ids = manage_dialog._prompt_composite_chart_selection(
+            default_first_chart_id=self._current_local_row_id(),
             focus_second_input=True,
         )
-        if chart_uids is None:
+        if chart_ids is None:
             return
-        manage_dialog._generate_composite_chart_for_uids(*chart_uids)
+        manage_dialog._generate_composite_chart_for_ids(*chart_ids)
 
     def on_get_human_design_synastry_chart(self) -> None:
         self._open_human_design_synastry_for_chart_uid(None)
 
     def _open_human_design_synastry_for_chart_uid(self, first_chart_uid: str | None) -> None:
         manage_dialog = self._get_or_create_manage_charts_dialog()
-        selected_chart_uids = manage_dialog._selected_chart_uids()
-        default_first_chart_uid = first_chart_uid or self.current_chart_uid
-        default_second_chart_uid = None
-        if first_chart_uid is None and len(selected_chart_uids) == 2:
-            default_first_chart_uid, default_second_chart_uid = selected_chart_uids
-        chart_uids = manage_dialog._prompt_composite_chart_selection(
-            default_first_chart_uid=default_first_chart_uid,
-            default_second_chart_uid=default_second_chart_uid,
+        selected_chart_ids = manage_dialog._selected_non_placeholder_chart_ids()
+        default_first_chart_id = (
+            get_chart_id_by_uid(first_chart_uid)
+            if first_chart_uid
+            else self._current_local_row_id()
+        )
+        default_second_chart_id = None
+        if first_chart_uid is None and len(selected_chart_ids) == 2:
+            default_first_chart_id, default_second_chart_id = selected_chart_ids
+        if default_first_chart_id is not None and manage_dialog._is_placeholder_local_row_id(default_first_chart_id):
+            default_first_chart_id = None
+        chart_ids = manage_dialog._prompt_composite_chart_selection(
+            default_first_chart_id=default_first_chart_id,
+            default_second_chart_id=default_second_chart_id,
             focus_second_input=True,
             dialog_title="Human Design Synastry Chart",
             submit_button_label="Open Human Design Synastry Chart",
             disallow_placeholder_charts=True,
         )
-        if chart_uids is None:
+        if chart_ids is None:
             return
         try:
-            first_chart = load_chart_by_uid(chart_uids[0])
-            second_chart = load_chart_by_uid(chart_uids[1])
+            first_chart = load_chart(chart_ids[0])
+            second_chart = load_chart(chart_ids[1])
         except Exception as exc:
             QMessageBox.warning(
                 self,

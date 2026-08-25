@@ -85,7 +85,7 @@ DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "human_design",
     "bazi",
 )
-TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 3
+TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 4
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME = ".traits_distribution_likelihood_cache.json"
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES = 100_000
 TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS = 8.0
@@ -5248,10 +5248,16 @@ class DatabaseAnalyticsChartsMixin:
         if not isinstance(payload, dict):
             return False
         payload_version = payload.get("version")
-        if payload_version not in {2, TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION}:
+        if payload_version not in {3, TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION}:
             return False
-        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
-        chart_tokens = self._traits_distribution_chart_tokens()
+        saved_change_sequence = int(payload.get("db_change_sequence", 0) or 0)
+        journal_changes = db.chart_changes_since(saved_change_sequence) if saved_change_sequence else []
+        changed_chart_uids = {
+            str(change.get("chart_uid", "") or "").strip().upper()
+            for change in journal_changes
+            if bool(change.get("astro_data_changed", False))
+        }
+        chart_tokens = {} if saved_change_sequence else self._traits_distribution_chart_tokens()
         likelihood_cache: dict[tuple[Any, ...], dict[str, float]] = {}
         individual_cache: dict[tuple[tuple[str, str, str], str], float] = {}
         individual_profile_cache: dict[tuple[str, str], float] = {}
@@ -5259,14 +5265,16 @@ class DatabaseAnalyticsChartsMixin:
         skipped_entries = 0
 
         def chart_is_current(chart_uid: str, saved_chart_token: str) -> bool:
+            if saved_change_sequence:
+                return chart_uid not in changed_chart_uids
             current_chart_token = chart_tokens.get(chart_uid)
             return not (current_chart_token and saved_chart_token and saved_chart_token != current_chart_token)
 
-        # Version 3 stores each analytical profile once and then stores per-chart
+        # Versions 3-4 store each analytical profile once and then store per-chart
         # likelihood rows by compact profile index.  This avoids rewriting whole
         # trait signatures/profiles for every chart and makes the cache reusable
         # across trait renames/recolors while still preserving row-level staleness.
-        if payload_version == TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION:
+        if payload_version in {3, TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION}:
             raw_profiles = payload.get("profiles", [])
             profile_keys = [str(item) for item in raw_profiles] if isinstance(raw_profiles, list) else []
             profile_entries = payload.get("profile_entries", [])
@@ -5326,7 +5334,10 @@ class DatabaseAnalyticsChartsMixin:
         self._traits_distribution_individual_likelihood_cache = individual_cache
         self._traits_distribution_individual_profile_likelihood_cache = individual_profile_cache
         self._traits_distribution_individual_profile_token_cache = individual_profile_token_cache
-        self._traits_distribution_likelihood_cache_dirty = False
+        self._traits_distribution_likelihood_cache_created_at = str(payload.get("created_at", "") or "")
+        self._traits_distribution_likelihood_cache_change_sequence = db.latest_chart_change_sequence()
+        self._traits_distribution_likelihood_cache_changes = journal_changes
+        self._traits_distribution_likelihood_cache_dirty = bool(journal_changes)
         _predictions_debug(
             self,
             "Traits distribution likelihood cache loaded chart_entries=%s individual_entries=%s profile_entries=%s skipped=%s",
@@ -5414,9 +5425,14 @@ class DatabaseAnalyticsChartsMixin:
         try:
             path = self._traits_distribution_likelihood_cache_path()
             path.parent.mkdir(parents=True, exist_ok=True)
+            saved_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+            created_at = str(getattr(self, "_traits_distribution_likelihood_cache_created_at", "") or saved_at)
             payload: dict[str, Any] = {
                 "version": TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION,
-                "format": "profile_likelihoods_v1",
+                "format": "profile_likelihoods_v2_change_journal",
+                "created_at": created_at,
+                "last_modified_at": saved_at,
+                "db_change_sequence": db.latest_chart_change_sequence(),
                 "profiles": profiles,
                 "profile_entries": entries,
             }
@@ -5426,6 +5442,8 @@ class DatabaseAnalyticsChartsMixin:
             temp_path = path.with_suffix(f"{path.suffix}.tmp")
             temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
             temp_path.replace(path)
+            self._traits_distribution_likelihood_cache_created_at = created_at
+            self._traits_distribution_likelihood_cache_change_sequence = int(payload["db_change_sequence"])
             self._traits_distribution_likelihood_cache_dirty = False
             _predictions_debug(self, "Traits distribution likelihood cache saved profile_entries=%s path=%s", len(entries), path)
         except Exception:
@@ -5652,7 +5670,7 @@ class DatabaseAnalyticsChartsMixin:
                         for name, total in totals.items()
                     },
                 )
-        if cache_updated:
+        if cache_updated or bool(getattr(self, "_traits_distribution_likelihood_cache_dirty", False)):
             self._traits_distribution_likelihood_cache_dirty = True
             self._save_traits_distribution_likelihood_cache()
         _predictions_debug(

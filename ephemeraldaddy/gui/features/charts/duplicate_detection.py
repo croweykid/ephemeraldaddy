@@ -1,3 +1,4 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Helpers for detecting and tiering possible duplicate charts in Database View."""
 
 from __future__ import annotations
@@ -5,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 import re
-from typing import Callable, Literal, Mapping, Sequence
+from typing import Callable, Literal, Sequence
 
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
 from ephemeraldaddy.core.chart import Chart
@@ -30,11 +31,11 @@ LIKELIHOOD_SORT_WEIGHT: dict[DuplicateLikelihood, int] = {
 
 @dataclass(frozen=True)
 class DuplicateDetectionResult:
-    duplicate_uids: set[str]
-    related_names: dict[str, dict[str, list[str]]]
-    likelihood_by_chart_uid: dict[str, DuplicateLikelihood]
-    duplicate_sort_key_by_chart_uid: dict[str, tuple[int, int, str]]
-    duplicate_group_by_chart_uid: dict[str, int]
+    duplicate_ids: set[int]
+    related_names: dict[int, dict[str, list[str]]]
+    likelihood_by_chart_id: dict[int, DuplicateLikelihood]
+    duplicate_sort_key_by_chart_id: dict[int, tuple[int, int, str]]
+    duplicate_group_by_chart_id: dict[int, int]
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,7 @@ def _normalize_name(value: object) -> str:
     return re.sub(r"[^a-z0-9]+", "", text)
 
 
-def _display_name(chart_uid: str, name: object, alias: object) -> str:
+def _display_name(chart_id: int, name: object, alias: object) -> str:
     primary = str(name or "").strip()
     secondary = str(alias or "").strip()
     if primary and secondary:
@@ -59,14 +60,14 @@ def _display_name(chart_uid: str, name: object, alias: object) -> str:
         return primary
     if secondary:
         return secondary
-    return f"UID {chart_id}"
+    return f"Chart #{chart_id}"
 
 
-def _display_warning_name(chart_uid: str, name: object, alias: object) -> str:
-    display_name = _display_name(chart_uid, name, alias)
-    if display_name == f"UID {chart_uid}":
+def _display_warning_name(chart_id: int, name: object, alias: object) -> str:
+    display_name = _display_name(chart_id, name, alias)
+    if display_name == f"Chart #{chart_id}":
         return display_name
-    return f"{display_name}"
+    return f"#{chart_id}: {display_name}"
 
 
 def _append_duplicate_warning_section(
@@ -104,11 +105,9 @@ def _chart_birth_components(chart: Chart) -> tuple[int | None, int | None, int |
     )
 
 
-#list chart_ids here, not uids. It's all about sorting order. users don't care what the uid of the chart is.
 def build_duplicate_save_warning(
     chart: Chart,
     rows: Sequence[Sequence[object]],
-    chart_uids_by_local_row: Mapping[int, str],
 ) -> DuplicateSaveWarning | None:
     """Build duplicate-warning dialog text for a chart before saving."""
     month, day, year = _chart_birth_components(chart)
@@ -124,16 +123,13 @@ def build_duplicate_save_warning(
     exact_birth_date_matches: list[str] = []
     birthday_matches: list[str] = []
     name_or_alias_matches: list[str] = []
-    matched_name_uids: set[str] = set()
+    matched_name_ids: set[int] = set()
 
     for row in rows:
-        local_row_id = int(row[0])
-        chart_uid = chart_uids_by_local_row.get(local_row_id)
-        if not chart_uid:
-            continue
+        chart_id = int(row[0])
         existing_name = row[1] if len(row) > 1 else ""
         existing_alias = row[2] if len(row) > 2 else ""
-        display_name = _display_warning_name(chart_uid, existing_name, existing_alias)
+        display_name = _display_warning_name(chart_id, existing_name, existing_alias)
         existing_month = row[17] if len(row) > 17 else None
         existing_day = row[18] if len(row) > 18 else None
         existing_year = row[19] if len(row) > 19 else None
@@ -155,9 +151,9 @@ def build_duplicate_save_warning(
                 if token
             }
             if proposed_tokens.intersection(existing_tokens):
-                if chart_uid not in matched_name_uids:
+                if chart_id not in matched_name_ids:
                     name_or_alias_matches.append(display_name)
-                    #matched_name_uids.add(chart_uid)
+                    matched_name_ids.add(chart_id)
 
     if not exact_birth_date_matches and not birthday_matches and not name_or_alias_matches:
         return None
@@ -224,67 +220,57 @@ def find_possible_duplicate_charts(
         ]
     ],
     *,
-    chart_uids_by_local_row: Mapping[int, str],
-    load_chart_by_uid: Callable[[str], Chart | None] | None = None,
+    load_chart: Callable[[int], Chart | None] | None = None,
     similarity_threshold_percent: float = 65.0,
     similarity_ceiling_percent: float = 100.0,
-    excluded_pairs: set[tuple[str, str]] | None = None,
+    excluded_pairs: set[tuple[int, int]] | None = None,
 ) -> DuplicateDetectionResult:
-    duplicate_uids: set[str] = set()
-    related_names: dict[str, dict[str, set[str]]] = {}
-    chart_names: dict[str, str] = {}
+    duplicate_ids: set[int] = set()
+    related_names: dict[int, dict[str, set[str]]] = {}
+    chart_names: dict[int, str] = {}
 
-    birthday_groups: dict[tuple[int, int, int], list[str]] = {}
-    normalized_name_to_uids: dict[str, set[str]] = {}
-    placeholder_uids: set[str] = set()
-    chart_links: dict[str, set[str]] = {}
-    likelihood_by_chart_uid: dict[str, DuplicateLikelihood] = {}
-    raw_excluded_pairs = excluded_pairs or set()
+    birthday_groups: dict[tuple[int, int, int], list[int]] = {}
+    normalized_name_to_ids: dict[str, set[int]] = {}
+    placeholder_ids: set[int] = set()
+    chart_links: dict[int, set[int]] = {}
+    likelihood_by_chart_id: dict[int, DuplicateLikelihood] = {}
+    excluded = excluded_pairs or set()
 
-    def canonical_pair(left_uid: str, right_uid: str) -> tuple[str, str]:
-        left = left_uid
-        right = right_uid
+    def canonical_pair(left_id: int, right_id: int) -> tuple[int, int]:
+        left = int(left_id)
+        right = int(right_id)
         return (left, right) if left < right else (right, left)
 
-    excluded = {
-        canonical_pair(left_uid, right_uid)
-        for left_uid, right_uid in raw_excluded_pairs
-        if left_uid != right_uid
-    }
-
-    def attach_likelihood(chart_uid: str, likelihood: DuplicateLikelihood) -> None:
-        current = likelihood_by_chart_uid.get(chart_uid)
+    def attach_likelihood(chart_id: int, likelihood: DuplicateLikelihood) -> None:
+        current = likelihood_by_chart_id.get(chart_id)
         if current is None or LIKELIHOOD_SORT_WEIGHT[likelihood] < LIKELIHOOD_SORT_WEIGHT[current]:
-            likelihood_by_chart_uid[chart_uid] = likelihood
+            likelihood_by_chart_id[chart_id] = likelihood
 
-    def connect_pair(left_uid: str, right_uid: str) -> None:
-        if left_uid == right_uid:
+    def connect_pair(left_id: int, right_id: int) -> None:
+        if left_id == right_id:
             return
-        if canonical_pair(left_uid, right_uid) in excluded:
+        if canonical_pair(left_id, right_id) in excluded:
             return
-        chart_links.setdefault(left_uid, set()).add(right_uid)
-        chart_links.setdefault(right_uid, set()).add(left_uid)
+        chart_links.setdefault(left_id, set()).add(right_id)
+        chart_links.setdefault(right_id, set()).add(left_id)
 
     for row in rows:
-        local_row_id = int(row[0])
-        chart_uid = chart_uids_by_local_row.get(local_row_id)
-        if not chart_uid:
-            continue
+        chart_id = int(row[0])
         name = row[1]
         alias = row[2]
         birth_month = row[17]
         birth_day = row[18]
         birth_year = row[19]
         if chart_row_is_non_aggregable(row):
-            placeholder_uids.add(chart_uid)
-        chart_names[chart_uid] = _display_name(chart_uid, name, alias)
+            placeholder_ids.add(chart_id)
+        chart_names[chart_id] = _display_name(chart_id, name, alias)
 
         if (
             isinstance(birth_year, int)
             and isinstance(birth_month, int)
             and isinstance(birth_day, int)
         ):
-            birthday_groups.setdefault((birth_year, birth_month, birth_day), []).append(chart_uid)
+            birthday_groups.setdefault((birth_year, birth_month, birth_day), []).append(chart_id)
 
         normalized_variants = {
             value
@@ -292,33 +278,33 @@ def find_possible_duplicate_charts(
             if value
         }
         for variant in normalized_variants:
-            normalized_name_to_uids.setdefault(variant, set()).add(chart_uid)
+            normalized_name_to_ids.setdefault(variant, set()).add(chart_id)
 
-    def mark_related(group_uids: set[str], reason_key: str, likelihood: DuplicateLikelihood) -> None:
-        if len(group_uids) < 2:
+    def mark_related(group_ids: set[int], reason_key: str, likelihood: DuplicateLikelihood) -> None:
+        if len(group_ids) < 2:
             return
-        duplicate_uids.update(group_uids)
-        group_values = sorted(group_uids)
-        for i, left_uid in enumerate(group_values):
-            attach_likelihood(left_uid, likelihood)
-            for right_uid in group_values[i + 1 :]:
-                connect_pair(left_uid, right_uid)
-        for chart_uid in group_uids:
-            related_by_reason = related_names.setdefault(chart_uid, {})
+        duplicate_ids.update(group_ids)
+        group_values = sorted(group_ids)
+        for i, left_id in enumerate(group_values):
+            attach_likelihood(left_id, likelihood)
+            for right_id in group_values[i + 1 :]:
+                connect_pair(left_id, right_id)
+        for chart_id in group_ids:
+            related_by_reason = related_names.setdefault(chart_id, {})
             related = related_by_reason.setdefault(reason_key, set())
-            for other_uid in group_uids:
-                if other_uid == chart_uid:
+            for other_id in group_ids:
+                if other_id == chart_id:
                     continue
-                if canonical_pair(chart_uid, other_uid) in excluded:
+                if canonical_pair(chart_id, other_id) in excluded:
                     continue
-                related.add(chart_names.get(other_uid, f"UID {other_uid}"))
+                related.add(chart_names.get(other_id, f"Chart #{other_id}"))
 
-    for chart_uids in birthday_groups.values():
-        mark_related(set(chart_uids), "birth_date_year", "mid_birth_date")
-    for chart_uids in normalized_name_to_uids.values():
-        mark_related(set(chart_uids), "name_exact", "probable_name")
+    for chart_ids in birthday_groups.values():
+        mark_related(set(chart_ids), "birth_date_year", "mid_birth_date")
+    for chart_ids in normalized_name_to_ids.values():
+        mark_related(set(chart_ids), "name_exact", "probable_name")
 
-    variant_values = list(normalized_name_to_uids.keys())
+    variant_values = list(normalized_name_to_ids.keys())
     buckets: dict[str, list[str]] = {}
     for variant in variant_values:
         buckets.setdefault(variant[:1], []).append(variant)
@@ -331,34 +317,34 @@ def find_possible_duplicate_charts(
                 score = SequenceMatcher(None, left_variant, right_variant).ratio()
                 if score < 0.88:
                     continue
-                left_uids = normalized_name_to_uids.get(left_variant, set())
-                right_uids = normalized_name_to_uids.get(right_variant, set())
-                mark_related(left_uids.union(right_uids), "name_fuzzy", "suspected")
+                left_ids = normalized_name_to_ids.get(left_variant, set())
+                right_ids = normalized_name_to_ids.get(right_variant, set())
+                mark_related(left_ids.union(right_ids), "name_fuzzy", "suspected")
 
-    if load_chart_by_uid is not None and similarity_ceiling_percent >= similarity_threshold_percent:
+    if load_chart is not None and similarity_ceiling_percent >= similarity_threshold_percent:
         min_score = float(similarity_threshold_percent) / 100.0
         max_score = float(similarity_ceiling_percent) / 100.0
-        eligible_uids = sorted(
-            chart_uid
-            for chart_uid in chart_names
-            if chart_uid not in placeholder_uids
+        eligible_ids = sorted(
+            chart_id
+            for chart_id in chart_names
+            if chart_id not in placeholder_ids
         )
-        loaded_charts: dict[str, Chart | None] = {}
+        loaded_charts: dict[int, Chart | None] = {}
 
-        def get_chart(chart_uid: str) -> Chart | None:
-            if chart_uid not in loaded_charts:
+        def get_chart(chart_id: int) -> Chart | None:
+            if chart_id not in loaded_charts:
                 try:
-                    loaded_charts[chart_uid] = load_chart_by_uid(chart_uid)
+                    loaded_charts[chart_id] = load_chart(chart_id)
                 except Exception:
-                    loaded_charts[chart_uid] = None
-            return loaded_charts[chart_uid]
+                    loaded_charts[chart_id] = None
+            return loaded_charts[chart_id]
 
-        for index, left_uid in enumerate(eligible_uids):
-            left_chart = get_chart(left_uid)
+        for index, left_id in enumerate(eligible_ids):
+            left_chart = get_chart(left_id)
             if left_chart is None or not getattr(left_chart, "positions", None):
                 continue
-            for right_uid in eligible_uids[index + 1 :]:
-                right_chart = get_chart(right_uid)
+            for right_id in eligible_ids[index + 1 :]:
+                right_chart = get_chart(right_id)
                 if right_chart is None or not getattr(right_chart, "positions", None):
                     continue
                 final_score, _placement, _aspect, _distribution = chart_similarity_score(left_chart, right_chart)
@@ -371,49 +357,49 @@ def find_possible_duplicate_charts(
                 else:
                     reason_key = "chart_similarity_65_100"
                     likelihood = "likely"
-                mark_related({left_uid, right_uid}, reason_key, likelihood)
-                left_related = related_names.setdefault(left_uid, {}).setdefault(reason_key, set())
-                right_related = related_names.setdefault(right_uid, {}).setdefault(reason_key, set())
-                left_related.add(f"{chart_names.get(right_uid, f'UID {right_uid}')} ({percent:.1f}%)")
-                right_related.add(f"{chart_names.get(left_uid, f'UID {left_uid}')} ({percent:.1f}%)")
+                mark_related({left_id, right_id}, reason_key, likelihood)
+                left_related = related_names.setdefault(left_id, {}).setdefault(reason_key, set())
+                right_related = related_names.setdefault(right_id, {}).setdefault(reason_key, set())
+                left_related.add(f"{chart_names.get(right_id, f'Chart #{right_id}')} ({percent:.1f}%)")
+                right_related.add(f"{chart_names.get(left_id, f'Chart #{left_id}')} ({percent:.1f}%)")
 
-    component_uid_by_chart: dict[str, int] = {}
+    component_id_by_chart: dict[int, int] = {}
     component_index = 0
-    for chart_uid in sorted(duplicate_uids):
-        if chart_uid in component_uid_by_chart:
+    for chart_id in sorted(duplicate_ids):
+        if chart_id in component_id_by_chart:
             continue
         component_index += 1
-        stack = [chart_uid]
-        component_uid_by_chart[chart_uid] = component_index
+        stack = [chart_id]
+        component_id_by_chart[chart_id] = component_index
         while stack:
             current = stack.pop()
             for neighbor in chart_links.get(current, set()):
-                if neighbor in component_uid_by_chart:
+                if neighbor in component_id_by_chart:
                     continue
-                component_uid_by_chart[neighbor] = component_index
+                component_id_by_chart[neighbor] = component_index
                 stack.append(neighbor)
 
-    duplicate_sort_key_by_chart_uid = {
-        chart_uid: (
-            component_uid_by_chart.get(chart_uid, 10_000_000),
-            LIKELIHOOD_SORT_WEIGHT.get(likelihood_by_chart_uid.get(chart_uid, "suspected"), 9),
-            chart_names.get(chart_uid, "").casefold(),
+    duplicate_sort_key_by_chart_id = {
+        chart_id: (
+            component_id_by_chart.get(chart_id, 10_000_000),
+            LIKELIHOOD_SORT_WEIGHT.get(likelihood_by_chart_id.get(chart_id, "suspected"), 9),
+            chart_names.get(chart_id, "").casefold(),
         )
-        for chart_uid in duplicate_uids
+        for chart_id in duplicate_ids
     }
 
     return DuplicateDetectionResult(
-        duplicate_uids=duplicate_uids,
+        duplicate_ids=duplicate_ids,
         related_names={
-            chart_uid: {
+            chart_id: {
                 reason_key: sorted(names, key=str.casefold)
                 for reason_key, names in grouped_names.items()
                 if names
             }
-            for chart_uid, grouped_names in related_names.items()
-            if any(grouped_names.values())
+            for chart_id, grouped_names in related_names.items()
+            if grouped_names
         },
-        likelihood_by_chart_uid=likelihood_by_chart_uid,
-        duplicate_sort_key_by_chart_uid=duplicate_sort_key_by_chart_uid,
-        duplicate_group_by_chart_uid=component_uid_by_chart,
+        likelihood_by_chart_id=likelihood_by_chart_id,
+        duplicate_sort_key_by_chart_id=duplicate_sort_key_by_chart_id,
+        duplicate_group_by_chart_id=component_id_by_chart,
     )
