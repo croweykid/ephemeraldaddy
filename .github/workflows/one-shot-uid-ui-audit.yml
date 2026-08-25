@@ -1,0 +1,94 @@
+name: One-shot user-facing UID audit
+
+on:
+  push:
+    paths:
+      - ".github/workflows/one-shot-uid-ui-audit.yml"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Scan UID usage and possible display paths
+        shell: bash
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          roots = [Path("ephemeraldaddy"), Path("tools")]
+          ui_calls = {
+              "setText", "setPlainText", "setHtml", "setToolTip", "setWindowTitle",
+              "setPlaceholderText", "append", "appendPlainText", "insertText",
+              "insertHtml", "addItem", "addItems", "setStatusTip", "showMessage",
+              "information", "warning", "critical", "question", "about",
+          }
+
+          findings = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in sorted(root.rglob("*.py")):
+                  try:
+                      text = path.read_text(encoding="utf-8")
+                  except Exception:
+                      continue
+                  lines = text.splitlines()
+                  try:
+                      tree = ast.parse(text)
+                  except SyntaxError as exc:
+                      findings.append((str(path), exc.lineno or 0, "SYNTAX", str(exc)))
+                      continue
+
+                  for node in ast.walk(tree):
+                      lineno = getattr(node, "lineno", 0) or 0
+                      end_lineno = getattr(node, "end_lineno", lineno) or lineno
+                      segment = "\n".join(lines[max(0, lineno-1):min(len(lines), end_lineno)])
+                      segment_lower = segment.lower()
+
+                      if isinstance(node, ast.Constant) and isinstance(node.value, str) and "uid" in node.value.lower():
+                          value = node.value.replace("\n", "\\n")
+                          findings.append((str(path), lineno, "UID_STRING", value[:500]))
+
+                      if isinstance(node, ast.JoinedStr):
+                          formatted = []
+                          for child in ast.walk(node):
+                              if isinstance(child, ast.Name) and "uid" in child.id.lower():
+                                  formatted.append(child.id)
+                              elif isinstance(child, ast.Attribute) and "uid" in child.attr.lower():
+                                  formatted.append(child.attr)
+                          if formatted:
+                              findings.append((str(path), lineno, "UID_FSTRING", segment.strip()[:700]))
+
+                      if isinstance(node, ast.Call):
+                          func_name = ""
+                          if isinstance(node.func, ast.Attribute):
+                              func_name = node.func.attr
+                          elif isinstance(node.func, ast.Name):
+                              func_name = node.func.id
+                          if func_name in ui_calls and "uid" in segment_lower:
+                              findings.append((str(path), lineno, f"UI_CALL:{func_name}", segment.strip()[:900]))
+
+                  # Raw GUI-context UID lines catch indirect render builders missed by AST call matching.
+                  if "/gui/" in f"/{path.as_posix()}/":
+                      for index, line in enumerate(lines, start=1):
+                          if "uid" in line.lower():
+                              findings.append((str(path), index, "GUI_UID_LINE", line.strip()[:700]))
+
+          # Deduplicate while preserving sorted order.
+          unique = []
+          seen = set()
+          for finding in sorted(findings, key=lambda item: (item[0], item[1], item[2], item[3])):
+              if finding in seen:
+                  continue
+              seen.add(finding)
+              unique.append(finding)
+
+          print(f"UID AUDIT FINDINGS: {len(unique)}")
+          for path, line, kind, detail in unique:
+              print(f"{path}:{line}: [{kind}] {detail}")
+          PY
