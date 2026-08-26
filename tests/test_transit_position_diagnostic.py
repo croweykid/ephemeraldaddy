@@ -21,7 +21,7 @@ def _chart(**overrides):
     return SimpleNamespace(**values)
 
 
-def test_derived_cache_diagnostic_logs_every_field_side_by_side(caplog):
+def test_derived_cache_diagnostic_logs_every_field_side_by_side_and_refreshes_chart(caplog):
     chart = _chart()
     fresh = {
         "positions": {"Saturn": 299.77, "Sun": 10.0, "Moon": 20.0},
@@ -44,6 +44,12 @@ def test_derived_cache_diagnostic_logs_every_field_side_by_side(caplog):
     assert "field=aspects stored=" in caplog.text
     assert "mismatch_counts={'positions': 2, 'retrogrades': 1, 'houses': 0, 'housesPo': 1, 'aspects': 0}" in caplog.text
     assert "cache_mismatch=True" in caplog.text
+    assert "refreshed_for_calculation=True" in caplog.text
+
+    # Regression: the stale cache must not remain authoritative after the check.
+    assert chart.positions == fresh["positions"]
+    assert chart.retrogrades == fresh["retrogrades"]
+    assert chart.housesPo == fresh["housesPo"]
 
 
 def test_derived_cache_diagnostic_uses_rectified_time(caplog):
@@ -64,3 +70,27 @@ def test_derived_cache_diagnostic_uses_rectified_time(caplog):
     assert observed["chart"] is chart
     assert "effective_datetime=1990-01-01T08:15:00+00:00" in caplog.text
     assert "cache_mismatch=False" in caplog.text
+    assert "refreshed_for_calculation=True" in caplog.text
+
+
+def test_refresh_natal_derived_state_replaces_stale_values():
+    chart = _chart()
+    fresh = {
+        "positions": {"Sun": 29.0, "Saturn": 270.0},
+        "retrogrades": {"Sun": False, "Saturn": False},
+        "houses": [10.0] * 12,
+        "housesPo": [20.0] * 12,
+        "aspects": [{"p1": "Sun", "p2": "Saturn", "type": "trine"}],
+    }
+
+    returned = diagnostics.refresh_natal_derived_state(
+        chart,
+        snapshot_builder=lambda _chart: fresh,
+    )
+
+    assert returned == fresh
+    assert chart.positions == fresh["positions"]
+    assert chart.retrogrades == fresh["retrogrades"]
+    assert chart.houses == fresh["houses"]
+    assert chart.housesPo == fresh["housesPo"]
+    assert chart.aspects == fresh["aspects"]
