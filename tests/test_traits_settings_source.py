@@ -9,9 +9,11 @@ def test_traits_settings_ui_lives_outside_app_py():
         encoding="utf-8"
     )
 
-    assert "add_traits_settings_section(self, content_layout)" in app_source
+    assert "populate_traits_settings_layout(self, traits_layout)" in app_source
+    assert 'property_tabs.addTab(traits_widget, "Traits")' in app_source
     assert "def _on_trait_upload_clicked" not in app_source
     assert "def add_traits_settings_section" in settings_source
+    assert "def populate_traits_settings_layout" in settings_source
     assert "def on_trait_upload_clicked" in settings_source
     assert "Edit JSON…" in settings_source
     assert "def on_trait_edit_clicked" in settings_source

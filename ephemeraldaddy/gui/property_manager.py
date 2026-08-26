@@ -59,6 +59,8 @@ class PropertyManagerCoordinator:
         parent: Any | None = None,
         initial_field: str = ManageMetadataLabelsDialog.FIELD_TAGS,
         embedded: bool = False,
+        lock_field: bool = False,
+        include_astro_twin_presets: bool = False,
     ) -> ManageMetadataLabelsDialog:
         dialog = ManageMetadataLabelsDialog(
             parent=parent or self._host,
@@ -88,7 +90,8 @@ class PropertyManagerCoordinator:
             },
             settings=getattr(self._host, "_settings", None),
             initial_field=initial_field,
-            lock_field=False,
+            lock_field=lock_field,
+            include_astro_twin_presets=include_astro_twin_presets,
             window_title="Property Manager",
             show_close_button=not embedded,
             window_flags=Qt.Widget if embedded else Qt.Dialog,
