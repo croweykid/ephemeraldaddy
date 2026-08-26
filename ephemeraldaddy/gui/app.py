@@ -501,6 +501,10 @@ from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
     search_astrotheme_profile_url,
 )
+from ephemeraldaddy.gui.wikipedia_search import (
+    parse_wikipedia_birth_data,
+    resolve_wikipedia_page_options,
+)
 from ephemeraldaddy.gui.wikipedia_blurb_getter import (
     fetch_wikipedia_biography_by_name,
     populate_wikipedia_biography,
@@ -510,7 +514,7 @@ from ephemeraldaddy.gui.features.chart_editor.wikipedia_biography import (
     parse_chart_birth_date,
 )
 from ephemeraldaddy.gui.features.import_export.web_profile_controller import (
-    resolve_wikipedia_import,
+    confirm_manual_wikipedia_import,
 )
 from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
 from ephemeraldaddy.core.performance_metrics import (
@@ -13337,19 +13341,151 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if profile_data is None:
             if not self._wikipedia_backup_search_enabled:
+                QMessageBox.warning(self, "Astrotheme import", "No matching Astrotheme profile was found.")
+                return
+
+            wikipedia_prompt = QMessageBox(self)
+            wikipedia_prompt.setIcon(QMessageBox.Icon.Information)
+            wikipedia_prompt.setWindowTitle("Astrotheme import")
+            wikipedia_prompt.setText(
+                f"{raw_query} cannot be found on Astrotheme - trying Wikipedia..."
+            )
+            wikipedia_prompt.setStandardButtons(
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+            )
+            cool_button = wikipedia_prompt.button(QMessageBox.StandardButton.Ok)
+            cancel_button = wikipedia_prompt.button(QMessageBox.StandardButton.Cancel)
+            if cool_button is not None:
+                cool_button.setText("Cool")
+                wikipedia_prompt.setDefaultButton(cool_button)
+                cool_button.setStyleSheet(
+                    "QPushButton { background-color: #7b2cbf; border-color: #9d4edd; color: #ffffff; }"
+                    "QPushButton:hover { background-color: #8f3fd1; }"
+                )
+            if cancel_button is not None:
+                wikipedia_prompt.setEscapeButton(cancel_button)
+                cancel_button.setStyleSheet(
+                    "QPushButton { background-color: #5f6368; border-color: #747981; color: #f4f1ea; }"
+                    "QPushButton:hover { background-color: #6f747c; }"
+                )
+            wikipedia_prompt.exec()
+            clicked_standard_button = wikipedia_prompt.standardButton(
+                wikipedia_prompt.clickedButton()
+            )
+            if clicked_standard_button == QMessageBox.StandardButton.Cancel:
+                logger.info(
+                    "Astrotheme import canceled before Wikipedia backup (id=%s query=%r).",
+                    debug_id,
+                    raw_query,
+                )
+                return
+
+            try:
+                resolution = resolve_wikipedia_page_options(raw_query)
+            except Exception as wikipedia_exc:
+                logger.exception(
+                    "Astrotheme import Wikipedia resolution failed (id=%s query=%r): %s",
+                    debug_id,
+                    raw_query,
+                    wikipedia_exc,
+                )
                 QMessageBox.warning(
                     self,
                     "Astrotheme import",
-                    "No matching Astrotheme profile was found.",
+                    f"Could not load backup Wikipedia lookup:\n{wikipedia_exc}",
                 )
                 return
-            wikipedia_result = resolve_wikipedia_import(
-                self, raw_query, debug_id=debug_id
-            )
-            if wikipedia_result is None:
+
+            status = str(resolution.get("status", "") or "")
+            selected_title = ""
+            if status == "not_found":
+                QMessageBox.information(
+                    self,
+                    "Astrotheme import",
+                    f"{raw_query} not found on Wikipedia. :(",
+                )
                 return
-            profile_data = wikipedia_result.profile_data
-            finish_manually = wikipedia_result.finish_manually
+            if status == "multiple":
+                options = [str(item).strip() for item in resolution.get("options", []) if str(item).strip()]
+                if not options:
+                    QMessageBox.information(
+                        self,
+                        "Astrotheme import",
+                        f"{raw_query} not found on Wikipedia. :(",
+                    )
+                    return
+                selected_title, confirmed = QInputDialog.getItem(
+                    self,
+                    "Wikipedia backup search",
+                    "Multiple Wikipedia pages found. Pick one:",
+                    options,
+                    0,
+                    False,
+                )
+                if not confirmed or not selected_title:
+                    return
+            else:
+                selected_title = str(resolution.get("title", "")).strip()
+
+            if not selected_title:
+                QMessageBox.information(
+                    self,
+                    "Astrotheme import",
+                    f"{raw_query} not found on Wikipedia. :(",
+                )
+                return
+
+            try:
+                wiki_data = parse_wikipedia_birth_data(selected_title)
+            except Exception as wikipedia_exc:
+                logger.exception(
+                    "Astrotheme import Wikipedia parse failed (id=%s title=%r): %s",
+                    debug_id,
+                    selected_title,
+                    wikipedia_exc,
+                )
+                QMessageBox.information(
+                    self,
+                    "Astrotheme import",
+                    f"{selected_title} found on Wikipedia, but no birthdate info is available; search abandoned.",
+                )
+                return
+
+            birth_place = str(wiki_data.get("birth_place", "")).strip()
+            if not birth_place:
+                finish_manually = confirm_manual_wikipedia_import(self, selected_title)
+                if not finish_manually:
+                    logger.info(
+                        "Wikipedia import canceled because birthplace is unavailable "
+                        "(id=%s title=%r).",
+                        debug_id,
+                        selected_title,
+                    )
+                    return
+
+            profile_data = {
+                "name": str(wiki_data.get("name") or selected_title),
+                "birth_year": int(wiki_data["birth_year"]),
+                "birth_month": int(wiki_data["birth_month"]),
+                "birth_day": int(wiki_data["birth_day"]),
+                "birth_hour": 12,
+                "birth_minute": 0,
+                "time_unknown": True,
+                "birth_place": birth_place,
+                "data_rating": "XX",
+                "biography": str(wiki_data.get("biography", "") or ""),
+                "profile_url": str(wiki_data.get("source_url", "")),
+            }
+
+            try:
+                populate_wikipedia_biography(profile_data, page_title=selected_title)
+            except Exception as wikipedia_bio_exc:
+                logger.warning(
+                    "Wikipedia biography import failed (id=%s title=%r): %s",
+                    debug_id,
+                    selected_title,
+                    wikipedia_bio_exc,
+                )
 
         if profile_data is not None and imported_from_astrotheme:
             try:
@@ -13409,7 +13545,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 "Wikipedia data loaded into a new chart draft for manual completion "
                 "(id=%s title=%r).",
                 debug_id,
-                profile_data["name"],
+                selected_title,
             )
             return
 
