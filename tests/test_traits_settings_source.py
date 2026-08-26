@@ -21,6 +21,23 @@ def test_traits_settings_ui_lives_outside_app_py():
     assert "_warm_trait_definitions(owner, {clean_name})" in settings_source
 
 
+def test_new_trait_prompts_for_description_after_color_before_installing():
+    settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
+        encoding="utf-8"
+    )
+    upload_handler = settings_source.split("def on_trait_upload_clicked", 1)[1].split(
+        "def on_trait_delete_clicked", 1
+    )[0]
+
+    color_prompt = upload_handler.index("QColorDialog.getColor")
+    description_prompt = upload_handler.index("QInputDialog.getMultiLineText")
+    install = upload_handler.index("install_trait_file(")
+
+    assert color_prompt < description_prompt < install
+    assert "if not accepted:\n        return" in upload_handler[description_prompt:install]
+    assert "description=description" in upload_handler
+
+
 def test_traits_settings_list_fills_available_window_height():
     settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
         encoding="utf-8"
