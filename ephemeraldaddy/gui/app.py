@@ -21708,7 +21708,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             chart=None,
             source=chart_source,
             custom_collections=self._custom_collections,
-            chart_id=chart_id,
             chart_uid=chart_uid,
         )
 
