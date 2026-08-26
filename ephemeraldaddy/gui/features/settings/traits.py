@@ -366,8 +366,9 @@ def on_trait_upload_clicked(owner: Any) -> None:
     )
     if not accepted:
         return
+    description_override = description.strip() or None
     try:
-        install_trait_file(file_path, clean_name, color=color.name(), description=description)
+        install_trait_file(file_path, clean_name, color=color.name(), description=description_override)
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait upload failed", f"Trait could not be installed: {exc}")
         return

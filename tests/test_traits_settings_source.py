@@ -35,7 +35,8 @@ def test_new_trait_prompts_for_description_after_color_before_installing():
 
     assert color_prompt < description_prompt < install
     assert "if not accepted:\n        return" in upload_handler[description_prompt:install]
-    assert "description=description" in upload_handler
+    assert "description_override = description.strip() or None" in upload_handler
+    assert "description=description_override" in upload_handler
 
 
 def test_traits_settings_list_fills_available_window_height():
