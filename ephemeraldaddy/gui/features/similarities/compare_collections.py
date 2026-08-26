@@ -28,10 +28,14 @@ from ephemeraldaddy.gui.features.charts.collections import (
 from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
     collection_norm_counts,
+    collection_trait_export_sections,
     contrast_collection_norms,
     filter_aggregable_charts,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row
+from ephemeraldaddy.gui.features.charts.exporters import (
+    export_similarities_analysis_json_dialog,
+)
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import similarity_delta_rgb
 
 
@@ -85,10 +89,24 @@ class CompareCollectionsDialog(QDialog):
         self._populate_combos()
         columns = QHBoxLayout()
         self.result_browsers: list[QListWidget] = []
-        for _ in range(3):
+        self.export_buttons: list[QPushButton] = []
+        self._trait_export_sections = [(), (), ()]
+        for column_index in range(3):
+            column = QVBoxLayout()
+            export_button = QPushButton("Export Trait Profile", self)
+            export_button.setEnabled(False)
+            export_button.setToolTip(
+                "Export this column independently as a traits-import-ready Python file."
+            )
+            export_button.clicked.connect(
+                lambda _checked=False, index=column_index: self._export_column(index)
+            )
+            self.export_buttons.append(export_button)
+            column.addWidget(export_button)
             browser = QListWidget(self)
             self.result_browsers.append(browser)
-            columns.addWidget(browser, 1)
+            column.addWidget(browser, 1)
+            columns.addLayout(column, 1)
         layout.addLayout(columns, 1)
         self._render_empty()
 
@@ -194,6 +212,8 @@ class CompareCollectionsDialog(QDialog):
         database_counts, database_known, _database_total = collection_norm_counts(
             database_population
         )
+        shared_counts = counts_a + counts_b
+        shared_known = known_a + known_b
         labels = (
             f"Only {self.collection_a_combo.currentText()}",
             "Shared norms",
@@ -209,6 +229,12 @@ class CompareCollectionsDialog(QDialog):
             database_counts,
             database_known,
         )
+        self._set_export_column(
+            0,
+            collection_trait_export_sections(
+                result.only_a, counts_a, known_a, database_counts, database_known
+            ),
+        )
         shared_rows = tuple(
             (norm, counts_a, known_a, total_a, "A") for norm in result.overlap
         ) + tuple((norm, counts_b, known_b, total_b, "B") for norm in result.overlap)
@@ -219,6 +245,16 @@ class CompareCollectionsDialog(QDialog):
             database_counts,
             database_known,
         )
+        self._set_export_column(
+            1,
+            collection_trait_export_sections(
+                result.overlap,
+                shared_counts,
+                shared_known,
+                database_counts,
+                database_known,
+            ),
+        )
         self._render_norms(
             self.result_browsers[2],
             labels[2],
@@ -228,6 +264,21 @@ class CompareCollectionsDialog(QDialog):
             total_b,
             database_counts,
             database_known,
+        )
+        self._set_export_column(
+            2,
+            collection_trait_export_sections(
+                result.only_b, counts_b, known_b, database_counts, database_known
+            ),
+        )
+
+    def _set_export_column(self, index: int, export_sections: tuple) -> None:
+        self._trait_export_sections[index] = export_sections
+        self.export_buttons[index].setEnabled(bool(export_sections))
+
+    def _export_column(self, index: int) -> None:
+        export_similarities_analysis_json_dialog(
+            self, self._trait_export_sections[index]
         )
 
     def _show_omission_notice(
@@ -348,6 +399,9 @@ class CompareCollectionsDialog(QDialog):
             )
 
     def _render_empty(self) -> None:
+        self._trait_export_sections = [(), (), ()]
+        for button in self.export_buttons:
+            button.setEnabled(False)
         for browser, heading in zip(
             self.result_browsers,
             ("Only Collection A", "Shared norms", "Only Collection B"),

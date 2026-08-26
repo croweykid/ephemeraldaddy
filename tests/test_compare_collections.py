@@ -1,3 +1,4 @@
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -5,8 +6,12 @@ from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
     aggregate_collection_norms,
     collection_norm_counts,
+    collection_trait_export_sections,
     contrast_collection_norms,
     filter_aggregable_charts,
+)
+from ephemeraldaddy.gui.features.charts.similarities_export import (
+    build_similarities_json_export_payload,
 )
 
 
@@ -54,6 +59,42 @@ def test_contrast_partitions_collection_norms_into_three_columns():
     assert CollectionNorm("Placements", "Moon in Taurus") in result.only_a
     assert CollectionNorm("Placements", "Sun in Aries") in result.overlap
     assert CollectionNorm("Placements", "Moon in Gemini") in result.only_b
+
+
+def test_collection_column_export_uses_trait_import_profile_format():
+    sun = CollectionNorm("Placements", "Sun in Aries")
+    gate = CollectionNorm("Human Design Gates", "Gate 12")
+    sections = collection_trait_export_sections(
+        (sun, gate),
+        Counter({sun: 8, gate: 7}),
+        Counter({sun: 10, gate: 10}),
+        Counter({sun: 20, gate: 10}),
+        Counter({sun: 100, gate: 100}),
+    )
+
+    profile = build_similarities_json_export_payload("Collection A only", sections)[
+        "Collection A only"
+    ]
+
+    assert profile["positions"] == {"Sun in Aries": 60}
+    assert profile["gates"] == {12: 60}
+    assert profile["samples"] == [10, 0]
+
+
+def test_shared_column_export_combines_both_collections_independently():
+    sun = CollectionNorm("Placements", "Sun in Aries")
+    sections = collection_trait_export_sections(
+        (sun,),
+        Counter({sun: 14}),
+        Counter({sun: 20}),
+        Counter({sun: 20}),
+        Counter({sun: 100}),
+    )
+
+    profile = build_similarities_json_export_payload("Shared", sections)["Shared"]
+
+    assert profile["positions"] == {"Sun in Aries": 50}
+    assert profile["samples"] == [20, 0]
 
 
 def test_unknown_signs_are_not_counted_as_factual_collection_norms():
