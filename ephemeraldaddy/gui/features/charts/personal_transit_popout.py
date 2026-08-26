@@ -15,8 +15,23 @@ from ephemeraldaddy.core.composite import (
     normalize_chart,
     personal_transit_rules_for_mode,
 )
+from ephemeraldaddy.gui.features.transits.diagnostics import (
+    log_natal_derived_cache_diagnostic,
+)
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
 from ephemeraldaddy.gui.style import format_chart_header
+
+OUT_OF_SIGN_WARNING = "⚠️"
+OUT_OF_SIGN_TOOLTIP = "Out of sign limits, but within orbital limits."
+_SIGN_DISTANCE_BY_ASPECT = {
+    "conjunction": 0,
+    "semisextile": 1,
+    "sextile": 2,
+    "square": 3,
+    "trine": 4,
+    "quincunx": 5,
+    "opposition": 6,
+}
 
 
 class PersonalTransitLocationError(ValueError):
@@ -31,6 +46,52 @@ class PersonalTransitRecalculationResult:
     location_label: str
     raw_location: str
     include_time: bool
+
+
+def _zodiac_sign_index(longitude: Any) -> int | None:
+    try:
+        return int((float(longitude) % 360.0) // 30.0) % 12
+    except (TypeError, ValueError):
+        return None
+
+
+def is_out_of_sign_personal_transit_aspect(hit: Any) -> bool:
+    """Return True when exact orb math yields an aspect across non-matching signs.
+
+    Only aspects with an ordinary sign-distance counterpart are classified.
+    Harmonics such as quintile/biquintile and 45°/135° aspects have no single
+    canonical sign separation, so they are never labeled out-of-sign here.
+    """
+    aspect_key = str(getattr(hit, "aspect", "")).strip().replace(" ", "_").lower()
+    expected_distance = _SIGN_DISTANCE_BY_ASPECT.get(aspect_key)
+    if expected_distance is None:
+        return False
+
+    left_index = _zodiac_sign_index(getattr(getattr(hit, "a", None), "lon_deg", None))
+    right_index = _zodiac_sign_index(getattr(getattr(hit, "b", None), "lon_deg", None))
+    if left_index is None or right_index is None:
+        return False
+
+    raw_distance = abs(left_index - right_index)
+    sign_distance = min(raw_distance, 12 - raw_distance)
+    return sign_distance != expected_distance
+
+
+def append_out_of_sign_warning(
+    line: str,
+    hit: Any,
+) -> tuple[str, dict[str, object] | None]:
+    """Append the Personal Transit warning and return its hover-span metadata."""
+    if not is_out_of_sign_personal_transit_aspect(hit):
+        return line, None
+    base_line = line.rstrip()
+    decorated = f"{base_line} {OUT_OF_SIGN_WARNING}"
+    warning_start = len(decorated) - len(OUT_OF_SIGN_WARNING)
+    return decorated, {
+        "span_start": warning_start,
+        "span_end": warning_start + len(OUT_OF_SIGN_WARNING),
+        "tooltip": OUT_OF_SIGN_TOOLTIP,
+    }
 
 
 def resolve_personal_transit_location(
@@ -97,6 +158,11 @@ def recalculate_personal_transit(
     location: tuple[float, float, str],
     raw_location: str,
 ) -> PersonalTransitRecalculationResult:
+    # The popout can be recalculated long after it first opened. Revalidate the
+    # natal derived state at the calculation boundary instead of assuming the
+    # object still reflects canonical birth data.
+    log_natal_derived_cache_diagnostic(natal_chart)
+
     lat, lon, location_label = location
     selected_utc = selected_local_datetime.astimezone(datetime.timezone.utc)
     include_time = True
