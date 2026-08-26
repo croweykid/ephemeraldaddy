@@ -16,6 +16,8 @@ WIKIPEDIA_HTTP_TIMEOUT_SECONDS = 10
 
 WIKIDATA_BIRTH_DATE_PROPERTY = "P569"
 WIKIDATA_BIRTH_PLACE_PROPERTY = "P19"
+WIKIDATA_YEAR_PRECISION = 9
+WIKIDATA_MONTH_PRECISION = 10
 WIKIDATA_DAY_PRECISION = 11
 
 
@@ -414,7 +416,8 @@ def _ranked_wikidata_claims(
     )
 
 
-def _wikidata_birth_date(entity: Mapping[str, Any]) -> datetime.date | None:
+def _wikidata_birth_date_components(entity: Mapping[str, Any]) -> dict[str, int]:
+    """Return the calendar components justified by a Wikidata claim's precision."""
     for claim in _ranked_wikidata_claims(entity, WIKIDATA_BIRTH_DATE_PROPERTY):
         mainsnak = claim.get("mainsnak", {})
         if not isinstance(mainsnak, dict) or mainsnak.get("snaktype") != "value":
@@ -430,7 +433,7 @@ def _wikidata_birth_date(entity: Mapping[str, Any]) -> datetime.date | None:
             precision = int(value.get("precision", 0))
         except (TypeError, ValueError):
             continue
-        if precision < WIKIDATA_DAY_PRECISION:
+        if precision < WIKIDATA_YEAR_PRECISION:
             continue
 
         time_text = str(value.get("time", "") or "")
@@ -438,10 +441,31 @@ def _wikidata_birth_date(entity: Mapping[str, Any]) -> datetime.date | None:
         if match is None:
             continue
         year, month, day = (int(part) for part in match.groups())
-        parsed = _valid_calendar_date(year, month, day)
-        if parsed is not None:
-            return parsed
-    return None
+        if not 1 <= year <= 9999:
+            continue
+
+        components = {"birth_year": year}
+        if precision >= WIKIDATA_MONTH_PRECISION and 1 <= month <= 12:
+            components["birth_month"] = month
+        if precision >= WIKIDATA_DAY_PRECISION:
+            parsed = _valid_calendar_date(year, month, day)
+            if parsed is not None:
+                components["birth_day"] = day
+        return components
+    return {}
+
+
+def _wikidata_birth_date(entity: Mapping[str, Any]) -> datetime.date | None:
+    components = _wikidata_birth_date_components(entity)
+    if not all(
+        key in components for key in ("birth_year", "birth_month", "birth_day")
+    ):
+        return None
+    return _valid_calendar_date(
+        components["birth_year"],
+        components["birth_month"],
+        components["birth_day"],
+    )
 
 
 def _wikidata_birth_place_id(entity: Mapping[str, Any]) -> str:
@@ -503,8 +527,8 @@ def _wikidata_place_name(entity_id: str) -> str:
     return ""
 
 
-def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
-    """Return birth data without depending on Wikipedia's rendered HTML.
+def parse_wikipedia_available_birth_data(page_title: str) -> dict[str, Any]:
+    """Return every available birth field without requiring a complete date.
 
     The canonical Wikipedia infobox source is preferred because it matches the
     article the user sees and often contains more specific birthplace text.
@@ -515,6 +539,7 @@ def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
         raise ValueError("Wikipedia title cannot be empty")
 
     birth_date: datetime.date | None = None
+    birth_date_components: dict[str, int] = {}
     birth_place = ""
 
     try:
@@ -534,7 +559,7 @@ def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
 
         if entity is not None:
             if birth_date is None:
-                birth_date = _wikidata_birth_date(entity)
+                birth_date_components = _wikidata_birth_date_components(entity)
             if not birth_place:
                 try:
                     birth_place = _wikidata_place_name(
@@ -543,17 +568,27 @@ def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
                 except Exception:
                     birth_place = ""
 
-    if birth_date is None:
-        raise ValueError("No complete birthdate info is available")
-
     page_slug = quote(normalized_title.replace(" ", "_"))
     page_url = f"https://en.wikipedia.org/wiki/{page_slug}"
 
-    return {
+    result: dict[str, Any] = {
         "name": normalized_title,
-        "birth_year": birth_date.year,
-        "birth_month": birth_date.month,
-        "birth_day": birth_date.day,
         "birth_place": birth_place,
         "source_url": page_url,
     }
+    if birth_date is not None:
+        birth_date_components = {
+            "birth_year": birth_date.year,
+            "birth_month": birth_date.month,
+            "birth_day": birth_date.day,
+        }
+    result.update(birth_date_components)
+    return result
+
+
+def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
+    """Return Wikipedia birth data, retaining the legacy complete-date contract."""
+    result = parse_wikipedia_available_birth_data(page_title)
+    if not all(key in result for key in ("birth_year", "birth_month", "birth_day")):
+        raise ValueError("No complete birthdate info is available")
+    return result

@@ -502,8 +502,13 @@ from ephemeraldaddy.gui.astrotheme_search import (
     search_astrotheme_profile_url,
 )
 from ephemeraldaddy.gui.wikipedia_search import (
-    parse_wikipedia_birth_data,
+    parse_wikipedia_available_birth_data,
     resolve_wikipedia_page_options,
+)
+from ephemeraldaddy.gui.features.import_export.web_profile_controller import (
+    IncompleteWikipediaImportChoice,
+    choose_incomplete_wikipedia_import,
+    missing_wikipedia_birth_fields,
 )
 from ephemeraldaddy.gui.wikipedia_blurb_getter import (
     fetch_wikipedia_biography_by_name,
@@ -13466,7 +13471,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 return
 
             try:
-                wiki_data = parse_wikipedia_birth_data(selected_title)
+                wiki_data = parse_wikipedia_available_birth_data(selected_title)
             except Exception as wikipedia_exc:
                 logger.exception(
                     "Astrotheme import Wikipedia parse failed (id=%s title=%r): %s",
@@ -13477,32 +13482,23 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 QMessageBox.information(
                     self,
                     "Astrotheme import",
-                    f"{selected_title} found on Wikipedia, but no birthdate info is available; search abandoned.",
-                )
-                return
-
-            birth_place = str(wiki_data.get("birth_place", "")).strip()
-            if not birth_place:
-                QMessageBox.information(
-                    self,
-                    "Astrotheme import",
-                    f"{selected_title} found on Wikipedia, but no birth place info is available; search abandoned.",
+                    f"Could not read the available information from {selected_title}; search abandoned.",
                 )
                 return
 
             profile_data = {
                 "name": str(wiki_data.get("name") or selected_title),
-                "birth_year": int(wiki_data["birth_year"]),
-                "birth_month": int(wiki_data["birth_month"]),
-                "birth_day": int(wiki_data["birth_day"]),
                 "birth_hour": 12,
                 "birth_minute": 0,
                 "time_unknown": True,
-                "birth_place": birth_place,
+                "birth_place": str(wiki_data.get("birth_place", "")).strip(),
                 "data_rating": "XX",
                 "biography": str(wiki_data.get("biography", "") or ""),
                 "profile_url": str(wiki_data.get("source_url", "")),
             }
+            for date_key in ("birth_year", "birth_month", "birth_day"):
+                if wiki_data.get(date_key) is not None:
+                    profile_data[date_key] = int(wiki_data[date_key])
 
             try:
                 populate_wikipedia_biography(profile_data, page_title=selected_title)
@@ -13513,6 +13509,70 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     selected_title,
                     wikipedia_bio_exc,
                 )
+
+            missing_fields = missing_wikipedia_birth_fields(profile_data)
+            if missing_fields:
+                choice = choose_incomplete_wikipedia_import(
+                    self,
+                    page_title=selected_title,
+                    missing_fields=missing_fields,
+                )
+                if choice is IncompleteWikipediaImportChoice.CANCEL:
+                    logger.info(
+                        "Incomplete Wikipedia import canceled (id=%s title=%r missing=%s).",
+                        debug_id,
+                        selected_title,
+                        missing_fields,
+                    )
+                    return
+
+                parent._reset_new_chart_form()
+                parent.name_edit.setText(profile_data["name"])
+                parent.birth_year_edit.setText(
+                    f"{profile_data['birth_year']:04d}"
+                    if profile_data.get("birth_year") is not None
+                    else ""
+                )
+                parent.birth_month_edit.setText(
+                    f"{profile_data['birth_month']:02d}"
+                    if profile_data.get("birth_month") is not None
+                    else ""
+                )
+                parent.birth_day_edit.setText(
+                    f"{profile_data['birth_day']:02d}"
+                    if profile_data.get("birth_day") is not None
+                    else ""
+                )
+                parent.place_edit.setText(profile_data["birth_place"])
+                parent.time_unknown_checkbox.setChecked(True)
+                data_rating_index = parent.data_rating_combo.findData("XX")
+                parent.data_rating_combo.setCurrentIndex(max(0, data_rating_index))
+                parent.source_edit.setPlainText(profile_data["profile_url"])
+                parent.biography_edit.setPlainText(profile_data["biography"])
+                parent._set_relationship_type_selection(["public figure"])
+                parent._set_chart_type_selection(SOURCE_PUBLIC_DB)
+                if isinstance(parent, QWidget):
+                    if isinstance(parent, MainWindow):
+                        was_maximized = self.isMaximized()
+                        parent._show_chart_view_maximized(
+                            maximize=was_maximized,
+                            source_window=self,
+                        )
+                        parent._retarget_size_checker_to_main_view()
+                        self.hide()
+                    else:
+                        parent.showNormal()
+                        parent.raise_()
+                        parent.activateWindow()
+                        self.hide()
+                logger.info(
+                    "Incomplete Wikipedia import opened for manual completion "
+                    "(id=%s title=%r missing=%s).",
+                    debug_id,
+                    selected_title,
+                    missing_fields,
+                )
+                return
 
         if profile_data is not None and imported_from_astrotheme:
             try:
