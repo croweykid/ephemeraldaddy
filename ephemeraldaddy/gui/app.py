@@ -17971,9 +17971,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             # Similarities is selection-driven, not a database-metrics refresh.
             # Programmatic selection paths deliberately pass refresh_metrics=False,
             # but the visible panel must still follow those selection changes.
-            self.similarities_controller.update_analysis(
-                self._selected_local_row_ids()
-            )
+            similarities_scroll = self.similarities_analysis_panel_scroll
+            similarities_scrollbar = similarities_scroll.verticalScrollBar()
+            similarities_scroll_value = similarities_scrollbar.value()
+            try:
+                self.similarities_controller.update_analysis(
+                    self._selected_local_row_ids()
+                )
+            finally:
+                self._stabilize_left_scroll_panel_layout(similarities_scroll)
+                self._restore_scrollbar_position(
+                    similarities_scrollbar,
+                    similarities_scroll_value,
+                )
         if not refresh_metrics:
             self._update_selection_header()
             return
