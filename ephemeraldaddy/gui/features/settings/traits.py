@@ -359,8 +359,16 @@ def on_trait_upload_clicked(owner: Any) -> None:
     color = QColorDialog.getColor(QColor(DEFAULT_TRAIT_COLOR), dialog_parent, "Choose trait color")
     if not color.isValid():
         return
+    description, accepted = QInputDialog.getMultiLineText(
+        dialog_parent,
+        "Add trait description",
+        f"Description for {clean_name}:",
+    )
+    if not accepted:
+        return
+    description_override = description.strip() or None
     try:
-        install_trait_file(file_path, clean_name, color=color.name())
+        install_trait_file(file_path, clean_name, color=color.name(), description=description_override)
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait upload failed", f"Trait could not be installed: {exc}")
         return
