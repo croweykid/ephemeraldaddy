@@ -353,6 +353,33 @@ def build_similar_chart_biography_text(*, compared_chart: Any | None) -> str:
     return biography_text or generated_text
 
 
+def prepend_similar_chart_bio_to_analysis(
+    *,
+    compared_name: str,
+    biography_text: str,
+    analysis_html: str,
+    analysis_text: str,
+) -> tuple[str, str]:
+    """Put the Astro Twins bio summary before Chart View's match analysis."""
+    if biography_text:
+        bio_html = html.escape(biography_text).replace(chr(10), "<br>")
+        bio_plain = biography_text
+        bio_style = "color:#f5f5f5"
+    else:
+        bio_plain = f"The database doesn't have any information on {compared_name}'s backstory, so far..."
+        bio_html = html.escape(bio_plain)
+        bio_style = "color:#f5f5f5;font-style:italic"
+
+    html_text = (
+        f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Bio</div>"
+        f"<div style='margin-top:8px;{bio_style}'>{bio_html}</div>"
+        "<hr style='margin:12px 0;border:0;border-top:1px solid #666'>"
+        f"{analysis_html}"
+    )
+    plain_text = "\n".join(["Bio", "", bio_plain, "", "────────", "", analysis_text])
+    return html_text, plain_text
+
+
 def _sentiment_scale_bucket(value: float) -> tuple[str, str, str]:
     for label, scale in SENTIMENT_SCALE.items():
         minimum = float(scale.get("min", 0))

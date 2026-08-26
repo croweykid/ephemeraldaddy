@@ -1293,6 +1293,7 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     make_similar_info_target,
     make_similar_why_target,
     map_similar_info_targets,
+    prepend_similar_chart_bio_to_analysis,
     keep_similar_charts_popout_foreground_until_outside_click,
     OperationCanceled,
     raise_if_progress_canceled,
@@ -27494,6 +27495,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 resolve_similarity_band=self._similarity_band_for_percent,
                 analysis_mode=analysis_mode,
             )
+            if popout_info_output is None and analysis_mode == "similarities":
+                html_text, plain_text = prepend_similar_chart_bio_to_analysis(
+                    compared_name=compared_name,
+                    biography_text=biography_text,
+                    analysis_html=html_text,
+                    analysis_text=plain_text,
+                )
         if popout_info_output is not None:
             if hasattr(popout_info_output, "setHtml"):
                 popout_info_output.setHtml(html_text)

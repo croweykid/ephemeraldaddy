@@ -362,6 +362,23 @@ def test_similar_chart_biography_still_uses_generated_context_without_existing_b
     )
 
 
+def test_chart_view_similarity_analysis_starts_with_bio_and_divider():
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+        prepend_similar_chart_bio_to_analysis,
+    )
+
+    html, plain = prepend_similar_chart_bio_to_analysis(
+        compared_name="Compared",
+        biography_text="Existing biography.\n\naka: Alias\nfrom: Somewhere\ntags: one, two",
+        analysis_html="<div>SIMILARITIES ANALYSIS</div>",
+        analysis_text="SIMILARITIES ANALYSIS",
+    )
+
+    assert html.index(">Bio<") < html.index("<hr") < html.index("SIMILARITIES ANALYSIS")
+    assert "Existing biography.<br><br>aka: Alias<br>from: Somewhere<br>tags: one, two" in html
+    assert plain.index("Bio") < plain.index("────────") < plain.index("SIMILARITIES ANALYSIS")
+
+
 def test_perceived_similarity_accuracy_tally_excludes_na_and_averages_absolute_error():
     from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (  # noqa: PLC0415
         calculate_perceived_similarity_accuracy,
