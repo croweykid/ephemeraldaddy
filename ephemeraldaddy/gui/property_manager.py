@@ -34,12 +34,16 @@ from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
 )
 
 
+_MISSING = object()
+
+
 class PropertyManagerCoordinator:
     """Lightweight coordinator that keeps property-manager specifics out of app.py."""
 
     def __init__(self, host: Any) -> None:
         self._host = host
         self._needs_refresh_after_close = False
+        self._pending_changed_fields: set[str] = set()
         self._open_widgets: list[weakref.ReferenceType[ManageMetadataLabelsDialog]] = []
 
     def _mark_needs_refresh_after_close(self) -> None:
@@ -63,10 +67,10 @@ class PropertyManagerCoordinator:
             label_limit=32767,
             load_chart_names=self.chart_names,
             # The Property Manager can rename/delete labels while Qt item views in
-            # the dialog still hold selected/dragged items.  Do not refresh the
+            # the dialog still hold selected/dragged items. Do not refresh the
             # host chart model from inside the dialog's rename/reload cycle; on
             # some platforms that rebuilds views while Qt is still unwinding the
-            # completed edit and can trigger a native crash.  Standalone dialogs
+            # completed edit and can trigger a native crash. Standalone dialogs
             # flush after close; the Settings-embedded manager has no normal
             # finished signal, so it queues the flush until after its reload
             # returns to the Qt event loop.
@@ -118,15 +122,52 @@ class PropertyManagerCoordinator:
         dialog.exec()
         self.refresh_after_close()
 
+    def _refresh_host_after_nonastral_change(self) -> None:
+        """Reload changed metadata without invalidating Trait/Ranking state.
+
+        ``MainWindow._refresh_charts`` still carries a legacy coarse Rankings
+        dirty flag. Property Manager edits are nonastral metadata edits, so they
+        must not turn that flag into Trait work. Shadow the visible-rankings
+        callback for the duration of this compatibility refresh and restore the
+        exact previous dirty state afterward.
+
+        Generic Database metrics refresh is also deliberately disabled here.
+        Metadata-dependent analytics must be invalidated by their own field-level
+        section dependencies; a Property Manager edit is never authority to
+        refresh Traits or all Database analytics.
+        """
+        host = self._host
+        previous_dirty = getattr(host, "_rankings_data_dirty", _MISSING)
+        host_dict = getattr(host, "__dict__", {})
+        previous_instance_refresh = host_dict.get(
+            "_refresh_visible_rankings_sections", _MISSING
+        )
+
+        host._refresh_visible_rankings_sections = lambda: None
+        try:
+            host._refresh_charts(
+                refresh_metrics=False,
+                force_full_analysis_refresh=False,
+                refresh_tag_completers=False,
+            )
+        finally:
+            if previous_instance_refresh is _MISSING:
+                host_dict.pop("_refresh_visible_rankings_sections", None)
+            else:
+                host._refresh_visible_rankings_sections = previous_instance_refresh
+            if previous_dirty is _MISSING:
+                host_dict.pop("_rankings_data_dirty", None)
+            else:
+                host._rankings_data_dirty = previous_dirty
+
     def refresh_after_close(self) -> None:
         needs_refresh = self._needs_refresh_after_close
         self._needs_refresh_after_close = False
+        self._pending_changed_fields.clear()
         self._host._update_tag_completers()
-        self._host._refresh_charts(
-            refresh_metrics=True,
-            force_full_analysis_refresh=needs_refresh,
-            refresh_tag_completers=False,
-        )
+        if not needs_refresh:
+            return
+        self._refresh_host_after_nonastral_change()
 
     def load_usage(self) -> dict[str, list[dict[str, object]]]:
         usage = get_metadata_label_usage()
@@ -179,6 +220,13 @@ class PropertyManagerCoordinator:
         ]
         return usage
 
+    @staticmethod
+    def _change_result_has_updates(result: dict[str, int]) -> bool:
+        return any(
+            int(result.get(key, 0) or 0) > 0
+            for key in ("occurrences_updated", "rows_updated")
+        )
+
     def apply_change(
         self,
         *,
@@ -187,18 +235,24 @@ class PropertyManagerCoordinator:
         new_label: str,
         create_backup: bool = True,
     ) -> dict[str, int]:
-        """Route Name Manager deletion to suppression without editing chart metadata."""
+        """Apply a metadata edit and retain its field-level invalidation identity."""
         if field != ManageMetadataLabelsDialog.FIELD_NAMES:
-            return apply_metadata_label_change(
+            result = apply_metadata_label_change(
                 field=field,
                 old_label=old_label,
                 new_label=new_label,
                 create_backup=create_backup,
             )
+            if self._change_result_has_updates(result):
+                self._pending_changed_fields.add(str(field))
+            return result
         if str(new_label or "").strip():
             raise ValueError("Names can be suppressed, but not renamed.")
         added = suppress_name_tokens([old_label])
-        return {"occurrences_updated": added, "rows_updated": added}
+        result = {"occurrences_updated": added, "rows_updated": added}
+        if self._change_result_has_updates(result):
+            self._pending_changed_fields.add(str(field))
+        return result
 
     def _astro_twin_preset_rows(self) -> list[dict[str, object]]:
         return build_custom_astro_twin_preset_manager_rows()
