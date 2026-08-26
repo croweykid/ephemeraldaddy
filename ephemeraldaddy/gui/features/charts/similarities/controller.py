@@ -32,6 +32,10 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import DBInfoPanel
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     SimilaritiesDbBaselineCache,
 )
+from ephemeraldaddy.gui.style import (
+    SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
+    SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
+)
 
 
 class SimilaritiesController:
@@ -399,17 +403,51 @@ class SimilaritiesController:
         """Calculate automatically when enabled, otherwise retain prior results."""
         signature = self._selection_signature(chart_ids)
         if not self.autocalculate_enabled and not self._force_calculation:
-            if (
+            self._refresh_pair_controls(chart_ids)
+            stale = (
                 self._last_calculated_selection is not None
                 and signature != self._last_calculated_selection
-                and self.stale_indicator is not None
-            ):
-                self.stale_indicator.setVisible(True)
+            )
+            if self.stale_indicator is not None:
+                self.stale_indicator.setVisible(stale)
             return
         self._calculate_analysis(chart_ids)
         self._last_calculated_selection = signature
         if self.stale_indicator is not None:
             self.stale_indicator.setVisible(False)
+
+    def _refresh_pair_controls(self, chart_ids: list[int]) -> None:
+        """Refresh manual pair actions without running the full analysis."""
+        selected_chart_ids = (
+            self.host._exclude_similarities_placeholder_local_row_ids(chart_ids)
+        )
+        resolution = self.host._resolve_similarity_pair_targets(selected_chart_ids)
+        for button, active_tooltip in (
+            (
+                self.pair_button,
+                "Calculate similarity between the selected/input charts.",
+            ),
+            (
+                self.dissimilarity_pair_button,
+                "Calculate dissimilarity between the selected/input charts.",
+            ),
+        ):
+            if button is None:
+                continue
+            button.setStyleSheet(
+                SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
+                if resolution.allow_click
+                else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
+            )
+            button.setToolTip(
+                active_tooltip
+                if resolution.allow_click
+                else (resolution.guidance or "Select 2 charts to compare.")
+            )
+        if self.pair_result_label is not None and not resolution.allow_click:
+            self.pair_result_label.setText(
+                resolution.guidance or "Select 2 charts to compare."
+            )
 
     def _sync_autocalculate_toggle_style(self) -> None:
         toggle = self.autocalculate_toggle
@@ -430,8 +468,7 @@ class SimilaritiesController:
         if not enabled:
             return
         chart_ids = self.host._selected_local_row_ids()
-        if len(chart_ids) > 1:
-            self._guarded_update_analysis(chart_ids)
+        self._guarded_update_analysis(chart_ids)
 
     def calculate_pair_similarity(self) -> None:
         self._force_calculation = True
