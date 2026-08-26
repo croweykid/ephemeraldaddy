@@ -3,7 +3,7 @@
 
 The controller is the authoritative owner for Similarities Analysis panel state:
 export sections, pair controls, chart lookup, DB baseline cache, info-panel
-widgets/routing, and lifecycle entry points.  ``ManageChartsDialog`` delegates
+widgets/routing, and lifecycle entry points.  ``DatabaseViewWindow`` delegates
 panel construction and user-facing actions here while calculation-heavy helper
 methods remain callable on the host during this extraction step.
 """

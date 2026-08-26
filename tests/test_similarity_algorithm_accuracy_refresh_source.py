@@ -29,9 +29,9 @@ def _class_methods(class_name: str) -> set[str]:
 
 
 def test_cached_settings_dialog_refreshes_algorithm_accuracy_ranking():
-    assert "_ensure_settings_dialog" in _class_methods("ManageChartsDialog")
+    assert "_ensure_settings_dialog" in _class_methods("DatabaseViewWindow")
     assert "_refresh_similarity_algorithm_accuracy_label" in _class_methods(
-        "ManageChartsDialog"
+        "DatabaseViewWindow"
     )
     ensure_method = SOURCE.split("def _ensure_settings_dialog", 1)[1].split(
         "def _refresh_plugins_status_labels", 1
