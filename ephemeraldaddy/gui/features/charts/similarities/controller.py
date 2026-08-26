@@ -32,6 +32,10 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import DBInfoPanel
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     SimilaritiesDbBaselineCache,
 )
+from ephemeraldaddy.gui.style import (
+    SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
+    SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
+)
 
 
 class SimilaritiesController:
@@ -81,6 +85,15 @@ class SimilaritiesController:
         self.status_label: QLabel | None = None
         self.db_info_panel: QWidget | None = None
         self.left_rail: QWidget | None = None
+        self.autocalculate_toggle: QCheckBox | None = None
+        self.stale_indicator: QLabel | None = None
+        self.autocalculate_enabled = True
+        self._last_calculated_selection: tuple[str, ...] | None = None
+        self._force_calculation = False
+        # Keep the feature policy here even while legacy callers in app.py still
+        # invoke the host calculation entry point directly.
+        self._calculate_analysis = host._update_similarities_analysis
+        host._update_similarities_analysis = self._guarded_update_analysis
 
     def install_legacy_attributes(self) -> None:
         """Expose controller-owned state under historical host attr names.
@@ -180,6 +193,23 @@ class SimilaritiesController:
         title_layout.addWidget(export_button, alignment=Qt.AlignRight)
         layout.addWidget(title_row)
 
+        autocalculate_row = QWidget()
+        autocalculate_layout = QHBoxLayout(autocalculate_row)
+        autocalculate_layout.setContentsMargins(0, 0, 0, 0)
+        autocalculate_layout.setSpacing(6)
+        autocalculate_label = QLabel("Autocalculate")
+        autocalculate_layout.addWidget(autocalculate_label)
+        autocalculate_layout.addStretch(1)
+        self.autocalculate_toggle = QCheckBox("ON")
+        self.autocalculate_toggle.setChecked(True)
+        self.autocalculate_toggle.setToolTip(
+            "Begin similarities analysis whenever more than 1 chart is selected"
+        )
+        self.autocalculate_toggle.toggled.connect(self._on_autocalculate_toggled)
+        autocalculate_layout.addWidget(self.autocalculate_toggle)
+        layout.addWidget(autocalculate_row)
+        self._sync_autocalculate_toggle_style()
+
         self.status_label = QLabel(
             "Select 2 or more charts to view similarities across selected charts."
         )
@@ -187,6 +217,14 @@ class SimilaritiesController:
         self.status_label.setStyleSheet("color: #bbbbbb;")
         layout.addWidget(self.status_label)
         self.host.similarities_status_label = self.status_label
+
+        self.stale_indicator = QLabel(
+            "Selection changed — results below are from the previous selection."
+        )
+        self.stale_indicator.setWordWrap(True)
+        self.stale_indicator.setStyleSheet("color: #c9a85b; font-style: italic;")
+        self.stale_indicator.setVisible(False)
+        layout.addWidget(self.stale_indicator)
 
         self.refresh_chart_options()
         use_this_checkbox_style = (
@@ -254,9 +292,7 @@ class SimilaritiesController:
         self.pair_button = QPushButton("Calculate Similarities")
         self.pair_button.setStyleSheet(self.inactive_button_style)
         self.pair_button.setToolTip("Select charts to compare.")
-        self.pair_button.clicked.connect(
-            self.host._calculate_pair_similarity_from_selection
-        )
+        self.pair_button.clicked.connect(self.calculate_pair_similarity)
         pair_layout.addWidget(self.pair_button, alignment=Qt.AlignLeft)
 
         self.dissimilarity_pair_button = QPushButton("Calculate Dissimilarities")
@@ -358,9 +394,89 @@ class SimilaritiesController:
         self.host._update_similarities_analysis(chart_ids)
         self.capture_legacy_attributes()
 
+    def _selection_signature(self, chart_ids: list[int]) -> tuple[str, ...]:
+        """Return a stable UID-first signature for the analysis selection."""
+        uid_map = self.host._chart_uids_by_local_row_id(chart_ids)
+        return tuple(sorted(str(uid) for uid in uid_map.values() if uid))
+
+    def _guarded_update_analysis(self, chart_ids: list[int]) -> None:
+        """Calculate automatically when enabled, otherwise retain prior results."""
+        signature = self._selection_signature(chart_ids)
+        if not self.autocalculate_enabled and not self._force_calculation:
+            self._refresh_pair_controls(chart_ids)
+            stale = (
+                self._last_calculated_selection is not None
+                and signature != self._last_calculated_selection
+            )
+            if self.stale_indicator is not None:
+                self.stale_indicator.setVisible(stale)
+            return
+        self._calculate_analysis(chart_ids)
+        self._last_calculated_selection = signature
+        if self.stale_indicator is not None:
+            self.stale_indicator.setVisible(False)
+
+    def _refresh_pair_controls(self, chart_ids: list[int]) -> None:
+        """Refresh manual pair actions without running the full analysis."""
+        selected_chart_ids = (
+            self.host._exclude_similarities_placeholder_local_row_ids(chart_ids)
+        )
+        resolution = self.host._resolve_similarity_pair_targets(selected_chart_ids)
+        for button, active_tooltip in (
+            (
+                self.pair_button,
+                "Calculate similarity between the selected/input charts.",
+            ),
+            (
+                self.dissimilarity_pair_button,
+                "Calculate dissimilarity between the selected/input charts.",
+            ),
+        ):
+            if button is None:
+                continue
+            button.setStyleSheet(
+                SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
+                if resolution.allow_click
+                else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
+            )
+            button.setToolTip(
+                active_tooltip
+                if resolution.allow_click
+                else (resolution.guidance or "Select 2 charts to compare.")
+            )
+        if self.pair_result_label is not None and not resolution.allow_click:
+            self.pair_result_label.setText(
+                resolution.guidance or "Select 2 charts to compare."
+            )
+
+    def _sync_autocalculate_toggle_style(self) -> None:
+        toggle = self.autocalculate_toggle
+        if toggle is None:
+            return
+        toggle.setText("ON" if self.autocalculate_enabled else "OFF")
+        color = "#43a047" if self.autocalculate_enabled else "#6b6b6b"
+        border = "#78c97b" if self.autocalculate_enabled else "#929292"
+        toggle.setStyleSheet(
+            "QCheckBox { color: #d6d6d6; spacing: 7px; }"
+            "QCheckBox::indicator { width: 30px; height: 16px; border-radius: 8px; "
+            f"border: 1px solid {border}; background-color: {color}; }}"
+        )
+
+    def _on_autocalculate_toggled(self, enabled: bool) -> None:
+        self.autocalculate_enabled = bool(enabled)
+        self._sync_autocalculate_toggle_style()
+        if not enabled:
+            return
+        chart_ids = self.host._selected_local_row_ids()
+        self._guarded_update_analysis(chart_ids)
+
     def calculate_pair_similarity(self) -> None:
-        self.host._calculate_pair_similarity_from_selection()
-        self.capture_legacy_attributes()
+        self._force_calculation = True
+        try:
+            self.host._calculate_pair_similarity_from_selection()
+            self.capture_legacy_attributes()
+        finally:
+            self._force_calculation = False
 
     def calculate_pair_dissimilarity(self) -> None:
         self.host._calculate_pair_dissimilarity_from_selection()
