@@ -25676,6 +25676,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         relationship_widget.setLayout(relationship_layout)
         self._update_observations_relationship_subheaders()
         self.name_edit.textChanged.connect(self._update_observations_relationship_subheaders)
+        self.gender_combo.currentIndexChanged.connect(
+            self._update_observations_relationship_subheaders
+        )
 
         self.sentiment_relation_row_widget = QWidget()
         self.sentiment_relation_row_widget.setSizePolicy(

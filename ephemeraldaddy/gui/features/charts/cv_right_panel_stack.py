@@ -32,7 +32,10 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.interpretations import MODE_KEYWORDS
-from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
+    start_prediction_loading_blink,
+    start_prediction_loading_ellipsis,
+)
 from ephemeraldaddy.gui.style import (
     close_app_loading_progress,
     create_app_loading_progress,
@@ -779,17 +782,14 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     sync_prediction_section_visibility(owner)
     traits_label = getattr(owner, "traits_prediction_label", None)
     if _prediction_section_visible(owner, "traits") and isinstance(traits_label, QLabel):
-        loading_html = "●  Loading trait predictions…  ●" #for this chart's UID
+        loading_html = "Loading trait predictions."
         try:
             owner._traits_prediction_above_avg_html = loading_html
             owner._traits_prediction_below_avg_html = loading_html
         except Exception:
             pass
-        _set_prediction_label_loading(
-            traits_label,
-            "Loading trait predictions…", #for this chart's UID
-            alignment=Qt.AlignLeft | Qt.AlignTop,
-        )
+        traits_label.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        start_prediction_loading_ellipsis(traits_label, "Loading trait predictions")
         traits_label.setVisible(True)
         traits_label.adjustSize()
         traits_label.setMinimumHeight(traits_label.sizeHint().height())

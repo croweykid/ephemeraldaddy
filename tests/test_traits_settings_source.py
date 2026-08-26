@@ -32,6 +32,20 @@ def test_traits_settings_list_fills_available_window_height():
     assert "_traits_list_widget.setMaximumHeight" not in settings_source
 
 
+def test_traits_status_remains_visible_inside_nested_property_manager_tab():
+    settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "traits_section.addWidget(owner._traits_status_label)" in settings_source
+    status_update = settings_source[
+        settings_source.index('status_label = getattr(owner, "_traits_status_label", None)') :
+        settings_source.index("_sync_trait_action_buttons(owner)", settings_source.index("def refresh_traits_settings_list"))
+    ]
+    assert "status_label.setText(status_text)" in status_update
+    assert 'footer_writer("Traits", status_text)' in status_update
+
+
 def test_traits_settings_descriptions_render_inline_and_scroll_horizontally():
     settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
         encoding="utf-8"
