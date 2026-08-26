@@ -353,6 +353,33 @@ def build_similar_chart_biography_text(*, compared_chart: Any | None) -> str:
     return biography_text or generated_text
 
 
+def prepend_similar_chart_bio_to_analysis(
+    *,
+    compared_name: str,
+    biography_text: str,
+    analysis_html: str,
+    analysis_text: str,
+) -> tuple[str, str]:
+    """Put the Astro Twins bio summary before Chart View's match analysis."""
+    if biography_text:
+        bio_html = html.escape(biography_text).replace(chr(10), "<br>")
+        bio_plain = biography_text
+        bio_style = "color:#f5f5f5"
+    else:
+        bio_plain = f"The database doesn't have any information on {compared_name}'s backstory, so far..."
+        bio_html = html.escape(bio_plain)
+        bio_style = "color:#f5f5f5;font-style:italic"
+
+    html_text = (
+        f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Bio</div>"
+        f"<div style='margin-top:8px;{bio_style}'>{bio_html}</div>"
+        "<hr style='margin:12px 0;border:0;border-top:1px solid #666'>"
+        f"{analysis_html}"
+    )
+    plain_text = "\n".join(["Bio", "", bio_plain, "", "────────", "", analysis_text])
+    return html_text, plain_text
+
+
 def _sentiment_scale_bucket(value: float) -> tuple[str, str, str]:
     for label, scale in SENTIMENT_SCALE.items():
         minimum = float(scale.get("min", 0))
@@ -792,8 +819,9 @@ def build_similar_charts_export_rows_from_matches(
         rows.append(
             {
                 "rank": rank,
-                "chart_id": int(getattr(match, "chart_id", 0) or 0),  # LEGACY export fallback only; prefer chart_uid.
+                "chart_id": int(getattr(match, "chart_id", 0) or 0),  # Persistence-only compatibility field.
                 "chart_uid": str(getattr(match, "chart_uid", "") or ""),
+                "display_chart_id": getattr(match, "display_chart_id", None),
                 "chart_name": str(getattr(match, "chart_name", "") or ""),
                 "similarity_percent": round(similarity_percent, 1),
                 "similarity_band": band_label,
@@ -824,14 +852,14 @@ def build_similar_charts_export_lines(
         lines.append(f"# {subject_name}'s Astro Twins") #aka Similar Charts
         lines.append("")
         lines.append(
-            "| Rank | Chart UID | Chart | Similarity | Band | Z-score | Components |"
+            "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Components |"
         )
         lines.append("|---:|---:|---|---:|---|---:|---|")
         for row in rows:
             z_score = row.get("similarity_z_score")
             z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
             lines.append(
-                f"| {row['rank']} | {row.get('chart_uid', '')} | {row['chart_name']} | "
+                f"| {row['rank']} | {row.get('display_chart_id') or ''} | {row['chart_name']} | "
                 f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | "
                 f"{z_score_text} | {row.get('component_summary', '')} |"
             )
@@ -843,7 +871,9 @@ def build_similar_charts_export_lines(
         z_score = row.get("similarity_z_score")
         z_score_text = "" if z_score is None else f"; standard deviation from db similarity norms: {float(z_score):+.3f}"
         lines.append(
-            f"{row['rank']}. {row.get('chart_uid', '')} — {row['chart_name']}: "
+            f"{row['rank']}. "
+            f"{'Chart ID #' + str(row['display_chart_id']) + ' — ' if row.get('display_chart_id') else ''}"
+            f"{row['chart_name']}: "
             f"Similarity {row['similarity_percent']:.1f}% "
             f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
             f"({row.get('component_summary', 'no enabled criteria')})"

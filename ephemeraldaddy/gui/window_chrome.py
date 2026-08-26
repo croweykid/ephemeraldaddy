@@ -410,6 +410,7 @@ def configure_manage_dialog_chrome(
     _bind_menu_action(file_menu, "Export Selection to CSV", dialog, "_on_export_selected")
     _bind_menu_action(file_menu, "Backup Database", dialog, "_on_export_database")
     _bind_menu_action(file_menu, "Restore Database", dialog, "_on_import_database")
+    _bind_menu_action(file_menu, "Append Database", dialog, "_on_append_database")
     _bind_menu_action(file_menu, "Refresh Database", dialog, "_on_force_refresh_database_analysis")
     # _bind_menu_action(file_menu, "Batch Edit Entries", dialog, "_toggle_edit_panel")
     charts_menu = menu_bar.addMenu("Charts")
