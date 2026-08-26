@@ -27,9 +27,8 @@ from ephemeraldaddy.gui.features.charts.collections import (
 )
 from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
-    collection_norm_counts,
+    CollectionContrast,
     collection_trait_export_sections,
-    contrast_collection_norms,
     filter_aggregable_charts,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row
@@ -37,6 +36,9 @@ from ephemeraldaddy.gui.features.charts.exporters import (
     export_similarities_analysis_json_dialog,
 )
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import similarity_delta_rgb
+from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+    build_similarity_factor_counts_for_charts,
+)
 
 
 class CompareCollectionsDialog(QDialog):
@@ -206,12 +208,36 @@ class CompareCollectionsDialog(QDialog):
                 "Both collections need at least one usable chart.",
             )
             return
-        result = contrast_collection_norms(charts_a, charts_b)
-        counts_a, known_a, total_a = collection_norm_counts(charts_a)
-        counts_b, known_b, total_b = collection_norm_counts(charts_b)
-        database_counts, database_known, _database_total = collection_norm_counts(
-            database_population
+        provider = self.parent()
+        required_methods = (
+            "_similarities_body_label",
+            "_dominant_sign_top_three_labels",
+            "_dominant_planet_top_three_labels",
+            "_dominant_house_top_three_labels",
+            "_extract_human_design_profile",
+            "_chart_human_design_profile",
         )
+        if provider is None or not all(hasattr(provider, name) for name in required_methods):
+            QMessageBox.critical(
+                self, self.windowTitle(), "The Similarities Analysis provider is unavailable."
+            )
+            return
+        factors_a = build_similarity_factor_counts_for_charts(provider, charts_a)
+        factors_b = build_similarity_factor_counts_for_charts(provider, charts_b)
+        database_factors = build_similarity_factor_counts_for_charts(
+            provider, database_population
+        )
+        norms_a, counts_a, known_a = self._factor_counters(factors_a)
+        norms_b, counts_b, known_b = self._factor_counters(factors_b)
+        _database_norms, database_counts, database_known = self._factor_counters(
+            database_factors
+        )
+        result = CollectionContrast(
+            only_a=tuple(sorted(norms_a - norms_b)),
+            overlap=tuple(sorted(norms_a & norms_b)),
+            only_b=tuple(sorted(norms_b - norms_a)),
+        )
+        total_a, total_b = len(charts_a), len(charts_b)
         shared_counts = counts_a + counts_b
         shared_known = known_a + known_b
         labels = (
@@ -275,6 +301,21 @@ class CompareCollectionsDialog(QDialog):
     def _set_export_column(self, index: int, export_sections: tuple) -> None:
         self._trait_export_sections[index] = export_sections
         self.export_buttons[index].setEnabled(bool(export_sections))
+
+    @staticmethod
+    def _factor_counters(factors: Mapping[str, tuple[dict[str, int], dict[str, int]]]):
+        counts: Counter[CollectionNorm] = Counter()
+        known: Counter[CollectionNorm] = Counter()
+        norms: set[CollectionNorm] = set()
+        for contrast_title, (section_counts, section_totals) in factors.items():
+            section_title = contrast_title.replace(" in contrast", " in common")
+            for label, count in section_counts.items():
+                norm = CollectionNorm(section_title, label)
+                counts[norm] = count
+                known[norm] = section_totals.get(label, 0)
+                if count >= min(2, max(1, known[norm])):
+                    norms.add(norm)
+        return norms, counts, known
 
     def _export_column(self, index: int) -> None:
         export_similarities_analysis_json_dialog(

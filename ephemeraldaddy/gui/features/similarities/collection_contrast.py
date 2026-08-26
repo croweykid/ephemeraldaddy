@@ -60,12 +60,17 @@ def collection_trait_export_sections(
     """Adapt one comparison column to the Similarities trait exporter shape."""
     matches_by_section: dict[str, list[tuple[object, ...]]] = {}
     for norm in norms:
-        section = _TRAIT_EXPORT_SECTION_BY_CATEGORY.get(norm.category)
+        section = _TRAIT_EXPORT_SECTION_BY_CATEGORY.get(norm.category, norm.category)
         if section is None:
             continue
+        label = norm.label
+        if section == "Signs in houses in common" and " in H" in label:
+            sign, house_number = label.rsplit(" in H", 1)
+            if house_number.isdigit():
+                label = f"House {int(house_number)}: {sign}"
         matches_by_section.setdefault(section, []).append(
             (
-                norm.label,
+                label,
                 counts[norm],
                 known_totals[norm],
                 database_counts[norm],

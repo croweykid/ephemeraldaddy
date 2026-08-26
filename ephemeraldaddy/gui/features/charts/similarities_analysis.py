@@ -359,6 +359,15 @@ def _build_similarity_factor_counts(
 ) -> dict[str, tuple[dict[str, int], dict[str, int]]]:
     charts = [provider._get_chart_for_filter(chart_id) for chart_id in chart_ids]
     charts = [chart for chart in charts if chart is not None]
+    return build_similarity_factor_counts_for_charts(provider, charts)
+
+
+def build_similarity_factor_counts_for_charts(
+    provider: DissimilaritiesFactorProvider,
+    charts: list[Any],
+) -> dict[str, tuple[dict[str, int], dict[str, int]]]:
+    """Count every factor used by Similarities Analysis for an object cohort."""
+    charts = [chart for chart in charts if chart is not None]
     chart_count = len(charts)
     time_specific_chart_count = sum(1 for chart in charts if chart_uses_houses(chart))
     angular_bodies = ASPECT_DISPLAY_ANGLE_BODIES

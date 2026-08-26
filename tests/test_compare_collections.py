@@ -97,6 +97,41 @@ def test_shared_column_export_combines_both_collections_independently():
     assert profile["samples"] == [20, 0]
 
 
+def test_collection_export_accepts_every_similarities_analysis_factor_section():
+    factors = (
+        CollectionNorm("Top 3 Dominant Signs in common", "Aries"),
+        CollectionNorm("Top 3 Dominant Bodies in common", "Sun"),
+        CollectionNorm("Dominant nakshatras in common", "Ashwini"),
+        CollectionNorm("Aspects in common", "Sun trine Moon"),
+        CollectionNorm("Defined Centers in common", "Sacral"),
+        CollectionNorm("Profiles in common", "1/3"),
+        CollectionNorm("Authorities in common", "Sacral"),
+        CollectionNorm("BaZi signs in common", "Yang Wood Rat"),
+        CollectionNorm("Signs in houses in common", "Aries in H1"),
+    )
+    counts = Counter({factor: 8 for factor in factors})
+    totals = Counter({factor: 10 for factor in factors})
+    db_counts = Counter({factor: 20 for factor in factors})
+    db_totals = Counter({factor: 100 for factor in factors})
+
+    sections = collection_trait_export_sections(
+        factors, counts, totals, db_counts, db_totals
+    )
+    profile = build_similarities_json_export_payload("Complete", sections)["Complete"]
+
+    assert profile["signs"] == {"Aries": 60}
+    assert profile["bodies"] == {"Sun": 60}
+    assert profile["nakshatras"] == {"Ashwini": 60}
+    assert profile["aspects"] == {"Sun trine Moon": 60}
+    assert profile["centers"] == {"Sacral": 60}
+    assert profile["profiles"] == {"1/3": 60}
+    assert profile["authorities"] == {"Sacral": 60}
+    assert profile["bazisigns"] == {"Yang Wood Rat": 60}
+    assert profile["positions"]["Aries in H1"] == 60
+    assert profile["model"] == ""
+    assert profile["archived"] is False
+
+
 def test_unknown_signs_are_not_counted_as_factual_collection_norms():
     norms = aggregate_collection_norms(
         [
