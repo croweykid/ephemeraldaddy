@@ -25,6 +25,13 @@ _SIGNS = (
     "Pisces",
 )
 
+_TRAIT_EXPORT_SECTION_BY_CATEGORY = {
+    "Placements": "Signs in positions in common",
+    "House Signs": "Signs in houses in common",
+    "Human Design Gates": "Gates in common",
+    "Human Design Channels": "Channels in common",
+}
+
 
 def _sign_for_longitude(longitude: object) -> str:
     return _SIGNS[int(float(longitude) % 360 // 30)]
@@ -41,6 +48,43 @@ class CollectionContrast:
     only_a: tuple[CollectionNorm, ...]
     overlap: tuple[CollectionNorm, ...]
     only_b: tuple[CollectionNorm, ...]
+
+
+def collection_trait_export_sections(
+    norms: tuple[CollectionNorm, ...],
+    counts: Counter[CollectionNorm],
+    known_totals: Counter[CollectionNorm],
+    database_counts: Counter[CollectionNorm],
+    database_known_totals: Counter[CollectionNorm],
+    *,
+    cohort_size: int | None = None,
+) -> tuple[tuple[str, tuple[tuple[object, ...], ...]], ...]:
+    """Adapt one comparison column to the Similarities trait exporter shape."""
+    matches_by_section: dict[str, list[tuple[object, ...]]] = {}
+    for norm in norms:
+        section = _TRAIT_EXPORT_SECTION_BY_CATEGORY.get(norm.category, norm.category)
+        if section is None:
+            continue
+        label = norm.label
+        if section == "Signs in houses in common" and " in H" in label:
+            sign, house_number = label.rsplit(" in H", 1)
+            if house_number.isdigit():
+                label = f"House {int(house_number)}: {sign}"
+        matches_by_section.setdefault(section, []).append(
+            (
+                label,
+                counts[norm],
+                known_totals[norm],
+                database_counts[norm],
+                database_known_totals[norm],
+                (),
+                "",
+                max(0, int(cohort_size)) if cohort_size is not None else 0,
+            )
+        )
+    return tuple(
+        (section, tuple(matches)) for section, matches in matches_by_section.items()
+    )
 
 
 def filter_aggregable_charts(charts: Iterable[object]) -> tuple[list[object], int]:

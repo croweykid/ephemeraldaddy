@@ -233,3 +233,29 @@ def test_dissimilarity_factor_counts_use_shared_aspect_display_rules():
     assert "AS trine MC" in counts
     assert "Moon sextile Sun" in counts
     assert "AS opposition DS" not in counts
+
+
+def test_collection_factor_counts_exclude_uncertain_bodies_from_derived_factors():
+    from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+        build_similarity_factor_counts_for_charts,
+    )
+
+    chart = _chart(
+        birthtime_unknown=True,
+        positions={"Sun": 15.0, "Moon": 75.0},
+    )
+    chart.unknown_signs = {"sun"}
+    chart.aspects = [
+        {"p1": "Sun", "p2": "Moon", "type": "sextile", "delta": 0.0}
+    ]
+    provider = FakeDissimilarityProvider({1: chart})
+
+    sections = build_similarity_factor_counts_for_charts(
+        provider, [chart], exclude_uncertain_signs=True
+    )
+
+    positions, _totals = sections["Signs in positions in contrast"]
+    assert "Sun in Aries" not in positions
+    assert "Moon in Gemini" in positions
+    assert "Aspects in contrast" not in sections
+    assert chart.positions["Sun"] == 15.0

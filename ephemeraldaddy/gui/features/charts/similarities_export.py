@@ -171,13 +171,20 @@ def similarities_export_samples_array(samples: int = 0) -> list[int]:
 
 def empty_similarities_json_profile(selection_name: str, samples: int = 0) -> OrderedDict:
     """Build the skeleton profile used by Similarities Analysis JSON exports."""
-    profile = OrderedDict([("name", selection_name), ("samples", similarities_export_samples_array(samples))])
+    profile = OrderedDict(
+        [
+            ("name", selection_name),
+            ("samples", similarities_export_samples_array(samples)),
+            ("model", ""),
+        ]
+    )
     for key in SIMILARITIES_JSON_FACTOR_KEYS:
         profile[key] = OrderedDict()
     profile["color"] = "#cc99ff"
     profile["motivation"] = ""
     profile["description"] = ""
     profile["quotes"] = OrderedDict()
+    profile["archived"] = False
     return profile
 
 
@@ -377,6 +384,13 @@ def sort_similarities_json_aspects(profile: OrderedDict) -> None:
 def _similarities_export_sample_size(export_sections) -> int:
     for _section_title, matches in export_sections or []:
         for match in matches or []:
+            if len(match) > 7:
+                try:
+                    cohort_size = int(match[7])
+                except (TypeError, ValueError):
+                    cohort_size = 0
+                if cohort_size > 0:
+                    return cohort_size
             if len(match) < 3:
                 continue
             try:

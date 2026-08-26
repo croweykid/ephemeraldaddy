@@ -1,3 +1,4 @@
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -5,8 +6,12 @@ from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
     aggregate_collection_norms,
     collection_norm_counts,
+    collection_trait_export_sections,
     contrast_collection_norms,
     filter_aggregable_charts,
+)
+from ephemeraldaddy.gui.features.charts.similarities_export import (
+    build_similarities_json_export_payload,
 )
 
 
@@ -54,6 +59,78 @@ def test_contrast_partitions_collection_norms_into_three_columns():
     assert CollectionNorm("Placements", "Moon in Taurus") in result.only_a
     assert CollectionNorm("Placements", "Sun in Aries") in result.overlap
     assert CollectionNorm("Placements", "Moon in Gemini") in result.only_b
+
+
+def test_collection_column_export_uses_trait_import_profile_format():
+    sun = CollectionNorm("Placements", "Sun in Aries")
+    gate = CollectionNorm("Human Design Gates", "Gate 12")
+    sections = collection_trait_export_sections(
+        (sun, gate),
+        Counter({sun: 8, gate: 7}),
+        Counter({sun: 10, gate: 10}),
+        Counter({sun: 20, gate: 10}),
+        Counter({sun: 100, gate: 100}),
+    )
+
+    profile = build_similarities_json_export_payload("Collection A only", sections)[
+        "Collection A only"
+    ]
+
+    assert profile["positions"] == {"Sun in Aries": 60}
+    assert profile["gates"] == {12: 60}
+    assert profile["samples"] == [10, 0]
+
+
+def test_shared_column_export_combines_both_collections_independently():
+    sun = CollectionNorm("Placements", "Sun in Aries")
+    sections = collection_trait_export_sections(
+        (sun,),
+        Counter({sun: 14}),
+        Counter({sun: 20}),
+        Counter({sun: 20}),
+        Counter({sun: 100}),
+        cohort_size=35,
+    )
+
+    profile = build_similarities_json_export_payload("Shared", sections)["Shared"]
+
+    assert profile["positions"] == {"Sun in Aries": 50}
+    assert profile["samples"] == [35, 0]
+
+
+def test_collection_export_accepts_every_similarities_analysis_factor_section():
+    factors = (
+        CollectionNorm("Top 3 Dominant Signs in common", "Aries"),
+        CollectionNorm("Top 3 Dominant Bodies in common", "Sun"),
+        CollectionNorm("Dominant nakshatras in common", "Ashwini"),
+        CollectionNorm("Aspects in common", "Sun trine Moon"),
+        CollectionNorm("Defined Centers in common", "Sacral"),
+        CollectionNorm("Profiles in common", "1/3"),
+        CollectionNorm("Authorities in common", "Sacral"),
+        CollectionNorm("BaZi signs in common", "Yang Wood Rat"),
+        CollectionNorm("Signs in houses in common", "Aries in H1"),
+    )
+    counts = Counter({factor: 8 for factor in factors})
+    totals = Counter({factor: 10 for factor in factors})
+    db_counts = Counter({factor: 20 for factor in factors})
+    db_totals = Counter({factor: 100 for factor in factors})
+
+    sections = collection_trait_export_sections(
+        factors, counts, totals, db_counts, db_totals
+    )
+    profile = build_similarities_json_export_payload("Complete", sections)["Complete"]
+
+    assert profile["signs"] == {"Aries": 60}
+    assert profile["bodies"] == {"Sun": 60}
+    assert profile["nakshatras"] == {"Ashwini": 60}
+    assert profile["aspects"] == {"Sun trine Moon": 60}
+    assert profile["centers"] == {"Sacral": 60}
+    assert profile["profiles"] == {"1/3": 60}
+    assert profile["authorities"] == {"Sacral": 60}
+    assert profile["bazisigns"] == {"Yang Wood Rat": 60}
+    assert profile["positions"]["Aries in H1"] == 60
+    assert profile["model"] == ""
+    assert profile["archived"] is False
 
 
 def test_unknown_signs_are_not_counted_as_factual_collection_norms():

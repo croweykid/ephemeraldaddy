@@ -27,12 +27,18 @@ from ephemeraldaddy.gui.features.charts.collections import (
 )
 from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
-    collection_norm_counts,
-    contrast_collection_norms,
+    CollectionContrast,
+    collection_trait_export_sections,
     filter_aggregable_charts,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row
+from ephemeraldaddy.gui.features.charts.exporters import (
+    export_similarities_analysis_json_dialog,
+)
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import similarity_delta_rgb
+from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+    build_similarity_factor_counts_for_charts,
+)
 
 
 class CompareCollectionsDialog(QDialog):
@@ -85,10 +91,24 @@ class CompareCollectionsDialog(QDialog):
         self._populate_combos()
         columns = QHBoxLayout()
         self.result_browsers: list[QListWidget] = []
-        for _ in range(3):
+        self.export_buttons: list[QPushButton] = []
+        self._trait_export_sections = [(), (), ()]
+        for column_index in range(3):
+            column = QVBoxLayout()
+            export_button = QPushButton("Export Trait Profile", self)
+            export_button.setEnabled(False)
+            export_button.setToolTip(
+                "Export this column independently as a traits-import-ready Python file."
+            )
+            export_button.clicked.connect(
+                lambda _checked=False, index=column_index: self._export_column(index)
+            )
+            self.export_buttons.append(export_button)
+            column.addWidget(export_button)
             browser = QListWidget(self)
             self.result_browsers.append(browser)
-            columns.addWidget(browser, 1)
+            column.addWidget(browser, 1)
+            columns.addLayout(column, 1)
         layout.addLayout(columns, 1)
         self._render_empty()
 
@@ -130,6 +150,7 @@ class CompareCollectionsDialog(QDialog):
         self.compare_button.setEnabled(
             bool(selected_a and selected_b and selected_a != selected_b)
         )
+        self._clear_exports()
 
     def _load_chart_population(self) -> dict[str, object]:
         """Hydrate the UID-keyed database population once for one comparison."""
@@ -157,6 +178,7 @@ class CompareCollectionsDialog(QDialog):
         ]
 
     def _compare(self) -> None:
+        self._clear_exports()
         collection_a = str(self.collection_a_combo.currentData() or "")
         collection_b = str(self.collection_b_combo.currentData() or "")
         if not collection_a or not collection_b or collection_a == collection_b:
@@ -188,12 +210,42 @@ class CompareCollectionsDialog(QDialog):
                 "Both collections need at least one usable chart.",
             )
             return
-        result = contrast_collection_norms(charts_a, charts_b)
-        counts_a, known_a, total_a = collection_norm_counts(charts_a)
-        counts_b, known_b, total_b = collection_norm_counts(charts_b)
-        database_counts, database_known, _database_total = collection_norm_counts(
-            database_population
+        provider = self.parent()
+        required_methods = (
+            "_similarities_body_label",
+            "_dominant_sign_top_three_labels",
+            "_dominant_planet_top_three_labels",
+            "_dominant_house_top_three_labels",
+            "_extract_human_design_profile",
+            "_chart_human_design_profile",
         )
+        if provider is None or not all(hasattr(provider, name) for name in required_methods):
+            QMessageBox.critical(
+                self, self.windowTitle(), "The Similarities Analysis provider is unavailable."
+            )
+            return
+        factors_a = build_similarity_factor_counts_for_charts(
+            provider, charts_a, exclude_uncertain_signs=True
+        )
+        factors_b = build_similarity_factor_counts_for_charts(
+            provider, charts_b, exclude_uncertain_signs=True
+        )
+        database_factors = build_similarity_factor_counts_for_charts(
+            provider, database_population, exclude_uncertain_signs=True
+        )
+        norms_a, counts_a, known_a = self._factor_counters(factors_a)
+        norms_b, counts_b, known_b = self._factor_counters(factors_b)
+        _database_norms, database_counts, database_known = self._factor_counters(
+            database_factors
+        )
+        result = CollectionContrast(
+            only_a=tuple(sorted(norms_a - norms_b)),
+            overlap=tuple(sorted(norms_a & norms_b)),
+            only_b=tuple(sorted(norms_b - norms_a)),
+        )
+        total_a, total_b = len(charts_a), len(charts_b)
+        shared_counts = counts_a + counts_b
+        shared_known = known_a + known_b
         labels = (
             f"Only {self.collection_a_combo.currentText()}",
             "Shared norms",
@@ -209,6 +261,13 @@ class CompareCollectionsDialog(QDialog):
             database_counts,
             database_known,
         )
+        self._set_export_column(
+            0,
+            collection_trait_export_sections(
+                result.only_a, counts_a, known_a, database_counts, database_known,
+                cohort_size=total_a,
+            ),
+        )
         shared_rows = tuple(
             (norm, counts_a, known_a, total_a, "A") for norm in result.overlap
         ) + tuple((norm, counts_b, known_b, total_b, "B") for norm in result.overlap)
@@ -219,6 +278,17 @@ class CompareCollectionsDialog(QDialog):
             database_counts,
             database_known,
         )
+        self._set_export_column(
+            1,
+            collection_trait_export_sections(
+                result.overlap,
+                shared_counts,
+                shared_known,
+                database_counts,
+                database_known,
+                cohort_size=total_a + total_b,
+            ),
+        )
         self._render_norms(
             self.result_browsers[2],
             labels[2],
@@ -228,6 +298,42 @@ class CompareCollectionsDialog(QDialog):
             total_b,
             database_counts,
             database_known,
+        )
+        self._set_export_column(
+            2,
+            collection_trait_export_sections(
+                result.only_b, counts_b, known_b, database_counts, database_known,
+                cohort_size=total_b,
+            ),
+        )
+
+    def _set_export_column(self, index: int, export_sections: tuple) -> None:
+        self._trait_export_sections[index] = export_sections
+        self.export_buttons[index].setEnabled(bool(export_sections))
+
+    def _clear_exports(self) -> None:
+        self._trait_export_sections = [(), (), ()]
+        for button in self.export_buttons:
+            button.setEnabled(False)
+
+    @staticmethod
+    def _factor_counters(factors: Mapping[str, tuple[dict[str, int], dict[str, int]]]):
+        counts: Counter[CollectionNorm] = Counter()
+        known: Counter[CollectionNorm] = Counter()
+        norms: set[CollectionNorm] = set()
+        for contrast_title, (section_counts, section_totals) in factors.items():
+            section_title = contrast_title.replace(" in contrast", " in common")
+            for label, count in section_counts.items():
+                norm = CollectionNorm(section_title, label)
+                counts[norm] = count
+                known[norm] = section_totals.get(label, 0)
+                if count >= min(2, max(1, known[norm])):
+                    norms.add(norm)
+        return norms, counts, known
+
+    def _export_column(self, index: int) -> None:
+        export_similarities_analysis_json_dialog(
+            self, self._trait_export_sections[index]
         )
 
     def _show_omission_notice(
@@ -348,6 +454,7 @@ class CompareCollectionsDialog(QDialog):
             )
 
     def _render_empty(self) -> None:
+        self._clear_exports()
         for browser, heading in zip(
             self.result_browsers,
             ("Only Collection A", "Shared norms", "Only Collection B"),
