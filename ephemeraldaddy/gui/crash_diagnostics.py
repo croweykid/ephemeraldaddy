@@ -25,6 +25,10 @@ _CRASH_LOG_ENV = "EPHEMERALDADDY_CRASH_LOG"
 _PERIODIC_DUMP_ENV = "EPHEMERALDADDY_PERIODIC_TRACEBACK_SECONDS"
 _DEFAULT_DIR_NAME = "ephemeraldaddy-crash-reports"
 _NATIVE_SIGNALS = (signal.SIGABRT, signal.SIGFPE, signal.SIGILL, signal.SIGSEGV)
+_QT_THREAD_AFFINITY_DIAGNOSTIC_MESSAGES = (
+    "QObject::startTimer: Timers cannot be started from another thread",
+    "QObject: shared QObject was deleted directly. The program is malformed and may crash.",
+)
 
 _log_file: TextIO | None = None
 _previous_excepthook = sys.excepthook
@@ -87,6 +91,56 @@ def _thread_exception_hook(args: threading.ExceptHookArgs) -> None:
         _previous_threading_excepthook(args)
 
 
+def _qt_message_needs_thread_affinity_diagnostics(message: str) -> bool:
+    return any(marker in message for marker in _QT_THREAD_AFFINITY_DIAGNOSTIC_MESSAGES)
+
+
+def _log_qt_thread_affinity_diagnostics(message: str) -> None:
+    """Capture the Python/Qt execution context for rare QObject affinity warnings."""
+    python_thread = threading.current_thread()
+    python_ident = threading.get_ident()
+    python_native_id = getattr(python_thread, "native_id", None)
+    qt_thread_repr = "<unavailable>"
+    try:
+        from PySide6.QtCore import QThread
+
+        qt_thread_repr = repr(QThread.currentThread())
+    except Exception as exc:
+        qt_thread_repr = f"<unavailable: {exc!r}>"
+
+    python_stack = "".join(traceback.format_stack(limit=80))
+    logger.warning(
+        "Qt thread-affinity diagnostic for %r: python_thread=%s ident=%s native_id=%s qt_thread=%s\n"
+        "Python stack at Qt warning:\n%s",
+        message,
+        python_thread.name,
+        python_ident,
+        python_native_id,
+        qt_thread_repr,
+        python_stack,
+    )
+
+    if _log_file is None:
+        return
+    try:
+        print("\nQt thread-affinity diagnostic", file=_log_file)
+        print(f"message={message!r}", file=_log_file)
+        print(
+            "python_thread="
+            f"{python_thread.name!r} ident={python_ident!r} native_id={python_native_id!r}",
+            file=_log_file,
+        )
+        print(f"qt_thread={qt_thread_repr}", file=_log_file)
+        print("Python stack at Qt warning:", file=_log_file)
+        _log_file.write(python_stack)
+        print("All Python thread stacks:", file=_log_file)
+        faulthandler.dump_traceback(file=_log_file, all_threads=True)
+        print("End Qt thread-affinity diagnostic\n", file=_log_file)
+        _log_file.flush()
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.debug("Could not write Qt thread-affinity diagnostics: %s", exc)
+
+
 def _qt_message_handler(mode, context, message: str) -> None:
     try:
         from PySide6.QtCore import QtMsgType
@@ -108,6 +162,8 @@ def _qt_message_handler(mode, context, message: str) -> None:
         getattr(context, "line", None),
         getattr(context, "function", None),
     )
+    if _qt_message_needs_thread_affinity_diagnostics(message):
+        _log_qt_thread_affinity_diagnostics(message)
 
 
 def install_crash_diagnostics(*, debug_enabled: bool = False) -> Path | None:
