@@ -17,7 +17,10 @@ from ephemeraldaddy.gui.features.charts.selection_header import (
 
 
 def test_hypothetical_collection_is_last_default_collection():
-    assert DEFAULT_COLLECTION_OPTIONS[-1] == ("Hypothetical", DEFAULT_COLLECTION_HYPOTHETICAL)
+    assert DEFAULT_COLLECTION_OPTIONS[-1] == (
+        "Hypothetical",
+        DEFAULT_COLLECTION_HYPOTHETICAL,
+    )
 
 
 def test_hypothetical_collection_matches_hypothetical_chart_type():
@@ -110,3 +113,20 @@ def test_collection_scope_cache_signature_uses_collection_and_stable_uids():
     assert first != collection_scope_cache_signature("celebrities", ["UID-A", "UID-B"])
     assert first != collection_scope_cache_signature("friends", ["UID-A"])
     assert collection_scope_cache_signature("all", ["UID-A"]) == "all"
+
+
+def test_custom_collection_membership_survives_local_row_id_change():
+    collection = CustomCollection(
+        collection_id="favorites",
+        name="Favorites",
+        chart_ids=frozenset({12}),
+        chart_uids=frozenset({"STABLE-UID"}),
+    )
+
+    assert chart_belongs_to_collection(
+        "favorites",
+        chart=None,
+        custom_collections={"favorites": collection},
+        chart_id=104,
+        chart_uid="stable-uid",
+    )

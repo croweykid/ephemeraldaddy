@@ -933,6 +933,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     normalize_collection_id,
     sanitize_collection_name,
 )
+from ephemeraldaddy.gui.features.database_view.collection_labels import custom_collection_label
 from ephemeraldaddy.gui.features.database_view.collections import (
     CollectionsListWidget,
     chart_drag_mime_data,
@@ -16723,11 +16724,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             item.setFlags(Qt.ItemIsEnabled)
             item.setForeground(QBrush(QColor("#b0b0b0")))
             self.collections_list_widget.addItem(item)
+        live_chart_uids = set(self._local_row_id_by_chart_uid)
         for custom_collection in sorted(
             self._custom_collections.values(),
             key=lambda collection: collection.name.casefold(),
         ):
-            item = QListWidgetItem(custom_collection.name)
+            item = QListWidgetItem(
+                custom_collection_label(
+                    custom_collection.name,
+                    custom_collection.chart_uids,
+                    live_chart_uids,
+                )
+            )
             item.setData(Qt.UserRole, custom_collection.collection_id)
             item.setForeground(QBrush(QColor("#ffffff")))
             self.collections_list_widget.addItem(item)
@@ -19274,6 +19282,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             self._chart_rows = []
         self._rebuild_hydrated_chart_identity_indexes()
+        # Collection counts depend on the hydrated UID index. Refresh them at
+        # the same boundary so initial load and chart additions/deletions do
+        # not leave stale ``(0)`` or membership counts in Collection Manager.
+        self._refresh_collection_list_widget()
         self._rankings_data_dirty = True
         if refresh_tag_completers:
             if progress_callback:
@@ -19542,51 +19554,52 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if progress_callback:
             progress_callback("Rendering Database rows…", 95)
         try:
-            for (
-                cid,
-                name,
-                alias,
-                gender,
-                dt_iso,
-                birth_place,
-                _created_at,
-                used_fallback,
-                birthtime_unknown,
-                retcon_time_used,
-                _familiarity,
-                _age_when_first_met,
-                _year_first_encountered,
-                _social_score,
-                _source,
-                is_placeholder,
-                is_deceased,
-                _birth_month,
-                _birth_day,
-                _birth_year,
-                _retcon_hour,
-                _retcon_minute,
-                from_whence,
-                _data_rating,
-                _relationship_types,
-                _tags,
-                _reminds_me_of,
-                _dominant_sign_weights,
-                _dominant_planet_weights,
-                _dominant_mode,
-                _chart_uid,
-                _weirdness_score,
-            ) in rows:
+            for chart_row in rows:
+                (
+                    cid,
+                    name,
+                    alias,
+                    gender,
+                    dt_iso,
+                    birth_place,
+                    _created_at,
+                    used_fallback,
+                    birthtime_unknown,
+                    retcon_time_used,
+                    _familiarity,
+                    _age_when_first_met,
+                    _year_first_encountered,
+                    _social_score,
+                    _source,
+                    is_placeholder,
+                    is_deceased,
+                    _birth_month,
+                    _birth_day,
+                    _birth_year,
+                    _retcon_hour,
+                    _retcon_minute,
+                    from_whence,
+                    _data_rating,
+                    _relationship_types,
+                    _tags,
+                    _reminds_me_of,
+                    _dominant_sign_weights,
+                    _dominant_planet_weights,
+                    _dominant_mode,
+                    _chart_uid,
+                    _weirdness_score,
+                ) = chart_row
+                item_chart_uid = str(_chart_uid or "").strip().upper()
                 if has_active_chart_filters:
                     try:
                         matches_filters = self._chart_matches_filters(
-                            cid,
+                            chart_row,
                             human_design_search_selections=human_design_search_selections,
                         )
                     except Exception:
                         matches_filters = False
                     if not matches_filters:
                         continue
-                item_chart_uid = str(_chart_uid or "").strip().upper()
                 self._displayed_chart_rows_by_uid[item_chart_uid] = (
                     cid,
                     name,
@@ -20105,7 +20118,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _chart_matches_filters(
         self,
-        chart_id: int,
+        chart_row: tuple[Any, ...],
         *,
         human_design_search_selections: HumanDesignSearchSelectionSnapshot | None = None,
     ) -> bool:
@@ -20554,8 +20567,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not self._has_active_chart_filters():
             return True
 
-        chart_uid = self._chart_uid_by_local_row_id.get(int(chart_id))
-        chart_row = self._active_chart_rows_by_uid.get(chart_uid or "")
+        chart_id = int(chart_row[0])
         if search_country or search_city or search_state:
             birth_place_value = chart_row[5] if chart_row else None
             if birth_place_value is None:
