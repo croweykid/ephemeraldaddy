@@ -128,6 +128,9 @@ def test_rankings_panel_least_sign_mode_ranks_lowest_scores_and_limits_glyphs():
 
     assert "value_direction = 1.0 if least else -1.0" in method
     assert "value_direction * float(row[\"value\"])" in method
+    assert "value / chart_total_weight if chart_total_weight > 0.0 else 0.0" in method
+    assert '"value": normalized_value if least else value' in method
+    assert '/ float(row.get("total_weight") or 1.0)' in method
     assert "Bottom {display_limit} charts" in method
     assert "display_limit = min(20, len(rows))" in method
     assert 'show_glyphs = not least or float(row["value"]) > chart_average' in method

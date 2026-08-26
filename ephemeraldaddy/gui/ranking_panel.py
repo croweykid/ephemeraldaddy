@@ -749,6 +749,12 @@ class RankingsPanelMixin:
                 value = float(weights.get(selected_sign, 0.0))
             except (TypeError, ValueError):
                 continue
+            chart_total_weight = sum(
+                float(weights.get(sign, 0.0) or 0.0) for sign in ZODIAC_NAMES
+            )
+            normalized_value = (
+                value / chart_total_weight if chart_total_weight > 0.0 else 0.0
+            )
             db_count += 1
             chart_uid = normalized_chart_uid or self._normalize_rankings_chart_uid(
                 getattr(chart, "chart_uid", "")
@@ -759,7 +765,8 @@ class RankingsPanelMixin:
                     "name": str(
                         getattr(chart, "name", "") or f"Chart {chart_uid or chart_id}"
                     ),
-                    "value": value,
+                    "value": normalized_value if least else value,
+                    "total_weight": chart_total_weight,
                     "weights": weights,
                     "name_style": self._sign_dominance_chart_name_style(
                         chart, selected_sign, least=least
@@ -799,7 +806,12 @@ class RankingsPanelMixin:
                 rows,
                 key=lambda row, sign=sign: (
                     value_direction
-                    * float((row.get("weights") or {}).get(sign, 0.0) or 0.0),
+                    * (
+                        float((row.get("weights") or {}).get(sign, 0.0) or 0.0)
+                        / float(row.get("total_weight") or 1.0)
+                        if least
+                        else float((row.get("weights") or {}).get(sign, 0.0) or 0.0)
+                    ),
                     str(row["name"]).casefold(),
                 ),
             )
@@ -835,8 +847,19 @@ class RankingsPanelMixin:
             glyph_html = ""
             shared_signs = sign_top_20_memberships.get(chart_key, [])
             chart_weights = row.get("weights") or {}
+            chart_total_weight = float(row.get("total_weight") or 0.0)
             chart_average = (
-                sum(float(chart_weights.get(sign, 0.0) or 0.0) for sign in ZODIAC_NAMES)
+                sum(
+                    float(chart_weights.get(sign, 0.0) or 0.0)
+                    for sign in ZODIAC_NAMES
+                )
+                / chart_total_weight
+                / len(ZODIAC_NAMES)
+                if least and chart_total_weight > 0.0
+                else sum(
+                    float(chart_weights.get(sign, 0.0) or 0.0)
+                    for sign in ZODIAC_NAMES
+                )
                 / len(ZODIAC_NAMES)
             )
             show_glyphs = not least or float(row["value"]) > chart_average

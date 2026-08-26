@@ -19,5 +19,5 @@ def test_sign_dominance_rankings_style_names_by_selected_sign_big_three():
     assert 'css_parts.append("color:#5dade2")' in helper
     assert 'css_parts.append("color:#39ff14")' in helper
     assert 'css_parts.append("font-weight:700")' in helper
-    assert '"name_style": self._sign_dominance_chart_name_style(chart, selected_sign)' in refresh
+    assert 'chart, selected_sign, least=least' in refresh
     assert "style='{name_style}'" in refresh

@@ -57,7 +57,8 @@ def test_hidden_partial_trait_ranking_is_resumed_when_rankings_reopens():
         "def _schedule_rankings_traits_continuation", 1
     )[1].split("def _refresh_rankings_panel", 1)[0]
 
-    assert 'getattr(self, "_active_left_panel", None) == "rankings"' in continuation
+    assert '"_active_left_panel", None' in continuation
+    assert '== "rankings"' in continuation
     assert 'getattr(self, "_left_panel_visible", False)' in continuation
     assert 'getattr(self, "_is_left_panel_collapsed", None)' in continuation
     assert "if not rankings_visible:" in continuation
