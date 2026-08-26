@@ -32,6 +32,10 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     trait_snapshot_averages,
 )
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+from ephemeraldaddy.gui.features.charts.sign_dominance_ranking import (
+    least_house_priority,
+    resolve_complete_sign_weights,
+)
 from ephemeraldaddy.gui.style import (
     COLLAPSIBLE_HEADER_LEVEL_PARENT,
     DROPDOWN_ACCENT_ITEM_TEXT_COLOR,
@@ -739,22 +743,31 @@ class RankingsPanelMixin:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            weights = stored_weights.get(int(chart_id)) or getattr(
-                chart, "dominant_sign_weights", None
+            weights, recalculated = resolve_complete_sign_weights(
+                stored_weights.get(int(chart_id)),
+                getattr(chart, "dominant_sign_weights", None),
+                ZODIAC_NAMES,
+                lambda chart=chart: _calculate_dominant_sign_weights(chart),
             )
-            if not isinstance(weights, dict):
-                weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_sign_weights = weights
+            if weights is None:
+                continue
+            if recalculated:
+                chart.dominant_sign_weights = dict(weights)
             try:
-                value = float(weights.get(selected_sign, 0.0))
-            except (TypeError, ValueError):
+                value = float(weights[selected_sign])
+            except (KeyError, TypeError, ValueError):
                 continue
             chart_total_weight = sum(
                 float(weights.get(sign, 0.0) or 0.0) for sign in ZODIAC_NAMES
             )
+            # A zero-total map is invalid dominance data, not a legitimate
+            # zero-percent sign score. Never let it enter the ranking pool.
+            if chart_total_weight <= 0.0:
+                continue
             normalized_value = (
                 value / chart_total_weight if chart_total_weight > 0.0 else 0.0
             )
+            uses_houses = bool(chart_uses_houses(chart))
             db_count += 1
             chart_uid = normalized_chart_uid or self._normalize_rankings_chart_uid(
                 getattr(chart, "chart_uid", "")
@@ -768,34 +781,51 @@ class RankingsPanelMixin:
                     "value": normalized_value if least else value,
                     "total_weight": chart_total_weight,
                     "weights": weights,
+                    "uses_houses": uses_houses,
                     "name_style": self._sign_dominance_chart_name_style(
                         chart, selected_sign, least=least
                     ),
                 }
             )
             if chart_uid:
-                dominance_tooltips[f"chart:{chart_uid}"] = sign_dominance_tooltip_html(
+                tooltip_html = sign_dominance_tooltip_html(
                     chart_name=str(getattr(chart, "name", "") or "This chart"),
                     selected_sign=selected_sign,
                     sun_sign=self._rankings_chart_body_sign(chart, "Sun"),
                     moon_sign=self._rankings_chart_body_sign(chart, "Moon"),
                     ascendant_sign=(
                         self._rankings_chart_body_sign(chart, "AS")
-                        if chart_uses_houses(chart)
+                        if uses_houses
                         else None
                     ),
                 )
+                if least and not uses_houses:
+                    tooltip_html += (
+                        "<br><span style='color:#ffd966;'>🏠❓ "
+                        "birthtime unknown = houses unknown = "
+                        f"{html.escape(selected_sign)} weight unknown</span>"
+                    )
+                dominance_tooltips[f"chart:{chart_uid}"] = tooltip_html
         tooltip_attribute = (
             "_rankings_least_sign_dominance_tooltips"
             if least
             else "_rankings_most_sign_dominance_tooltips"
         )
         setattr(self, tooltip_attribute, dominance_tooltips)
-        if not db_average and db_count:
+        if least and db_count:
+            # Least-mode rows are normalized per chart, so compare them against
+            # the mean of those same normalized values rather than the aggregate
+            # raw-weight cache ratio.
+            db_average = sum(float(row["value"]) for row in rows) / float(db_count)
+        elif not db_average and db_count:
             db_average = sum(float(row["value"]) for row in rows) / float(db_count)
         value_direction = 1.0 if least else -1.0
         rows.sort(
             key=lambda row: (
+                least_house_priority(
+                    least=least,
+                    uses_houses=row.get("uses_houses"),
+                ),
                 value_direction * float(row["value"]),
                 str(row["name"]).casefold(),
             )
@@ -805,6 +835,10 @@ class RankingsPanelMixin:
             sign_ranked_rows = sorted(
                 rows,
                 key=lambda row, sign=sign: (
+                    least_house_priority(
+                        least=least,
+                        uses_houses=row.get("uses_houses"),
+                    ),
                     value_direction
                     * (
                         float((row.get("weights") or {}).get(sign, 0.0) or 0.0)
@@ -869,6 +903,8 @@ class RankingsPanelMixin:
                     for sign in shared_signs
                     if sign_glyphs.get(sign)
                 )
+            if least and not bool(row.get("uses_houses")):
+                glyph_html += " <span style='color:#ffd966;'>🏠❓</span>"
             value = float(row["value"]) * 100.0
             deviation = value - (db_average * 100.0)
             deviation_color = (
