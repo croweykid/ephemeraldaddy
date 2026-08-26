@@ -8,6 +8,7 @@ from ephemeraldaddy.core.composite import (
 from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     OUT_OF_SIGN_TOOLTIP,
     append_out_of_sign_warning,
+    decorate_personal_transit_output_text,
     is_out_of_sign_personal_transit_aspect,
 )
 
@@ -69,6 +70,24 @@ def test_mid_sign_aries_capricorn_resolves_to_square_without_warning():
     line, tooltip_span = append_out_of_sign_warning("Sun square Mars", hits[0])
     assert line == "Sun square Mars"
     assert tooltip_span is None
+
+
+def test_personal_transit_output_appends_warning_only_to_out_of_sign_row():
+    text = "\n".join(
+        [
+            "Personal Transit (Transit → Natal)",
+            "",
+            "Transit Sun (Aries H1) Trine Natal Mars (Capricorn H10) | orb 1.00°",
+            "Transit Sun (Aries H1) Square Natal Mars (Capricorn H10) | orb 0.00°",
+        ]
+    )
+
+    decorated = decorate_personal_transit_output_text(text)
+    lines = decorated.splitlines()
+
+    assert lines[2].endswith("⚠️")
+    assert not lines[3].endswith("⚠️")
+    assert decorate_personal_transit_output_text(decorated) == decorated
 
 
 def test_non_sign_based_harmonics_are_not_labeled_out_of_sign():
