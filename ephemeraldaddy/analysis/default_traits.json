@@ -807,6 +807,7 @@
       1,
       0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -909,10 +910,10 @@
     "antibazisigns": {},
     "color": "#a5814e",
     "motivation": "",
-    "description": "People who are cowboys or at least have played one on TV.",
+    "description": "Cowboys ain't easy to love, and they're harder to hold. They'd rather buy you a song than diamonds or gold...if you don't understand em, and they don't die young, they'll prolly just ride away...Mamas, don't let your babies grow up to be cowboys. Don't let em pick guitars and drive them old trucks. Make em be doctors and lawyers and such... -- Merle Haggard. | In other words, what I'm referring to here is the mythological archetype of cowboy, more than a literal cowboy (or cowgirl, or cow-person). Based on people who embody that.",
     "quotes": {},
     "archived": false,
-    "uid": "default_comedian"
+    "uid": "default_cowboy"
   },
   "criminal": {
     "name": "criminal",
@@ -920,6 +921,7 @@
       1,
       0
     ],
+    "model": "observed",
     "signs": {
       "Pisces": 22,
       "Libra": -20
@@ -1068,7 +1070,7 @@
     "antibazisigns": {},
     "color": "#d6647f",
     "motivation": "",
-    "description": "Admittedly a very small sample size of ALL kinds of criminals. Mostly created as a gag.",
+    "description": "This was based on a tiny sample size of ALL kinds of criminals. Mostly created as a gag. And yet it has been, thusfar, hilariously accurate.",
     "quotes": {},
     "archived": false,
     "uid": "default_criminal"
@@ -1078,6 +1080,7 @@
     "samples": [
       29,0
     ],
+    "model": "observed",
     "signs": {
       "Pisces": -15,
       "Virgo": -21
@@ -1253,6 +1256,7 @@
     "samples": [
       121,1
     ],
+    "model": "observed",
     "signs": {
       "Sagittarius": -9
     },
@@ -1492,12 +1496,13 @@
     "antibazisigns": {},
     "color": "#ffdc00",
     "motivation": "",
-    "description": "Agregated list of trust-inspiring 'inspirational' public figures with whom the general public appears to feel instantly at ease with. People are drawn into their orbit, becoming their satellites.",
+    "description": "Aggregated list of trust-inspiring 'inspirational' public figures with whom the general public appears to feel instantly at ease with. People are drawn into their orbit, becoming their satellites.",
     "quotes": {},
     "archived": false
   },
   "engineer": {
     "name": "engineer",
+    "model": "observed",
     "samples": [1,0],
     "signs": {},
     "antisigns": {},
@@ -1650,6 +1655,7 @@
       37,
       0
     ],
+    "model": "observed",
     "signs": {
       "Aries": 25
     },
@@ -1846,6 +1852,7 @@
   "film director": {
     "name": "film director",
     "samples": [1,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -2003,6 +2010,7 @@
       58,
       0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -2164,6 +2172,7 @@
   "hilarious": {
     "name": "hilarious",
     "samples": [1,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -2346,6 +2355,7 @@
   "human cinderblock": {
     "name": "human cinderblock",
     "samples": [1,0],
+    "model": "observed",
     "signs": {
       "Capricorn": 11
     },
@@ -2497,6 +2507,7 @@
   "humorless/zero chill": {
     "name": "humorless/zero chill",
     "samples": [1,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -2640,6 +2651,7 @@
     "samples": [
       11,0
     ],
+    "model": "observed",
     "signs": {
       "Taurus": 34
     },
@@ -2768,6 +2780,7 @@
   "intellectual": {
     "name": "intellectual",
     "samples": [1,0],
+    "model": "observed",
     "signs": {
       "Gemini": 5
     },
@@ -2934,6 +2947,7 @@
   "loves kids": {
     "name": "loves kids",
     "samples": [91,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -3213,6 +3227,7 @@
     "samples": [
       283,0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -3300,6 +3315,7 @@
     "samples": [
       31,0
     ],
+    "model": "observed",
     "signs": {
       "Taurus": 18
     },
@@ -3457,6 +3473,8 @@
   },
   "polarizing feminist": {
     "name": "polarizing feminist",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {
       "Libra": 14,
       "Aquarius": 15,
@@ -3604,16 +3622,16 @@
     "antibazisigns": {},
     "color": "#faa6d2",
     "motivation": "",
-    "description": "The developer looked up: \"most controversial feminists, most conservative feminists, most renowned feminists, most misandrist feminists\" for a whole mix of polarizing feminists and put them all into an agregate for Similarities Analysis. This trait is the byproduct of what those charts most frequently shared.",
+    "description": "The developer looked up: \"most controversial feminists, most conservative feminists, most renowned feminists, most misandrist feminists\" for a whole mix of polarizing feminists and put them all into an aggregate for Similarities Analysis. This trait is the byproduct of what those charts most frequently shared. It clearly seems to mean something different in male charts than female charts, but I'm not sure exactly what it means in a male chart. And does it mean something different in a hetero vs a gay chart? Lots of questions raised by this, since it seems to relate a lot to sexual/gender power dynamics in terms of how one would interpret the results by way of 'astrological lore'.",
     "quotes": {},
-    "archived": false,
-    "samples": []
+    "archived": false
   },
   "politician (full time)": {
     "name": "politician (full time)",
     "samples": [
       132,0
     ],
+    "model": "observed",
     "signs": {
       "Taurus": 9
     },
@@ -3905,6 +3923,7 @@
   "pro athlete": {
     "name": "pro athlete",
     "samples": [1,1],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -4210,6 +4229,7 @@
       482,
       0
     ],
+    "model": "observed",
     "signs": {
       "Aquarius": -4
     },
@@ -4447,6 +4467,7 @@
   "revolutionary": {
     "name": "revolutionary",
     "samples": [1,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -4726,6 +4747,7 @@
   "talk show host": {
     "name": "talk show host",
     "samples": [1,0],
+    "model": "observed",
     "signs": {
       "Scorpio": 14,
       "Cancer": -14
@@ -4911,6 +4933,7 @@
     "samples": [
       17,0
     ],
+    "model": "observed",
     "signs": {
       "Scorpio": 30
     },
@@ -5101,6 +5124,7 @@
     "samples": [
       44,0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -5235,6 +5259,7 @@
     "samples": [
       30,0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
