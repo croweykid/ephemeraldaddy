@@ -124,16 +124,16 @@ def test_similar_chart_candidate_exclusions_are_uid_owned():
     assert "get_chart_ids_by_uid" in source
 
 
-def test_charts_controller_has_no_legacy_pending_id_callbacks():
-    source = Path(
-        "ephemeraldaddy/gui/features/controllers/main_window.py"
+def test_appwide_window_coordinator_has_uid_first_refresh_boundary():
+    controller = Path(
+        "ephemeraldaddy/gui/features/windowing/appwide_window_coordinator.py"
     ).read_text(encoding="utf-8")
-    controller = source[source.index("class ChartsController"):]
 
-    assert "get_pending_changed_refreshes" in controller
-    assert "clear_pending_changed_refreshes" in controller
-    assert "get_pending_changed_ids" not in controller
-    assert "clear_pending_changed_ids" not in controller
+    assert "class AppwideWindowCoordinator" in controller
+    assert "get_pending_changed_refreshes: Callable[[], tuple[set[str], set[str], bool]]" in controller
+    assert "changed_chart_uids=pending_uids" in controller
+    assert "changed_ids=" not in controller
+    assert "getattr(database_view" not in controller
 
 
 def test_high_similarity_and_worker_callers_pass_hidden_uids():
