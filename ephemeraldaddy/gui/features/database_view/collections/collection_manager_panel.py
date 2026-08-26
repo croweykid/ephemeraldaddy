@@ -133,10 +133,14 @@ def prompt_chart_selection_for_collection_add(
         chart_uid = str(chart_uid_by_local_id.get(local_id) or "").strip().upper()
         if not chart_uid:
             continue
-        display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_uid}"
+        display_name = name.strip() if isinstance(name, str) and name.strip() else "Unnamed chart"
         if alias:
             display_name = f"{display_name} ({alias})"
-        label = f"{display_name}  [{chart_uid}]"
+        label = display_name
+        duplicate_number = 2
+        while label in chart_lookup:
+            label = f"{display_name} ({duplicate_number})"
+            duplicate_number += 1
         labels.append(label)
         chart_lookup[label] = (chart_uid, display_name)
 

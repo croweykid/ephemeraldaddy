@@ -133,6 +133,7 @@ def test_similar_chart_export_rows_include_z_score():
     match = SimpleNamespace(
         chart_id=7,
         chart_uid="UIDTEST0000007",
+        display_chart_id=12,
         chart_name="Test Chart",
         score=0.82,
         placement_score=0.8,
@@ -157,12 +158,13 @@ def test_similar_chart_export_rows_include_z_score():
     assert rows[0]["similarity_z_score"] == 2.0
     markdown = "\n".join(build_similar_charts_export_lines(subject_name="Subject", rows=rows, is_markdown=True))
     plain = "\n".join(build_similar_charts_export_lines(subject_name="Subject", rows=rows, is_markdown=False))
-    assert "| Rank | Chart UID |" in markdown
-    assert "UIDTEST0000007" in markdown
-    assert "UIDTEST0000007" in plain
-    assert "#7" not in plain
+    assert "| Rank | Chart ID |" in markdown
+    assert "UIDTEST0000007" not in markdown
+    assert "UIDTEST0000007" not in plain
+    assert "| 1 | 12 | Test Chart |" in markdown
+    assert "Chart ID #12 — Test Chart" in plain
     assert "+2.000" in markdown
-    assert "z=+2.000" in plain
+    assert "standard deviation from db similarity norms: +2.000" in plain
 
 
 def test_similar_match_blocks_include_z_score():
@@ -190,7 +192,7 @@ def test_similar_match_blocks_include_z_score():
         similarity_standard_deviation=6.0,
     )
 
-    assert "z=+2.00" in html
+    assert "standard deviation from db similarity norms: +2.00" in html
 
 
 def test_similar_match_blocks_preserve_starting_rank_for_per_row_rendering():
@@ -358,6 +360,23 @@ def test_similar_chart_biography_still_uses_generated_context_without_existing_b
         "aka: Metadata Alias\n"
         "tags: one, two"
     )
+
+
+def test_chart_view_similarity_analysis_starts_with_bio_and_divider():
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+        prepend_similar_chart_bio_to_analysis,
+    )
+
+    html, plain = prepend_similar_chart_bio_to_analysis(
+        compared_name="Compared",
+        biography_text="Existing biography.\n\naka: Alias\nfrom: Somewhere\ntags: one, two",
+        analysis_html="<div>SIMILARITIES ANALYSIS</div>",
+        analysis_text="SIMILARITIES ANALYSIS",
+    )
+
+    assert html.index(">Bio<") < html.index("<hr") < html.index("SIMILARITIES ANALYSIS")
+    assert "Existing biography.<br><br>aka: Alias<br>from: Somewhere<br>tags: one, two" in html
+    assert plain.index("Bio") < plain.index("────────") < plain.index("SIMILARITIES ANALYSIS")
 
 
 def test_perceived_similarity_accuracy_tally_excludes_na_and_averages_absolute_error():

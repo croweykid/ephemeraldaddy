@@ -127,7 +127,7 @@ def test_full_recompute_refreshes_existing_similar_charts_cache_payload():
     assert "row_signatures=row_signatures" in full_recompute_store
 
 
-def test_chart_view_similar_charts_export_rows_preserve_chart_uid():
+def test_chart_view_similar_charts_export_rows_keep_uid_internal_and_display_rank_separate():
     source = _app_source()
     method = source.split("def _populate_similar_charts_panel", 1)[1].split(
         "def _similar_charts_prediction_metrics_for_matches", 1
@@ -135,5 +135,6 @@ def test_chart_view_similar_charts_export_rows_preserve_chart_uid():
 
     assert 'chart_uid = str(getattr(match, "chart_uid", "") or "").strip() or str(get_chart_uid(int(match.chart_id)) or "").strip()' in method
     assert '"chart_uid": chart_uid' in method
-    assert 'Chart View exports display chart_uid' in method
+    assert '"display_chart_id": self._database_view_display_chart_id(chart_uid)' in method
+    assert 'Chart View exports display chart_uid' not in method
     assert "f'{rank_label} #{match.chart_id}" not in method
