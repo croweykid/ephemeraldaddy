@@ -131,9 +131,10 @@ class PropertyManagerCoordinator:
         callback for the duration of this compatibility refresh and restore the
         exact previous dirty state afterward.
 
-        This deliberately uses ``force_full_analysis_refresh=False``. A label
-        edit may require its own metadata-dependent analytics section to update,
-        but it is never authority to invalidate all analysis or Traits.
+        Generic Database metrics refresh is also deliberately disabled here.
+        Metadata-dependent analytics must be invalidated by their own field-level
+        section dependencies; a Property Manager edit is never authority to
+        refresh Traits or all Database analytics.
         """
         host = self._host
         previous_dirty = getattr(host, "_rankings_data_dirty", _MISSING)
@@ -145,7 +146,7 @@ class PropertyManagerCoordinator:
         host._refresh_visible_rankings_sections = lambda: None
         try:
             host._refresh_charts(
-                refresh_metrics=True,
+                refresh_metrics=False,
                 force_full_analysis_refresh=False,
                 refresh_tag_completers=False,
             )
