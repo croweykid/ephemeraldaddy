@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any
 
 
 def complete_sign_weight_map(
