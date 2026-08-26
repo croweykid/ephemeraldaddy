@@ -1,7 +1,7 @@
 """Shared popout-window helpers for chart feature dialogs.
 
 These functions intentionally preserve the existing `gui.app` popout behavior while
-allowing MainWindow and ManageChartsDialog to delegate generic popout plumbing out of
+allowing MainWindow and DatabaseViewWindow to delegate generic popout plumbing out of
 that module.
 """
 
