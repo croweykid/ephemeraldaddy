@@ -1,3 +1,5 @@
+import inspect
+
 from ephemeraldaddy.core.composite import (
     AspectHit,
     AspectRuleSet,
@@ -7,6 +9,8 @@ from ephemeraldaddy.core.composite import (
 )
 from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     OUT_OF_SIGN_TOOLTIP,
+    _PersonalTransitWarningTooltipFilter,
+    _install_personal_transit_output_warning_support,
     append_out_of_sign_warning,
     decorate_personal_transit_output_text,
     is_out_of_sign_personal_transit_aspect,
@@ -88,6 +92,17 @@ def test_personal_transit_output_appends_warning_only_to_out_of_sign_row():
     assert lines[2].endswith("⚠️")
     assert not lines[3].endswith("⚠️")
     assert decorate_personal_transit_output_text(decorated) == decorated
+
+
+def test_warning_hover_filter_is_installed_on_text_viewport():
+    install_source = inspect.getsource(_install_personal_transit_output_warning_support)
+    filter_source = inspect.getsource(_PersonalTransitWarningTooltipFilter.eventFilter)
+
+    assert "viewport = widget.viewport()" in install_source
+    assert "viewport.setMouseTracking(True)" in install_source
+    assert "viewport.installEventFilter(tooltip_filter)" in install_source
+    assert "watched is viewport" in filter_source
+    assert "self._editor.cursorForPosition" in filter_source
 
 
 def test_non_sign_based_harmonics_are_not_labeled_out_of_sign():
