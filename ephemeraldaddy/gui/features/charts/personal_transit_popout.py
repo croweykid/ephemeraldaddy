@@ -169,9 +169,16 @@ def decorate_personal_transit_output_text(text: str) -> str:
 
 
 class _PersonalTransitWarningTooltipFilter(QObject):
+    """Show warning help for mouse events delivered by a text editor viewport."""
+
+    def __init__(self, editor: QPlainTextEdit) -> None:
+        super().__init__(editor)
+        self._editor = editor
+
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001 - Qt event types vary.
-        if event.type() == QEvent.Type.MouseMove and isinstance(watched, QPlainTextEdit):
-            cursor = watched.cursorForPosition(event.position().toPoint())
+        viewport = self._editor.viewport()
+        if watched is viewport and event.type() == QEvent.Type.MouseMove:
+            cursor = self._editor.cursorForPosition(event.position().toPoint())
             line = cursor.block().text()
             warning_start = line.rfind(OUT_OF_SIGN_WARNING)
             column = cursor.positionInBlock()
@@ -179,12 +186,12 @@ class _PersonalTransitWarningTooltipFilter(QObject):
                 global_position = (
                     event.globalPosition().toPoint()
                     if hasattr(event, "globalPosition")
-                    else event.globalPos()
+                    else viewport.mapToGlobal(event.position().toPoint())
                 )
-                QToolTip.showText(global_position, OUT_OF_SIGN_TOOLTIP, watched)
+                QToolTip.showText(global_position, OUT_OF_SIGN_TOOLTIP, viewport)
                 return False
             QToolTip.hideText()
-        elif event.type() == QEvent.Type.Leave:
+        elif watched is viewport and event.type() == QEvent.Type.Leave:
             QToolTip.hideText()
         return super().eventFilter(watched, event)
 
@@ -192,9 +199,11 @@ class _PersonalTransitWarningTooltipFilter(QObject):
 def _install_personal_transit_output_warning_support() -> None:
     """Attach warning decoration to the Personal Transit popout's text output.
 
-    The popout renderer still lives in the large app module. This keeps the
-    aspect-specific behavior in the extracted Personal Transit feature module
-    while using the existing plain-text output widget unchanged.
+    QPlainTextEdit dispatches pointer events through its viewport, so the hover
+    filter must be installed there while retaining the editor for text-cursor
+    lookup. The popout renderer still lives in the large app module; this keeps
+    the aspect-specific behavior in the extracted Personal Transit feature
+    module while using the existing plain-text output widget unchanged.
     """
     app = QApplication.instance()
     if app is None:
@@ -210,9 +219,10 @@ def _install_personal_transit_output_warning_support() -> None:
             continue
 
         widget.setProperty("personalTransitOutOfSignSupport", True)
-        widget.setMouseTracking(True)
+        viewport = widget.viewport()
+        viewport.setMouseTracking(True)
         tooltip_filter = _PersonalTransitWarningTooltipFilter(widget)
-        widget.installEventFilter(tooltip_filter)
+        viewport.installEventFilter(tooltip_filter)
         widget._personal_transit_warning_tooltip_filter = tooltip_filter
         state = {"decorating": False}
 
