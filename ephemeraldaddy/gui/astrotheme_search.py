@@ -8,7 +8,7 @@ import unicodedata
 import urllib.error
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote_plus, unquote, urlparse
+from urllib.parse import quote, quote_plus, unquote, urlparse, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
@@ -18,6 +18,8 @@ ASTROTHEME_USER_AGENT = "Mozilla/5.0 (compatible; EphemeralDaddy Astrotheme help
 ASTROTHEME_HTTP_TIMEOUT_SECONDS = 10
 
 logger = logging.getLogger(__name__)
+
+_URL_COMPONENT_SAFE_CHARACTERS = "/:@-._~!$&'()*+,;=%"
 
 
 class AstrothemeImportError(Exception):
@@ -36,13 +38,52 @@ class AstrothemeProfileFormatError(AstrothemeImportError):
     """Astrotheme returned a page whose profile format is unsupported or invalid."""
 
 
+def _ascii_safe_http_url(url: str) -> str:
+    """Convert a possibly damaged IRI into an ASCII URL accepted by urllib.
+
+    Search-result HTML occasionally contains a Unicode replacement character
+    (U+FFFD) at the edge of an otherwise valid profile URL. ``http.client``
+    requires the request target to be ASCII, so remove that decoding artifact
+    and percent-encode legitimate Unicode path/query characters before a
+    request reaches the standard library.
+    """
+    cleaned = str(url or "").replace("\ufffd", "").strip()
+    try:
+        parts = urlsplit(cleaned)
+        hostname = parts.hostname or ""
+        ascii_hostname = hostname.encode("idna").decode("ascii")
+        port = f":{parts.port}" if parts.port is not None else ""
+    except (UnicodeError, ValueError) as exc:
+        raise AstrothemeNetworkError("Astrotheme returned an invalid profile URL.") from exc
+
+    if not parts.scheme or not ascii_hostname:
+        raise AstrothemeNetworkError("Astrotheme returned an invalid profile URL.")
+    userinfo = ""
+    if parts.username is not None:
+        userinfo = quote(parts.username, safe="")
+        if parts.password is not None:
+            userinfo += f":{quote(parts.password, safe='')}"
+        userinfo += "@"
+    netloc = f"{userinfo}{ascii_hostname}{port}"
+    return urlunsplit(
+        (
+            parts.scheme.lower(),
+            netloc,
+            quote(parts.path, safe=_URL_COMPONENT_SAFE_CHARACTERS),
+            quote(parts.query, safe=_URL_COMPONENT_SAFE_CHARACTERS + "?"),
+            quote(parts.fragment, safe=_URL_COMPONENT_SAFE_CHARACTERS + "?"),
+        )
+    )
+
+
 def _astrotheme_http_get(url: str) -> str:
-    request = Request(url, headers={"User-Agent": ASTROTHEME_USER_AGENT})
+    safe_url = _ascii_safe_http_url(url)
+    request = Request(safe_url, headers={"User-Agent": ASTROTHEME_USER_AGENT})
     try:
         with urlopen(request, timeout=ASTROTHEME_HTTP_TIMEOUT_SECONDS) as response:
             payload = response.read()
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise AstrothemeNetworkError(f"Could not reach Astrotheme while loading {url}") from exc
+        raise AstrothemeNetworkError(f"Could not reach Astrotheme while loading {safe_url}") from exc
     return payload.decode("utf-8", errors="replace")
 
 

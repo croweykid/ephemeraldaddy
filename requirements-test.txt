@@ -1,0 +1,3 @@
+# Dependencies needed to invoke the repository's automated test runner.
+# Application runtime dependencies remain declared in pyproject.toml.
+pytest>=8

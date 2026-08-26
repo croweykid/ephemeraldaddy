@@ -26,3 +26,15 @@ def test_photo_gallery_thumbnail_context_menu_and_profile_star():
     assert "owner._set_photo_gallery_profile_pic = MethodType" in source
     assert 'self.delete_button = QPushButton("×", self)' in source
     assert "font-size: 16px; font-weight: 900; padding: 0px;" in source
+
+
+def test_photo_gallery_uses_current_chart_uid_without_legacy_row_id_resolution():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+
+    gallery_start = source.index("def _current_photo_gallery_chart_uid")
+    gallery_end = source.index("def _bind_photo_gallery_handlers", gallery_start)
+    gallery_source = source[gallery_start:gallery_end]
+    assert 'getattr(owner, "current_chart_uid", "")' in gallery_source
+    assert "current_chart_id" not in gallery_source
+    assert "chart_uid_for_chart_id" not in gallery_source
+    assert "return _current_photo_gallery_chart_uid(owner)" in gallery_source

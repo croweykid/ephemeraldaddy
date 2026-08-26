@@ -39,9 +39,9 @@ class SimilarityPercentBar(QProgressBar):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._standard_deviation_guides: tuple[tuple[float, int], ...] = ()
-        self._norm_delta_overlay: (
-            tuple[float, float, tuple[int, int, int]] | None
-        ) = None
+        self._norm_delta_overlay: tuple[float, float, tuple[int, int, int]] | None = (
+            None
+        )
 
     def set_norm_delta_overlay(
         self,
@@ -64,9 +64,7 @@ class SimilarityPercentBar(QProgressBar):
             self.update()
             return
 
-        normalized_rgb = tuple(
-            max(0, min(255, int(channel))) for channel in delta_rgb
-        )
+        normalized_rgb = tuple(max(0, min(255, int(channel))) for channel in delta_rgb)
         self._norm_delta_overlay = (
             max(0.0, min(100.0, selection_value)),
             max(0.0, min(100.0, db_norm_value)),
@@ -93,8 +91,7 @@ class SimilarityPercentBar(QProgressBar):
     ) -> float:
         distances = [abs(selection_percent - db_norm_percent), 1.0]
         distances.extend(
-            abs(guide_percent - db_norm_percent)
-            for guide_percent, _ in guide_percents
+            abs(guide_percent - db_norm_percent) for guide_percent, _ in guide_percents
         )
         return min(100.0, max(distances) * 1.15)
 
@@ -248,12 +245,26 @@ def parse_similarity_info_target(section_title: str, label: str) -> str | None:
             if 1 <= gate_num <= 64 and 1 <= line_num <= 6:
                 return f"gate_line:{gate_num}.{line_num}"
 
-    if section_key == "channels in contrast":
+    if section_key in {"channels in common", "channels in contrast"}:
         channel_token = normalized_label.strip()
         parts = channel_token.split("-")
         if len(parts) == 2 and all(part.strip().isdigit() for part in parts):
             gate_a, gate_b = (int(parts[0].strip()), int(parts[1].strip()))
             return f"channel:{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+
+    direct_targets = {
+        "defined centers in common": "center",
+        "defined centers in contrast": "center",
+        "authorities in common": "authority",
+        "authorities in contrast": "authority",
+        "profiles in common": "profile",
+        "profiles in contrast": "profile",
+        "bazi signs in common": "bazi_sign",
+        "bazi signs in contrast": "bazi_sign",
+    }
+    target_kind = direct_targets.get(section_key)
+    if target_kind and normalized_label:
+        return f"{target_kind}:{normalized_label}"
 
     if section_key == "top 3 dominant houses in common":
         house_token = normalized_label.replace("House", "").strip()
@@ -264,7 +275,7 @@ def parse_similarity_info_target(section_title: str, label: str) -> str | None:
 
 
 class DBInfoPanel(QWidget):
-    """Dismissible DB Info panel for the Database View left rail."""
+    """Dismissible Chart Info panel for the Database View left rail."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -282,7 +293,7 @@ class DBInfoPanel(QWidget):
         header_layout.setSpacing(6)
         header.setLayout(header_layout)
 
-        self.title_label = QLabel("DB Info Panel", header)
+        self.title_label = QLabel("Chart Info", header)
         self.title_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         header_layout.addWidget(self.title_label)
         header_layout.addStretch(1)
@@ -291,7 +302,7 @@ class DBInfoPanel(QWidget):
         self.close_button.setText("✕")
         apply_button_cursor(self.close_button)
         self.close_button.setAutoRaise(True)
-        self.close_button.setToolTip("Close DB Info Panel")
+        self.close_button.setToolTip("Close Chart Info")
         self.close_button.setFixedSize(20, 20)
         self.close_button.clicked.connect(self.hide)
         header_layout.addWidget(self.close_button, alignment=Qt.AlignRight)
@@ -301,7 +312,7 @@ class DBInfoPanel(QWidget):
         self.output = QTextEdit(self)
         self.output.setReadOnly(True)
         self.output.setPlaceholderText(
-            "Click a supported Similarities item to view DB info here."
+            "Click a Similarities item to view its description here."
         )
         self.output.setMinimumHeight(140)
         layout.addWidget(self.output, 1)
@@ -320,6 +331,8 @@ def add_similarity_match_row(
     similarity_rgb: tuple[int, int, int],
     on_info_target_requested: Callable[[str], None] | None = None,
     show_standard_deviation_guides: bool = True,
+    selection_label: str = "selection",
+    database_label: str = "DB",
 ) -> None:
     """Render one similarities list row, with optional clickable info target."""
     similarity_red, similarity_green, similarity_blue = similarity_rgb
@@ -380,7 +393,9 @@ def add_similarity_match_row(
     direction_label = (
         "above DB norm"
         if delta_points > 0
-        else "below DB norm" if delta_points < 0 else "at DB norm"
+        else "below DB norm"
+        if delta_points < 0
+        else "at DB norm"
     )
     if total_count < SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE:
         z_score_text = (
@@ -389,9 +404,7 @@ def add_similarity_match_row(
         )
     else:
         z_score_text = (
-            ""
-            if z_score is None
-            else f" ({z_score:+.2f} standard-error units)"
+            "" if z_score is None else f" ({z_score:+.2f} standard-error units)"
         )
     percent_bar.setToolTip(
         f"Database norm is centered; the green selection rectangle extends "
@@ -415,7 +428,7 @@ def add_similarity_match_row(
         )
         unknown_suffix = f" | {unknown_percent_value}% unknown"
 
-    selection_percent_text = f"{percent_value}% of selection"
+    selection_percent_text = f"{percent_value}% of {selection_label}"
     delta_suffix = ""
     if delta_points != 0.0:
         delta_suffix = f" | {delta_points:+.0f}% pts {direction_label}"
@@ -431,7 +444,9 @@ def add_similarity_match_row(
         )
 
     tiny_label = QLabel(
-        f"{selection_percent_text} | {db_percent_value}% of DB{delta_suffix}{unknown_suffix}"
+        f"{match_count}/{total_count} in {selection_label} | "
+        f"{selection_percent_text} | {db_percent_value}% of {database_label}"
+        f"{delta_suffix}{unknown_suffix}"
     )
     tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
     tiny_label.setTextFormat(Qt.RichText)

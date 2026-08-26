@@ -175,6 +175,99 @@ def dominant_enneagram_types_for_search(chart) -> set[int]:
     return {dominant_type} if 1 <= dominant_type <= 9 else set()
 
 
+def chart_matches_typology_filters(
+    chart,
+    *,
+    enneagram_type: int | None = None,
+    enneagram_wing: int | None = None,
+    tritype_types: frozenset[int] = frozenset(),
+    mbti_letters: tuple[str | None, str | None, str | None, str | None] = (
+        None,
+        None,
+        None,
+        None,
+    ),
+    include_x_values: bool = False,
+) -> bool:
+    """Evaluate user-assigned typology metadata without reading Qt widgets."""
+    raw_enneagram = list(getattr(chart, "enneagram_type", None) or [])
+    assigned_type = _typology_int(raw_enneagram[0] if raw_enneagram else None)
+    assigned_wing = _typology_int(raw_enneagram[1] if len(raw_enneagram) > 1 else None)
+    if enneagram_type is not None and assigned_type != enneagram_type:
+        return False
+    if enneagram_wing is not None and assigned_wing != enneagram_wing:
+        return False
+
+    assigned_tritype = {
+        value
+        for raw_value in (getattr(chart, "tritype", None) or [])
+        if (value := _typology_int(raw_value)) is not None
+    }
+    if tritype_types and not tritype_types.issubset(assigned_tritype):
+        return False
+
+    assigned_mbti = tuple(
+        str(value or "").strip().upper()
+        for value in (getattr(chart, "mbti", None) or [])
+    )
+    return all(
+        expected is None
+        or (
+            position < len(assigned_mbti)
+            and (
+                assigned_mbti[position] == expected.upper()
+                or (include_x_values and assigned_mbti[position] == "X")
+            )
+        )
+        for position, expected in enumerate(mbti_letters)
+    )
+
+
+def _typology_int(value: object) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if 1 <= parsed <= 9 else None
+
+
+def typology_filter_values(window) -> tuple[
+    int | None,
+    int | None,
+    frozenset[int],
+    tuple[str | None, str | None, str | None, str | None],
+    bool,
+]:
+    """Normalize the Database View typology controls once per filter pass."""
+    type_inputs = getattr(window, "_typology_enneagram_inputs", ())
+    tritype_inputs = getattr(window, "_typology_tritype_inputs", ())
+    mbti_combos = getattr(window, "_typology_mbti_combos", ())
+    enneagram_values = tuple(
+        _typology_int(widget.text().strip()) if widget.text().strip() else None
+        for widget in type_inputs
+    )
+    tritype_types = frozenset(
+        parsed
+        for widget in tritype_inputs
+        if widget.text().strip()
+        if (parsed := _typology_int(widget.text().strip())) is not None
+    )
+    mbti_values = tuple(
+        str(combo.currentData()).upper() if combo.currentData() else None
+        for combo in mbti_combos
+    )
+    return (
+        enneagram_values[0] if enneagram_values else None,
+        enneagram_values[1] if len(enneagram_values) > 1 else None,
+        tritype_types,
+        (mbti_values + (None, None, None, None))[:4],
+        bool(
+            getattr(window, "_typology_mbti_include_x_checkbox", None)
+            and window._typology_mbti_include_x_checkbox.isChecked()
+        ),
+    )
+
+
 def matched_expectations_value_for_chart(chart) -> int:
     """Return a clamped matched-expectations score for DBV search filters."""
     if chart is None:
@@ -355,19 +448,32 @@ def _restore_tree_scroll_value(tree, value: int) -> None:
 
 
 def _tree_expanded_state(tree) -> dict[str, bool]:
-    """Capture top-level QTreeWidget expansion state by item UserRole/text key."""
+    """Capture QTreeWidget expansion state by item UserRole/text key."""
     from PySide6.QtCore import Qt
 
     expanded_state: dict[str, bool] = {}
     if not hasattr(tree, "topLevelItemCount"):
         return expanded_state
-    for index in range(tree.topLevelItemCount()):
-        item = tree.topLevelItem(index)
+
+    def capture(item) -> None:
         if item is None:
-            continue
-        key = str(item.data(0, Qt.UserRole) or item.text(0) or "")
+            return
+        # Leaf tags can also be expandable parents. Prefer their complete tag
+        # path so identically labelled rows in separate branches do not share
+        # expansion state (for example occupation.writer and hobby.writer).
+        key = str(
+            item.data(0, Qt.UserRole + 1)
+            or item.data(0, Qt.UserRole)
+            or item.text(0)
+            or ""
+        )
         if key:
             expanded_state[key.casefold()] = item.isExpanded()
+        for child_index in range(item.childCount()):
+            capture(item.child(child_index))
+
+    for index in range(tree.topLevelItemCount()):
+        capture(tree.topLevelItem(index))
     return expanded_state
 
 
@@ -404,6 +510,79 @@ def _tag_value_display_name(value: str) -> str:
     clean_value = str(value or "").strip()
     return clean_value.replace("_", " ").replace("-", " ").title() if clean_value else ""
 
+
+def install_advanced_tag_search_autocomplete(line_edit, known_tags: list[str]) -> None:
+    """Attach/update the substring completer used only to navigate the tag tree."""
+    from PySide6.QtCore import Qt, QStringListModel
+    from PySide6.QtWidgets import QCompleter
+
+    tags = sorted(_tag_tree_signature(known_tags), key=str.casefold)
+    model = getattr(line_edit, "_advanced_tag_search_model", None)
+    if model is not None:
+        model.setStringList(tags)
+        return
+    model = QStringListModel(tags, line_edit)
+    completer = QCompleter(model, line_edit)
+    completer.setCaseSensitivity(Qt.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchContains)
+    completer.setCompletionMode(QCompleter.PopupCompletion)
+    completer.setMaxVisibleItems(12)
+    line_edit.setCompleter(completer)
+    line_edit._advanced_tag_search_model = model
+
+
+def filter_advanced_tag_tree(window, query: str) -> None:
+    """Show matching tag rows and their parents without changing filter state."""
+    from PySide6.QtCore import Qt
+
+    tree = getattr(window, "search_tags_list_widget", None)
+    if tree is None or not hasattr(tree, "topLevelItemCount"):
+        return
+    needle = str(query or "").strip().casefold()
+    previous_needle = str(getattr(window, "_advanced_tag_search_query", ""))
+    if needle and not previous_needle:
+        window._advanced_tag_search_expanded_state = _tree_expanded_state(tree)
+        window._advanced_tag_search_scroll_value = _tree_scroll_value(tree)
+
+    def filter_item(item) -> bool:
+        child_matches = [filter_item(item.child(i)) for i in range(item.childCount())]
+        child_match = any(child_matches)
+        tag_name = str(item.data(0, Qt.UserRole + 1) or "")
+        own_match = bool(tag_name and needle in tag_name.casefold())
+        matches = not needle or own_match or child_match
+        item.setHidden(not matches)
+        if needle and child_match:
+            item.setExpanded(True)
+        return matches
+
+    for index in range(tree.topLevelItemCount()):
+        parent = tree.topLevelItem(index)
+        if parent is not None:
+            filter_item(parent)
+
+    if not needle and previous_needle:
+        expanded = getattr(window, "_advanced_tag_search_expanded_state", {})
+
+        def restore(item) -> None:
+            key = str(
+                item.data(0, Qt.UserRole + 1)
+                or item.data(0, Qt.UserRole)
+                or item.text(0)
+                or ""
+            ).casefold()
+            item.setExpanded(bool(expanded.get(key, False)))
+            for child_index in range(item.childCount()):
+                restore(item.child(child_index))
+
+        for index in range(tree.topLevelItemCount()):
+            restore(tree.topLevelItem(index))
+        _restore_tree_scroll_value(
+            tree,
+            getattr(window, "_advanced_tag_search_scroll_value", 0),
+        )
+    window._advanced_tag_search_query = needle
+
+
 def refresh_search_tags_list(window, known_tags: list[str]) -> None:
     """Refresh the Database View tag-filter tree for ``window``."""
     if not hasattr(window, "search_tags_list_widget"):
@@ -426,8 +605,13 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         )
     }
     signature = _tag_tree_signature(known_tags)
+    advanced_input = getattr(window, "advanced_tag_search_input", None)
+    if advanced_input is not None:
+        install_advanced_tag_search_autocomplete(advanced_input, list(signature))
     if signature == getattr(window, "_dbv_search_tag_tree_signature", None):
         sync_search_tags_list_selection(window, set(selected_tags))
+        if advanced_input is not None:
+            filter_advanced_tag_tree(window, advanced_input.text())
         return
 
     existing_checkboxes = getattr(window, "search_tag_filter_checkboxes", {})
@@ -552,9 +736,10 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
 
     add_untagged_item()
 
-    def add_tag_item(parent_item, tag: str, value: str) -> None:
+    def add_tag_item(parent_item, tag: str, value: str):
         display = _tag_value_display_name(value)
         item = QTreeWidgetItemClass([display])
+        item.setData(0, Qt.UserRole + 1, tag)
         parent_item.addChild(item)
         checkbox = QuadStateSlider(display)
         checkbox.setMode(
@@ -567,24 +752,54 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         window.search_tag_filter_checkboxes[tag] = checkbox
         window.search_tag_filter_logic_buttons[tag] = logic
         tree.setItemWidget(item, 0, make_row(checkbox, logic, tag))
+        return item
 
     for prefix in sorted(grouped, key=lambda key: tag_category_display_name(key).casefold()):
-        category_item = QTreeWidgetItemClass([tag_category_display_name(prefix)])
-        category_item.setData(0, Qt.UserRole, prefix.casefold())
-        tree.addTopLevelItem(category_item)
-        category_checkbox = QuadStateSlider(tag_category_display_name(prefix))
-        category_checkbox.modeChanged.connect(
-            lambda mode, p=prefix: on_search_tag_category_mode_changed(window, p, mode)
-        )
-        category_logic = make_logic_buttons("and")
-        window.search_tag_category_checkboxes[prefix] = category_checkbox
-        window.search_tag_category_logic_buttons[prefix] = category_logic
-        tree.setItemWidget(category_item, 0, make_row(category_checkbox, category_logic, None, prefix))
+        category_items: dict[str, object] = {}
+
+        def category_item_for(path_parts: list[str]):
+            path = ".".join(path_parts)
+            existing = category_items.get(path.casefold())
+            if existing is not None:
+                return existing
+            label = (
+                tag_category_display_name(path_parts[0])
+                if len(path_parts) == 1
+                else _tag_value_display_name(path_parts[-1])
+            )
+            item = QTreeWidgetItemClass([label])
+            item.setData(0, Qt.UserRole, path.casefold())
+            if len(path_parts) == 1:
+                tree.addTopLevelItem(item)
+            else:
+                category_item_for(path_parts[:-1]).addChild(item)
+            checkbox = QuadStateSlider(label)
+            checkbox.modeChanged.connect(
+                lambda mode, p=path: on_search_tag_category_mode_changed(window, p, mode)
+            )
+            logic = make_logic_buttons("and")
+            window.search_tag_category_checkboxes[path] = checkbox
+            window.search_tag_category_logic_buttons[path] = logic
+            tree.setItemWidget(item, 0, make_row(checkbox, logic, None, path))
+            item.setExpanded(expanded_state.get(path.casefold(), False))
+            category_items[path.casefold()] = item
+            return item
+
+        root = category_item_for([prefix])
         for tag, value in sorted(grouped[prefix], key=lambda item: _tag_value_display_name(item[1]).casefold()):
-            add_tag_item(category_item, tag, value)
-        category_item.setExpanded(expanded_state.get(prefix.casefold(), False))
+            value_parts = [part.strip() for part in value.split(".") if part.strip()]
+            parent = root
+            if len(value_parts) > 1:
+                parent = category_item_for([prefix, *value_parts[:-1]])
+            tag_item = add_tag_item(parent, tag, value_parts[-1] if value_parts else value)
+            # An existing tag may also be the parent of more-specific tags
+            # (for example, occupation.writer and occupation.writer.novelist).
+            # Reuse its interactive row as the expandable parent rather than
+            # showing a duplicate category row with different filter semantics.
+            category_items[tag.casefold()] = tag_item
     for tag, value in sorted(uncategorized, key=lambda item: _tag_value_display_name(item[1]).casefold()):
         root_item = QTreeWidgetItemClass([_tag_value_display_name(value)])
+        root_item.setData(0, Qt.UserRole + 1, tag)
         tree.addTopLevelItem(root_item)
         checkbox = QuadStateSlider(_tag_value_display_name(value))
         checkbox.setMode(
@@ -600,6 +815,8 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
 
     window._dbv_search_tag_tree_signature = signature
     _restore_tree_scroll_value(tree, scroll_value)
+    if advanced_input is not None:
+        filter_advanced_tag_tree(window, advanced_input.text())
 
 
 
@@ -741,6 +958,13 @@ def has_active_chart_filters(window) -> bool:
         for enneagram_type, checkbox in getattr(window, "enneagram_type_filter_checkboxes", {}).items()
         if checkbox.mode() == QuadStateSlider.MODE_FALSE
     }
+    (
+        assigned_enneagram_type,
+        assigned_enneagram_wing,
+        assigned_tritype,
+        assigned_mbti,
+        _include_x_mbti_values,
+    ) = typology_filter_values(window)
     search_untagged_mode = (
         window.search_untagged_checkbox.mode()
         if hasattr(window, "search_untagged_checkbox")
@@ -1147,6 +1371,10 @@ def has_active_chart_filters(window) -> bool:
         and not excluded_absent_search_traits
         and not selected_enneagram_types
         and not excluded_enneagram_types
+        and assigned_enneagram_type is None
+        and assigned_enneagram_wing is None
+        and not assigned_tritype
+        and not any(assigned_mbti)
     )
 
 
@@ -1280,6 +1508,9 @@ def update_tag_completers(
     from PySide6.QtWidgets import QLineEdit
 
     from ephemeraldaddy.gui.features.charts.tagging import apply_tag_completer
+    from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
+        refresh_material_relatives_completer,
+    )
 
     known_tags = tag_completer_tags_for_session(window)
     window._known_chart_tags = known_tags
@@ -1294,6 +1525,12 @@ def update_tag_completers(
     update_reminds_me_of_completer = getattr(window, "_update_reminds_me_of_completer", None)
     if callable(update_reminds_me_of_completer):
         update_reminds_me_of_completer()
+    display_chart_ids = getattr(window, "_database_view_display_chart_ids_by_uid", None)
+    refresh_material_relatives_completer(
+        getattr(window, "material_facts_relative_search_edit", None),
+        current_chart_uid=getattr(window, "current_chart_uid", None),
+        display_chart_ids_by_uid=(display_chart_ids() if callable(display_chart_ids) else None),
+    )
     if refresh_location_completers:
         window._update_location_completers()
     if refresh_tag_lists:
@@ -1818,23 +2055,36 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     layout.addWidget(window.search_tags_toggle)
 
+    window.search_tags_content = QWidget()
+    search_tags_content_layout = QVBoxLayout(window.search_tags_content)
+    search_tags_content_layout.setContentsMargins(8, 4, 8, 4)
+    search_tags_content_layout.setSpacing(4)
+    window.advanced_tag_search_input = QLineEdit()
+    window.advanced_tag_search_input.setPlaceholderText("Find an existing tag…")
+    window.advanced_tag_search_input.setClearButtonEnabled(True)
+    window.advanced_tag_search_input.textChanged.connect(
+        lambda text: filter_advanced_tag_tree(window, text)
+    )
+    search_tags_content_layout.addWidget(window.advanced_tag_search_input)
+
     window.search_tags_list_widget = QTreeWidget()
     window.search_tags_list_widget.setHeaderHidden(True)
     window.search_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
     window.search_tags_list_widget.setIndentation(12)
     window.search_tags_list_widget.setMaximumHeight(220)
-    window.search_tags_list_widget.setVisible(False)
+    search_tags_content_layout.addWidget(window.search_tags_list_widget)
+    window.search_tags_content.setVisible(False)
     window.search_tag_filter_logic_buttons = {}
     window.search_tag_category_checkboxes = {}
     window.search_tag_category_logic_buttons = {}
     window._dbv_tag_tree_item_class = QTreeWidgetItem
-    window.search_tags_toggle.toggled.connect(window.search_tags_list_widget.setVisible)
+    window.search_tags_toggle.toggled.connect(window.search_tags_content.setVisible)
     window.search_tags_toggle.toggled.connect(
         lambda expanded: window._refresh_search_tags_list(
             getattr(window, "_known_chart_tags", [])
         ) if expanded else None
     )
-    layout.addWidget(window.search_tags_list_widget)
+    layout.addWidget(window.search_tags_content)
 
     layout.addWidget(create_divider())
 
@@ -1898,6 +2148,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_trait_filter_checkboxes = {}
 
     settings = getattr(window, "_settings", None)
+    visibility_store = getattr(window, "_visibility", None)
 
     incomplete_birthdate_row = QHBoxLayout()
     window.incomplete_birthdate_checkbox = QuadStateSlider("placeholder charts")
@@ -2072,6 +2323,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     predictions_category_layout.addWidget(traits_absent_section)
 
     enneagram_section, enneagram_group_layout = add_collapsible_section("Enneagram", nested=True)
+    window.search_enneagram_prediction_section = enneagram_section
+    if visibility_store is not None and hasattr(visibility_store, "get"):
+        enneagram_section.setVisible(visibility_store.get("predictions.enneagram"))
     enneagram_layout = QGridLayout()
     enneagram_layout.setContentsMargins(0, 0, 0, 0)
     window.enneagram_type_filter_checkboxes = {}
@@ -2082,6 +2336,49 @@ def build_dbv_search_panel(window) -> "QWidget":
         enneagram_layout.addWidget(checkbox, idx // 3, idx % 3)
     enneagram_group_layout.addLayout(enneagram_layout)
     predictions_category_layout.addWidget(enneagram_section)
+
+    typology_section, typology_group_layout = add_collapsible_section("Typology", nested=True)
+    enneagram_assignment_layout = QGridLayout()
+    enneagram_assignment_layout.addWidget(QLabel("Enneagram type"), 0, 0)
+    enneagram_assignment_layout.addWidget(QLabel("Wing"), 0, 1)
+    window._typology_enneagram_inputs = []
+    for column in range(2):
+        edit = QLineEdit()
+        edit.setValidator(QIntValidator(1, 9, window))
+        edit.setPlaceholderText("1–9")
+        edit.textChanged.connect(window._on_filter_changed)
+        window._typology_enneagram_inputs.append(edit)
+        enneagram_assignment_layout.addWidget(edit, 1, column)
+    typology_group_layout.addLayout(enneagram_assignment_layout)
+
+    typology_group_layout.addWidget(QLabel("Enneagram tritype (any 1–3 types)"))
+    tritype_layout = QHBoxLayout()
+    window._typology_tritype_inputs = []
+    for _ in range(3):
+        edit = QLineEdit()
+        edit.setValidator(QIntValidator(1, 9, window))
+        edit.setPlaceholderText("1–9")
+        edit.textChanged.connect(window._on_filter_changed)
+        window._typology_tritype_inputs.append(edit)
+        tritype_layout.addWidget(edit)
+    typology_group_layout.addLayout(tritype_layout)
+
+    typology_group_layout.addWidget(QLabel("MBTI (choose any 1–4 letters)"))
+    mbti_layout = QHBoxLayout()
+    window._typology_mbti_combos = []
+    for choices in (("E", "I"), ("N", "S"), ("T", "F"), ("J", "P")):
+        combo = QComboBox()
+        combo.addItem("Any", None)
+        for letter in choices:
+            combo.addItem(letter, letter)
+        combo.currentIndexChanged.connect(window._on_filter_changed)
+        window._typology_mbti_combos.append(combo)
+        mbti_layout.addWidget(combo)
+    typology_group_layout.addLayout(mbti_layout)
+    window._typology_mbti_include_x_checkbox = QCheckBox("include 'x' values")
+    window._typology_mbti_include_x_checkbox.toggled.connect(window._on_filter_changed)
+    typology_group_layout.addWidget(window._typology_mbti_include_x_checkbox)
+    interactions_category_layout.addWidget(typology_section)
 
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
@@ -3353,7 +3650,6 @@ def build_dbv_search_panel(window) -> "QWidget":
         "💭Predictability",
     )
     window.search_predictability_section = predictability_section
-    visibility_store = getattr(window, "_visibility", None)
     if visibility_store is not None and hasattr(visibility_store, "get"):
         predictability_section.setVisible(visibility_store.get("chart_view.predictability"))
     predictability_range_layout = QGridLayout()

@@ -1,3 +1,7 @@
+import pytest
+
+pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
+
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     MODE_COLORS,

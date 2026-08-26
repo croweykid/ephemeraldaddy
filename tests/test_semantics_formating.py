@@ -1,6 +1,5 @@
 from types import SimpleNamespace
 
-<<<<<<< Updated upstream
 import pytest
 
 from ephemeraldaddy.semantics_formatting import (
@@ -9,9 +8,6 @@ from ephemeraldaddy.semantics_formatting import (
     pronouns_for_chart,
     pronouns_for_gender,
 )
-=======
-from ephemeraldaddy.semantics_formatting import pronouns_for_chart, pronouns_for_gender
->>>>>>> Stashed changes
 
 
 def test_pronouns_for_gender_supported_chart_codes():
@@ -55,6 +51,6 @@ def test_format_ordinal_applies_english_numeric_suffix_rules(number, expected):
 
 
 def test_historical_semantics_module_remains_compatible():
-    from ephemeraldaddy.semantics_formating import format_ordinal as legacy_format_ordinal
+    from ephemeraldaddy.semantics_formatting import format_ordinal as legacy_format_ordinal
 
     assert legacy_format_ordinal(8) == "8th"

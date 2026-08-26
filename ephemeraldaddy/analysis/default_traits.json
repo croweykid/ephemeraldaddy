@@ -1,6 +1,8 @@
 {
   "DEX": {
     "name": "DEX",
+    "samples": [0,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -162,10 +164,12 @@
     "description": "Nimbleness, sleight of hand. This is an agregated sample of magicians, pickpockets, acrobats, dancers and martial artists.",
     "quotes": {},
     "archived": false,
-    "uid": "default_actor"
+    "uid": "default_DEX"
   },
   "agriculture": {
     "name": "agriculture",
+    "samples": [16,0],
+    "model": "observed",
     "signs": {
       "Aquarius": 22
     },
@@ -332,6 +336,7 @@
       58,
       0
     ],
+    "model": "observed",
     "signs": {
       "Capricorn": 13,
       "Libra": -18
@@ -467,6 +472,8 @@
   },
   "artist": {
     "name": "artist",
+    "samples": [72,0],
+    "model": "observed",
     "signs": {
       "Libra": -23
     },
@@ -617,8 +624,7 @@
     "motivation": "",
     "description": "Talented & dedicated artists, both professional and hobbyists, though mostly this selects for famous artists.",
     "quotes": {},
-    "archived": false,
-    "samples": []
+    "archived": false
   },
   "comedian": {
     "name": "comedian",
@@ -626,6 +632,7 @@
       1,
       0
     ],
+    "type": "observed",
     "signs": {
       "Sagittarius": 10
     },
@@ -800,6 +807,7 @@
       1,
       0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -902,10 +910,10 @@
     "antibazisigns": {},
     "color": "#a5814e",
     "motivation": "",
-    "description": "People who are cowboys or at least have played one on TV.",
+    "description": "Cowboys ain't easy to love, and they're harder to hold. They'd rather buy you a song than diamonds or gold...if you don't understand em, and they don't die young, they'll prolly just ride away...Mamas, don't let your babies grow up to be cowboys. Don't let em pick guitars and drive them old trucks. Make em be doctors and lawyers and such... -- Merle Haggard. | In other words, what I'm referring to here is the mythological archetype of cowboy, more than a literal cowboy (or cowgirl, or cow-person). Based on people who embody that.",
     "quotes": {},
     "archived": false,
-    "uid": "default_comedian"
+    "uid": "default_cowboy"
   },
   "criminal": {
     "name": "criminal",
@@ -913,6 +921,7 @@
       1,
       0
     ],
+    "model": "observed",
     "signs": {
       "Pisces": 22,
       "Libra": -20
@@ -1061,14 +1070,17 @@
     "antibazisigns": {},
     "color": "#d6647f",
     "motivation": "",
-    "description": "Admittedly a very small sample size of ALL kinds of criminals. Mostly created as a gag.",
+    "description": "This was based on a tiny sample size of ALL kinds of criminals. Mostly created as a gag. And yet it has been, thusfar, hilariously accurate.",
     "quotes": {},
     "archived": false,
     "uid": "default_criminal"
   },
   "democratically elected": {
     "name": "democratically elected",
-    "samples": 29,
+    "samples": [
+      29,0
+    ],
+    "model": "observed",
     "signs": {
       "Pisces": -15,
       "Virgo": -21
@@ -1237,13 +1249,14 @@
     "description": "Based on common factors found in the charts of democratically elected leaders around the world.",
     "quotes": {},
     "archived": false,
-    "uid": "default_dancer"
+    "uid": "default_democratically_elected"
   },
   "effortless magnetism": {
     "name": "effortless magnetism",
     "samples": [
-      121
+      121,1
     ],
+    "model": "observed",
     "signs": {
       "Sagittarius": -9
     },
@@ -1483,12 +1496,14 @@
     "antibazisigns": {},
     "color": "#ffdc00",
     "motivation": "",
-    "description": "Agregated list of trust-inspiring 'inspirational' public figures with whom the general public appears to feel instantly at ease with. People are drawn into their orbit, becoming their satellites.",
+    "description": "Aggregated list of trust-inspiring 'inspirational' public figures with whom the general public appears to feel instantly at ease with. People are drawn into their orbit, becoming their satellites.",
     "quotes": {},
     "archived": false
   },
   "engineer": {
     "name": "engineer",
+    "model": "observed",
+    "samples": [1,0],
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -1632,14 +1647,15 @@
     "motivation": "",
     "description": "Based on the charts of literal engineers, both well known and obscure. I think this trait is pretty accurate as a predictor.",
     "quotes": {},
-    "archived": false,
-    "samples": []
+    "archived": false
   },
   "famous scientist": {
     "name": "famous scientist",
     "samples": [
-      37
+      37,
+      0
     ],
+    "model": "observed",
     "signs": {
       "Aries": 25
     },
@@ -1835,6 +1851,8 @@
   },
   "film director": {
     "name": "film director",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -1984,14 +2002,15 @@
     "motivation": "",
     "description": "Agregated from the charts of famous film directors. Distinct from 'filmmaker' because these people always direct.",
     "quotes": {},
-    "archived": false,
-    "samples": []
+    "archived": false
   },
   "head of state (all)": {
     "name": "head of state (all)",
     "samples": [
-      58
+      58,
+      0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -2148,10 +2167,12 @@
     "description": "Overlapping chart factors shared between an agregate of heads of state (including democratically elected, monarchs and dictators).",
     "quotes": {},
     "archived": false,
-    "uid": "default_famous_scientist"
+    "uid": "default_head_of_state"
   },
   "hilarious": {
     "name": "hilarious",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -2329,11 +2350,12 @@
     "motivation": "",
     "description": "Just funny as hell.",
     "quotes": {},
-    "samples": [],
     "uid": "default_hilarious"
   },
   "human cinderblock": {
     "name": "human cinderblock",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {
       "Capricorn": 11
     },
@@ -2480,11 +2502,12 @@
     "description": "Probably seems less intelligent than they actually are. Not likely to change their minds. May come across as overly simplistic or 'brute'. But it isn't an indicator of actual intelligence, as it shows up in the charts of eccentric, stubborn hermit geniuses. High density. Low verbal sparkle, low polish. Useful in construction. Bad at brunch.",
     "quotes": {},
     "archived": false,
-    "uid": "default_human_cinderblock",
-    "samples": []
+    "uid": "default_human_cinderblock"
   },
   "humorless/zero chill": {
     "name": "humorless/zero chill",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -2621,14 +2644,14 @@
     "description": "Unlikely to get the joke. Or at least unlikely to respond to it, if they do. Some of these people have a sense of humor, but most have moments where they can't process the world with that kind of levity due to heightened sensitivity/emotional stakes and poor abillity to regulate stress response around those stakes. It is not mutually exclusive with 'hilarious' or 'comedian', but if the two show up in the same person, that person might be *quite* volatile.",
     "quotes": {},
     "archived": false,
-    "uid": "default_humorless_zero_chill",
-    "samples": []
+    "uid": "default_humorless_zero_chill"
   },
   "imperialist head of state": {
     "name": "imperialist head of state",
     "samples": [
-      11
+      11,0
     ],
+    "model": "observed",
     "signs": {
       "Taurus": 34
     },
@@ -2756,12 +2779,14 @@
   },
   "intellectual": {
     "name": "intellectual",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {
       "Gemini": 5
     },
     "antisigns": {},
     "houses": {
-        "6": 12,
+        "6": 12
     },
     "antihouses": {},
     "bodies": {},
@@ -2804,7 +2829,7 @@
         "Sagittarius in H7": 13,
         "Sagittarius in H10": 13,
         "Pisces in H1": 12,
-        "True Lilith in H6": 23,
+        "True Lilith in H6": 23
     },
     "antipositions": {},
     "aspects": {
@@ -2878,38 +2903,38 @@
         "MC quintile Pallas": 9,
         "MC quintile Part of Fortune": 8,
         "MC semisextile Uranus": 8,
-        "True Lilith quintile Uranus": 9,
+        "True Lilith quintile Uranus": 9
     },
     "antiaspects": {},
     "gates": {
-        11: 22,
-        47: 22,
-        13: -15,
-        4: -20,
-        36: 15,
+        "11": 22,
+        "47": 22,
+        "13": -15,
+        "4": -20,
+        "36": 15
     },
     "antigates": {},
     "channels": {
-        (10, 34): 12,
-        (26, 44): 13,
-        (32, 54): 14,
-        (12, 22): 10,
-        (35, 36): 9,
+        "10-34": 12,
+        "26-44": 13,
+        "32-54": 14,
+        "12-22": 10,
+        "35-36": 9
     },
     "antichannels": {},
     "centers": {
-        "Solar Plexus": 19,
+        "Solar Plexus": 19
     },
     "anticenters": {},
     "profiles": {},
     "antiprofiles": {},
     "authorities": {
-        "Emotional": 19,
+        "Emotional": 19
     },
     "antiauthorities": {},
     "bazisigns": {
         "Rat": 20,
-        "Goat": -19,
+        "Goat": -19
     },
     "antibazisigns": {},
     "color": "#12d98d",
@@ -2917,12 +2942,12 @@
     "description": "Intellectuals & deep thinkers. Emphasis on abstraction and theory but not exclusive to those categories of genius.",
     "quotes": {},
     "archived": false,
-    "uid": "default_intellectual",
-    "samples": []
+    "uid": "default_intellectual"
   },
   "loves kids": {
     "name": "loves kids",
-    "samples": 91,
+    "samples": [91,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -3200,8 +3225,9 @@
   "musician": {
     "name": "musician",
     "samples": [
-      283
+      283,0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -3287,8 +3313,9 @@
   "neoimperial capitalist": {
     "name": "neoimperial capitalist",
     "samples": [
-      31
+      31,0
     ],
+    "model": "observed",
     "signs": {
       "Taurus": 18
     },
@@ -3446,6 +3473,8 @@
   },
   "polarizing feminist": {
     "name": "polarizing feminist",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {
       "Libra": 14,
       "Aquarius": 15,
@@ -3593,16 +3622,16 @@
     "antibazisigns": {},
     "color": "#faa6d2",
     "motivation": "",
-    "description": "The developer looked up: \"most controversial feminists, most conservative feminists, most renowned feminists, most misandrist feminists\" for a whole mix of polarizing feminists and put them all into an agregate for Similarities Analysis. This trait is the byproduct of what those charts most frequently shared.",
+    "description": "The developer looked up: \"most controversial feminists, most conservative feminists, most renowned feminists, most misandrist feminists\" for a whole mix of polarizing feminists and put them all into an aggregate for Similarities Analysis. This trait is the byproduct of what those charts most frequently shared. It clearly seems to mean something different in male charts than female charts, but I'm not sure exactly what it means in a male chart. And does it mean something different in a hetero vs a gay chart? Lots of questions raised by this, since it seems to relate a lot to sexual/gender power dynamics in terms of how one would interpret the results by way of 'astrological lore'.",
     "quotes": {},
-    "archived": false,
-    "samples": []
+    "archived": false
   },
   "politician (full time)": {
     "name": "politician (full time)",
     "samples": [
-      132
+      132,0
     ],
+    "model": "observed",
     "signs": {
       "Taurus": 9
     },
@@ -3893,6 +3922,8 @@
   },
   "pro athlete": {
     "name": "pro athlete",
+    "samples": [1,1],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -4190,7 +4221,6 @@
     "description": "",
     "quotes": {},
     "archived": false,
-    "samples": [],
     "uid": "default_pro_athlete"
   },
   "professional actor": {
@@ -4199,6 +4229,7 @@
       482,
       0
     ],
+    "model": "observed",
     "signs": {
       "Aquarius": -4
     },
@@ -4273,10 +4304,14 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_pro_actor"
   },
   "regular scientist": {
-    "samples": 0,
+    "samples": [
+      0,0
+    ],
+    "model": "theoretical",
     "signs": {
       "Virgo": 18,
       "Aquarius": 14,
@@ -4432,6 +4467,8 @@
   },
   "revolutionary": {
     "name": "revolutionary",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -4595,8 +4632,7 @@
     "description": "“Sartre distinguished between rebels and revolutionaries. The rebel, he says, secretly quite wants the world and the system to remain as it is. Its permanence, after all, is the guarantee of his continuing ability to 'rebel.' The revolutionary, in contrast, really wishes to overthrow and replace existing conditions. The second enterprise is obviously no laughing matter.” ― Christopher Hitchens, Letters to a Young Contrarian\nThat said, this is likely a combination of both: it is the agregated charts of everyone the developer could think of who has overtly tried to massively & systemically upset the status quo on a broad, social level.",
     "quotes": {},
     "archived": false,
-    "uid": "default_revolutionary",
-    "samples": []
+    "uid": "default_revolutionary"
   },
   "sex symbol (all)": {
     "name": "sex symbol (all)",
@@ -4707,11 +4743,12 @@
     "description": "Male & female sex symbols: agregated similarities. Charts tagged based on a number of generic \"top 25 sex symbols throughout history\" and the like. Very 'Western Media'-centric. Mostly American, and at very least intelligible sex appeal for American audiences (such as Shahrukh Khan). These were based on democratically sourced internet lists, not the developer's personal opinion.",
     "quotes": {},
     "archived": false,
-    "uid": "default_sex_symbol_all",
-    "samples": []
+    "uid": "default_sex_symbol_all"
   },
   "talk show host": {
     "name": "talk show host",
+    "samples": [1,0],
+    "model": "observed",
     "signs": {
       "Scorpio": 14,
       "Cancer": -14
@@ -4895,8 +4932,9 @@
   "technocrat": {
     "name": "technocrat",
     "samples": [
-      17
+      17,0
     ],
+    "model": "observed",
     "signs": {
       "Scorpio": 30
     },
@@ -5085,8 +5123,9 @@
   "treacherous": {
     "name": "treacherous",
     "samples": [
-      44
+      44,0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {},
@@ -5219,8 +5258,9 @@
   "world-renowned dancer": {
     "name": "world-renowned dancer",
     "samples": [
-      30
+      30,0
     ],
+    "model": "observed",
     "signs": {},
     "antisigns": {},
     "houses": {
@@ -5369,6 +5409,6 @@
     "description": "Mostly ballet. This was 'democratically sourced' from internet lists of 'best dancers of the 20th & 21st century', mixed with a selection of great dancers and choreographers the developer is personally aware of. The internet lists skewed ballet and world-famous. The developer's list was rather more eclectic & niche, but contributed only a few entries.",
     "quotes": {},
     "archived": false,
-    "uid": "default_treacherous"
+    "uid": "default_dancer"
   }
 }

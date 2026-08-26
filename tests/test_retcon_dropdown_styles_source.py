@@ -17,6 +17,9 @@ def test_loud_dropdown_extends_appwide_dropdown_standard():
     assert 'DEFAULT_DROPDOWN_STYLE + """' in loud_style
     assert 'QComboBox[loudSelection="true"]' in loud_style
     assert "background-color: __MIDDLE_PANEL_ACCENT_COLOR__" in loud_style
+    assert 'QComboBox[loudSelection="true"]:disabled' in loud_style
+    assert "background: #444444" in loud_style
+    assert "color: #aaaaaa" in loud_style
     assert "apply_shared_dropdown_style(dropdown)" in loud_helper
     assert 'dropdown.setProperty("loudSelection", is_loud)' in loud_helper
     assert 'default_value: str = "Any"' in loud_helper

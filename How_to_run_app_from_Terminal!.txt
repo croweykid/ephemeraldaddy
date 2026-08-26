@@ -17,10 +17,10 @@ py -V:3.11 --version #if it shows as installed, proceed to step 5. If not, proce
 
 5. py -V:3.11 -m venv venv #creates a virtual environment for Python 3.11 in the Ephemeral Daddy parent folder. If you need to first remove an old venv, run "rmdir /s /q venv" first (without the quotes).
 
-6. venv\Scripts\activate
-7. python -m pip install --upgrade pip
-8. python -m pip install -r requirements.txt
-9. python -m ephemeraldaddy.gui.app
+venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m ephemeraldaddy.gui.app
 
 
 # WIN USERS: Subsequent runs

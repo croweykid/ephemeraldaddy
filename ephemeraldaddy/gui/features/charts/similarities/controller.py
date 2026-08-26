@@ -10,9 +10,10 @@ methods remain callable on the host during this extraction step.
 
 from __future__ import annotations
 
+from html import escape
 from typing import Any, Callable
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QCompleter,
@@ -26,9 +27,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.core.interpretations import BAZI_ZODIAC
 from ephemeraldaddy.gui.features.charts.db_info_panel import DBInfoPanel
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     SimilaritiesDbBaselineCache,
+)
+from ephemeraldaddy.gui.style import (
+    SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
+    SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
 )
 
 
@@ -78,6 +84,16 @@ class SimilaritiesController:
         self.panel_scroll: QWidget | None = None
         self.status_label: QLabel | None = None
         self.db_info_panel: QWidget | None = None
+        self.left_rail: QWidget | None = None
+        self.autocalculate_toggle: QCheckBox | None = None
+        self.stale_indicator: QLabel | None = None
+        self.autocalculate_enabled = True
+        self._last_calculated_selection: tuple[str, ...] | None = None
+        self._force_calculation = False
+        # Keep the feature policy here even while legacy callers in app.py still
+        # invoke the host calculation entry point directly.
+        self._calculate_analysis = host._update_similarities_analysis
+        host._update_similarities_analysis = self._guarded_update_analysis
 
     def install_legacy_attributes(self) -> None:
         """Expose controller-owned state under historical host attr names.
@@ -177,6 +193,23 @@ class SimilaritiesController:
         title_layout.addWidget(export_button, alignment=Qt.AlignRight)
         layout.addWidget(title_row)
 
+        autocalculate_row = QWidget()
+        autocalculate_layout = QHBoxLayout(autocalculate_row)
+        autocalculate_layout.setContentsMargins(0, 0, 0, 0)
+        autocalculate_layout.setSpacing(6)
+        autocalculate_label = QLabel("Autocalculate")
+        autocalculate_layout.addWidget(autocalculate_label)
+        autocalculate_layout.addStretch(1)
+        self.autocalculate_toggle = QCheckBox("ON")
+        self.autocalculate_toggle.setChecked(True)
+        self.autocalculate_toggle.setToolTip(
+            "Begin similarities analysis whenever more than 1 chart is selected"
+        )
+        self.autocalculate_toggle.toggled.connect(self._on_autocalculate_toggled)
+        autocalculate_layout.addWidget(self.autocalculate_toggle)
+        layout.addWidget(autocalculate_row)
+        self._sync_autocalculate_toggle_style()
+
         self.status_label = QLabel(
             "Select 2 or more charts to view similarities across selected charts."
         )
@@ -184,6 +217,14 @@ class SimilaritiesController:
         self.status_label.setStyleSheet("color: #bbbbbb;")
         layout.addWidget(self.status_label)
         self.host.similarities_status_label = self.status_label
+
+        self.stale_indicator = QLabel(
+            "Selection changed — results below are from the previous selection."
+        )
+        self.stale_indicator.setWordWrap(True)
+        self.stale_indicator.setStyleSheet("color: #c9a85b; font-style: italic;")
+        self.stale_indicator.setVisible(False)
+        layout.addWidget(self.stale_indicator)
 
         self.refresh_chart_options()
         use_this_checkbox_style = (
@@ -251,9 +292,7 @@ class SimilaritiesController:
         self.pair_button = QPushButton("Calculate Similarities")
         self.pair_button.setStyleSheet(self.inactive_button_style)
         self.pair_button.setToolTip("Select charts to compare.")
-        self.pair_button.clicked.connect(
-            self.host._calculate_pair_similarity_from_selection
-        )
+        self.pair_button.clicked.connect(self.calculate_pair_similarity)
         pair_layout.addWidget(self.pair_button, alignment=Qt.AlignLeft)
 
         self.dissimilarity_pair_button = QPushButton("Calculate Dissimilarities")
@@ -311,10 +350,9 @@ class SimilaritiesController:
             setattr(self.host, f"similarities_{attr_name}_toggle", toggle)
             setattr(self.host, f"similarities_{attr_name}_list", section_list)
 
-        self.db_info_panel = DBInfoPanel(panel)
+        self.db_info_panel = DBInfoPanel()
         self.db_info_panel.setVisible(False)
         self.host.similarities_db_info_panel = self.db_info_panel
-        layout.addWidget(self.db_info_panel)
         layout.addStretch(1)
 
         self.panel = panel
@@ -323,6 +361,20 @@ class SimilaritiesController:
 
     def set_panel_scroll(self, panel_scroll: QWidget | None) -> None:
         self.panel_scroll = panel_scroll
+
+    def build_left_rail(self, panel_scroll: QWidget) -> QWidget:
+        """Stack the scrolling analysis and static Chart Info surfaces."""
+        self.panel_scroll = panel_scroll
+        rail = QWidget()
+        rail_layout = QVBoxLayout(rail)
+        rail_layout.setContentsMargins(0, 0, 0, 0)
+        rail_layout.setSpacing(8)
+        rail_layout.addWidget(panel_scroll, 1)
+        if self.db_info_panel is not None:
+            self.db_info_panel.setParent(rail)
+            rail_layout.addWidget(self.db_info_panel, 1)
+        self.left_rail = rail
+        return rail
 
     def set_export_sections(
         self, sections: list[tuple[str, list[tuple[Any, ...]]]]
@@ -342,9 +394,89 @@ class SimilaritiesController:
         self.host._update_similarities_analysis(chart_ids)
         self.capture_legacy_attributes()
 
+    def _selection_signature(self, chart_ids: list[int]) -> tuple[str, ...]:
+        """Return a stable UID-first signature for the analysis selection."""
+        uid_map = self.host._chart_uids_by_local_row_id(chart_ids)
+        return tuple(sorted(str(uid) for uid in uid_map.values() if uid))
+
+    def _guarded_update_analysis(self, chart_ids: list[int]) -> None:
+        """Calculate automatically when enabled, otherwise retain prior results."""
+        signature = self._selection_signature(chart_ids)
+        if not self.autocalculate_enabled and not self._force_calculation:
+            self._refresh_pair_controls(chart_ids)
+            stale = (
+                self._last_calculated_selection is not None
+                and signature != self._last_calculated_selection
+            )
+            if self.stale_indicator is not None:
+                self.stale_indicator.setVisible(stale)
+            return
+        self._calculate_analysis(chart_ids)
+        self._last_calculated_selection = signature
+        if self.stale_indicator is not None:
+            self.stale_indicator.setVisible(False)
+
+    def _refresh_pair_controls(self, chart_ids: list[int]) -> None:
+        """Refresh manual pair actions without running the full analysis."""
+        selected_chart_ids = (
+            self.host._exclude_similarities_placeholder_local_row_ids(chart_ids)
+        )
+        resolution = self.host._resolve_similarity_pair_targets(selected_chart_ids)
+        for button, active_tooltip in (
+            (
+                self.pair_button,
+                "Calculate similarity between the selected/input charts.",
+            ),
+            (
+                self.dissimilarity_pair_button,
+                "Calculate dissimilarity between the selected/input charts.",
+            ),
+        ):
+            if button is None:
+                continue
+            button.setStyleSheet(
+                SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
+                if resolution.allow_click
+                else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
+            )
+            button.setToolTip(
+                active_tooltip
+                if resolution.allow_click
+                else (resolution.guidance or "Select 2 charts to compare.")
+            )
+        if self.pair_result_label is not None and not resolution.allow_click:
+            self.pair_result_label.setText(
+                resolution.guidance or "Select 2 charts to compare."
+            )
+
+    def _sync_autocalculate_toggle_style(self) -> None:
+        toggle = self.autocalculate_toggle
+        if toggle is None:
+            return
+        toggle.setText("ON" if self.autocalculate_enabled else "OFF")
+        color = "#43a047" if self.autocalculate_enabled else "#6b6b6b"
+        border = "#78c97b" if self.autocalculate_enabled else "#929292"
+        toggle.setStyleSheet(
+            "QCheckBox { color: #d6d6d6; spacing: 7px; }"
+            "QCheckBox::indicator { width: 30px; height: 16px; border-radius: 8px; "
+            f"border: 1px solid {border}; background-color: {color}; }}"
+        )
+
+    def _on_autocalculate_toggled(self, enabled: bool) -> None:
+        self.autocalculate_enabled = bool(enabled)
+        self._sync_autocalculate_toggle_style()
+        if not enabled:
+            return
+        chart_ids = self.host._selected_local_row_ids()
+        self._guarded_update_analysis(chart_ids)
+
     def calculate_pair_similarity(self) -> None:
-        self.host._calculate_pair_similarity_from_selection()
-        self.capture_legacy_attributes()
+        self._force_calculation = True
+        try:
+            self.host._calculate_pair_similarity_from_selection()
+            self.capture_legacy_attributes()
+        finally:
+            self._force_calculation = False
 
     def calculate_pair_dissimilarity(self) -> None:
         self.host._calculate_pair_dissimilarity_from_selection()
@@ -362,17 +494,6 @@ class SimilaritiesController:
         if info_panel is None:
             return
         info_panel.setVisible(bool(visible))
-        if not visible:
-            return
-        panel_scroll = self.panel_scroll or getattr(
-            self.host, "similarities_analysis_panel_scroll", None
-        )
-        if panel_scroll is not None:
-            self.host._stabilize_left_scroll_panel_layout(panel_scroll)
-            scrollbar = panel_scroll.verticalScrollBar()
-            if scrollbar is not None:
-                QTimer.singleShot(0, lambda sb=scrollbar: sb.setValue(sb.maximum()))
-                QTimer.singleShot(120, lambda sb=scrollbar: sb.setValue(sb.maximum()))
 
     def toggle_db_info_panel(self) -> None:
         self.capture_legacy_attributes()
@@ -386,14 +507,15 @@ class SimilaritiesController:
         info_panel = self.db_info_panel
         if info_panel is None:
             return
-        normalized_target = str(target or "").strip().lower()
-        if not normalized_target:
+        normalized_target = str(target or "").strip()
+        target_key = normalized_target.casefold()
+        if not target_key:
             return
         self.set_db_info_panel_visible(True)
         target_output = info_panel.output
 
         def _render_target() -> None:
-            if normalized_target.startswith("gate_line:"):
+            if target_key.startswith("gate_line:"):
                 gate_line_text = normalized_target.split(":", 1)[1]
                 parts = gate_line_text.split(".", 1)
                 if len(parts) == 2 and all(part.isdigit() for part in parts):
@@ -408,7 +530,7 @@ class SimilaritiesController:
                             target_output, gate_number
                         )
                     return
-            if normalized_target.startswith("gate:"):
+            if target_key.startswith("gate:"):
                 gate_text = normalized_target.split(":", 1)[1]
                 if gate_text.isdigit():
                     gate_number = int(gate_text)
@@ -422,7 +544,7 @@ class SimilaritiesController:
                             target_output, gate_number
                         )
                     return
-            if normalized_target.startswith("house:"):
+            if target_key.startswith("house:"):
                 house_text = normalized_target.split(":", 1)[1]
                 if house_text.isdigit():
                     house_number = int(house_text)
@@ -435,7 +557,7 @@ class SimilaritiesController:
                             target_output, house_number
                         )
                     return
-            if normalized_target.startswith("channel:"):
+            if target_key.startswith("channel:"):
                 channel_text = normalized_target.split(":", 1)[1]
                 parts = channel_text.split("-")
                 if len(parts) == 2 and all(part.isdigit() for part in parts):
@@ -446,6 +568,42 @@ class SimilaritiesController:
                         gate_a,
                         gate_b,
                         "",
+                    )
+                    return
+            if target_key.startswith("center:"):
+                label = normalized_target.split(":", 1)[1].strip()
+                if self.host._invoke_db_info_renderer(
+                    "_show_human_design_center_info",
+                    target_output,
+                    label,
+                ):
+                    return
+            if target_key.startswith("authority:"):
+                label = normalized_target.split(":", 1)[1].strip()
+                if self.host._invoke_db_info_renderer(
+                    "_show_human_design_property_info",
+                    target_output,
+                    "authority",
+                    label,
+                ):
+                    return
+            if target_key.startswith("profile:"):
+                label = normalized_target.split(":", 1)[1].strip()
+                if self.host._invoke_db_info_renderer(
+                    "_show_human_design_property_info",
+                    target_output,
+                    "profile",
+                    label,
+                ):
+                    return
+            if target_key.startswith("bazi_sign:"):
+                label = normalized_target.split(":", 1)[1].strip()
+                sign_name = label.split()[-1].casefold()
+                sign = BAZI_ZODIAC.get(sign_name)
+                if sign:
+                    target_output.setHtml(
+                        f'<h3 style="color:{sign["color"]};">BaZi {escape(label)}</h3>'
+                        f'<p>{sign["one_liner"]}</p>'
                     )
                     return
             target_output.setPlainText(

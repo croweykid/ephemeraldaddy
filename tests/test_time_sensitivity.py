@@ -465,8 +465,8 @@ def test_overall_time_sensitivity_lists_all_definite_human_design_values():
         numeric_ranges={},
         human_design={
             "gates": {"always": [1, 7], "sometimes": [2]},
-            "lines": {"always": ["1.3"], "sometimes": []},
-            "channels": {"always": ["1-8"], "sometimes": []},
+            "lines": {"always": ["1.3", "7.2"], "sometimes": []},
+            "channels": {"always": ["1-8", "7-31"], "sometimes": []},
             "centers": {"always": ["G", "Sacral"], "sometimes": []},
             "type_distribution": {"Generator": 49},
             "profile_distribution": {"1/3": 49},
@@ -481,8 +481,12 @@ def test_overall_time_sensitivity_lists_all_definite_human_design_values():
     assert "HD Gates:" in html and "distinguishing-factor:gate:1" in html
     assert "distinguishing-factor:gate:7" in html
     assert html.count("HD Gates:") == 1
-    assert "HD Gate Line:" in html and "distinguishing-factor:gate-line:1:3" in html
-    assert "HD Channel:" in html and "distinguishing-factor:hd-channel:1-8" in html
+    assert "HD Gate Lines:" in html and "distinguishing-factor:gate-line:1:3" in html
+    assert "distinguishing-factor:gate-line:7:2" in html
+    assert html.count("HD Gate Lines:") == 1
+    assert "HD Channels:" in html and "distinguishing-factor:hd-channel:1-8" in html
+    assert "distinguishing-factor:hd-channel:7-31" in html
+    assert html.count("HD Channels:") == 1
     assert "HD Defined Centers:" in html
     assert "distinguishing-factor:hd-center:G" in html
     assert "distinguishing-factor:hd-center:Sacral" in html

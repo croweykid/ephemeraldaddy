@@ -36,8 +36,9 @@ def test_metric_canvas_width_subtracts_scroll_content_margins():
     source = _source("ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py")
 
     assert "viewport_width = scroll_area.viewport().width()" in source
-    assert "margins = parent_layout.contentsMargins()" in source
-    assert "available_width -= margins.left() + margins.right()" in source
+    assert "margins = layout.contentsMargins()" in source
+    assert "while widget is not None:" in source
+    assert "total += margins.left() + margins.right()" in source
 
 
 def test_prediction_graph_sections_use_extra_axis_label_height():
@@ -54,10 +55,10 @@ def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
     method_start = source.index("    def _render_dndification_predictions")
     method = source[
-        method_start : source.index("    def _normalize_aspect_type", method_start)
+        method_start : source.index("    def on_popout_chart", method_start)
     ]
 
-    render_call = method.index("self._dnd_prediction_adapter().render(chart, self._render_metric_panel)")
+    render_call = method.index("self._dnd_prediction_adapter().render(")
     summary_assign = method.index("self.dnd_prediction_top_three_label = summary_label")
 
     assert render_call < summary_assign
@@ -165,25 +166,17 @@ def test_property_managers_button_sits_below_settings_sections_with_padding():
     method_start = source.index("    def _ensure_settings_dialog")
     method = source[method_start : source.index("    def _set_lilith_calculation_method", method_start)]
 
-    data_visualization_index = method.index('"Data Visualization"')
-    developer_tools_index = method.index('"Developer Tools"')
-    database_stats_index = method.index("add_database_info_settings_section(self, content_layout)")
     similar_charts_index = method.index('"Astro Twin Calculator"')
     predictions_index = method.index('"Predictions"')
+    property_manager_index = method.index('"Property Managers"')
+    database_stats_index = method.index("add_database_info_settings_section(self, content_layout)")
     user_profile_index = method.index('"User Profile"')
     reset_index = method.index('"Reset All to Defaults"')
-    property_manager_index = method.index('"Property Manager"')
     stretch_index = method.index("content_layout.addStretch(1)")
 
-    assert data_visualization_index < developer_tools_index < database_stats_index
-    assert database_stats_index < similar_charts_index < predictions_index < user_profile_index < reset_index
-    assert reset_index < property_manager_index < stretch_index
-    assert "Property Manager" in method
-    assert "parent_layout.addSpacing(top_spacing)" in source
-    assert "button = QPushButton(title)" in source
-    assert "button = QToolButton()" not in source[
-        source.index("    def _add_settings_action_section") : source.index("    def _build_settings_subheader_label")
-    ]
+    assert similar_charts_index < predictions_index < property_manager_index
+    assert property_manager_index < database_stats_index < user_profile_index < reset_index < stretch_index
+    assert 'fill_available_height=True' in method[property_manager_index:database_stats_index]
 
 
 def test_prediction_panel_graph_layouts_are_left_aligned():
@@ -305,12 +298,13 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     loading_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/prediction_loading_labels.py").read_text()
     app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
-    assert "No prior data. Calculate (can take awhile)?" in enneagram_source
-    assert "No prior data. Calculate (can take awhile)?" in dnd_source
-    assert 'QPushButton("Calculate!")' in enneagram_source
-    assert 'QPushButton("Calculate!")' in dnd_source
+    assert 'PREDICTION_CALCULATE_PROMPT = "No prior data. Calculate (can take awhile)?"' in loading_source
+    assert "add_prediction_calculate_prompt(layout)" in enneagram_source
+    assert "add_prediction_calculate_prompt(target_layout)" in dnd_source
+    assert '_set_header_action("calculate")' in enneagram_source
+    assert 'self._set_header_action(section, "calculate")' in dnd_source
     active_branch = stack_source[
-        stack_source.index('    if active_panel == "predictions":') : stack_source.index('    if active_panel == "abc"')
+        stack_source.index('    if active_panel == "predictions":') : stack_source.index('    if active_panel == "time_sensitivity"')
     ]
     assert "_start_background_prediction_render(owner, chart, render_token)" not in active_branch
     assert "owner._render_enneagram_predictions(chart)" in active_branch
@@ -326,7 +320,7 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "if \"dnd_statblock\" in self._sections" in stack_source
     assert "if \"dnd_alignment\" in self._sections" in stack_source
     assert "calculate_callback(chart, \"enneagram\")" in enneagram_source
-    assert "calculate_callback(chart, section)" in dnd_source
+    assert "self.calculate_callback(chart" in dnd_source
     assert 'reset_canvas_callback("enneagram_prediction_canvas")' in enneagram_source
     assert "reset_canvas_callback(canvas_attr)" in dnd_source
     assert "def _dnd_alignment_cache_key" in dnd_source
@@ -379,37 +373,31 @@ def test_traits_prediction_prompt_label_is_reshown_after_table_results():
     apply_view = source.split("def _apply_traits_prediction_view", 1)[1].split("def _apply_traits_prediction_metadata", 1)[0]
 
     assert "label.setVisible(True)" in apply_view
-    assert "A later chart may have no cached metadata yet" in apply_view
+    assert 'label.setText(current_html)' in apply_view
 
 def test_predictions_panel_rerenders_traits_for_each_chart_even_when_content_exists():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
     predictions_branch = source.split('if active_panel == "predictions":', 1)[1].split('if active_panel == "abc"', 1)[0]
 
     assert 'traits_render_token = str(getattr(owner, "_traits_prediction_last_render_chart_token", "") or "")' in predictions_branch
-    assert 'traits_ready_for_chart = traits_ready and traits_render_token == render_token' in predictions_branch
+    assert 'traits_ready_for_chart = not traits_required or (traits_ready and traits_render_token == render_token)' in predictions_branch
     assert 'and traits_ready_for_chart' in predictions_branch
     assert 'and traits_ready\n' not in predictions_branch
     assert 'render_traits = getattr(owner, "_render_traits_predictions", None)' in predictions_branch
-    assert 'if callable(render_traits):\n            render_traits(chart)' in predictions_branch
+    assert 'if traits_required and not traits_ready_for_chart:' in predictions_branch
     assert 'setattr(owner, "_traits_prediction_last_render_chart_token", render_token)' in predictions_branch
     assert 'if callable(render_traits) and not traits_ready' not in predictions_branch
     assert predictions_branch.index('render_traits(chart)') < predictions_branch.index('owner._render_enneagram_predictions(chart)')
 
 
 def test_prediction_calculate_prompts_expand_and_center_contents():
-    for relative_path in (
-        "ephemeraldaddy/gui/features/charts/dnd_predictions.py",
-        "ephemeraldaddy/gui/features/charts/enneagram_predictions.py",
-    ):
-        source = (REPO_ROOT / relative_path).read_text()
-        assert "QSizePolicy.Expanding, QSizePolicy.MinimumExpanding" in source
-        assert "label.setMinimumHeight(label.sizeHint().height())" in source
-        assert "panel_layout.setAlignment(Qt.AlignCenter)" in source
-        assert ".addWidget(panel)" in source
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/prediction_loading_labels.py").read_text()
+    assert "QSizePolicy.Expanding, QSizePolicy.MinimumExpanding" in source
+    assert "label.setAlignment(Qt.AlignCenter)" in source
+    assert "label.setWordWrap(True)" in source
+    assert "layout.addWidget(label)" in source
     traits_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
-    assert "min-height:120px" in traits_source
-    assert "text-align:center" in traits_source
-    assert "white-space:normal" in traits_source
+    assert "No prior data. Calculate (can take awhile)?" in traits_source
 
 
 def test_right_panel_expand_autoscroll_ignores_plain_checkboxes():

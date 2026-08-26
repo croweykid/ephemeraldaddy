@@ -1,9 +1,17 @@
-"""Authoritative separation between calculation data and descriptive metadata.
+"""Authoritative separation between calculation data, metadata, and chart status.
 
 ``ASTRO_DATA`` contains chart inputs and derived outputs belonging to astronomical,
-astrological, Human Design, or BaZi calculation.  Only changes to
-``ASTRO_DATA_INPUT_FIELDS`` may trigger those calculations.  ``NONASTRAL_DATA``
-is descriptive/user metadata and must never trigger them.
+astrological, Human Design, or BaZi calculation. Only changes to
+``ASTRO_DATA_INPUT_FIELDS`` may trigger those calculations.
+
+``NONASTRAL_DATA`` is descriptive/user metadata and must never trigger
+astrology-derived calculations, Trait score invalidation, Trait ranking updates,
+or Trait-panel refreshes.
+
+``CHART_INFO_STATUS`` contains chart state that controls whether/how a chart is
+eligible for UI result populations. Status changes may alter membership in a
+ranking or result set, but do not make the chart's astrology or Trait scores
+numerically stale.
 """
 
 from __future__ import annotations
@@ -14,9 +22,19 @@ from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
 
+ASTRO_DATA_CATEGORY = "astro_data"
+NONASTRAL_DATA_CATEGORY = "nonastral_data"
+CHART_INFO_STATUS_CATEGORY = "chart_info_status"
+
 
 class NonastralPatch(TypedDict, total=False):
-    """Typed payload accepted by the general nonastral persistence path."""
+    """Typed payload accepted by the general non-astro persistence path.
+
+    The historical name is retained for compatibility. Some fields below are
+    now semantically ``CHART_INFO_STATUS`` rather than ``NONASTRAL_DATA``; both
+    categories are safe for narrow persistence because neither permits
+    astrology recalculation.
+    """
 
     name: str
     alias: str | None
@@ -136,6 +154,19 @@ ASTRO_DATA_DERIVED_FIELDS = frozenset(
 
 ASTRO_DATA = ASTRO_DATA_INPUT_FIELDS | ASTRO_DATA_DERIVED_FIELDS
 
+# Result-population / UI eligibility state. ``chart_type`` participates because
+# hypothetical status is currently represented through chart type.
+# ``is_hidden``/``is_hypothetical`` are accepted synthetic event names even
+# where they are not persisted as literal chart-table columns.
+CHART_INFO_STATUS = frozenset(
+    {
+        "chart_type",
+        "is_placeholder",
+        "is_hidden",
+        "is_hypothetical",
+    }
+)
+
 NONASTRAL_DATA = frozenset(
     {
         "chart_uid",
@@ -171,9 +202,7 @@ NONASTRAL_DATA = frozenset(
         "last_encounter",
         "data_rating",
         "social_score",
-        "chart_type",
         "source",
-        "is_placeholder",
         "is_deceased",
         "traits",
         "traits_above_average",
@@ -190,6 +219,27 @@ NONASTRAL_DATA = frozenset(
 
 if ASTRO_DATA & NONASTRAL_DATA:
     raise RuntimeError("Chart fields cannot be both ASTRO_DATA and NONASTRAL_DATA")
+if ASTRO_DATA & CHART_INFO_STATUS:
+    raise RuntimeError("Chart fields cannot be both ASTRO_DATA and CHART_INFO_STATUS")
+if NONASTRAL_DATA & CHART_INFO_STATUS:
+    raise RuntimeError("Chart fields cannot be both NONASTRAL_DATA and CHART_INFO_STATUS")
+
+# Both categories are non-astro persistence fields. This union exists so legacy
+# narrow-write APIs can remain safe while call sites migrate away from treating
+# chart status as ordinary descriptive metadata.
+NONASTRO_DATA = NONASTRAL_DATA | CHART_INFO_STATUS
+
+
+def chart_data_category(field: str) -> str | None:
+    """Return the authoritative semantic category for a chart field/event name."""
+    normalized = str(field or "")
+    if normalized in ASTRO_DATA:
+        return ASTRO_DATA_CATEGORY
+    if normalized in CHART_INFO_STATUS:
+        return CHART_INFO_STATUS_CATEGORY
+    if normalized in NONASTRAL_DATA:
+        return NONASTRAL_DATA_CATEGORY
+    return None
 
 
 def is_astro_data_input(field: str) -> bool:
@@ -197,23 +247,33 @@ def is_astro_data_input(field: str) -> bool:
     return str(field) in ASTRO_DATA_INPUT_FIELDS
 
 
-def require_nonastral_data_fields(fields: str | set[str] | frozenset[str]) -> None:
-    """Reject a narrow metadata write unless every field is NONASTRAL_DATA."""
+def require_nonastro_data_fields(fields: str | set[str] | frozenset[str]) -> None:
+    """Reject a narrow persistence write unless every field is non-astro data."""
     requested = {fields} if isinstance(fields, str) else set(fields)
-    invalid = requested - NONASTRAL_DATA
+    invalid = requested - NONASTRO_DATA
     if invalid:
         invalid_text = ", ".join(sorted(invalid))
         logger.error(
-            "Refusing a narrow nonastral save for unclassified or ASTRO_DATA "
+            "Refusing a narrow non-astro save for unclassified or ASTRO_DATA "
             "field(s): %s. Classify new persisted fields in chart_data_fields.py; "
             "route ASTRO_DATA inputs through the Chart View calculation path, or "
-            "add descriptive metadata to NONASTRAL_DATA.",
+            "classify descriptive metadata/status appropriately.",
             invalid_text,
         )
         raise ValueError(
-            "Narrow nonastral update received unclassified/ASTRO_DATA fields: "
+            "Narrow non-astro update received unclassified/ASTRO_DATA fields: "
             + invalid_text
         )
+
+
+def require_nonastral_data_fields(fields: str | set[str] | frozenset[str]) -> None:
+    """Compatibility alias for the historical narrow non-astro write validator.
+
+    Despite the legacy function name, chart-info-status fields are intentionally
+    accepted here. Narrow persistence of status is safe; status must simply be
+    dispatched as membership/UI invalidation rather than Trait score invalidation.
+    """
+    require_nonastro_data_fields(fields)
 
 
 def astro_data_recalculation_token(

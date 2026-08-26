@@ -7,3 +7,4 @@ Categories=Education;Science;
 Comment=Private astrology research app with dark mode
 Terminal=false
 StartupNotify=true
+StartupWMClass=io.github.ephemeraldaddy.EphemeralDaddy

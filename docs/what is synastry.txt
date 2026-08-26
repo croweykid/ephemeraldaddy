@@ -1,0 +1,41 @@
+In the upper righthand corner of the Synastry Popout chart, to the immediate left of the share button, add new button that says: "What is synastry?"
+
+When clicked, it will open a 600px x 600px window.
+
+
+<h1>What is Synastry?</h1>
+
+<h2>Let's discuss:</h2>
+<strong>If you've made a synastry chart, I'm curious to know exactly what you hoped to find in the results. Care to share?</strong>
+[input field for user feedback]
+
+<strong>Why did you check these two particular charts?</strong> 
+[input field for user feedback]
+
+...
+
+
+If you strip away dating-app vocabulary and cultural scripts, I think most people are looking for something roughly like this:
+	1.	“I want this person to want me.”
+Reciprocal desire is unusually important. People generally don’t merely want a good partner; they want to feel chosen by that particular person. This is partly sexual, but not exclusively. Being someone’s preferred person carries considerable psychological weight.
+	2.	Companionship.
+Someone with whom ordinary existence is more enjoyable: eating, wandering around town, watching something ridiculous, doing chores, traveling, sitting around doing absolutely nothing. A romantic relationship is often partly an attempt to acquire a permanent teammate for mundane life.
+	3.	Emotional safety.
+Not necessarily someone who is perpetually soothing or agreeable. More fundamentally: I can be myself around this person without constantly calculating whether their affection will disappear. Reliability, honesty, non-cruelty, and reasonable conflict resolution matter enormously here.
+	4.	Affection and intimacy.
+Physical affection, sex, tenderness, cuddling, kissing, little rituals, private jokes, etc. Humans have a rather absurd number of ways of saying “I like you and you are mine and I am yours,” apparently because one method was insufficient.
+	5.	Compatibility.
+Shared values, compatible lifestyles, compatible levels of sociability, money attitudes, cleanliness, ambition, sexuality, family expectations, intellectual interests, and so forth. People can tolerate surprisingly large differences when the underlying machinery of daily life works.
+	6.	Admiration.
+This one gets underplayed. Many people want a partner they can genuinely respect: intelligent, competent, beautiful, funny, creative, principled, interesting, capable, whatever their currency happens to be. Desire without admiration often becomes rather thin.
+	7.	Someone who makes life feel larger rather than smaller.
+A good partner can provide novelty, perspective, encouragement, resources, social connection, intellectual stimulation, adventure, or simply a different way of seeing things. The relationship becomes additive rather than merely protective.
+	8.	Practical partnership.
+Especially as people age, romance becomes entangled with the very prosaic question: Can we run a household together without one of us becoming the unpaid parent of the other? Financial cooperation, domestic labor, illness, aging, bureaucracy, pets, family crises—the unglamorous machinery matters.
+	9.	A coherent future.
+Not necessarily marriage, children, house in the suburbs, and matching towels. But most people eventually need some answer to “What are we building?” Even highly independent people generally want to know whether the relationship has somewhere to go.
+	10.	A particular emotional atmosphere.
+This may actually be the deepest category. People often select partners less according to an explicit checklist than according to the state they enter when they’re with that person. One person makes you feel playful; another makes you feel intellectually alive; another makes you feel desired; another makes you feel calm; another makes you feel adventurous; another makes you feel unusually And there is an important distinction between what people say they want and what their behavior reveals that they want.
+
+Someone may say, “I want a kind, emotionally available, communicative partner,” while repeatedly becoming fascinated by people who are mysterious, difficult, extremely charismatic, or emotionally unavailable. That isn’t necessarily hypocrisy. The person may genuinely value kindness while having a separate attraction system that responds to novelty, status, intensity, uncertainty, physicality, etc.
+

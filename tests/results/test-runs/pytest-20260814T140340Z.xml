@@ -1,0 +1,1540 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="62" failures="0" skipped="0" tests="62" time="4.767" timestamp="2026-08-14T10:03:40.562345-04:00" hostname="Anonymous"><testcase classname="" name="tests.test_anagrams_presenter" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_anagrams_presenter.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_anagrams_presenter.py:83: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts import anagrams
+ephemeraldaddy\gui\features\charts\anagrams.py:13: in &lt;module&gt;
+    import requests
+E   ModuleNotFoundError: No module named 'requests'</error></testcase><testcase classname="" name="tests.test_aspect_display_rules" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_aspect_display_rules.py:3: in &lt;module&gt;
+    from ephemeraldaddy.analysis.get_astro_twin import _aspect_map
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_astro_twin_presets_manager" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_astro_twin_presets_manager.py:1: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
+ephemeraldaddy\gui\features\charts\similarities_algorithm_log.py:14: in &lt;module&gt;
+    from ephemeraldaddy.analysis.get_astro_twin import (
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_backup_packages" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_backup_packages.py:8: in &lt;module&gt;
+    from ephemeraldaddy.core import backups
+ephemeraldaddy\core\backups.py:16: in &lt;module&gt;
+    from ephemeraldaddy.core import db as chart_db
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_body_dynamics_metadata" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_body_dynamics_metadata.py:3: in &lt;module&gt;
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_data_position_glyphs" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_data_position_glyphs.py:15: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
+ephemeraldaddy\gui\features\charts\text_summary.py:10: in &lt;module&gt;
+    from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_data_uid_visibility" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_data_uid_visibility.py:15: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
+ephemeraldaddy\gui\features\charts\text_summary.py:10: in &lt;module&gt;
+    from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_editor_unsaved_summary" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_editor_unsaved_summary.py:5: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
+ephemeraldaddy\gui\features\chart_editor\unsaved_summary.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.db import parse_reminds_me_of_uids
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_provenance" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_provenance.py:3: in &lt;module&gt;
+    from ephemeraldaddy.core.db import SOURCE_HYPOTHETICAL, SOURCE_PUBLIC_DB
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_right_panel_state_and_tabs" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_right_panel_state_and_tabs.py:102: in &lt;module&gt;
+    ???
+ephemeraldaddy\gui\features\charts\cv_right_panel_stack.py:33: in &lt;module&gt;
+    ???
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_similarity_relationships" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_similarity_relationships.py:4: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+ephemeraldaddy\gui\features\charts\chart_similarity_relationships.py:13: in &lt;module&gt;
+    from ephemeraldaddy.core.db import get_alternate_chart_uid_groups, get_chart_display_name_map, get_chart_uid_map
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_trait_metadata" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_trait_metadata.py:4: in &lt;module&gt;
+    import ephemeraldaddy.core.db as db
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_typology_metadata" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_typology_metadata.py:7: in &lt;module&gt;
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_uids" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_uids.py:4: in &lt;module&gt;
+    import ephemeraldaddy.core.db as db
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_chart_view_sexiness_metadata" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_view_sexiness_metadata.py:3: in &lt;module&gt;
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_collections" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_collections.py:3: in &lt;module&gt;
+    from ephemeraldaddy.core.db import SOURCE_HYPOTHETICAL, SOURCE_PERSONAL
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_compare_collections" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_compare_collections.py:4: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.similarities.collection_contrast import (
+ephemeraldaddy\gui\features\similarities\collection_contrast.py:10: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_database_analytics_age_share" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_database_analytics_age_share.py:6: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.database_analytics import (
+ephemeraldaddy\gui\features\charts\database_analytics.py:48: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
+ephemeraldaddy\gui\features\charts\dnd_predictions.py:26: in &lt;module&gt;
+    from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_database_analytics_axis_scaling" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_database_analytics_axis_scaling.py:58: in &lt;module&gt;
+    ???
+ephemeraldaddy\gui\features\charts\database_analytics.py:48: in &lt;module&gt;
+    ???
+ephemeraldaddy\gui\features\charts\dnd_predictions.py:26: in &lt;module&gt;
+    ???
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_database_analytics_popout_info" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_database_analytics_popout_info.py:13: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.database_analytics import (
+ephemeraldaddy\gui\features\charts\database_analytics.py:48: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
+ephemeraldaddy\gui\features\charts\dnd_predictions.py:26: in &lt;module&gt;
+    from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_database_view_selection_persistence_source" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_database_view_selection_persistence_source.py:1: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.selection_header import SelectionSummaryCounts
+ephemeraldaddy\gui\features\charts\selection_header.py:14: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.collections import (
+ephemeraldaddy\gui\features\charts\collections.py:10: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_dnd_stat_normalization" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_dnd_stat_normalization.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_dnd_stat_normalization.py:29: in &lt;module&gt;
+    from ephemeraldaddy.analysis.dnd import dnd_stat_calculator as stat_calculator
+ephemeraldaddy\analysis\dnd\dnd_stat_calculator.py:6: in &lt;module&gt;
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_dominant_sign_weights" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_dominant_sign_weights.py:10: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_dominant_weight_cache_migration" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_dominant_weight_cache_migration.py:3: in &lt;module&gt;
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_element_prevalence" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_element_prevalence.py:10: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_enneagram_scoring_options" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_enneagram_scoring_options.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_enneagram_scoring_options.py:3: in &lt;module&gt;
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_fine_tune_hourly_scan" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_fine_tune_hourly_scan.py:9: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.controller import (
+ephemeraldaddy\gui\features\chart_editor\time_sensitivity\__init__.py:7: in &lt;module&gt;
+    from .hourly_scan import (
+ephemeraldaddy\gui\features\chart_editor\time_sensitivity\hourly_scan.py:16: in &lt;module&gt;
+    from ephemeraldaddy.analysis.time_sensitivity import _get_nakshatra
+ephemeraldaddy\analysis\time_sensitivity.py:14: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_house_prevalence" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_house_prevalence.py:10: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.metrics import calculate_house_prevalence_counts
+ephemeraldaddy\gui\features\charts\metrics.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_human_design_electrochemistry_norms" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_electrochemistry_norms.py:1: in &lt;module&gt;
+    from ephemeraldaddy.analysis.human_design_electrochemistry_norms import (
+ephemeraldaddy\analysis\human_design_electrochemistry_norms.py:12: in &lt;module&gt;
+    from ephemeraldaddy.analysis.human_design_synastry import (
+ephemeraldaddy\analysis\human_design_synastry.py:14: in &lt;module&gt;
+    from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_human_design_electrochemistry_predictor" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_electrochemistry_predictor.py:1: in &lt;module&gt;
+    from ephemeraldaddy.analysis.human_design_synastry import (
+ephemeraldaddy\analysis\human_design_synastry.py:14: in &lt;module&gt;
+    from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_human_design_environment" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_environment.py:19: in &lt;module&gt;
+    from ephemeraldaddy.analysis import human_design as hd_output
+ephemeraldaddy\analysis\human_design.py:10: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_human_design_rectified_time" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_rectified_time.py:7: in &lt;module&gt;
+    from ephemeraldaddy.core import human_design_system as hds
+ephemeraldaddy\core\human_design_system.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.ephemeris import planetary_longitude
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_human_design_synastry_centers" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_synastry_centers.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.human_design import build_human_design_synastry_data_output
+ephemeraldaddy\analysis\human_design.py:10: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_human_design_synastry_plot" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_synastry_plot.py:55: in &lt;module&gt;
+    ???
+ephemeraldaddy\core\human_design_system.py:11: in &lt;module&gt;
+    ???
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    ???
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_material_facts_uid" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_material_facts_uid.py:1: in &lt;module&gt;
+    from ephemeraldaddy.core import material_facts
+ephemeraldaddy\core\material_facts.py:16: in &lt;module&gt;
+    from ephemeraldaddy.core.db import DB_PATH, get_chart_uid
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_nonastral_batch_writes" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_nonastral_batch_writes.py:6: in &lt;module&gt;
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_ocean_mbti_neuroticism_prefix" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_ocean_mbti_neuroticism_prefix.py:4: in &lt;module&gt;
+    ocean = pytest.importorskip("ephemeraldaddy.gui.features.predictions.ocean", exc_type=ImportError)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1342: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:938: in _load_unlocked
+    ???
+&lt;frozen importlib._bootstrap_external&gt;:759: in exec_module
+    ???
+&lt;frozen importlib._bootstrap&gt;:491: in _call_with_frames_removed
+    ???
+ephemeraldaddy\gui\features\predictions\ocean.py:20: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_photo_gallery_profile_pic" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_photo_gallery_profile_pic.py:13: in &lt;module&gt;
+    from ephemeraldaddy.core import db, photo_gallery
+ephemeraldaddy\core\db.py:22: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_prediction_norms_snapshot_source" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_prediction_norms_snapshot_source.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_prediction_norms_snapshot_source.py:3: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+ephemeraldaddy\gui\features\charts\prediction_norms_snapshot.py:19: in &lt;module&gt;
+    from ephemeraldaddy.analysis.traits import list_traits, trait_uid_for_profile
+ephemeraldaddy\analysis\traits.py:303: in &lt;module&gt;
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_rectification_range" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_rectification_range.py:8: in &lt;module&gt;
+    import ephemeraldaddy.core.chart as chart_module
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_reminds_me_of_reciprocity_cleanup" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_reminds_me_of_reciprocity_cleanup.py:8: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_reminds_me_of_uid" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_reminds_me_of_uid.py:5: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_retcon_search" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_retcon_search.py:3: in &lt;module&gt;
+    from ephemeraldaddy.core import retcon
+ephemeraldaddy\core\retcon.py:6: in &lt;module&gt;
+    from ephemeraldaddy.core.ephemeris import planetary_positions
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_selection_header" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_selection_header.py:1: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.collections import CustomCollection
+ephemeraldaddy\gui\features\charts\collections.py:10: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_similar_charts_popout" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similar_charts_popout.py:113: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: E402
+ephemeraldaddy\gui\features\charts\similar_charts_popout.py:34: in &lt;module&gt;
+    from ephemeraldaddy.analysis.human_design import build_human_design_result
+ephemeraldaddy\analysis\human_design.py:10: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_similarities_algorithm_log" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similarities_algorithm_log.py:2: in &lt;module&gt;
+    from ephemeraldaddy.analysis.get_astro_twin import SimilarityCalculatorSettings
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_similarities_analysis" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_similarities_analysis.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_similarities_analysis.py:81: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.similarities_analysis import (  # noqa: E402
+ephemeraldaddy\gui\features\charts\similarities_analysis.py:23: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import bazi_sign_weights_from_chart
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_similarities_json_export" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_similarities_json_export.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_similarities_json_export.py:1: in &lt;module&gt;
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_similarity_algorithm_accuracy_ranking" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similarity_algorithm_accuracy_ranking.py:4: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
+ephemeraldaddy\gui\features\charts\similarities_algorithm_log.py:14: in &lt;module&gt;
+    from ephemeraldaddy.analysis.get_astro_twin import (
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_similarity_calculator_settings" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similarity_calculator_settings.py:4: in &lt;module&gt;
+    from ephemeraldaddy.analysis import get_astro_twin
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_similarity_dominance_profiles" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similarity_dominance_profiles.py:3: in &lt;module&gt;
+    from ephemeraldaddy.analysis.get_astro_twin import (
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_statistical_significance" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_statistical_significance.py:10: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
+ephemeraldaddy\gui\features\charts\similarity_norms.py:7: in &lt;module&gt;
+    from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
+ephemeraldaddy\analysis\get_astro_twin.py:11: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_time_sensitivity" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_time_sensitivity.py:1: in &lt;module&gt;
+    from ephemeraldaddy.analysis.time_sensitivity import (
+ephemeraldaddy\analysis\time_sensitivity.py:14: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_trait_prediction_chart_info" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_trait_prediction_chart_info.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_trait_prediction_chart_info.py:7: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts import trait_predictions
+ephemeraldaddy\gui\features\charts\trait_predictions.py:57: in &lt;module&gt;
+    from ephemeraldaddy.analysis.trait_prediction_index import (
+ephemeraldaddy\analysis\trait_prediction_index.py:21: in &lt;module&gt;
+    from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods, trait_possible_score
+ephemeraldaddy\analysis\traits.py:303: in &lt;module&gt;
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_trait_prediction_factors" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_trait_prediction_factors.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_trait_prediction_factors.py:3: in &lt;module&gt;
+    from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_trait_predictions_cache" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_trait_predictions_cache.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_trait_predictions_cache.py:10: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.charts import trait_predictions
+ephemeraldaddy\gui\features\charts\trait_predictions.py:57: in &lt;module&gt;
+    from ephemeraldaddy.analysis.trait_prediction_index import (
+ephemeraldaddy\analysis\trait_prediction_index.py:21: in &lt;module&gt;
+    from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods, trait_possible_score
+ephemeraldaddy\analysis\traits.py:303: in &lt;module&gt;
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_traits" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_traits.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_traits.py:6: in &lt;module&gt;
+    from ephemeraldaddy.analysis import traits
+ephemeraldaddy\analysis\traits.py:303: in &lt;module&gt;
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_transit_export" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_transit_export.py:3: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_transit_position_diagnostic" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_transit_position_diagnostic.py:5: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.transits import diagnostics
+ephemeraldaddy\gui\features\transits\__init__.py:3: in &lt;module&gt;
+    from .cache import TransitWindowCache
+ephemeraldaddy\gui\features\transits\cache.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.composite import TRANSIT_ASPECT_RULES
+ephemeraldaddy\core\composite.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_transit_window_cache" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_transit_window_cache.py:4: in &lt;module&gt;
+    from ephemeraldaddy.gui.features.transits.cache import TransitWindowCache
+ephemeraldaddy\gui\features\transits\__init__.py:3: in &lt;module&gt;
+    from .cache import TransitWindowCache
+ephemeraldaddy\gui\features\transits\cache.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.composite import TRANSIT_ASPECT_RULES
+ephemeraldaddy\core\composite.py:9: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase><testcase classname="" name="tests.test_weighted_chart_predictor" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_weighted_chart_predictor.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_weighted_chart_predictor.py:3: in &lt;module&gt;
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in &lt;module&gt;
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in &lt;module&gt;
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'</error></testcase><testcase classname="" name="tests.test_wheel_plot_aspect_rendering" time="0.000"><error message="collection failure">ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_wheel_plot_aspect_rendering.py:26: in &lt;module&gt;
+    from ephemeraldaddy.graphics.wheel_plot import (
+ephemeraldaddy\graphics\wheel_plot.py:8: in &lt;module&gt;
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in &lt;module&gt;
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in &lt;module&gt;
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.</error></testcase></testsuite></testsuites>

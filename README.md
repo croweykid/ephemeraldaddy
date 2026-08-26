@@ -1,6 +1,43 @@
 # EphemeralDaddy
 private astrological research app with dark mode
 
+## Running the automated tests
+
+The files under `tests/` are automated regression tests for developers and
+contributors. They are not steps that need to be performed manually inside the
+application. From the repository root, the master test runner executes the
+complete suite and displays progress in the terminal:
+
+```bash
+py -V:3.11 -m venv venv
+venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install --no-cache-dir -r requirements-test.txt
+python tools/run_tests.py
+```
+
+The test setup intentionally installs only the test runner dependencies. It
+does not perform an editable application install or reinstall the application's
+runtime dependencies. The `--no-cache-dir` option also avoids failures caused
+by an unreadable or corrupted pip wheel cache. If `python -m pytest --version`
+already works, the installation command can be skipped.
+
+Every run also creates a timestamped, human-readable debug log and a JUnit XML
+report under `results/test-runs/`. The runner returns pytest's exit status, so
+it can also be used by CI or other automation. To verify that every test can be
+discovered without executing the tests, run:
+
+```bash
+python tools/run_tests.py --collect-only
+```
+
+Extra pytest options go after `--`. For example, this stops after the first
+failure and limits the run to tests whose names contain `chart_uids`:
+
+```bash
+python tools/run_tests.py -- -x -k chart_uids
+```
+
 ## FAQs:
 ### Q. What is EphemeralDaddy?
 ### A. EphemeralDaddy (ED) is part astrology lab, part database notebook, part user-defined memoir, part weird toy box.

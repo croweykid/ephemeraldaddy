@@ -47,11 +47,9 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
-from ephemeraldaddy.core.db import get_chart_uid_map, list_charts
 from ephemeraldaddy.core.photo_gallery import (
     add_photo_file,
     add_photo_url,
-    chart_uid_for_chart_id,
     delete_photo,
     get_photo_data,
     get_profile_photo_id,
@@ -59,6 +57,9 @@ from ephemeraldaddy.core.photo_gallery import (
     set_profile_photo,
 )
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
+    refresh_material_relatives_completer,
+)
 from ephemeraldaddy.gui.features.charts.metrics import chart_uses_houses as _chart_uses_houses
 from ephemeraldaddy.core.ephemeris import planetary_positions
 from ephemeraldaddy.core.interpretations import (
@@ -1336,7 +1337,7 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
     relatives_label.setStyleSheet("font-weight: 700; color: #f5f5f5;")
     layout.addWidget(relatives_label)
 
-    relatives_help = QLabel("Link relatives already in the database by name, alias, or UID.")
+    relatives_help = QLabel("Link relatives already in the database by name or alias.")
     relatives_help.setWordWrap(True)
     relatives_help.setStyleSheet("color: #bdbdbd;")
     layout.addWidget(relatives_help)
@@ -1347,24 +1348,14 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
     relative_input_layout.setSpacing(4)
     relative_input = QLineEdit()
     relative_input.setPlaceholderText("Search database relatives by name")
-    relative_choices: list[str] = []
-    chart_rows = list_charts()
-    chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
-    for row in chart_rows:
-        chart_id = int(row[0])
-        uid = chart_uids.get(chart_id, "")
-        for choice in (row[1] if len(row) > 1 else "", row[2] if len(row) > 2 else "", uid):
-            choice_text = str(choice or "").strip()
-            if choice_text and choice_text not in relative_choices:
-                relative_choices.append(choice_text)
-    completer = QCompleter(relative_choices, relative_input)
-    completer.setCaseSensitivity(Qt.CaseInsensitive)
-    completer.setFilterMode(Qt.MatchContains)
-    completer.popup().setFocusPolicy(Qt.NoFocus)
-    relative_input.setCompleter(completer)
+    display_chart_ids = getattr(owner, "_database_view_display_chart_ids_by_uid", None)
+    refresh_material_relatives_completer(
+        relative_input,
+        current_chart_uid=None,
+        display_chart_ids_by_uid=(display_chart_ids() if callable(display_chart_ids) else None),
+    )
     relative_input.returnPressed.connect(owner._add_material_relative_from_input)
     setattr(owner, "material_facts_relative_search_edit", relative_input)
-    setattr(owner, "_material_facts_relative_completer", completer)
     relative_input_layout.addWidget(relative_input, 1)
     add_relative_button = QPushButton("✅")
     add_relative_button.setToolTip("Link this relative")
@@ -2215,23 +2206,28 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     return panel
 
 
+def _current_photo_gallery_chart_uid(owner: QWidget) -> str | None:
+    chart_uid = str(getattr(owner, "current_chart_uid", "") or "").strip().upper()
+    return chart_uid or None
+
+
 def _ensure_photo_gallery_chart_uid(owner: QWidget) -> str | None:
-    chart_id = getattr(owner, "current_chart_id", None)
-    if chart_id is None:
-        choice = QMessageBox.question(
-            owner,
-            "Save chart before adding photos?",
-            "Photo Gallery entries are linked by chart UID. Save this chart before adding photos?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes,
-        )
-        if choice != QMessageBox.Yes:
-            return None
-        update_chart = getattr(owner, "on_update_chart", None)
-        if callable(update_chart):
-            update_chart(show_dialog=False, recalculate_chart=True)
-        chart_id = getattr(owner, "current_chart_id", None)
-    return chart_uid_for_chart_id(chart_id)
+    chart_uid = _current_photo_gallery_chart_uid(owner)
+    if chart_uid is not None:
+        return chart_uid
+    choice = QMessageBox.question(
+        owner,
+        "Save chart before adding photos?",
+        "Photo Gallery entries require a saved chart. Save this chart before adding photos?",
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.Yes,
+    )
+    if choice != QMessageBox.Yes:
+        return None
+    update_chart = getattr(owner, "on_update_chart", None)
+    if callable(update_chart):
+        update_chart(show_dialog=False, recalculate_chart=True)
+    return _current_photo_gallery_chart_uid(owner)
 
 
 def _photo_gallery_grid_cell_size(owner: QWidget) -> int:
@@ -2249,7 +2245,7 @@ def _sync_current_chart_profile_pic(owner: QWidget, chart_uid: str | None) -> No
     if current_chart is not None:
         setattr(current_chart, "profile_pic", str(profile_photo_id or ""))
 
-def _refresh_photo_gallery_for_chart(owner: QWidget, chart_id: int | None = None) -> None:
+def _refresh_photo_gallery_for_chart(owner: QWidget, chart_uid: str | None = None) -> None:
     grid_layout = getattr(owner, "photo_gallery_grid_layout", None)
     empty_label = getattr(owner, "photo_gallery_empty_label", None)
     if grid_layout is None:
@@ -2259,7 +2255,7 @@ def _refresh_photo_gallery_for_chart(owner: QWidget, chart_id: int | None = None
         widget = item.widget()
         if widget is not None:
             widget.deleteLater()
-    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None) if chart_id is None else chart_id)
+    chart_uid = chart_uid or _current_photo_gallery_chart_uid(owner)
     photos = list_photos(chart_uid)
     profile_photo_id = get_profile_photo_id(chart_uid)
     _sync_current_chart_profile_pic(owner, chart_uid)
@@ -2339,7 +2335,7 @@ def _add_photo_gallery_url(owner: QWidget) -> None:
 
 
 def _show_photo_gallery_preview(owner: QWidget, photo_id: int) -> None:
-    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None))
+    chart_uid = _current_photo_gallery_chart_uid(owner)
     photo_rows = list_photos(chart_uid)
     photos = [
         photo_data
@@ -2356,7 +2352,7 @@ def _show_photo_gallery_preview(owner: QWidget, photo_id: int) -> None:
 
 
 def _set_photo_gallery_profile_pic(owner: QWidget, photo_id: int) -> None:
-    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None))
+    chart_uid = _current_photo_gallery_chart_uid(owner)
     if not set_profile_photo(chart_uid, photo_id):
         QMessageBox.warning(owner, "Profile pic unavailable", "Could not assign that photo as this chart’s profile pic.")
         return
@@ -2375,7 +2371,7 @@ def _delete_photo_gallery_photo(owner: QWidget, photo_id: int) -> None:
     )
     if choice != QMessageBox.Yes:
         return
-    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None))
+    chart_uid = _current_photo_gallery_chart_uid(owner)
     delete_photo(photo_id, chart_uid)
     _refresh_photo_gallery_for_chart(owner)
 
@@ -2408,7 +2404,7 @@ def _build_photo_gallery_panel(owner: QWidget) -> QWidget:
 
     help_label = QLabel(
         "Photos are resized to 96 ppi with maximum dimensions of 1920×1080 px "
-        "and stored in the external photo gallery database linked by chart UID."
+        "and stored in the external photo gallery database linked to this chart."
     )
     help_label.setWordWrap(True)
     help_label.setStyleSheet("color: #bdbdbd;")

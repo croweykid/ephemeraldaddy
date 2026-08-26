@@ -6,6 +6,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from ephemeraldaddy.core.db import parse_reminds_me_of_uids
+
 
 MAX_VISIBLE_UNSAVED_CHANGES = 8
 RECALCULATION_NOTICE = (
@@ -38,6 +40,8 @@ class ChartEditorDraftSummary:
     enneagram_type: tuple[str, str]
     tritype: tuple[int, int, int]
     mbti: tuple[str, str, str, str]
+    reminds_me_of_uids: tuple[str, ...] = ()
+    relative_uids: tuple[str, ...] = ()
 
 
 def _time_from_minutes(minutes: object) -> str:
@@ -92,6 +96,7 @@ def summarize_chart_editor_draft_changes(
     draft: ChartEditorDraftSummary,
     *,
     recalculation_required: bool,
+    saved_relative_uids: Iterable[object] | None = None,
 ) -> list[str]:
     """Compare a persisted chart with a typed, widget-free editor draft."""
     changes: list[str] = []
@@ -159,9 +164,37 @@ def summarize_chart_editor_draft_changes(
         _mbti_display(getattr(saved_chart, "mbti", None)),
         _mbti_display(draft.mbti),
     )
+    add(
+        "Reminds me of",
+        ", ".join(parse_reminds_me_of_uids(getattr(saved_chart, "reminds_me_of", None))),
+        ", ".join(_normalized_uids(draft.reminds_me_of_uids)),
+    )
+    add(
+        "Relatives",
+        ", ".join(_normalized_uids(saved_relative_uids)),
+        ", ".join(_normalized_uids(draft.relative_uids)),
+    )
     if recalculation_required:
         changes.insert(0, RECALCULATION_NOTICE)
     return changes
+
+
+def _normalized_uids(values: object) -> tuple[str, ...]:
+    """Normalize either serialized or iterable UID values for comparison."""
+    if isinstance(values, str):
+        raw_values = values.replace(",", " ").split()
+    elif isinstance(values, Iterable):
+        raw_values = values
+    else:
+        raw_values = ()
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in raw_values:
+        uid = str(raw_value or "").strip().upper()
+        if uid and uid not in seen:
+            normalized.append(uid)
+            seen.add(uid)
+    return tuple(normalized)
 
 
 def format_unsaved_change_line(label: str, before: object, after: object) -> str:

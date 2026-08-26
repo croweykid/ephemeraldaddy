@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtWidgets import QLabel, QSizePolicy
+
+
+PREDICTION_CALCULATE_PROMPT = "No prior data. Calculate (can take awhile)?"
 
 
 _LOADING_TIMER_ATTR = "_ephemeraldaddy_loading_blink_timer"
@@ -13,15 +17,52 @@ _LOADING_STYLE_ATTR = "_ephemeraldaddy_loading_blink_previous_style"
 _ELLIPSIS_TIMER_ATTR = "_ephemeraldaddy_loading_ellipsis_timer"
 
 
-def stop_prediction_loading_blink(label: Any) -> None:
-    """Stop a Predictions loading blink timer and restore the label's pre-loading style."""
-    timer = getattr(label, _LOADING_TIMER_ATTR, None)
+def _stop_timer(timer: Any) -> None:
+    """Stop one timer without assuming its C++ QObject still exists."""
     if isinstance(timer, QTimer):
         try:
             timer.stop()
             timer.deleteLater()
         except RuntimeError:
+            # Qt can destroy a child while its Python wrapper remains stored.
             pass
+
+
+def _discard_timer(label: Any, timer_attr: str, *, expected: Any = None) -> None:
+    """Stop and detach the current timer, or only a specified obsolete timer.
+
+    A timeout already queued from a replaced timer may run after a new timer is
+    stored on the same label.  In that case it must not stop the replacement.
+    """
+    try:
+        timer = getattr(label, timer_attr, None)
+    except RuntimeError:
+        timer = None
+    if expected is not None and timer is not expected:
+        _stop_timer(expected)
+        return
+    _stop_timer(timer)
+    try:
+        if getattr(label, timer_attr, None) is timer:
+            delattr(label, timer_attr)
+    except (AttributeError, RuntimeError):
+        pass
+
+
+def add_prediction_calculate_prompt(layout: Any) -> QLabel:
+    """Add the standard centered, expanding no-cache prompt to a section."""
+    label = QLabel(PREDICTION_CALCULATE_PROMPT)
+    label.setAlignment(Qt.AlignCenter)
+    label.setWordWrap(True)
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+    label.setStyleSheet("color: #b8b8b8; padding: 18px 8px;")
+    layout.addWidget(label)
+    return label
+
+
+def stop_prediction_loading_blink(label: Any) -> None:
+    """Stop a Predictions loading blink timer and restore the label's pre-loading style."""
+    _discard_timer(label, _LOADING_TIMER_ATTR)
     previous_style = getattr(label, _LOADING_STYLE_ATTR, None)
     if previous_style is not None and hasattr(label, "setStyleSheet"):
         try:
@@ -33,6 +74,15 @@ def stop_prediction_loading_blink(label: Any) -> None:
             delattr(label, attr)
         except (AttributeError, RuntimeError):
             pass
+
+
+def stop_prediction_loading_ellipsis(label: Any) -> None:
+    """Stop and forget an ellipsis timer, including a stale Qt wrapper."""
+    _discard_timer(label, _ELLIPSIS_TIMER_ATTR)
+    try:
+        delattr(label, _ELLIPSIS_STATE_ATTR)
+    except (AttributeError, RuntimeError):
+        pass
 
 
 def start_prediction_loading_blink(label: Any) -> None:

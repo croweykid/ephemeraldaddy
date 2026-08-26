@@ -1,5 +1,6 @@
 import sys
 import types
+from datetime import datetime
 from types import SimpleNamespace
 
 
@@ -7,6 +8,8 @@ def _install_pyside_stubs() -> None:
     pyside = sys.modules.setdefault("PySide6", types.ModuleType("PySide6"))
     qt_core = sys.modules.setdefault("PySide6.QtCore", types.ModuleType("PySide6.QtCore"))
     qt_widgets = sys.modules.setdefault("PySide6.QtWidgets", types.ModuleType("PySide6.QtWidgets"))
+    qt_core.__getattr__ = lambda _name: object
+    qt_widgets.__getattr__ = lambda _name: object
 
     class _QTimer:
         @staticmethod
@@ -59,15 +62,21 @@ def _install_pyside_stubs() -> None:
             return True
 
     qt_core.QTimer = _QTimer
+    qt_core.QObject = object
     qt_core.QPoint = object
     qt_core.QPropertyAnimation = object
     qt_core.QEasingCurve = object
+    qt_core.QThread = object
+    qt_core.Signal = lambda *_args, **_kwargs: object()
+    qt_core.Slot = lambda *_args, **_kwargs: (lambda fn: fn)
     qt_core.Qt = _Qt
     qt_widgets.QWidget = _QWidget
     qt_widgets.QScrollArea = _QScrollArea
     qt_widgets.QAbstractButton = _QAbstractButton
     qt_widgets.QGraphicsOpacityEffect = object
     qt_widgets.QHBoxLayout = object
+    qt_widgets.QLabel = _QWidget
+    qt_widgets.QMessageBox = object
     qt_widgets.QPushButton = object
     qt_widgets.QSizePolicy = object
     qt_widgets.QStackedWidget = object
@@ -75,6 +84,18 @@ def _install_pyside_stubs() -> None:
 
     pyside.QtCore = qt_core
     pyside.QtWidgets = qt_widgets
+
+    style = types.ModuleType("ephemeraldaddy.gui.style")
+    style.close_app_loading_progress = lambda *_args, **_kwargs: None
+    style.create_app_loading_progress = lambda *_args, **_kwargs: None
+    style.update_app_loading_progress = lambda *_args, **_kwargs: None
+    style.ARROW_STYLES = {"classic": "→"}
+    style.CHART_DATA_DIVIDER = ""
+    style.SETTINGS_APP = "EphemeralDaddy"
+    style.SETTINGS_ORG = "EphemeralDaddy"
+    style.apply_chart_info_link_cursor = lambda *_args, **_kwargs: None
+    style.houses_unknown_note_html = lambda *_args, **_kwargs: ""
+    sys.modules["ephemeraldaddy.gui.style"] = style
 
 
 _install_pyside_stubs()
@@ -132,7 +153,7 @@ def _owner():
     owner._schedule_chart_render_for_active_right_panel = lambda: None
     owner._collapse_similar_charts_section = lambda: None
     owner._is_placeholder_chart = lambda chart: bool(getattr(chart, "is_placeholder", False))
-    owner.current_chart_id = 1
+    owner.current_chart_uid = "SAVEDCHARTUID001"
     return owner
 
 
@@ -170,6 +191,21 @@ def test_sync_placeholder_state_hides_analytics_and_predictions_for_placeholder_
     assert owner.predictions_panel_button.enabled is False
     assert owner._chart_right_panel_state.active_tab == "subjective_notes"
 
+
+
+def test_sync_placeholder_state_keeps_saved_uid_chart_tabs_available():
+    owner = _owner()
+    owner.time_sensitivity_panel_button = _FakeButton(enabled=False)
+    saved_chart = SimpleNamespace(is_placeholder=False, chart_uid=owner.current_chart_uid)
+
+    sync_chart_right_panel_placeholder_state(owner, saved_chart)
+
+    assert owner.chart_analytics_panel_button.visible is True
+    assert owner.chart_analytics_panel_button.enabled is True
+    assert owner.predictions_panel_button.visible is True
+    assert owner.predictions_panel_button.enabled is True
+    assert owner.time_sensitivity_panel_button.visible is True
+    assert owner.time_sensitivity_panel_button.enabled is True
 
 def test_schedule_render_for_active_tab_analytics():
     owner = _owner()
@@ -233,7 +269,7 @@ def test_schedule_render_for_active_tab_predictions():
     assert calls == [("enneagram",), ("dnd",)]
 
 
-def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible():
+def test_schedule_render_for_active_tab_abc_when_anagrams_visible():
     owner = _owner()
     owner._latest_chart = object()
     calls = []
@@ -243,7 +279,7 @@ def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible()
     owner._render_enneagram_predictions = lambda _chart: None
     owner._render_dndification_predictions = lambda _chart: None
     owner._is_chart_analysis_section_visible = lambda key: key == "anagrams"
-    owner._chart_right_panel_state.active_tab = "subjective_notes"
+    owner._chart_right_panel_state.active_tab = "abc"
 
     schedule_chart_render_for_active_right_panel(owner)
 
@@ -352,7 +388,7 @@ def test_schedule_render_for_active_tab_predictions_skips_cached_chart_token():
 
 def test_schedule_render_for_active_tab_predictions_rerenders_when_chart_token_changes():
     owner = _owner()
-    chart = SimpleNamespace(name="first")
+    chart = SimpleNamespace(name="first", chart_uid="UID1", dt=datetime(2000, 1, 1))
     owner._latest_chart = chart
     calls = []
     owner._chart_analytics_cache_token = lambda current_chart: f"token:{current_chart.name}"
@@ -362,6 +398,7 @@ def test_schedule_render_for_active_tab_predictions_rerenders_when_chart_token_c
 
     schedule_chart_render_for_active_right_panel(owner)
     chart.name = "second"
+    chart.dt = datetime(2001, 1, 1)
     schedule_chart_render_for_active_right_panel(owner)
 
     assert calls == [

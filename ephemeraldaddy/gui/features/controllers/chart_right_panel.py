@@ -8,6 +8,9 @@ from typing import Literal
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QAbstractButton, QScrollArea, QWidget
 
+from ephemeraldaddy.gui.features.chart_editor.right_panel_controller import (
+    ChartEditorRightPanelController,
+)
 from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import hd_electrochemistry_predictions_are_current
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     ChartRightPanelStack,
@@ -50,6 +53,7 @@ class ChartRightPanelController:
     def __init__(self, owner: object) -> None:
         self._owner = owner
         self._stack: ChartRightPanelStack | None = None
+        self._navigation: ChartEditorRightPanelController | None = None
         self._chart: object | None = None
         self._section_visible: dict[str, bool] = {key: True for key in self._PANEL_ATTRS}
         self._expand_autoscroll_installed = False
@@ -83,6 +87,40 @@ class ChartRightPanelController:
             on_show_time_sensitivity=lambda: self.set_active_panel("time_sensitivity"),
             on_show_photo_gallery=lambda: self.set_active_panel("photo_gallery"),
             scrollbar_style=scrollbar_style,
+        )
+        panels = {
+            "analytics": self._stack.analytics_scroll,
+            "predictions": self._stack.predictions_scroll,
+            "subjective_notes": self._stack.subjective_notes_scroll,
+            "abc": self._stack.abc_scroll,
+            "material_facts": self._stack.material_facts_scroll,
+            "time_sensitivity": self._stack.time_sensitivity_scroll,
+            "photo_gallery": self._stack.photo_gallery_scroll,
+        }
+        buttons = {
+            "analytics": self._stack.analytics_button,
+            "predictions": self._stack.predictions_button,
+            "subjective_notes": self._stack.subjective_notes_button,
+            "abc": self._stack.abc_button,
+            "material_facts": self._stack.material_facts_button,
+            "time_sensitivity": self._stack.time_sensitivity_button,
+            "photo_gallery": self._stack.photo_gallery_button,
+        }
+        request_layouts = getattr(
+            self._owner, "_request_visible_metric_canvas_layouts", lambda: None
+        )
+        self._navigation = ChartEditorRightPanelController(
+            stack=self._stack.stack,
+            panels=panels,
+            buttons=buttons,
+            resolve_panel_key=self._resolve_panel_key,
+            set_active_tab=self._set_active_tab,
+            request_visible_canvas_layouts=request_layouts,
+            schedule_render=lambda panel_key: self.schedule_render(panel_key),
+            on_analytics_activated=lambda: self.set_section_visible(
+                "similar_charts", False
+            ),
+            scroll_panel_to_top=self._scroll_panel_to_top,
         )
         return self._stack
 
@@ -127,31 +165,18 @@ class ChartRightPanelController:
                 )
             return
         self._install_expand_autoscroll()
-        panel_key = self._resolve_panel_key(panel_key)
-        scroll_attr, _button_attr = self._PANEL_ATTRS[panel_key]
-        active_scroll = getattr(self._owner, scroll_attr, None)
-        panel_stack = self._stack.stack if self._stack is not None else getattr(self._owner, "chart_right_panel_stack", None)
-        if panel_stack is None or active_scroll is None:
+        if self._navigation is None:
             return
-        panel_stack.setCurrentWidget(active_scroll)
+        self._navigation.set_active_panel(
+            panel_key, schedule_render=schedule_render
+        )
+
+    def _set_active_tab(self, panel_key: str, active_scroll: QScrollArea) -> None:
+        """Publish navigation state through the legacy Chart Editor adapter."""
         setattr(self._owner, "metrics_scroll", active_scroll)
         state = getattr(self._owner, "_chart_right_panel_state", None)
         if state is not None:
             state.active_tab = panel_key
-        for tab_key, (_scroll, button_attr) in self._PANEL_ATTRS.items():
-            button = getattr(self._owner, button_attr, None)
-            if button is not None:
-                button.setChecked(panel_key == tab_key)
-        if panel_key == "analytics":
-            self.set_section_visible("similar_charts", False)
-        if panel_key in {"subjective_notes", "abc"}:
-            self._scroll_panel_to_top(active_scroll)
-        if not schedule_render:
-            return
-        if panel_key == "predictions":
-            QTimer.singleShot(0, lambda panel_key=panel_key: self.schedule_render(panel_key))
-        else:
-            self.schedule_render(panel_key)
 
     def set_section_visible(self, section: RightPanelSection, visible: bool) -> None:
         """Update tracked right-panel section visibility without scattering checks."""
@@ -229,12 +254,12 @@ class ChartRightPanelController:
 
     def sync_placeholder_state(self, chart: object | None = None) -> None:
         """Sync tab availability for the current chart without clearing it implicitly."""
-        if chart is not None and self._chart is None and not hasattr(self._owner, "current_chart_id"):
+        if chart is not None and self._chart is None:
             sync_chart_right_panel_placeholder_state(self._owner, chart)
             return
         current_chart = self._chart if chart is None else chart
         is_placeholder = self._is_placeholder_chart(current_chart)
-        is_saved_chart = bool(current_chart is not None and getattr(self._owner, "current_chart_id", None) is not None)
+        is_saved_chart = bool(current_chart is not None and getattr(self._owner, "current_chart_uid", None) is not None)
         analytics_available = bool(is_saved_chart and not is_placeholder)
         demo_mode_enabled = self._demo_mode_enabled()
         self.set_section_visible("analytics", analytics_available)
@@ -302,8 +327,8 @@ class ChartRightPanelController:
         if callable(cache_token):
             chart_token = str(cache_token(chart))
         else:
-            chart_id = getattr(self._owner, "current_chart_id", None)
-            chart_token = f"id:{chart_id}" if chart_id is not None else f"object:{id(chart)}"
+            chart_uid = str(getattr(self._owner, "current_chart_uid", "") or "").strip()
+            chart_token = f"uid:{chart_uid}" if chart_uid else f"object:{id(chart)}"
         norms_token_fn = getattr(self._owner, "_prediction_norms_render_token", None)
         norms_token = str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
         return f"{chart_token}|{norms_token}"

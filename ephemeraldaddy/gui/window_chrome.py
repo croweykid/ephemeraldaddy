@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
 from ephemeraldaddy.gui.about_sparkle import AboutCloseSparkleOverlay
+from ephemeraldaddy.gui.application_identity import (
+    APP_DISPLAY_NAME,
+    configure_qapplication_identity,
+)
 from ephemeraldaddy.gui.galaxy_explainer import show_guide_to_the_galaxy
 from ephemeraldaddy.gui.style import (
     ABOUT_DIALOG_ACCENT_BUTTON_COLOR,
@@ -20,9 +24,6 @@ from ephemeraldaddy.gui.style import (
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
 
-APP_DISPLAY_NAME = "Ephemeral Daddy"
-
-
 _ACTIVE_ABOUT_SPARKLES: list[AboutCloseSparkleOverlay] = []
 
 
@@ -32,6 +33,7 @@ class WindowChromeCommands:
 
     open_settings: Callable[[], None]
     open_rectification_engine: Callable[[], None]
+    open_compare_collections: Callable[[], None]
 
 
 def _show_about_close_sparkles(target_rect) -> None:
@@ -306,9 +308,7 @@ def configure_splitter_handle_resize_cursor(splitter) -> None:
 
 def configure_application_identity(app: "QApplication") -> None:
     """Set a consistent application identity shown by the OS shell and Qt."""
-    app.setApplicationName(APP_DISPLAY_NAME)
-    app.setApplicationDisplayName(APP_DISPLAY_NAME)
-    app.setOrganizationName(APP_DISPLAY_NAME)
+    configure_qapplication_identity(app)
 
 
 def configure_main_window_chrome(
@@ -354,6 +354,7 @@ def configure_main_window_chrome(
         )
 
     tools_menu = menu_bar.addMenu("Tools")
+    _bind_menu_callback(tools_menu, "Compare-Contrast Collections", commands.open_compare_collections)
     _bind_menu_action(
         tools_menu,
         "👯 Astro Twin",
@@ -409,6 +410,7 @@ def configure_manage_dialog_chrome(
     _bind_menu_action(file_menu, "Export Selection to CSV", dialog, "_on_export_selected")
     _bind_menu_action(file_menu, "Backup Database", dialog, "_on_export_database")
     _bind_menu_action(file_menu, "Restore Database", dialog, "_on_import_database")
+    _bind_menu_action(file_menu, "Append Database", dialog, "_on_append_database")
     _bind_menu_action(file_menu, "Refresh Database", dialog, "_on_force_refresh_database_analysis")
     # _bind_menu_action(file_menu, "Batch Edit Entries", dialog, "_toggle_edit_panel")
     charts_menu = menu_bar.addMenu("Charts")
@@ -432,6 +434,7 @@ def configure_manage_dialog_chrome(
         )
 
     tools_menu = menu_bar.addMenu("Tools")
+    _bind_menu_callback(tools_menu, "Compare-Contrast Collections", commands.open_compare_collections)
     _bind_menu_action(
         tools_menu,
         "👯 Astro Twin",

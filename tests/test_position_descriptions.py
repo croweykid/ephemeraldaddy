@@ -8,6 +8,13 @@ def test_position_description_lookup_normalizes_body_and_sign() -> None:
     assert description.startswith("An Aries Moon")
 
 
+def test_position_description_lookup_normalizes_chart_angle_key() -> None:
+    description = get_position_description("AS", "Aries")
+
+    assert description is not None
+    assert description.startswith("Aries Rising")
+
+
 def test_position_description_lookup_allows_generic_fallback() -> None:
     assert get_position_description("Sun", "Aries") is None
     assert get_position_description("Moon", "Not a sign") is None

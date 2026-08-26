@@ -9,6 +9,7 @@ if style_stub is None:
     style_stub = ModuleType("ephemeraldaddy.gui.style")
     sys.modules["ephemeraldaddy.gui.style"] = style_stub
 style_stub.CHART_DATA_DIVIDER = ""
+style_stub.ARROW_STYLES = {"classic": "→"}
 style_stub.blend_hex_colors = lambda color_a, _color_b, _ratio: color_a
 
 from ephemeraldaddy.analysis.human_design import build_human_design_synastry_data_output

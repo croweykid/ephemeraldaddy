@@ -7,7 +7,7 @@
 
 OCEAN_SIGNS_THEORY = {
     "Aries": {
-        "O": -5, "C": 10, "E": 10, "A":-5, "N": -10, #hesitant on assigning Aries less openness, because they ARE often receptive to factual explanations, if presented in terms they respect. "WHY ARE YOU LIKE THAT?!" they might demand, seeming conservative. But then, if you actually explain in terms they respect, they'll usually accept it and respect your frankness, then take you as you are.
+        "O": -10, "C": 10, "E": 10, "A":-10, "N": -10, #hesitant on assigning Aries less openness, because they ARE often receptive to factual explanations, if presented in terms they respect. "WHY ARE YOU LIKE THAT?!" they might demand, seeming conservative. But then, if you actually explain in terms they respect, they'll usually accept it and respect your frankness, then take you as you are.
         "description": "pioneering, direct, competitive, courageous, impatient",
     },
     "Taurus": {
@@ -19,7 +19,7 @@ OCEAN_SIGNS_THEORY = {
         "description": "curious, verbal, adaptable, sociable, restless",
     },
     "Cancer": {
-        "O": -5, "C": 0, "E":-10, "A": 5, "N": 10,
+        "O": -2.5, "C": 0, "E":-10, "A": 5, "N": 10,
         "description": "protective, receptive, cautious, attached, changeable",
     },
     "Leo": {
@@ -31,11 +31,11 @@ OCEAN_SIGNS_THEORY = {
         "description": "analytical, discriminating, methodical, helpful, worried",
     },
     "Libra": {
-        "O": 5, "C": -10, "E": 10, "A": 10, "N": 5,#?, #female libras tend to be "A":10, male libras tend to be "A":-5. But even negging and contrarianism are possibly affected for social capital. >_>
+        "O": 2.5, "C": -10, "E": 10, "A": 10, "N": 5,#?, #female libras tend to be "A":10, male libras tend to be "A":-5. But even negging and contrarianism are possibly affected for social capital. >_>
         "description": "social, diplomatic, aesthetic, cooperative, indecisive",
     },
     "Scorpio": {
-        "O": 0, "C": 0, "E":-10, "A":-10, "N": 0, #Lots of scorpios are super S not N. Re: "Agreeableness". Most Scorpios aren't aggro, they just want sovereignty. But I looked at the list of Scorpio dom & those are NOT agreeable people.
+        "O": 5, "C": 0, "E":-10, "A":-10, "N": 0, #Lots of scorpios are super S not N. Re: "Agreeableness". Most Scorpios aren't aggro, they just want sovereignty. But I looked at the list of Scorpio dom & those are NOT agreeable people.
         "description": "probing, private, persistent, controlling, intense",
     },
     "Sagittarius": {
@@ -43,7 +43,7 @@ OCEAN_SIGNS_THEORY = {
         "description": "exploratory, philosophical, candid, exuberant, unrestrained",
     },
     "Capricorn": {
-        "O":-10, "C": 10, "E":-5, "A": -5, "N": -10, #NOT inherently agreeable. STILL charming within their boundaries, when rules are observed. Mad charisma.
+        "O":-10, "C": 10, "E":-5, "A":0, "N": -10, #NOT inherently agreeable. STILL charming within their boundaries, when rules are observed. Mad charisma.
         "description": "disciplined, reserved, ambitious, pragmatic, cautious",
     },
     "Aquarius": {

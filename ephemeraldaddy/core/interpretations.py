@@ -640,7 +640,7 @@ NAKSHATRA_RANGES = [
     ("Jyestha", "Sagittarius", 10, 31, "Sagittarius", 23, 51),
     ("Mula", "Sagittarius", 23, 51, "Capricorn", 7, 11),
     ("Purva Ashadha", "Capricorn", 7, 11, "Capricorn", 20, 31),
-    ("Uttara Ashadha", "Capricorn", 20, 11, "Aquarius", 3, 51),
+    ("Uttara Ashadha", "Capricorn", 20, 31, "Aquarius", 3, 51),
     ("Shravana", "Aquarius", 3, 51, "Aquarius", 17, 11),
     ("Dhanishta", "Aquarius", 17, 11, "Pisces", 0, 31),
     ("Shatabhisha", "Pisces", 0, 31, "Pisces", 13, 51),
@@ -1009,6 +1009,29 @@ PLANET_COLORS = {
     "MC":"#33ccff", #lighter basic blue to indicate angles
     "Earth":"#049534", #was #339966 #slightly bluish green
 }
+
+# Text colors that need a lighter surface than the app's standard charcoal to
+# remain comfortably readable.  Derive this semantic appwide hazard flag from
+# the canonical body palette so color changes do not leave a duplicate hex list
+# out of sync.
+DARK_TEXT = frozenset(
+    PLANET_COLORS[body].lower()
+    for body in (
+        "Pluto",
+        "Saturn",
+        "Uranus",
+        "Rahu",
+        "Ketu",
+        "Chiron",
+        "Ceres",
+        "Pallas",
+        "Juno",
+        "Vesta",
+        "Lilith",
+        "Part of Fortune",
+        "Fortune",
+    )
+)
 
 # not used anywhere, as far as I can tell
 # PLANET_COLORS_EARTH = {
@@ -1565,6 +1588,7 @@ SYNASTRY_PAIR_WEIGHTS = {
 
 # composite_natal_relevance = (relevance_A[planetA] + relevance_B[planetB]) / 2
 
+#this is a shabby taxonomy; redo with updated reflections. You've clearly given this more thought since applying the boilerplate placeholder taxonomy.
 SYNASTRY_AXES = {
     "emotional harmony",
     "romance",
@@ -2041,17 +2065,17 @@ SIGN_KEYWORDS = {
             "wry", "vigilant", "alert", "mobile", "ironic",
         ],
         "worst": [
-            "rigid (in principle)","jittery", "scattered", "reactive", "suspicious", "snide", "evasive",
-            "cynical", "unfocused", "restless", "sarcastic", "disjointed", "critical", "uneasy",
+            "rigid (in principle)", "scattered", "reactive", "suspicious", "snide",
+            "cynical", "unfocused", "restless", "sarcastic", "disjointed", "critical",
         ],
         "best_adverbs": [
-            "sharply", "flexibly", "directly", "with awareness", "improvisationally", "dryly","sardonically",
+            "sharply", "flexibly", "directly", "with awareness", "improvisationally", "dryly", "sardonically",
             "observantly", "skeptically", "wryly", "vigilantly", "alertly", "mobily", "ironically",
         ],
         "worst_adverbs": [
-            "jitterily", "scatteredly", "reactively", "suspiciously", "snidely", 
-            "evasively", "cynically", "without focus", "restlessly", "sarcastically",
-            "disjointedly", "critically", "uneasily",
+            "scatteredly", "reactively", "suspiciously", "snidely",
+            "cynically", "without focus", "restlessly", "sarcastically",
+            "disjointedly", "critically",
         ],
         "profile":"feron",
         "verbs": ["questioning", "criticizing", "redirecting", "pivoting", "undermining via", "qualifying", "scanning", "adjusting", "challenging", "comparing", "signaling", "reacting",
@@ -2304,7 +2328,7 @@ SIGN_KEYWORDS = {
             "inauthentically", "perfectionistically", "rigidly",
         ],
         "profile":"kesmet",
-        "verbs": ["controlling", "formating", "refining", "directing", "calculating", "curating", "stylizing", "asserting", "maneuvering", "correcting", "modulating", "maintaining",],
+        "verbs": ["controlling", "formatting", "refining", "directing", "calculating", "curating", "stylizing", "asserting", "maneuvering", "correcting", "modulating", "maintaining",],
         "core":"Identity through structure. Adult-in-the-room energy. Controls reality by refining it. Overmanaged persona. Rejects mess. Enforces systems that may no longer serve.",
         "strategy":"Orchestrates style, tone, and consequence with sharp calibration.",
         "function":"Keeps the room functional. Enforces standards. Aesthetic is justice in disguise.",
@@ -5149,39 +5173,6 @@ GRECOROMAN_ELEMENTS = {
     },
 }
 
-TAROT_NUMBERS = { #swords & wands are intrinsically a harsh burden that age poorly through the numbers, whereas pentacles & cups mature/culminate much better. Why is that?
-    1:{
-        "definition":"initiation, potential, new opportunity, rebirth", #a new opportunity in the suit is born or reset
-    },
-    2:{
-        "definition":"balance, gatekeeping, standing at the threshold", #2 of pentacles balances resources, 2 of wands balances present and future actions, 2 of swords is a gatekeeper of choice and setter of intellectual boundaries, 2 of cups is balance between two people's souls/hearts/minds/needs/feelings/psyches in relation to one another 
-    },
-    3:{
-        "definition":"integration? collaboration? not sure", #3 of cups, 3 of swords, 3 of pentacles, 3 of wands
-    },
-    4:{
-        "definition":"containment, stabilization, ensnarement or blockage", #the suit's energy is grounded, ensnared or blocked. 4 of cups is either preoccupied with a singular feeling or oblivious to many possible feelings. 4 of swords must sleep, the brain must shut down. 4 of pentacles wants to hoard. 4 of wands directs energy into the family/domecile/a singular festivity, containing it to a vessel. 
-    },
-    5:{
-        "definition":"fear realized", #the suit's greatest fear is momentarily realized. the 5 of pentacles is sick or poor. The 5 of cups has lost something beautiful. The 5 of wands is met with resistance/hassle/conflict that foils its progress. The 5 of swords has been outwitted, mentally bested, taken advantage of, or something unfair is afoot; one's own cleverness, truth, justice and balance aren't winning.
-    },
-    6:{
-        "definition":"soothing, reprieve, needs partially addressed", #this realizes a need of the suit. 6 of swords (resolution of a bad time), 6 of wands (recognition, achievement), 6 of cups (nostalgia), 6 of pentacles (employment, sharing, exchange)
-    },
-    7:{
-        "definition":"doubling down", #the suit's energy doubles down here, almost aggressively. 7 of wands (defense, standing your ground), 7 of cups (delirium, confusion), 7 of swords (cunning, treachery), 7 of pentacles (patience, waiting to bear fruit)
-    },
-    8:{
-        "definition":"challenging but necessary progress", #8 of pentacles (work, progress, productivity, building, fixing), 8 of cups (moving on, leaving behind), 8 of swords (restriction, entrapment, forced to confront the limitations), 8 of wands (fast action, communication)
-    },
-    9:{
-        "definition":"nearness to capacity", #penultimate realization of the suit's potential: 9 of cups (emotional satisfaction, you've got most of what you could want; this feels good), 9 of swords (anxiety, fear, regret, neurosis), 9 of pentacles (refinement, autonomy, wealth), 9 of wands (endurance, survival)
-    },
-    10:{
-        "definition":"culmination, no further action required/accepted, final chapter, nearing overextension, approaching reset to aces", #the suit is concluded here, its means achieved or not. 10 of cups (emotional fulfillment), 10 of wands (you've taken on as much as you possibly can), 10 of pentacles (legacy, material stability), 10 of swords (dark night of the soul, nadir, total collapse - why is this always negative? but it is. so are swords inherently negative? why are swords the only completely negative 10? your mind is at its limit? sometimes your body is, too, and you still get 10 of swords. sometimes it's just the weather, sometimes it's just the fates - it's out of your hands, but you have been devastated by that which you couldn't see or help, or could have and failed at; is the message that you can never win with thoughts? that the culmination of all our thoughts is just catastrophe & devastation? there is no satisfying end to the mental process, only collapse?)
-    },
-}
-
 WEIRDNESS_SCALE = {
     "literal alien":{
         "display_name":"Lv 5/5: ᏝᎥᏖᏋᏒᏗᏝ ᏗᏝᎥᏋᏁ",
@@ -5373,38 +5364,6 @@ AWARENESS_STREAMS = [
 {"name":"feeling","type":"solar plexus","gates":[41,30,36,35]},
 ]
 
-PREDICTIONS = { #when half or more of these things are true, give the chart the trait
-    "sex symbol":{
-        "signs":{"Libra","Leo"}, 
-        "antisigns":{"Pisces"},
-        "houses":{},
-        "antihouses":{},
-        "bodies":{"Mercury","Mars"},
-        "antibodies":{"Pluto","Uranus","Saturn"},
-        "nakshatras":{"Rohini","Punarvasu","Uttara Phalguni","Ashwini",}, 
-        "antinakshatras":{"Purva Ashadha"}, 
-        "positions":{"Chiron in Aries","Chiron in Taurus","Juno in Sagittarius","Jupiter in Scorpio","Cancer in H1","Juno in Libra","Ketu in H1","Moon in H7","Rahu in H7","Sun in H10","Venus in H10","Ketu in H7","Mars in H7","Mercury in H11","Lilith in H11","Rahu in H1","Fortune in H5","Neptune in H5","Saturn in H7"},
-        "antipositions":{"Venus in Scorpio","Venus in Aquarius"},
-        "aspects":{"Chiron trine Neptune","Juno trine Moon","Chiron sextile Mars","IC square Ketu","Mars square Mercury","MC square Rahu","Ceres trine Venus","Mercury semisextile Venus","Venus square Vesta","Chiron square Moon","Juno sextile Jupiter","Juno sector Neptune","Juno sextile Sun","Ketu trine Saturn",},
-        "antiaspects":{},
-        "gates":{18,62,14,19,35,25,49,63,},
-        "antigates":{1,44,28,41,55,36,10,29,},
-        "channels": {},
-        "antichannels": {},
-        "centers":{},
-        "anticenters":{},
-        "profiles":{},
-        "antiprofiles":{},
-        "authorities":{},
-        "antiauthorities":{},
-        "bazisigns":{},
-        "antibazisigns":{},
-        "color":"#cc99ff",
-        "subheader":"",
-        "description":"",
-        },
-}
-
 RODDEN_RATING = [
     {"grade":"AA", "data_source":"Official testimony", "description":"Data recorded by the family or state, such as a birth certificate, birth record, baptismal certificate, or family Bible."},
     {"grade":"A", "data_source":"Undocumented Testimony", "description":"Data quoted by the person, kin, friend, or associate, often based on memory or family legend, but lacking official documentation."},
@@ -5457,7 +5416,6 @@ def build_spectrum(color1, color2, color3, color4, totalsteps):
         get_blended_color(color1, color2, color3, color4, totalsteps, getstep)
         for getstep in range(totalsteps)
     ]
-
 
 # example
 SEASONAL_PALETTE = build_spectrum(

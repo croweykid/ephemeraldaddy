@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
+    DARK_TEXT,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     SIGN_COLORS,
@@ -171,7 +172,7 @@ def install_appwide_cursor_defaults(app: QApplication) -> None:
 # professional, layered surfaces without scattering one-off hex values.
 COLOR_BG_APP = "#0f1014"
 COLOR_BG_PANEL = "#15161c"
-COLOR_BG_SURFACE = "#1c1e26"
+COLOR_BG_SURFACE = "#12101b" # was "#1c1e26"
 COLOR_BG_ELEVATED = "#242734"
 COLOR_BG_INPUT = "#20232d"
 COLOR_BORDER_SUBTLE = "#2c303d"  # Qt-safe approximation of rgba(255,255,255,0.08).
@@ -183,6 +184,9 @@ COLOR_ACCENT_PRIMARY = "#c8914f"
 COLOR_ACCENT_SUCCESS = "#68d391"
 COLOR_ACCENT_DANGER = "#f87171"
 COLOR_ACCENT_WARNING = "#f6c85f"
+
+# Readability surface for semantic text colors flagged by ``DARK_TEXT``.
+LIGHT_CONTRAST_BG = "#cc9900"
 
 # Optional semantic colors for dropdowns whose choices need a visual category
 # distinction.  Keep these separate from the base dropdown stylesheet so
@@ -220,6 +224,14 @@ APPWIDE_NEGATION_BUTTON_HOVER_BACKGROUND_COLOR = "#5a5e6b"
 APPWIDE_NEGATION_BUTTON_BORDER_COLOR = "#747987"
 APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR = COLOR_BG_SURFACE
 
+# Collections Manager actions share a restrained violet interaction motif so
+# compact panel buttons remain visibly responsive without competing with the
+# appwide affirmative/negation semantics.
+COLLECTION_MANAGER_BUTTON_HOVER_BACKGROUND_COLOR = "#3a3048"
+COLLECTION_MANAGER_BUTTON_HOVER_BORDER_COLOR = "#8f63b8"
+COLLECTION_MANAGER_BUTTON_PRESSED_BACKGROUND_COLOR = "#241b30"
+COLLECTION_MANAGER_BUTTON_PRESSED_BORDER_COLOR = "#c77dff"
+
 APPWIDE_DARK_THEME_STYLESHEET = f"""
 QMainWindow {{
     background-color: {COLOR_BG_APP};
@@ -234,6 +246,10 @@ QLineEdit, QDateEdit, QTimeEdit, QTextEdit, QPlainTextEdit {{
     border: 1px solid {APPWIDE_TEXT_INPUT_BORDER_COLOR};
     padding: 4px;
 }}
+QTextEdit[eddLightContrastBackground="true"],
+QPlainTextEdit[eddLightContrastBackground="true"] {{
+    background-color: {LIGHT_CONTRAST_BG};
+}}
 QPushButton {{
     background-color: {APPWIDE_BUTTON_BACKGROUND_COLOR};
     border: 1px solid {APPWIDE_BUTTON_BORDER_COLOR};
@@ -241,6 +257,16 @@ QPushButton {{
 }}
 QPushButton:hover {{
     background-color: {APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR};
+}}
+QPushButton[eddCollectionManagerButton="true"]:hover {{
+    background-color: {COLLECTION_MANAGER_BUTTON_HOVER_BACKGROUND_COLOR};
+    border-color: {COLLECTION_MANAGER_BUTTON_HOVER_BORDER_COLOR};
+}}
+QPushButton[eddCollectionManagerButton="true"]:pressed {{
+    background-color: {COLLECTION_MANAGER_BUTTON_PRESSED_BACKGROUND_COLOR};
+    border-color: {COLLECTION_MANAGER_BUTTON_PRESSED_BORDER_COLOR};
+    padding-top: 7px;
+    padding-bottom: 5px;
 }}
 QPushButton[eddButtonTone="{APPWIDE_AFFIRMATIVE_BUTTON_TONE}"] {{
     background-color: {APPWIDE_AFFIRMATIVE_BUTTON_BACKGROUND_COLOR};
@@ -260,6 +286,15 @@ QPlainTextEdit {{
     background-color: {APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR};
 }}
 """
+
+
+def configure_collection_manager_button(button: QAbstractButton) -> None:
+    """Apply the shared hover, press, and cursor affordances for collection actions."""
+    button.setProperty("eddCollectionManagerButton", True)
+    apply_button_cursor(button)
+    button.style().unpolish(button)
+    button.style().polish(button)
+    button.update()
 
 DARK_THEME = {
     "background": COLOR_BG_APP,
@@ -296,6 +331,18 @@ MIDDLE_PANEL_ACCENT_COLOR = COLOR_ACCENT_PRIMARY
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
 CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
+
+
+def set_chart_info_contrast_background(widget: QWidget, text_color: str | None = None) -> None:
+    """Select a readable Chart Info surface for a semantic foreground color."""
+    normalized_color = str(text_color or "").strip().lower()
+    needs_light_background = normalized_color in DARK_TEXT
+    if bool(widget.property("eddLightContrastBackground")) == needs_light_background:
+        return
+    widget.setProperty("eddLightContrastBackground", needs_light_background)
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    widget.update()
 
 # Tags styling
 TAG_CHIP_BACKGROUND_COLOR = "#2d2d2d"
@@ -950,6 +997,10 @@ QComboBox[loudSelection="true"] {
     background-color: __MIDDLE_PANEL_ACCENT_COLOR__;
     color: white;
 }
+QComboBox[loudSelection="true"]:disabled {
+    background: #444444;
+    color: #aaaaaa;
+}
 """.replace("__MIDDLE_PANEL_ACCENT_COLOR__", MIDDLE_PANEL_ACCENT_COLOR)
 
 WINDOW_CHROME_MENU_STYLE = """
@@ -1086,6 +1137,7 @@ DATABASE_VIEW_PANEL_BACKGROUND = COLOR_BG_PANEL
 DATABASE_VIEW_CONTROL_ROW_BACKGROUND = COLOR_BG_PANEL
 DATABASE_VIEW_LIST_PANEL_BACKGROUND = COLOR_BG_PANEL
 DATABASE_VIEW_LIST_BACKGROUND = COLOR_BG_INPUT
+DATABASE_VIEW_LIST_ALTERNATE_BACKGROUND = COLOR_BG_SURFACE
 DATABASE_VIEW_LIST_SELECTION_BACKGROUND = "#2d3f55"
 DATABASE_VIEW_LIST_HOVER_BACKGROUND = COLOR_BG_ELEVATED
 DATABASE_VIEW_TOOLBAR_BUTTON_STYLE = (
@@ -1124,6 +1176,7 @@ DATABASE_VIEW_TINY_FILTER_STYLE = (
 DATABASE_VIEW_CHART_LIST_STYLE = (
     "QListWidget {"
     f"  background-color: {DATABASE_VIEW_LIST_BACKGROUND};"
+    f"  alternate-background-color: {DATABASE_VIEW_LIST_ALTERNATE_BACKGROUND};"
     f"  color: {COLOR_TEXT_PRIMARY};"
     f"  border: 1px solid {COLOR_BORDER_SUBTLE};"
     "}"

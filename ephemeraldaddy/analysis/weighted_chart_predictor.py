@@ -35,7 +35,7 @@ def _privacy_safe_chart_label(chart: Any) -> str:
         return f"chart_uid={chart_uid}"
     return "chart_uid=unavailable"
 
-
+#this is redundant; needs to be consolidated & imported from a universal source
 BODY_ALIASES = {
     "fortune": "Part of Fortune",
     "part of fortune": "Part of Fortune",

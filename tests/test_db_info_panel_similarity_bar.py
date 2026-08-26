@@ -61,10 +61,21 @@ style = sys.modules.setdefault(
     "ephemeraldaddy.gui.style", types.ModuleType("ephemeraldaddy.gui.style")
 )
 style.DATABASE_VIEW_PANEL_HEADER_STYLE = ""
+style.apply_button_cursor = lambda _widget: None
+style.apply_chart_info_link_cursor = lambda _widget: None
 
 from ephemeraldaddy.gui.features.charts.db_info_panel import (  # noqa: E402
     SimilarityPercentBar,
+    parse_similarity_info_target,
 )
+
+
+def test_similarity_hd_and_bazi_rows_have_chart_info_targets():
+    assert parse_similarity_info_target("Channels in common", "43-23") == "channel:23-43"
+    assert parse_similarity_info_target("Defined Centers in contrast", "Sacral") == "center:Sacral"
+    assert parse_similarity_info_target("Authorities in common", "Emotional") == "authority:Emotional"
+    assert parse_similarity_info_target("Profiles in contrast", "3/5") == "profile:3/5"
+    assert parse_similarity_info_target("BaZi signs in common", "Wood Dragon") == "bazi_sign:Wood Dragon"
 
 
 def test_similarity_percent_bar_accepts_norm_delta_overlay():

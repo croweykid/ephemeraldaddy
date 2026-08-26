@@ -21,16 +21,22 @@ def test_traits_settings_ui_lives_outside_app_py():
     assert "_warm_trait_definitions(owner, {clean_name})" in settings_source
 
 
-def test_traits_settings_list_fills_available_window_height():
+def test_new_trait_prompts_for_description_after_color_before_installing():
     settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
         encoding="utf-8"
     )
+    upload_handler = settings_source.split("def on_trait_upload_clicked", 1)[1].split(
+        "def on_trait_delete_clicked", 1
+    )[0]
 
-    assert '"Traits",\n        fill_available_height=True,' in settings_source
-    assert "setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)" in settings_source
-    assert "traits_section.addWidget(owner._traits_list_widget, 1)" in settings_source
-    assert "_traits_list_widget.setMaximumHeight" not in settings_source
+    color_prompt = upload_handler.index("QColorDialog.getColor")
+    description_prompt = upload_handler.index("QInputDialog.getMultiLineText")
+    install = upload_handler.index("install_trait_file(")
 
+    assert color_prompt < description_prompt < install
+    assert "if not accepted:\n        return" in upload_handler[description_prompt:install]
+    assert "description_override = description.strip() or None" in upload_handler
+    assert "description=description_override" in upload_handler
 
 def test_traits_status_remains_visible_inside_nested_property_manager_tab():
     settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
@@ -51,26 +57,19 @@ def test_traits_settings_descriptions_render_inline_and_scroll_horizontally():
         encoding="utf-8"
     )
 
-    assert "class TraitListItemDelegate" in settings_source
-    assert 'QColor("#9a9a9a")' in settings_source
-    assert "italic_font.setItalic(True)" in settings_source
-    assert 'painter.drawText(description_rect, alignment, f" | {description}")' in settings_source
-    assert "setWordWrap(False)" in settings_source
-    assert "setTextElideMode(Qt.ElideNone)" in settings_source
-    assert "setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)" in settings_source
-    assert "setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)" in settings_source
-    assert "size.setWidth(size.width() + description_width)" in settings_source
-    assert "size.setHeight" not in settings_source
-    assert "set_trait_description(item.data(Qt.UserRole), description)" in settings_source
-    assert "refresh_traits_settings_list(owner)" in settings_source[
-        settings_source.index("def on_trait_description_clicked") : settings_source.index("def on_trait_edit_clicked")
-    ]
+    assert '"Traits",\n        fill_available_height=True,' in settings_source
+    assert "setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)" in settings_source
+    assert "traits_section.addWidget(owner._traits_list_widget, 1)" in settings_source
+    assert "_traits_list_widget.setMaximumHeight" not in settings_source
 
 
 def test_trait_prediction_rendering_lives_outside_app_py():
     app_source = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
     predictions_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
+    ).read_text(encoding="utf-8")
+    snapshot_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "prediction_norms_snapshot.py"
     ).read_text(encoding="utf-8")
     db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
     db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
@@ -79,11 +78,25 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     assert "_render_traits_predictions(self, chart)" in app_source
     assert "def render_traits_predictions" in predictions_source
     assert "calculate_trait_likelihoods" in predictions_source
-    assert "TRAIT_DB_NORMS_CACHE_PATH" in predictions_source
-    assert "def warm_trait_database_norms" in predictions_source
-    assert "force_refresh_stale=True" in predictions_source
-    assert "def clear_trait_norm_cache" in predictions_source
-    assert "_load_trait_norm_cache()" in predictions_source
+    assert "def _trait_snapshot_norm_signature" in predictions_source
+    assert "Traits panel bypassed unavailable profiles" in predictions_source
+    assert "refresh_trait_norms_snapshot(owner, missing_traits)" not in predictions_source
+    assert "def missing_trait_norms" in snapshot_source
+    assert "TRAIT_DB_NORMS_CACHE_PATH" not in predictions_source
+
+
+def test_traits_settings_can_reassess_only_unavailable_profiles():
+    settings_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'QPushButton("Reassess unavailable traits")' in settings_source
+    assert "missing_trait_norms(traits, snapshot)" in settings_source
+    assert "trait_norm_unavailability_reasons(missing, snapshot)" in settings_source
+    assert "class _TraitNormReassessmentWorker(QObject)" in settings_source
+    assert "worker = _TraitNormReassessmentWorker(owner, missing)" in settings_source
+    assert "thread.started.connect(worker.run)" in settings_source
+    assert "refresh_trait_norms_snapshot(self._owner, self._traits)" in settings_source
 
 
 def test_prediction_norm_rows_use_full_database_not_displayed_filter_scope():
@@ -106,7 +119,8 @@ def test_database_view_traits_search_lives_in_search_panel_and_uses_metadata():
     ).read_text(encoding="utf-8")
     db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
 
-    assert 'add_collapsible_section("🧬Traits")' in search_source
+    assert 'add_collapsible_section("Traits Present", nested=True)' in search_source
+    assert 'add_collapsible_section("Traits Absent", nested=True)' in search_source
     assert "def collect_search_trait_filter_sets" in search_source
     assert "def chart_matches_trait_filters" in search_source
     assert "collect_search_trait_filter_sets(self)" in app_source
@@ -133,18 +147,15 @@ def test_chart_view_trait_metadata_is_incremental_by_trait_signature():
     assert 'row.get("trait_signature", trait_signature)' in db_source
 
 
-def test_trait_database_norm_cache_uses_scaled_refresh_threshold():
+def test_trait_norms_use_static_snapshot_without_dynamic_refresh_threshold():
     predictions_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
     ).read_text(encoding="utf-8")
 
-    assert "TRAIT_DB_NORMS_MAX_STALE_RATIO = DATABASE_NORMS_STALE_RATIO" in predictions_source
-    assert "def _database_norm_refresh_threshold" in predictions_source
-    assert "return database_norms_refresh_threshold(chart_count)" in predictions_source
-    assert "_database_norm_state_is_fresh(cached_state, current_norm_state)" in predictions_source
-    assert "def _database_norm_signature_for_traits" in predictions_source
-    assert "fresh_signatures.add(cached_signature)" in predictions_source
-    assert "database_statistics_threshold" in predictions_source
+    assert "def _trait_snapshot_norm_signature" in predictions_source
+    assert "prospective_trait_snapshot_token" in predictions_source
+    assert "_database_norm_state_is_fresh" not in predictions_source
+    assert "_database_norm_signature_for_traits" not in predictions_source
 
 
 def test_trait_uid_source_and_metadata_wiring_are_present():

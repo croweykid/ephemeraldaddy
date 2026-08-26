@@ -8,8 +8,15 @@ Requires-Dist: skyfield>=1.49
 Requires-Dist: pandas>=2.2
 Requires-Dist: matplotlib>=3.9
 Requires-Dist: numpy>=1.26
+Requires-Dist: Pillow>=10.0
 Requires-Dist: rich>=13.7
 Requires-Dist: timezonefinder>=6.0
 Requires-Dist: geopy>=2.0
+Requires-Dist: pyswisseph>=2.10
 Requires-Dist: PySide6>=6.7
+Requires-Dist: requests>=2.32
+Requires-Dist: lunar-python>=1.4
+Requires-Dist: pyinstaller>=6.0
+Provides-Extra: test
+Requires-Dist: pytest>=8; extra == "test"
 Dynamic: license-file

@@ -45,12 +45,16 @@ def _install_pyside_stubs():
     qtwidgets.QApplication = _QApplication
     qtwidgets.QAbstractButton = _Widget
     qtwidgets.QComboBox = _Widget
+    qtwidgets.QDialog = _Widget
     qtwidgets.QListView = _Widget
     qtwidgets.QListWidget = _Widget
+    qtwidgets.QMessageBox = _Widget
     qtwidgets.QProgressDialog = _Widget
     qtwidgets.QPushButton = _Widget
     qtwidgets.QSizePolicy = _Widget
     qtwidgets.QToolButton = _Widget
+    qtwidgets.QTextBrowser = _Widget
+    qtwidgets.QVBoxLayout = _Widget
     qtwidgets.QWidget = _Widget
     sys.modules.setdefault("PySide6", pyside)
     sys.modules.setdefault("PySide6.QtCore", qtcore)
@@ -69,6 +73,7 @@ style_stub.DARK_THEME = {
 }
 style_stub.CHART_DATA_HIGHLIGHT_COLOR = "#c8945c"
 style_stub.CHART_DATA_DIVIDER = "────────────────"
+style_stub.ARROW_STYLES = {"classic": "→"}
 style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first
 style_stub.format_chart_header = lambda *_args, **_kwargs: ""
 sys.modules.setdefault("ephemeraldaddy.gui.style", style_stub)
@@ -228,3 +233,29 @@ def test_dissimilarity_factor_counts_use_shared_aspect_display_rules():
     assert "AS trine MC" in counts
     assert "Moon sextile Sun" in counts
     assert "AS opposition DS" not in counts
+
+
+def test_collection_factor_counts_exclude_uncertain_bodies_from_derived_factors():
+    from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+        build_similarity_factor_counts_for_charts,
+    )
+
+    chart = _chart(
+        birthtime_unknown=True,
+        positions={"Sun": 15.0, "Moon": 75.0},
+    )
+    chart.unknown_signs = {"sun"}
+    chart.aspects = [
+        {"p1": "Sun", "p2": "Moon", "type": "sextile", "delta": 0.0}
+    ]
+    provider = FakeDissimilarityProvider({1: chart})
+
+    sections = build_similarity_factor_counts_for_charts(
+        provider, [chart], exclude_uncertain_signs=True
+    )
+
+    positions, _totals = sections["Signs in positions in contrast"]
+    assert "Sun in Aries" not in positions
+    assert "Moon in Gemini" in positions
+    assert "Aspects in contrast" not in sections
+    assert chart.positions["Sun"] == 15.0

@@ -217,7 +217,31 @@ def test_resonance_display_matches_ideal_styling_and_lists_shared_activations(mo
     rendered = hd_electrochemistry._format_hd_electrochemistry_matches((match,), ())
 
     assert '<a href="chart-uid:MATCH" style="color: #cdb7ff;">Resonant chart</a>' in rendered
-    assert '<span style="color: #aaa;">(2 shared gates: 1, 2; 1 shared line: 1.2)</span>' in rendered
+    assert 'href="distinguishing-factor:gate:1"' in rendered
+    assert "Gate 1 • The Creative</a>" in rendered
+    assert 'href="distinguishing-factor:gate:2"' in rendered
+    assert "Gate 2 • The Receptive</a>" in rendered
+    assert "; 1 shared line: 1.2)</span>" in rendered
+
+
+def test_resonance_gate_link_opens_chart_info():
+    hd_electrochemistry = _hd_electrochemistry_module()
+    shown = []
+    owner = type(
+        "Owner",
+        (),
+        {
+            "_on_distinguishing_factor_link_activated": lambda _self, href: shown.append(
+                href
+            )
+        },
+    )()
+
+    hd_electrochemistry.on_hd_electrochemistry_link_activated(
+        owner, "distinguishing-factor:gate:47"
+    )
+
+    assert shown == ["distinguishing-factor:gate:47"]
 
 
 def test_resonance_candidate_gate_lines_are_backfilled_once_per_signature(monkeypatch):

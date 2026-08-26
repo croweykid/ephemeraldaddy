@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Iterable, List, Mapping, Tuple, Optional
+from typing import Any, Callable, Iterable, List, Mapping, Tuple, Optional
 
 from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import (
@@ -49,6 +49,7 @@ _SCHEMA_READY = False
 _SCHEMA_READY_DB_PATH: Path | None = None
 _SCHEMA_READY_LOCK = threading.Lock()
 _TABLE_COLUMNS_CACHE: dict[tuple[Path, str, int], set[str]] = {}
+_DB_SESSION_ID = uuid.uuid4().hex
 CHART_TYPE_PUBLIC_DB = "public_db"
 CHART_TYPE_PERSONAL = "personal"
 CHART_TYPE_PARASOCIAL = "parasocial"
@@ -636,6 +637,99 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         CREATE UNIQUE INDEX IF NOT EXISTS idx_charts_chart_uid
         ON charts(chart_uid)
         WHERE chart_uid IS NOT NULL AND chart_uid != ''
+        """
+    )
+
+
+def _create_chart_change_log(conn: sqlite3.Connection) -> None:
+    """Create the durable UID-first journal used by incremental analytics caches."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chart_change_log (
+            sequence           INTEGER PRIMARY KEY AUTOINCREMENT,
+            chart_uid          TEXT NOT NULL,
+            change_type        TEXT NOT NULL CHECK(change_type IN ('added', 'deleted', 'astro_data_edited')),
+            astro_data_changed INTEGER NOT NULL DEFAULT 1,
+            session_id         TEXT NOT NULL DEFAULT '',
+            changed_at         TEXT NOT NULL
+        )
+        """
+    )
+    columns = _table_columns_uncached(conn, "chart_change_log")
+    if "session_id" not in columns:
+        conn.execute("ALTER TABLE chart_change_log ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS chart_change_context (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), session_id TEXT NOT NULL)"
+    )
+    conn.execute(
+        "INSERT INTO chart_change_context(singleton, session_id) VALUES(1, ?) "
+        "ON CONFLICT(singleton) DO UPDATE SET session_id = excluded.session_id",
+        (_DB_SESSION_ID,),
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_chart_change_log_uid_sequence "
+        "ON chart_change_log(chart_uid, sequence)"
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS chart_change_log_insert
+        AFTER INSERT ON charts
+        WHEN COALESCE(NEW.chart_uid, '') != ''
+        BEGIN
+            INSERT INTO chart_change_log(chart_uid, change_type, astro_data_changed, session_id, changed_at)
+            VALUES(UPPER(NEW.chart_uid), 'added', 1, (SELECT session_id FROM chart_change_context WHERE singleton = 1), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS chart_change_log_uid_assignment
+        AFTER UPDATE OF chart_uid ON charts
+        WHEN COALESCE(OLD.chart_uid, '') = '' AND COALESCE(NEW.chart_uid, '') != ''
+        BEGIN
+            INSERT INTO chart_change_log(chart_uid, change_type, astro_data_changed, session_id, changed_at)
+            VALUES(UPPER(NEW.chart_uid), 'added', 1, (SELECT session_id FROM chart_change_context WHERE singleton = 1), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS chart_change_log_astro_update
+        AFTER UPDATE OF datetime_iso, birth_place, tz_name, lat, lon,
+            birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
+            rectification_range_used, rectification_range_start_minute,
+            rectification_range_end_minute, birth_month, birth_day, birth_year,
+            is_placeholder
+        ON charts
+        WHEN COALESCE(NEW.chart_uid, '') != '' AND (
+            OLD.datetime_iso IS NOT NEW.datetime_iso OR
+            OLD.birth_place IS NOT NEW.birth_place OR
+            OLD.tz_name IS NOT NEW.tz_name OR
+            OLD.lat IS NOT NEW.lat OR OLD.lon IS NOT NEW.lon OR
+            OLD.birthtime_unknown IS NOT NEW.birthtime_unknown OR
+            OLD.retcon_time_used IS NOT NEW.retcon_time_used OR
+            OLD.retcon_hour IS NOT NEW.retcon_hour OR OLD.retcon_minute IS NOT NEW.retcon_minute OR
+            OLD.rectification_range_used IS NOT NEW.rectification_range_used OR
+            OLD.rectification_range_start_minute IS NOT NEW.rectification_range_start_minute OR
+            OLD.rectification_range_end_minute IS NOT NEW.rectification_range_end_minute OR
+            OLD.birth_month IS NOT NEW.birth_month OR OLD.birth_day IS NOT NEW.birth_day OR
+            OLD.birth_year IS NOT NEW.birth_year OR OLD.is_placeholder IS NOT NEW.is_placeholder
+        )
+        BEGIN
+            INSERT INTO chart_change_log(chart_uid, change_type, astro_data_changed, session_id, changed_at)
+            VALUES(UPPER(NEW.chart_uid), 'astro_data_edited', 1, (SELECT session_id FROM chart_change_context WHERE singleton = 1), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS chart_change_log_delete
+        AFTER DELETE ON charts
+        WHEN COALESCE(OLD.chart_uid, '') != ''
+        BEGIN
+            INSERT INTO chart_change_log(chart_uid, change_type, astro_data_changed, session_id, changed_at)
+            VALUES(UPPER(OLD.chart_uid), 'deleted', 1, (SELECT session_id FROM chart_change_context WHERE singleton = 1), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+        END
         """
     )
 
@@ -1955,6 +2049,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if _charts_table_exists(conn):
         _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
+        _create_chart_change_log(conn)
     _create_app_migrations_table(conn)
     _create_duplicate_exclusions_table(conn)
     _create_chart_trait_metadata_table(conn)
@@ -1973,6 +2068,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _backfill_non_placeholder_birth_date_parts(conn)
         _create_indexes(conn)
         finalize_chart_uid_migration(conn)
+        _create_chart_change_log(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         return
 
@@ -2137,6 +2233,44 @@ def _get_conn() -> sqlite3.Connection:
 def _connect_readonly() -> sqlite3.Connection:
     """Open a cheaper connection for read helpers after startup initialization."""
     return _get_conn()
+
+
+def latest_chart_change_sequence() -> int:
+    """Return the durable high-water mark for chart ranking/cache consumers."""
+    conn = _connect_readonly()
+    try:
+        row = conn.execute("SELECT COALESCE(MAX(sequence), 0) FROM chart_change_log").fetchone()
+        return int(row[0] or 0) if row else 0
+    finally:
+        conn.close()
+
+
+def chart_changes_since(sequence: int) -> list[dict[str, Any]]:
+    """Return added/deleted/astro-edited chart events after ``sequence``."""
+    conn = _connect_readonly()
+    try:
+        rows = conn.execute(
+            """
+            SELECT sequence, chart_uid, change_type, astro_data_changed, session_id, changed_at
+            FROM chart_change_log
+            WHERE sequence > ?
+            ORDER BY sequence ASC
+            """,
+            (max(0, int(sequence)),),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "sequence": int(row[0]),
+            "chart_uid": str(row[1] or "").strip().upper(),
+            "change_type": str(row[2] or ""),
+            "astro_data_changed": bool(row[3]),
+            "session_id": str(row[4] or ""),
+            "changed_at": str(row[5] or ""),
+        }
+        for row in rows
+    ]
 
 
 def _serialize_sentiments(sentiments: Optional[list[str]]) -> Optional[str]:
@@ -3448,11 +3582,35 @@ def restore_database(source: Path) -> None:
     _invalidate_table_columns_cache()
 
 
-def append_database(source: Path) -> dict[str, Any]:
-    """Append charts from another SQLite database into the active database."""
+def append_database(
+    source: Path,
+    *,
+    progress_callback: Callable[[str, str, str, int, int], None] | None = None,
+    import_key: str | None = None,
+    import_source: Path | None = None,
+) -> dict[str, Any]:
+    """Append charts from a legacy database or an EphemeralDaddy backup package."""
     source = Path(source)
     if not source.exists():
         raise FileNotFoundError(f"Database file not found: {source}")
+    if source.suffix.lower() == BACKUP_PACKAGE_FILENAME_SUFFIX:
+        from ephemeraldaddy.core.backups import (
+            LEGACY_CHARTS_COMPONENT_KEY,
+            pending_backup_append_key,
+            staged_backup_component,
+        )
+
+        with staged_backup_component(
+            source,
+            LEGACY_CHARTS_COMPONENT_KEY,
+            progress_callback=progress_callback,
+        ) as charts_source:
+            return append_database(
+                charts_source,
+                progress_callback=progress_callback,
+                import_key=pending_backup_append_key(),
+                import_source=source,
+            )
 
     source_conn = sqlite3.connect(source)
     source_conn.row_factory = sqlite3.Row
@@ -3480,11 +3638,33 @@ def append_database(source: Path) -> dict[str, Any]:
         }
 
         source_rows = source_conn.execute("SELECT * FROM charts ORDER BY id ASC").fetchall()
+        if progress_callback is not None:
+            progress_callback("Database import", "appending", "charts", 0, len(source_rows))
         now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
         source_uid_remap: dict[str, str] = {}
         pending_reminds_me_of_updates: list[tuple[int, list[str]]] = []
 
         with target_conn:
+            target_conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS backup_append_log (
+                    import_key TEXT PRIMARY KEY,
+                    source_path TEXT NOT NULL,
+                    completed_at TEXT NOT NULL,
+                    result_json TEXT NOT NULL
+                )
+                """
+            )
+            if import_key:
+                completed_row = target_conn.execute(
+                    "SELECT result_json FROM backup_append_log WHERE import_key = ?",
+                    (import_key,),
+                ).fetchone()
+                if completed_row is not None:
+                    logger.info("Backup append %s was already committed; skipping replay.", import_key)
+                    completed_result = json.loads(str(completed_row[0]))
+                    completed_result["already_completed"] = True
+                    return completed_result
             for row_index, row in enumerate(source_rows, start=1):
                 source_id_raw = row["id"] if "id" in source_columns else row_index
                 try:
@@ -3744,6 +3924,14 @@ def append_database(source: Path) -> dict[str, Any]:
                 )
                 imported += 1
                 imported_uids.append(new_chart_uid)
+                if progress_callback is not None:
+                    progress_callback(
+                        "Database import", "appending", "charts", row_index, len(source_rows)
+                    )
+            if progress_callback is not None:
+                progress_callback(
+                    "Database import", "appending", "charts", len(source_rows), len(source_rows)
+                )
             for imported_chart_id, source_reminds_me_of_uids in pending_reminds_me_of_updates:
                 remapped_uids = [
                     source_uid_remap.get(source_uid, source_uid)
@@ -3756,17 +3944,37 @@ def append_database(source: Path) -> dict[str, Any]:
                         imported_chart_id,
                     ),
                 )
+            result = {
+                "imported": imported,
+                "imported_uids": imported_uids,
+                "skipped": skipped,
+                "warnings": warned,
+                "issues": issues,
+            }
+            if import_key:
+                target_conn.execute(
+                    """
+                    INSERT INTO backup_append_log
+                        (import_key, source_path, completed_at, result_json)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        import_key,
+                        str(import_source or source),
+                        now_iso,
+                        json.dumps(result, sort_keys=True),
+                    ),
+                )
+                logger.info(
+                    "Committed backup append %s with %s imported chart(s).",
+                    import_key,
+                    imported,
+                )
     finally:
         source_conn.close()
         target_conn.close()
 
-    return {
-        "imported": imported,
-        "imported_uids": imported_uids,
-        "skipped": skipped,
-        "warnings": warned,
-        "issues": issues,
-    }
+    return result
 
 
 def check_database_health() -> tuple[bool, str]:

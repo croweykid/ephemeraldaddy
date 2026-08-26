@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from enum import Enum
 from logging.handlers import RotatingFileHandler
@@ -24,6 +25,8 @@ _mode = DEFAULT_ERROR_REPORTING_MODE
 
 
 def normalize_error_reporting_mode(value: object) -> ErrorReportingMode:
+    if isinstance(value, ErrorReportingMode):
+        return value
     normalized = str(value or "").strip().lower()
     if normalized == ErrorReportingMode.DEBUG.value:
         return ErrorReportingMode.DEBUG
@@ -40,7 +43,11 @@ def configure_error_reporting(
     _mode = normalize_error_reporting_mode(mode)
     app_logger = logging.getLogger("ephemeraldaddy")
     app_logger.setLevel(logging.DEBUG if _mode is ErrorReportingMode.DEBUG else logging.INFO)
-    app_logger.propagate = False
+    environment_debug_enabled = any(
+        str(os.environ.get(name, "")).strip().lower() in {"1", "true", "yes", "on"}
+        for name in ("EPHEMERALDADDY_DEBUG", "EPHEMERALDADDY_DEBUG_STARTUP")
+    )
+    app_logger.propagate = _mode is ErrorReportingMode.QUIET and environment_debug_enabled
 
     if _file_handler is None:
         destination = Path(log_path or DIAGNOSTICS_LOG_PATH).expanduser()

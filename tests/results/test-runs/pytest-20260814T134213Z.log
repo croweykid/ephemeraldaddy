@@ -1,0 +1,2858 @@
+EphemeralDaddy test run
+Started (UTC): 20260814T134213Z
+Repository: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy
+Python: 3.14.4 (tags/v3.14.4:23116f9, Apr  7 2026, 14:10:54) [MSC v.1944 64 bit (AMD64)]
+Platform: Windows-10-10.0.19045-SP0
+Command: C:\Users\Anonymous\AppData\Local\Python\pythoncore-3.14-64\python.exe -m pytest tests -ra --junitxml=C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\results\test-runs\pytest-20260814T134213Z.xml --collect-only
+------------------------------------------------------------------------
+============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy
+configfile: pyproject.toml
+collected 549 items / 100 errors
+
+<Package ephemeraldaddy>
+  <Dir tests>
+    <Module test_advanced_tag_tree_search_source.py>
+      <Function test_advanced_tag_search_lives_inside_collapsible_section>
+      <Function test_advanced_tag_search_autocomplete_uses_existing_tag_names>
+      <Function test_clearing_navigation_search_preserves_tag_filter_widgets>
+      <Function test_expansion_state_prefers_full_tag_path_over_duplicate_labels>
+      <Function test_nested_dot_tags_build_each_parent_level>
+      <Function test_navigation_filter_keeps_matching_tag_and_all_ancestors>
+      <Function test_clearing_navigation_filter_retains_controls_and_restores_view>
+      <Function test_same_label_tag_parents_restore_expansion_independently>
+    <Module test_anagram_engine.py>
+      <Function test_fallback_dictionary_keeps_anagrams_available_without_os_words>
+      <Function test_collect_anagram_words_strips_non_letters_and_sorts_longest_first>
+      <Function test_render_anagrams_text_reports_dictionary_matches_for_long_names>
+    <Module test_app_text_search_source.py>
+      <Function test_label_highlight_restore_ignores_dynamically_rewritten_labels>
+    <Module test_application_identity_source.py>
+      <Function test_bootstrap_sets_identity_before_qapplication_and_splash>
+      <Function test_qsettings_application_namespace_remains_backward_compatible>
+      <Function test_linux_desktop_identity_matches_qt_desktop_file_name>
+      <Function test_macos_bundle_has_stable_identity_and_icon>
+    <Module test_appwide_button_tone_source.py>
+      <Function test_style_defines_universal_affirmative_and_negation_button_tones>
+      <Function test_appwide_button_filter_tags_common_dialog_buttons>
+    <Module test_appwide_color_scales.py>
+      <Function test_appwide_red_green_scale_endpoints_and_clamping>
+      <Function test_appwide_red_green_scale_maps_ranges>
+      <Function test_more_readable_color_scale_endpoints_clamping_and_range>
+      <Function test_quantitative_ui_consumers_use_the_appwide_scale>
+      <Function test_property_manager_uses_the_more_readable_color_scale>
+    <Module test_appwide_cursor_policy_source.py>
+      <Function test_style_defines_shared_cursor_policy_and_installs_button_defaults>
+      <Function test_application_installs_appwide_cursor_defaults_at_startup>
+      <Function test_chart_info_popout_contexts_update_hover_cursor>
+      <Function test_chart_view_and_database_view_graphs_use_shared_popout_cursor>
+      <Function test_feature_panels_import_shared_cursor_helpers_instead_of_raw_button_cursors>
+      <Function test_chart_info_detail_links_use_question_cursor_helper>
+    <Module test_appwide_dark_theme_source.py>
+      <Function test_style_defines_appwide_chart_view_text_input_and_button_standard>
+      <Function test_application_uses_shared_appwide_dark_theme_stylesheet>
+      <Function test_database_view_uses_shared_surface_and_toolbar_styles>
+    <Module test_appwide_input.py>
+      <Function test_enter_submits_focused_line_edit_instead_of_other_panel_shortcut>
+      <Function test_enter_remains_a_newline_in_multiline_editor>
+      <Function test_modified_enter_shortcut_is_not_reserved_for_line_edit>
+      <Function test_batch_editor_enter_bindings_are_scoped_and_use_native_submit_signals>
+    <Module test_aspect_sorting.py>
+      <Function test_position_sort_groups_by_primary_body_even_when_body_started_in_second_column>
+    <Module test_astro_twin_settings_layout_source.py>
+      <Function test_demographic_matching_precedes_scoring_methods_and_has_divider>
+      <Function test_demographic_matching_labels_order_and_no_tooltips>
+      <Function test_database_distinction_precedes_custom_as_final_scoring_option>
+      <Function test_database_distinction_explanation_is_tooltip_only>
+      <Function test_custom_subpanel_has_visual_cues_and_preset_button_at_bottom>
+      <Function test_custom_weight_grid_uses_centered_renamed_headers_and_compact_columns>
+      <Function test_reset_weights_button_shares_placement_weighting_row>
+      <Function test_placement_weighting_modes_have_item_and_selected_tooltips>
+      <Function test_selected_scoring_method_uses_chart_data_highlight_color>
+      <Function test_total_only_shows_green_completion_percentage_at_one>
+      <Function test_custom_preset_selector_and_in_use_state_are_wired>
+      <Function test_saving_loaded_preset_offers_exact_update_or_new_choices>
+      <Function test_manage_presets_button_is_file_gated_and_right_of_selector>
+      <Function test_research_accuracy_ranking_fills_space_below_button_and_divider>
+    <Module test_astrotheme_error_classification.py>
+      <Function test_http_failures_are_classified_as_network_errors>
+      <Function test_http_get_sanitizes_replacement_character_before_urlopen>
+      <Function test_http_url_percent_encodes_legitimate_unicode_characters>
+      <Function test_invalid_profile_markup_is_classified_as_format_error>
+    <Module test_batch_nonastral_static_audit.py>
+      <Function test_batch_handlers_cannot_gain_unapproved_full_chart_updates>
+      <Function test_only_allowlisted_batch_handler_recalculates_dominance>
+    <Module test_batch_total_chart_export_source.py>
+      <Function test_multi_chart_export_prompts_for_directory_without_default_export_folder>
+      <Function test_multi_chart_export_shows_progress_before_export_work_begins>
+      <Function test_multi_chart_confirmation_accept_role_continues_to_directory_prompt>
+      <Function test_batch_export_directory_dialog_sets_non_native_option_first>
+      <Function test_background_export_ui_slots_run_on_gui_thread_without_self_waiting>
+      <Function test_background_export_state_is_released_after_thread_finishes>
+    <Module test_chart_analytics_house_visibility.py>
+      <Function test_houses_section_follows_current_chart_house_availability>
+      <Function test_other_sections_and_empty_chart_remain_available>
+    <Module test_chart_data_field_classification.py>
+      <Function test_master_field_categories_are_disjoint_and_explicit>
+      <Function test_every_persisted_chart_column_has_one_master_classification>
+      <Function test_nonastral_edits_do_not_change_astro_recalculation_token>
+      <Function test_astro_input_edit_changes_recalculation_token>
+      <Function test_narrow_nonastral_guard_rejects_astro_and_unclassified_fields>
+    <Module test_chart_data_separator_style_source.py>
+      <Function test_chart_data_separator_style_is_appwide_style_constant>
+      <Function test_chart_data_section_header_style_is_appwide_visible_width_overlay>
+      <Function test_chart_data_table_header_tokens_are_colored_without_bold>
+      <Function test_chart_data_outputs_use_visual_only_whitespace_separators>
+      <Function test_human_design_chart_data_outputs_use_shared_table_widget>
+      <Function test_human_design_synastry_header_shows_electrochemistry_score_before_gate_note>
+      <Function test_chart_data_separator_skips_padded_table_headers>
+      <Function test_human_design_advanced_plugin_supplement_uses_graphic_divider>
+    <Module test_chart_editor_controller.py>
+      <Function test_lightweight_metadata_change_marks_dirty_before_queueing_autosave>
+      <Function test_programmatic_metadata_change_is_ignored>
+      <Function test_authoritative_change_is_dirty_and_protected_from_lightweight_save>
+      <Function test_incomplete_autosave_logs_kind_and_chart_uid>
+      <Function test_successful_autosave_does_not_log_warning>
+    <Module test_chart_editor_predictions_cleanup_source.py>
+      <Function test_predictions_panel_has_contextual_panel_subheader_and_reordered_synastry>
+      <Function test_traits_status_uses_cached_timestamp_and_centered_ellipsis_loader>
+      <Function test_traits_timestamp_resets_before_every_cache_lookup>
+      <Function test_predictions_subheader_refreshes_when_gender_changes>
+      <Function test_pronoun_possessive_determiners_are_attributive>
+    <Module test_chart_editor_related_chart_choices.py>
+      <Function test_related_chart_choices_are_uid_first_deduplicated_and_exclude_current>
+    <Module test_chart_editor_right_panel_controller.py>
+      <Function test_tab_activation_uses_only_explicit_widgets_and_operations>
+    <Module test_chart_info_contrast.py>
+      <Function test_dark_text_colors_follow_canonical_body_palette>
+      <Function test_position_sign_info_uses_body_color_only_for_plain_format>
+      <Function test_each_summary_target_resets_contrast_before_rendering>
+      <Function test_direct_chart_info_link_paths_prepare_default_surface>
+    <Module test_chart_info_token_formatting_source.py>
+      <Function test_chart_info_ambiguous_short_tokens_require_uppercase_word_matches>
+    <Module test_chart_render_queue.py>
+      <Function test_discard_if_unqueued_removes_popped_stale_pending_section>
+      <Function test_discard_if_unqueued_keeps_requeued_stale_section_pending>
+    <Module test_chart_right_panel_graph_sizing_source.py>
+      <Function test_chart_view_right_panel_scroll_areas_disallow_horizontal_overflow>
+      <Function test_metric_graphs_delegate_to_single_viewport_layout_owner>
+      <Function test_tab_switch_reasserts_visible_canvas_layout_without_rerendering>
+      <Function test_canvas_layout_dependency_is_explicit_and_chart_editor_owned>
+      <Function test_hidden_metric_canvas_width_is_not_guessed_from_stale_geometry>
+      <Function test_rectified_time_canvas_reset_invalidates_layouts_before_preview_rebuild>
+    <Module test_chart_view_data_entry_alignment_source.py>
+      <Function test_birth_date_captions_have_no_layout_gap_and_peer_inputs_align_below>
+      <Function test_compact_metadata_labels_are_multiline_and_vertically_centered>
+    <Module test_chart_view_more_less_source.py>
+      <Function test_chart_analytics_more_info_link_toggles_details_and_link_text>
+      <Function test_prediction_more_links_offer_show_less_and_restore_summaries>
+      <Function test_euphonics_details_button_uses_show_less_while_expanded>
+    <Module test_chart_view_right_panel_layout_source.py>
+      <Function test_chart_analytics_layout_allows_canvases_to_fill_scroll_viewport>
+      <Function test_metric_canvas_sizing_uses_expanding_width_not_ignored_zero_width>
+      <Function test_metric_canvas_width_subtracts_scroll_content_margins>
+      <Function test_prediction_graph_sections_use_extra_axis_label_height>
+      <Function test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout>
+      <Function test_chart_right_panel_controller_delegates_predictions_to_background_scheduler>
+      <Function test_dnd_prediction_statblock_uses_standard_vertical_axis_layout>
+      <Function test_dnd_stat_popout_evidence_imports_stat_predictors>
+      <Function test_prediction_metric_canvases_redraw_after_stacked_panel_layout_settles>
+      <Function test_metric_scroll_viewport_resize_refreshes_existing_canvases>
+      <Function test_clear_chart_displays_resets_dnd_prediction_canvas_and_summary>
+      <Function test_settings_dialog_section_labels_wrap_to_available_width>
+      <Function test_settings_collapsible_headers_match_appwide_style_centered>
+      <Function test_property_managers_button_sits_below_settings_sections_with_padding>
+      <Function test_prediction_panel_graph_layouts_are_left_aligned>
+      <Function test_right_panel_scroll_areas_pin_content_to_left_edge>
+      <Function test_predictions_refresh_uses_token_gated_right_panel_scheduler>
+      <Function test_predictions_scheduler_queues_expanded_gender_guesser_graph>
+      <Function test_saved_chart_metadata_updates_do_not_dirty_right_panel_sections>
+      <Function test_batch_metadata_refresh_does_not_dirty_right_panel_sections>
+      <Function test_photo_gallery_button_activates_photo_gallery_panel>
+      <Function test_photo_gallery_preview_is_full_screen>
+      <Function test_photo_gallery_max_storage_dimensions_are_1920_by_1080>
+      <Function test_dnd_alignment_popout_is_registered_and_configured>
+      <Function test_predictions_background_warmup_updates_loading_progress>
+      <Function test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating>
+      <Function test_predictions_timeout_does_not_terminate_qthread_from_gui_thread>
+      <Function test_traits_predictions_default_to_manual_recalculation_with_cached_stale_display>
+      <Function test_traits_prediction_prompt_label_is_reshown_after_table_results>
+      <Function test_predictions_panel_rerenders_traits_for_each_chart_even_when_content_exists>
+      <Function test_prediction_calculate_prompts_expand_and_center_contents>
+      <Function test_right_panel_expand_autoscroll_ignores_plain_checkboxes>
+      <Function test_subjective_notes_does_not_schedule_anagrams>
+    <Module test_cleanup_metadata_persistence_routes.py>
+      <Function test_alias_cleanup_uses_uid_nonastral_patch_only>
+      <Function test_birthplace_cleanup_uses_uid_astro_route_only>
+      <Function test_biography_lookup_happens_before_unchanged_comparison>
+      <Function test_biography_import_uses_nonastral_patch>
+    <Module test_collapsible_header_wiggle.py>
+      <Function test_collapsible_header_wiggle_initializes_origin_before_reuse_branch>
+      <Function test_collapsible_header_wiggle_animation_runs_for_all_layout_directions>
+      <Function test_collapsible_header_wiggle_keyframes_move_vertically>
+    <Module test_collection_manager_button_style_source.py>
+      <Function test_style_defines_collection_manager_hover_and_pressed_feedback>
+      <Function test_collection_manager_configures_each_action_button>
+    <Module test_command_palette_source.py>
+      <Function test_command_palette_module_and_shortcuts_are_wired>
+      <Function test_command_palette_includes_core_quick_switcher_commands>
+    <Module test_database_analytics_demand_refresh_source.py>
+      <Function test_database_analytics_does_not_preload_at_startup>
+      <Function test_section_refresh_accumulates_snapshot_coverage_for_requested_sections>
+      <Function test_database_analytics_persists_cross_session_cache_on_close_without_recompute>
+      <Function test_database_analytics_flushes_pending_metrics_before_close_cache_save>
+    <Module test_database_analytics_popout_chart_info_architecture.py>
+      <Function test_popout_chart_info_presentation_lives_in_database_view_workflow_package>
+    <Module test_database_analytics_population_scope_source.py>
+      <Function test_loaded_chart_count_is_assigned_before_analytics_population_scope_uses_it>
+    <Module test_database_analytics_trait_rankings_source.py>
+      <Function test_trait_rankings_dropdown_defaults_to_inert_prompt>
+      <Function test_trait_rankings_prompt_skips_database_warm_until_trait_selected>
+    <Module test_database_analytics_traits_warm_source.py>
+      <Function test_traits_distribution_partial_render_schedules_warm_refresh>
+    <Module test_database_batch_typology.py>
+      <Function test_batch_typology_patch_preserves_unspecified_slots>
+      <Function test_batch_typology_patch_omits_wholly_unchanged_groups>
+      <Function test_batch_typology_patch_normalizes_missing_existing_metadata>
+      <Function test_batch_typology_patch_preserves_lowercase_and_x_mbti_slots>
+      <Function test_typology_selection_summarizes_shared_and_mixed_slots>
+      <Function test_typology_selection_summarizes_blank_and_populated_mbti_slots>
+      <Function test_typology_selection_summarizes_all_requested_mbti_combinations>
+      <Function test_batch_typology_hydrates_only_when_selection_changes>
+      <Function test_batch_typology_selection_cache_is_independent_from_other_batch_fields>
+      <Function test_chart_editor_lightweight_save_reads_typology_controls_before_persisting>
+      <Function test_batch_mbti_choice_clears_mixed_combo_styling>
+    <Module test_database_search_subspecies_source.py>
+      <Function test_species_filter_exposes_dependent_subspecies_dropdown>
+      <Function test_search_filters_apply_selected_subspecies_to_top_three_species>
+      <Function test_subspecies_filter_uses_shared_prediction_cache>
+      <Function test_clear_and_active_filter_state_include_subspecies>
+    <Module test_database_search_tags_input_source.py>
+      <Function test_search_panel_does_not_import_gui_app_module>
+      <Function test_search_tag_helpers_can_short_circuit_without_qt_imports>
+      <Function test_search_tags_typing_does_not_rebuild_tag_tree_on_each_keystroke>
+      <Function test_search_tags_selection_sync_respects_collapsed_tag_tree>
+      <Function test_search_tags_selection_sync_suppresses_per_checkbox_filter_signals>
+      <Function test_database_view_search_bars_live_above_collection_controls>
+      <Function test_database_view_imports_middle_panel_search_bar_builder>
+      <Function test_right_search_filter_panel_no_longer_owns_top_level_search_inputs>
+      <Function test_middle_panel_search_bar_row_preserves_search_wiring>
+      <Function test_middle_panel_search_bar_row_top_aligns_all_search_cells>
+      <Function test_middle_panel_search_bar_row_applies_custom_search_controls>
+    <Module test_database_search_text.py>
+      <Function test_database_search_text_preserves_trailing_spaces>
+      <Function test_database_search_text_preserves_leading_and_repeated_spaces>
+      <Function test_database_search_text_treats_space_only_queries_as_active>
+      <Function test_database_search_text_still_matches_case_insensitively>
+    <Module test_database_search_typology.py>
+      <Function test_typology_filters_allow_partial_assigned_metadata_searches>
+      <Function test_typology_filters_reject_any_mismatched_requested_component>
+      <Function test_typology_filters_treat_placeholder_values_as_unassigned>
+      <Function test_typology_filters_match_mbti_letters_case_insensitively>
+      <Function test_typology_filters_optionally_match_x_in_each_requested_position>
+      <Function test_active_filter_check_unpacks_every_typology_filter_value>
+    <Module test_database_startup_progress_source.py>
+      <Function test_startup_database_refresh_runs_before_loading_widget_completes>
+    <Module test_database_view_action_buttons_source.py>
+      <Function test_database_view_action_buttons_skip_redundant_state_updates>
+    <Module test_database_view_collection_filter_source.py>
+      <Function test_database_view_collection_filter_imports_every_referenced_collection_constant>
+      <Function test_database_view_personal_collection_filter_imports_parasocial_source>
+    <Module test_database_view_copy_chart_names_source.py>
+      <Function test_database_view_chart_list_copy_shortcut_copies_raw_names_to_clipboard>
+    <Module test_database_view_hidden_chart_context_menu_source.py>
+      <Function test_show_hidden_setting_names_charts_explicitly>
+      <Function test_button_enabled_guard_compares_local_enabled_state>
+      <Function test_context_menu_offers_rename_delete_and_unhide_actions>
+      <Function test_context_menu_offers_single_chart_tool_actions>
+      <Function test_unhide_selected_charts_removes_ids_and_preserves_selection>
+      <Function test_distinguishing_metric_cache_keeps_filtered_out_payloads>
+      <Function test_hidden_charts_filter_is_conditionally_visible_in_search_panel>
+      <Function test_show_hidden_toggle_updates_hidden_filter_visibility>
+      <Function test_hidden_charts_filter_matches_hidden_id_set_only_when_visible>
+      <Function test_hidden_charts_filter_state_is_persisted>
+    <Module test_database_view_hydration_source.py>
+      <Function test_populate_list_batches_chart_hydration_for_visible_rows_and_glyphs>
+      <Function test_populate_list_skips_per_row_filter_engine_when_no_filters_are_active>
+    <Module test_database_view_performance.py>
+      <Function test_database_view_open_timing_records_stable_workflow_metric>
+      <Function test_database_view_open_timing_only_records_once>
+      <Function test_database_view_timer_starts_before_cold_dialog_construction>
+    <Module test_database_view_sort_refresh_source.py>
+      <Function test_sort_only_rebuilds_database_rows_without_external_refreshes>
+      <Function test_list_population_does_not_refresh_unrelated_chart_tool_options>
+      <Function test_database_hydration_refreshes_chart_tool_options>
+    <Module test_database_view_vertical_spacing_source.py>
+      <Function test_database_view_menu_to_toolbar_margin_is_four_pixels>
+      <Function test_database_view_search_to_filter_row_spacing_is_four_pixels>
+    <Module test_database_view_weirdness_sort_source.py>
+      <Function test_weirdness_sort_hydrates_missing_scores_before_sorting>
+      <Function test_database_row_numbers_are_based_on_rendered_filter_matches>
+    <Module test_db_info_panel_similarity_bar.py>
+      <Function test_similarity_hd_and_bazi_rows_have_chart_info_targets>
+      <Function test_similarity_percent_bar_accepts_norm_delta_overlay>
+      <Function test_similarity_percent_bar_clears_invalid_norm_delta_overlay>
+      <Function test_similarity_percent_bar_centers_database_norm_for_selection_delta>
+      <Function test_standard_error_guides_are_hidden_for_tiny_samples>
+    <Module test_demo_mode_privacy_source.py>
+      <Function test_demo_mode_setting_and_private_widget_targets_are_wired>
+      <Function test_demo_mode_uses_analytics_or_hidden_right_panel_instead_of_observations>
+      <Function test_demo_mode_new_chart_paths_do_not_reopen_private_right_panel>
+      <Function test_demo_mode_controller_path_does_not_fallback_to_observations>
+      <Function test_demo_mode_uses_latest_chart_and_hides_social_score_sort>
+      <Function test_demo_mode_restores_saved_predictability_visibility_instead_of_forcing_visible>
+      <Function test_demo_mode_switches_away_from_all_private_chart_right_tabs_before_hiding>
+    <Module test_diagnostics.py>
+      <Function test_quiet_reporting_writes_file_without_terminal>
+      <Function test_debug_reporting_adds_terminal_traceback>
+      <Function test_normalize_error_reporting_mode_preserves_enum_values>
+      <Function test_quiet_reporting_preserves_environment_debug_propagation>
+      <Function test_quiet_reporting_does_not_propagate_without_environment_debug>
+    <Module test_distinguishing_factors.py>
+      <Function test_distinguishing_factor_html_does_not_truncate_significant_factors>
+      <Function test_incarnation_cross_info_uses_cross_type_for_angle_description>
+      <Function test_incarnation_cross_lookup_accepts_chart_display_label_with_gates>
+      <Function test_all_incarnation_cross_themes_have_descriptions>
+      <Function test_database_distinction_repeated_gate_score_weights_extra_repetitions>
+      <Function test_distinguishing_factors_include_raw_weight_outliers>
+      <Function test_distinguishing_metric_payload_persists_raw_weights>
+      <Function test_weirdness_score_uses_distinguishing_factor_count_multiplier>
+      <Function test_weirdness_scale_label_uses_interpretation_scale>
+    <Module test_dnd_christmas_elf_subspecies.py>
+      <Function test_christmas_elf_is_available_to_elf_and_gnome_families>
+      <Function test_christmas_elf_filter_can_select_from_elf_or_gnome_family>
+      <Function test_christmas_elf_ignores_house_markers_when_chart_does_not_use_houses>
+    <Module test_dnd_species_prediction_display_source.py>
+      <Function test_dnd_species_prediction_labels_prefer_subspecies_names>
+      <Function test_dnd_species_prediction_click_uses_formatted_html_info_panel>
+      <Function test_dnd_species_prediction_cache_version_invalidates_old_labels>
+    <Module test_dominance_thresholds.py>
+      <Function test_dominant_element_labels_require_above_quarter_share_not_top_three>
+      <Function test_top_element_labels_only_return_actual_largest_elements>
+      <Function test_dominant_mode_labels_require_top_mode_above_third_share>
+      <Function test_plasmoid_water_air_and_mutable_evidence_require_dominance>
+      <Function test_cosmid_air_water_evidence_requires_both_elements_to_be_dominant>
+    <Module test_dropdown_no_elision_source.py>
+      <Function test_shared_dropdown_style_disables_popup_elision_and_sizes_to_contents>
+      <Function test_database_search_human_design_dropdowns_have_non_eliding_widths>
+    <Module test_enneagram_database_norm_predictions_source.py>
+      <Function test_enneagram_predictions_score_against_database_norms_source>
+      <Function test_legacy_raw_enneagram_cache_fallbacks_are_stale_source>
+      <Function test_enneagram_adapter_uses_chart_view_prediction_norm_scope_source>
+      <Function test_enneagram_cache_key_includes_norm_token_source>
+      <Function test_enneagram_predictor_uses_analysis_enneagrams_reference_source>
+    <Module test_enneagram_prediction_cache.py>
+      <Function test_complete_enneagram_cache_validation_requires_all_nine_finite_scores>
+      <Function test_enneagram_metadata_cache_preserves_computed_all_zero_scores>
+      <Function test_enneagram_draw_and_adapter_use_complete_cache_validator>
+      <Function test_enneagram_panel_render_reuses_one_cached_score_map_for_chart_and_label>
+    <Module test_euphonics.py>
+      <Function test_euphonics_matches_sort_by_first_appearance>
+      <Function test_y_initial_only_matches_name_parts_that_begin_with_y>
+      <Function test_y_final_only_matches_when_name_ends_with_y>
+      <Function test_render_euphonics_html_shows_occurrence_count_and_sound_color>
+      <Function test_render_euphonics_compact_html_emphasizes_titles_and_scales_examples>
+    <Module test_feedback_prediction_field_classification.py>
+      <Function test_feedback_and_prediction_provenance_is_disjoint_and_explicit>
+      <Function test_similarity_observation_rejects_unclassified_provenance>
+    <Module test_fine_tune_hourly_panel_source.py>
+      <Function test_fine_tune_controls_appear_only_after_a_broad_result>
+      <Function test_fine_tune_panel_uses_chart_editor_controller_and_requested_options>
+      <Function test_fine_tune_controls_are_a_collapsed_section_below_summary>
+      <Function test_fine_tune_output_is_inserted_above_broad_detail_sections>
+      <Function test_pure_package_does_not_reexport_qt_controller>
+    <Module test_galaxy_explainer_intro_source.py>
+      <Function test_guide_intro_blurb_is_paginated_by_paragraph_with_arrows>
+      <Function test_guide_intro_blurb_keeps_scrollable_text_browser_and_reduced_height>
+      <Function test_guide_bottom_panels_are_controlled_by_button_panel>
+      <Function test_guide_window_does_not_add_redundant_bottom_close_button>
+    <Module test_guide_to_galaxy_threading_source.py>
+      <Function test_guide_to_galaxy_range_worker_results_are_relayed_to_main_thread>
+      <Function test_guide_to_galaxy_keeps_result_relay_alive_until_job_finishes>
+    <Module test_hd_gate_line_dissimilarity_visibility_source.py>
+      <Function test_gate_line_dissimilarity_visibility_uses_gate_line_matches>
+    <Module test_hd_gate_line_matching_names_source.py>
+      <Function test_similarity_matching_chart_names_handles_gate_lines>
+    <Module test_hierarchical_tag_search.py>
+      <Function test_parent_tag_filter_matches_exact_parent_and_children>
+      <Function test_required_parent_tag_filter_includes_child_tagged_charts>
+      <Function test_excluded_parent_tag_filter_excludes_child_tagged_charts>
+    <Module test_human_design_analytics_panel.py>
+      <Function test_line_distribution_stars_profile_line_bars_from_profile>
+      <Function test_profile_line_parser_keeps_only_valid_hd_lines>
+      <Function test_popout_right_panel_toggle_arrows_point_toward_action>
+    <Module test_human_design_popout_controls_source.py>
+      <Function test_human_design_popout_defaults_to_circuits_without_a_header_label>
+      <Function test_human_design_popout_synastry_uses_current_chart_uid_as_first_chart>
+    <Module test_human_design_search_filters.py>
+      <Function test_human_design_selections_are_normalized_in_one_widget_pass>
+      <Function test_human_design_search_uses_tri_state_widgets_and_logic_toggles>
+    <Module test_human_design_shared.py>
+      <Function test_normalize_human_design_channel_orders_numeric_gate_endpoints>
+      <Function test_compute_common_human_design_aggregates_extracts_each_chart_once>
+      <Function test_compute_common_human_design_aggregates_returns_independent_empty_lists>
+    <Module test_human_design_shared_gate_lines.py>
+      <Function test_common_gate_lines_are_counted_by_overlapping_gate_line>
+      <Function test_common_gate_lines_can_be_empty_when_shared_gates_have_unique_lines>
+    <Module test_loading_messages.py>
+      <Function test_sequences_are_shuffled_without_repeating_until_all_have_run>
+      <Function test_standalone_messages_can_be_interspersed_between_sequence_starts>
+      <Function test_display_interval_scales_proportionately_after_twenty_characters>
+      <Function test_sequence_constants_are_registered_as_full_loading_steps>
+    <Module test_manage_charts_startup_source.py>
+      <Function test_main_window_does_not_expose_database_dialog_before_chart_view_setup>
+      <Function test_contextual_subheader_helper_does_not_truncate_main_window_init>
+      <Function test_manage_dialog_factory_tolerates_a_missing_lazy_slot>
+    <Module test_metric_canvas_layout_controller.py>
+      <Function test_hidden_canvas_waits_for_its_visible_viewport_before_accepting_width>
+      <Function test_canvas_resize_is_not_a_layout_input>
+      <Function test_collapsed_canvas_uses_current_viewport_width_when_revealed>
+      <Function test_transient_missing_scroll_area_does_not_orphan_registered_canvas>
+      <Function test_nested_section_margins_are_all_subtracted_from_viewport_width>
+    <Module test_metric_popout_registry.py>
+      <Function test_metric_panel_spec_aliases_resolve_to_same_spec>
+      <Function test_elements_and_dominant_elements_preserve_legacy_popout_sizes>
+      <Function test_registered_metric_popout_figure_uses_spec_size_and_draw_callback>
+      <Function test_all_registered_metric_titles_have_unique_lookup_entries>
+    <Module test_name_analytics_refresh_source.py>
+      <Function test_name_alignment_chart_uses_full_signed_scale_and_signed_labels>
+      <Function test_name_score_dropdown_combines_mean_median_and_mode_series>
+      <Function test_name_chart_height_scales_with_every_rendered_label_without_a_cap>
+      <Function test_chart_view_classifies_name_and_alias_edits_for_metrics_refresh>
+      <Function test_name_analytics_interface_and_export_matching_are_uid_first>
+      <Function test_name_distribution_is_hidden_from_gen_pop_without_a_name_baseline>
+      <Function test_social_score_inputs_refresh_the_name_ranking>
+      <Function test_chart_and_batch_edit_paths_emit_social_score_input_changes>
+      <Function test_grouped_export_labels_still_match_the_base_name_token>
+    <Module test_name_manager_source.py>
+      <Function test_property_manager_exposes_name_manager_with_name_and_frequency_columns>
+      <Function test_name_manager_suppresses_tokens_without_rewriting_chart_metadata>
+      <Function test_name_manager_resolves_name_rows_and_matches_through_chart_uids>
+    <Module test_name_search.py>
+      <Function test_extracts_whitespace_tokens_without_substring_matching>
+      <Function test_filters_alias_detritus_and_deduplicates_each_chart_case_insensitively>
+      <Function test_chart_name_token_match_uses_exact_shared_extraction_rules>
+      <Function test_aggregates_distinct_uid_frequency_and_alignment_statistics>
+      <Function test_multimodal_alignment_has_no_single_mode_value>
+      <Function test_aggregates_social_score_statistics_for_the_same_name_ranking>
+      <Function test_rejects_invalid_minimum_frequency>
+      <Function test_persisted_suppression_removes_name_without_editing_charts>
+      <Function test_suppression_file_is_versioned_and_sorted>
+    <Module test_ocean_predictions_source.py>
+      <Function test_ocean_predictions_respect_chart_uses_houses_and_axes>
+      <Function test_chart_editor_predictions_panel_registers_ocean_section>
+      <Function test_ocean_predictions_are_visible_and_rendered_with_predictions_panel>
+      <Function test_ocean_scores_to_mbti_rules_are_encoded>
+      <Function test_ocean_metric_popout_is_registered_and_pickable>
+      <Function test_ocean_layout_is_cleared_with_chart_displays>
+      <Function test_ocean_predictor_weight_defaults_match_settings_percentages>
+      <Function test_ocean_predictor_payload_clamps_percentages_and_preserves_switches>
+      <Function test_ocean_scores_include_configurable_elemental_and_weighted_categories>
+      <Function test_ocean_settings_orchestration_stays_outside_app_window>
+      <Function test_ocean_settings_refresh_current_prediction_without_database_cache_invalidation>
+    <Module test_packaging_default_traits_source.py>
+      <Function test_default_traits_are_in_python_package_data>
+      <Function test_default_traits_are_in_pyinstaller_datas>
+    <Module test_packaging_package_discovery.py>
+      <Function test_setuptools_discovery_is_limited_to_application_packages>
+    <Module test_performance_metrics.py>
+      <Function test_metrics_are_only_exported_while_enabled>
+      <Function test_measure_performance_records_failed_attempt>
+      <Function test_developer_tools_exposes_requested_performance_setting_and_tooltip>
+      <Function test_chart_editor_load_records_phase_boundaries>
+      <Function test_chart_editor_render_queue_records_first_visible_phases>
+      <Function test_chart_editor_visible_aliases_reuse_one_elapsed_sample>
+      <Function test_material_facts_reuses_resolved_uid_for_photo_metric>
+      <Function test_database_view_timing_records_named_phases_once>
+      <Function test_chart_links_and_chart_type_use_central_navigation_and_autosave>
+    <Module test_photo_gallery_profile_pic_source.py>
+      <Function test_photo_gallery_persists_profile_pic_metadata_and_defaults_first_upload>
+      <Function test_photo_gallery_thumbnail_context_menu_and_profile_star>
+      <Function test_photo_gallery_uses_current_chart_uid_without_legacy_row_id_resolution>
+    <Module test_placeholder_chart_source.py>
+      <Function test_placeholder_chart_type_is_set_before_alternate_chart_uid_lookup>
+    <Module test_planet_dynamics_cache_source.py>
+      <Function test_planet_dynamics_cache_signature_includes_aspects_and_rectified_time>
+      <Function test_planet_dynamics_prepare_uses_background_worker_payload>
+      <Function test_planet_dynamics_worker_result_schedules_gui_render_only_after_payload>
+      <Function test_pending_planet_dynamics_render_does_not_mark_section_clean>
+      <Function test_planet_dynamics_worker_result_reuses_matching_current_chart_signature>
+    <Module test_popout_chart_alignment_source.py>
+      <Function test_popout_chart_data_header_aligns_with_chart_info_title>
+      <Function test_popout_chart_info_label_sits_immediately_above_info_panel>
+    <Module test_position_descriptions.py>
+      <Function test_position_description_lookup_normalizes_body_and_sign>
+      <Function test_position_description_lookup_normalizes_chart_angle_key>
+      <Function test_position_description_lookup_allows_generic_fallback>
+      <Function test_chart_info_checks_curated_prose_before_generic_keywords>
+    <Module test_prediction_cache_birth_data_signatures_source.py>
+      <Function test_trait_chart_signature_uses_only_essential_birth_data_not_derived_payloads>
+      <Function test_dnd_cache_tokens_ignore_chart_name_and_include_rectification_range>
+      <Function test_enneagram_cache_token_includes_rectification_range_birth_data>
+      <Function test_predictions_right_panel_render_token_includes_rectification_range_birth_data>
+      <Function test_predictions_manual_recalculation_setting_defaults_to_manual_and_blocks_trait_auto_load>
+      <Function test_stale_predictions_show_cached_data_before_optional_auto_refresh>
+      <Function test_predictions_cached_payloads_are_guarded_by_current_chart_uid>
+      <Function test_dnd_alignment_draw_respects_stale_cache_without_recomputing_in_manual_mode>
+      <Function test_dnd_species_and_class_predictions_are_persisted_by_chart_uid>
+    <Module test_property_manager_deferred_refresh_source.py>
+      <Function test_property_manager_defers_host_chart_refresh_until_dialog_close>
+    <Module test_property_manager_embedded_refresh_source.py>
+      <Function test_embedded_property_manager_queues_deferred_refresh_after_reload>
+    <Module test_property_manager_locked_field_buttons_source.py>
+      <Function test_locked_property_manager_does_not_construct_selector_tabs>
+    <Module test_property_manager_open_widget_refresh_source.py>
+      <Function test_property_manager_tracks_and_refreshes_open_widgets>
+      <Function test_batch_tag_updates_refresh_open_property_manager_widgets>
+      <Function test_metadata_label_dialog_exposes_usage_refresh_entrypoint>
+    <Module test_property_manager_tag_refresh_source.py>
+      <Function test_property_manager_dialog_does_not_refresh_visible_tag_pickers_mid_rename>
+      <Function test_property_manager_rebuilds_tag_trees_with_selection_signals_blocked>
+      <Function test_property_manager_ignores_selection_refresh_during_tag_tree_rebuild>
+    <Module test_quad_state_slider_source.py>
+      <Function test_quad_state_slider_paints_indicator_manually_to_clear_stale_exclusion_glyphs>
+    <Module test_ranking_panel_sign_dominance_name_styles_source.py>
+      <Function test_sign_dominance_rankings_style_names_by_selected_sign_big_three>
+    <Module test_ranking_panel_sign_dominance_tooltips_source.py>
+      <Function test_sign_dominance_rows_install_color_coded_hover_tooltips>
+      <Function test_sign_dominance_tooltip_definitions_live_in_tooltips_module>
+      <Function test_sign_dominance_tooltips_cover_big_three_combinations>
+      <Function test_sign_dominance_subheader_contains_five_item_visual_key>
+    <Module test_ranking_panel_trait_dropdown_source.py>
+      <Function test_ranking_traits_are_alphabetized_without_grouping_bundled_traits_first>
+      <Function test_ranking_traits_distinguish_default_and_add_on_names_by_color>
+      <Function test_archiving_trait_only_resyncs_ranking_choices>
+    <Module test_ranking_panel_visible_refresh_source.py>
+      <Function test_database_reload_refreshes_only_visible_dirty_rankings_sections>
+      <Function test_revealing_collapsed_left_splitter_refreshes_dirty_rankings>
+      <Function test_rankings_sections_refresh_independently_when_visible>
+    <Module test_rectification_range_gui_source.py>
+      <Function test_rectification_range_midpoint_is_only_used_when_effective>
+      <Function test_rectification_range_visibility_clears_unavailable_range>
+      <Function test_load_chart_restores_retcon_checkbox_before_range_checkbox>
+      <Function test_rectification_range_rejects_reversed_or_equal_times>
+    <Module test_redundancy_consolidation.py>
+      <Function test_production_classes_do_not_shadow_plain_methods>
+      <Function test_style_tokens_have_one_authoritative_assignment>
+      <Function test_search_options_are_imported_from_shared_controls>
+      <Function test_sign_for_longitude_wraps_and_observes_cusps>
+      <Function test_human_design_circuit_data_has_one_complete_canonical_source>
+      <Function test_core_human_design_channel_topology_comes_from_reference>
+      <Function test_human_design_circuit_reference_is_gui_independent>
+      <Function test_human_design_channel_records_preserve_all_circuit_topology_and_metadata>
+      <Function test_startup_entrypoints_share_one_animation_renderer>
+    <Module test_retcon_lucygoosey_autosave.py>
+      <Function test_database_row_rectified_time_uses_saved_retcon_hour_and_minute>
+      <Function test_database_row_rectified_time_does_not_only_reformat_birth_datetime>
+      <Function test_retcon_time_change_marks_lucygoosey_before_autosave>
+      <Function test_timing_preview_debounce_waits_for_real_editing_pause>
+    <Module test_search_panel_isolated_factors.py>
+      <Function test_isolated_factor_threshold_is_loosened_by_fifteen_percent>
+      <Function test_isolated_factor_threshold_still_rejects_non_isolated_weights>
+      <Function test_isolated_factor_any_uses_loosened_threshold>
+    <Module test_semantics_formatting.py>
+      <Function test_pronouns_for_gender_supported_chart_codes>
+      <Function test_pronouns_for_chart_reads_gender_attribute>
+      <Function test_pronouns_for_gender_unknown_uses_default>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[1-1st]>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[2-2nd]>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[3-3rd]>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[4-4th]>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[11-11th]>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[12-12th]>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[13-13th]>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[21-21st]>
+      <Function test_format_ordinal_applies_english_numeric_suffix_rules[102-102nd]>
+      <Function test_historical_semantics_module_remains_compatible>
+    <Module test_sign_keyword_info_spacing.py>
+      <Function test_sign_placement_list_has_two_line_breaks_before_keyword_sections>
+    <Module test_similar_charts_candidate_batch_loading.py>
+      <Function test_similar_chart_candidates_support_batch_loading_after_filtering>
+    <Module test_similar_charts_hidden_visibility_source.py>
+      <Function test_similar_charts_candidates_skip_hidden_charts_unless_show_hidden_enabled>
+      <Function test_similar_charts_app_passes_current_hidden_chart_visibility_to_candidates>
+      <Function test_chart_view_similar_charts_worker_receives_hidden_chart_visibility>
+      <Function test_find_astro_twins_can_filter_hidden_candidates_before_scoring>
+      <Function test_trait_prediction_rankings_skip_hidden_charts_but_keep_aggregate_cache_scope>
+      <Function test_trait_rankings_are_moved_to_rankings_panel>
+      <Function test_rankings_panel_uses_current_chart_uids_and_sequence_weight_loading>
+      <Function test_rankings_links_use_chart_uids_for_navigation_targets>
+      <Function test_trait_rankings_default_to_database_until_manual_rank_selected>
+      <Function test_hiding_current_trait_ranking_members_refreshes_cached_top_ten>
+      <Function test_sign_dominance_rankings_expand_for_cross_sign_top_20_memberships>
+    <Module test_similar_charts_popout_cache_source.py>
+      <Function test_similar_charts_popout_cache_key_allows_incremental_database_refresh>
+      <Function test_similar_charts_popout_cache_tracks_row_signatures_and_rescores_changed_rows_only>
+      <Function test_similar_charts_cache_tokens_include_gender_only_when_demographic_match_enabled>
+      <Function test_similar_charts_popout_exact_cache_hit_skips_full_recompute_progress>
+      <Function test_similar_charts_popout_perceived_accuracy_uses_cached_rankings_when_available>
+      <Function test_developer_tools_exposes_manual_similar_charts_cache_refresh>
+      <Function test_full_recompute_refreshes_existing_similar_charts_cache_payload>
+      <Function test_chart_view_similar_charts_export_rows_preserve_chart_uid>
+    <Module test_similarities_controller_source.py>
+      <Function test_manage_charts_delegates_similarities_panel_construction_to_controller>
+      <Function test_similarities_chart_info_is_a_static_sibling_below_analysis_scroll>
+      <Function test_hd_similarity_targets_use_canonical_chart_info_renderers>
+      <Function test_manage_charts_routes_similarity_state_lifecycle_through_controller>
+      <Function test_use_this_checkbox_only_appears_for_nonempty_chart_input>
+    <Module test_similarities_db_norm_delta.py>
+      <Function test_similarity_delta_points_preserves_below_db_norm_direction>
+      <Function test_similarity_delta_rgb_uses_signed_db_norm_direction>
+      <Function test_similarity_deviation_z_score_is_signed_standard_error_distance>
+      <Function test_similarity_delta_rgb_deemphasizes_tiny_selection_samples>
+    <Module test_similarity_algorithm_accuracy_refresh_source.py>
+      <Function test_cached_settings_dialog_refreshes_algorithm_accuracy_ranking>
+      <Function test_saved_observation_refreshes_open_accuracy_ranking>
+      <Function test_settings_browser_requests_v2_ranking_rows>
+      <Function test_popout_passes_displayed_rank_to_accuracy_callback>
+      <Function test_accuracy_ranking_label_is_retained_by_settings_owner>
+      <Function test_manage_presets_navigates_to_property_manager_preset_field>
+    <Module test_similarity_custom_presets.py>
+      <Function test_next_custom_name_follows_highest_numbered_custom_preset>
+      <Function test_save_custom_preset_uses_extensionless_local_file_and_preserves_weights>
+      <Function test_update_custom_preset_replaces_settings_without_appending>
+    <Module test_similarity_pairing.py>
+      <Function test_checked_chart_inputs_drive_similarity_breakdown_ids>
+      <Function test_unresolved_pair_has_no_breakdown_ids>
+      <Function test_chart_lookup_labels_show_name_alias_and_from_without_uid>
+      <Function test_chart_lookup_omits_empty_alias_and_from_parentheses>
+    <Module test_size_checker_popup.py>
+      <Function test_size_checker_popup_imports_shared_button_cursor_helper>
+    <Module test_tag_categories.py>
+      <Function test_property_manager_retains_its_original_category_labels>
+      <Function test_search_retains_its_original_category_labels>
+      <Function test_database_analytics_retains_original_labels_and_aliases>
+      <Function test_unknown_prefix_gets_readable_fallback>
+    <Module test_tag_chip_pill_style_source.py>
+      <Function test_tag_chip_style_uses_universal_wrapping_list_with_nowrap_pills_and_three_pixel_gap>
+      <Function test_batch_and_chart_info_assigned_tag_lists_use_universal_chip_label_style>
+      <Function test_chart_tags_live_in_chart_info_stack_not_subjective_notes_panel>
+      <Function test_event_chart_save_paths_persist_visible_chart_tags>
+    <Module test_test_runner_setup.py>
+      <Function test_test_setup_does_not_require_editable_application_install>
+    <Module test_trait_prediction_delegate_source.py>
+      <Function test_trait_prediction_color_delegate_uses_qpalette_color_role>
+    <Module test_traits_privacy_and_metadata_source.py>
+      <Function test_trait_prediction_debug_logs_use_uids_not_chart_names>
+      <Function test_weighted_predictor_debug_labels_are_uid_only_and_parse_errors_do_not_print>
+      <Function test_chart_serializes_derived_traits_in_metadata>
+      <Function test_chart_trait_metadata_runtime_fields_use_trait_uids>
+    <Module test_traits_settings_source.py>
+      <Function test_traits_settings_ui_lives_outside_app_py>
+      <Function test_traits_settings_list_fills_available_window_height>
+      <Function test_trait_prediction_rendering_lives_outside_app_py>
+      <Function test_prediction_norm_rows_use_full_database_not_displayed_filter_scope>
+      <Function test_database_view_traits_search_lives_in_search_panel_and_uses_metadata>
+      <Function test_chart_view_trait_metadata_is_incremental_by_trait_signature>
+      <Function test_trait_database_norm_cache_uses_scaled_refresh_threshold>
+      <Function test_trait_uid_source_and_metadata_wiring_are_present>
+      <Function test_legacy_trait_signature_and_parenthesized_names_are_preserved>
+      <Function test_deleted_traits_purge_uid_metadata_from_settings_handler>
+    <Module test_uid_controller_state_source.py>
+      <Function test_database_view_hidden_and_visible_state_is_uid_owned>
+      <Function test_chart_editor_hidden_state_is_uid_owned>
+      <Function test_batch_refresh_does_not_retain_parallel_local_ids>
+      <Function test_similar_charts_worker_owns_uid_identity_only>
+      <Function test_inline_rename_identity_is_uid_owned>
+      <Function test_possible_duplicate_controller_state_is_uid_keyed>
+      <Function test_trait_ranking_selection_state_is_uid_owned>
+      <Function test_database_metrics_dirty_and_snapshot_state_is_uid_keyed>
+      <Function test_active_and_displayed_row_caches_are_uid_keyed>
+      <Function test_displayed_row_uid_is_normalized_before_cache_insertion>
+      <Function test_similar_chart_candidate_exclusions_are_uid_owned>
+      <Function test_charts_controller_has_no_legacy_pending_id_callbacks>
+      <Function test_high_similarity_and_worker_callers_pass_hidden_uids>
+      <Function test_weirdness_metadata_cache_is_uid_keyed>
+    <Module test_user_facing_terminology_source.py>
+      <Function test_primary_window_names_are_database_view_and_chart_editor>
+      <Function test_help_uses_only_primary_window_names>
+      <Function test_similarity_modules_and_rectification_visible_labels_are_canonical>
+      <Function test_astro_twin_calculator_and_similarities_analysis_remain_distinct>
+    <Module test_wikipedia_blurb_getter.py>
+      <Function test_fetch_wikipedia_blurb_uses_shared_api_and_limits_paragraphs>
+      <Function test_fetch_wikipedia_blurb_refuses_disambiguation_pages>
+      <Function test_fetch_wikipedia_biography_by_name_returns_api_extract>
+      <Function test_fetch_wikipedia_biography_by_name_refuses_empty_extract>
+      <Function test_fetch_wikipedia_biography_by_name_reports_ambiguous_search>
+      <Function test_unique_title_matching_birth_date_requires_one_factual_match>
+      <Function test_populate_wikipedia_biography_uses_ephemeraldaddy_metadata_name>
+      <Function test_populate_wikipedia_biography_preserves_existing_text_for_empty_extract>
+    <Module test_window_chrome_settings_source.py>
+      <Function test_ephemeral_daddy_menu_has_settings_in_both_window_chrome_builders>
+      <Function test_shared_commands_do_not_resolve_handlers_from_window_attributes>
+      <Function test_settings_is_direct_action_not_preferences_submenu>
+      <Function test_terminal_macos_uses_in_window_menubar_by_default>
+      <Function test_window_chrome_actions_disable_qt_macos_menu_relocation_roles>
+      <Function test_settings_action_disables_menu_role_before_insertion>
+      <Function test_sign_degrees_reference_circle_lives_in_help_menus>
+      <Function test_both_rectification_actions_use_the_explicit_command>
+      <Function test_chart_editor_help_about_uses_the_chart_editor_window>
+      <Function test_top_level_windows_supply_explicit_chrome_commands>
+
+=================================== ERRORS ====================================
+______________ ERROR collecting tests/test_anagrams_presenter.py ______________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_anagrams_presenter.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_anagrams_presenter.py:83: in <module>
+    from ephemeraldaddy.gui.features.charts import anagrams
+ephemeraldaddy\gui\features\charts\anagrams.py:13: in <module>
+    import requests
+E   ModuleNotFoundError: No module named 'requests'
+____ ERROR collecting tests/test_appwide_collapsible_autoscroll_source.py _____
+tests\test_appwide_collapsible_autoscroll_source.py:3: in <module>
+    STYLE_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/style.py").read_text()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 38746: character maps to <undefined>
+_________ ERROR collecting tests/test_appwide_tooltip_style_source.py _________
+tests\test_appwide_tooltip_style_source.py:4: in <module>
+    TOOLTIPS_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/tooltips.py").read_text()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x90 in position 11816: character maps to <undefined>
+_____________ ERROR collecting tests/test_aspect_display_rules.py _____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_aspect_display_rules.py:3: in <module>
+    from ephemeraldaddy.analysis.get_astro_twin import _aspect_map
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+__________ ERROR collecting tests/test_astro_twin_presets_manager.py __________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_astro_twin_presets_manager.py:1: in <module>
+    from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
+ephemeraldaddy\gui\features\charts\similarities_algorithm_log.py:14: in <module>
+    from ephemeraldaddy.analysis.get_astro_twin import (
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_______________ ERROR collecting tests/test_backup_packages.py ________________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_backup_packages.py:8: in <module>
+    from ephemeraldaddy.core import backups
+ephemeraldaddy\core\backups.py:16: in <module>
+    from ephemeraldaddy.core import db as chart_db
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_ ERROR collecting tests/test_batch_subjective_single_chart_fast_path_source.py _
+tests\test_batch_subjective_single_chart_fast_path_source.py:4: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+____________ ERROR collecting tests/test_body_dynamics_metadata.py ____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_body_dynamics_metadata.py:3: in <module>
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+__________ ERROR collecting tests/test_chart_data_position_glyphs.py __________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_data_position_glyphs.py:15: in <module>
+    from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
+ephemeraldaddy\gui\features\charts\text_summary.py:10: in <module>
+    from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in <module>
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+__________ ERROR collecting tests/test_chart_data_uid_visibility.py ___________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_data_uid_visibility.py:14: in <module>
+    from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
+ephemeraldaddy\gui\features\charts\text_summary.py:10: in <module>
+    from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in <module>
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_chart_editor_exit_performance.py _________
+tests\test_chart_editor_exit_performance.py:8: in <module>
+    APP_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+_________ ERROR collecting tests/test_chart_editor_unsaved_summary.py _________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_editor_unsaved_summary.py:5: in <module>
+    from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
+ephemeraldaddy\gui\features\chart_editor\unsaved_summary.py:9: in <module>
+    from ephemeraldaddy.core.db import parse_reminds_me_of_uids
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_______________ ERROR collecting tests/test_chart_provenance.py _______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_provenance.py:3: in <module>
+    from ephemeraldaddy.core.db import SOURCE_HYPOTHETICAL, SOURCE_PUBLIC_DB
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_______ ERROR collecting tests/test_chart_right_panel_state_and_tabs.py _______
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_right_panel_state_and_tabs.py:82: in <module>
+    from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (  # noqa: E402
+ephemeraldaddy\gui\features\charts\cv_right_panel_stack.py:33: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_chart_similarity_relationships.py ________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_similarity_relationships.py:4: in <module>
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+ephemeraldaddy\gui\features\charts\chart_similarity_relationships.py:13: in <module>
+    from ephemeraldaddy.core.db import get_alternate_chart_uid_groups, get_chart_display_name_map, get_chart_uid_map
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_____________ ERROR collecting tests/test_chart_trait_metadata.py _____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_trait_metadata.py:4: in <module>
+    import ephemeraldaddy.core.db as db
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+___________ ERROR collecting tests/test_chart_typology_metadata.py ____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_typology_metadata.py:7: in <module>
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+__________________ ERROR collecting tests/test_chart_uids.py __________________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_uids.py:4: in <module>
+    import ephemeraldaddy.core.db as db
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_____ ERROR collecting tests/test_chart_view_metadata_only_save_source.py _____
+tests\test_chart_view_metadata_only_save_source.py:3: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+___ ERROR collecting tests/test_chart_view_rectified_time_preview_source.py ___
+tests\test_chart_view_rectified_time_preview_source.py:3: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+_ ERROR collecting tests/test_chart_view_save_integrity_regression_source.py __
+tests\test_chart_view_save_integrity_regression_source.py:17: in <module>
+    APP_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+_____ ERROR collecting tests/test_chart_view_session_completers_source.py _____
+tests\test_chart_view_session_completers_source.py:3: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+_________ ERROR collecting tests/test_chart_view_sexiness_metadata.py _________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_chart_view_sexiness_metadata.py:3: in <module>
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+___ ERROR collecting tests/test_chart_view_tag_crash_diagnostics_source.py ____
+tests\test_chart_view_tag_crash_diagnostics_source.py:3: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+_______ ERROR collecting tests/test_chart_view_unsaved_prompt_source.py _______
+tests\test_chart_view_unsaved_prompt_source.py:3: in <module>
+    APP_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+___ ERROR collecting tests/test_collapsed_section_initial_layout_source.py ____
+tests\test_collapsed_section_initial_layout_source.py:5: in <module>
+    ).read_text()
+      ^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 5125: character maps to <undefined>
+___ ERROR collecting tests/test_collapsible_subsection_background_source.py ___
+tests\test_collapsible_subsection_background_source.py:4: in <module>
+    STYLE_SOURCE = (ROOT / "ephemeraldaddy/gui/style.py").read_text()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 38746: character maps to <undefined>
+_________________ ERROR collecting tests/test_collections.py __________________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_collections.py:3: in <module>
+    from ephemeraldaddy.core.db import SOURCE_HYPOTHETICAL, SOURCE_PERSONAL
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_____________ ERROR collecting tests/test_compare_collections.py ______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_compare_collections.py:4: in <module>
+    from ephemeraldaddy.gui.features.similarities.collection_contrast import (
+ephemeraldaddy\gui\features\similarities\collection_contrast.py:10: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_________ ERROR collecting tests/test_database_analytics_age_share.py _________
+tests\test_database_analytics_age_share.py:3: in <module>
+    from ephemeraldaddy.gui.features.charts.database_analytics import (
+ephemeraldaddy\gui\features\charts\database_analytics.py:27: in <module>
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\matplotlib\backends\backend_qtagg.py:11: in <module>
+    from .backend_qt import _BackendQT, FigureCanvasQT
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\matplotlib\backends\backend_qt.py:23: in <module>
+    _to_int(getattr(QtCore.Qt.Key, k)): v for k, v in [
+                    ^^^^^^^^^^^^^
+E   AttributeError: type object '_Qt' has no attribute 'Key'
+_______ ERROR collecting tests/test_database_analytics_axis_scaling.py ________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_database_analytics_axis_scaling.py:58: in <module>
+    from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
+ephemeraldaddy\gui\features\charts\database_analytics.py:48: in <module>
+    from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
+ephemeraldaddy\gui\features\charts\dnd_predictions.py:26: in <module>
+    from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in <module>
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_____ ERROR collecting tests/test_database_analytics_enneagram_source.py ______
+tests\test_database_analytics_enneagram_source.py:3: in <module>
+    SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/features/charts/database_analytics.py").read_text()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x90 in position 33963: character maps to <undefined>
+_ ERROR collecting tests/test_database_analytics_optional_module_visibility.py _
+tests\test_database_analytics_optional_module_visibility.py:7: in <module>
+    APP_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+________ ERROR collecting tests/test_database_analytics_popout_info.py ________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_database_analytics_popout_info.py:9: in <module>
+    from ephemeraldaddy.gui.features.charts.database_analytics import (
+ephemeraldaddy\gui\features\charts\database_analytics.py:48: in <module>
+    from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
+ephemeraldaddy\gui\features\charts\dnd_predictions.py:26: in <module>
+    from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+ephemeraldaddy\analysis\dnd\dnd_class_axes_v2.py:28: in <module>
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+____ ERROR collecting tests/test_database_analytics_tags_header_source.py _____
+tests\test_database_analytics_tags_header_source.py:4: in <module>
+    SOURCE = Path("ephemeraldaddy/gui/features/charts/database_analytics.py").read_text()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x90 in position 33963: character maps to <undefined>
+___________ ERROR collecting tests/test_database_close_progress.py ____________
+tests\test_database_close_progress.py:3: in <module>
+    APP_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+___ ERROR collecting tests/test_database_metrics_persistent_cache_source.py ___
+tests\test_database_metrics_persistent_cache_source.py:3: in <module>
+    APP_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+_ ERROR collecting tests/test_database_search_optional_module_visibility_source.py _
+tests\test_database_search_optional_module_visibility_source.py:5: in <module>
+    SEARCH_SOURCE = (ROOT / "ephemeraldaddy/gui/dbv_search_panel.py").read_text()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 78004: character maps to <undefined>
+__ ERROR collecting tests/test_database_view_selection_persistence_source.py __
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_database_view_selection_persistence_source.py:1: in <module>
+    from ephemeraldaddy.gui.features.charts.selection_header import SelectionSummaryCounts
+ephemeraldaddy\gui\features\charts\selection_header.py:14: in <module>
+    from ephemeraldaddy.gui.features.charts.collections import (
+ephemeraldaddy\gui\features\charts\collections.py:10: in <module>
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+____________ ERROR collecting tests/test_dnd_stat_normalization.py ____________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_dnd_stat_normalization.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_dnd_stat_normalization.py:29: in <module>
+    from ephemeraldaddy.analysis.dnd import dnd_stat_calculator as stat_calculator
+ephemeraldaddy\analysis\dnd\dnd_stat_calculator.py:6: in <module>
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+____________ ERROR collecting tests/test_dominant_sign_weights.py _____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_dominant_sign_weights.py:10: in <module>
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_______ ERROR collecting tests/test_dominant_weight_cache_migration.py ________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_dominant_weight_cache_migration.py:3: in <module>
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+______________ ERROR collecting tests/test_element_prevalence.py ______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_element_prevalence.py:10: in <module>
+    from ephemeraldaddy.gui.features.charts.metrics import (
+ephemeraldaddy\gui\features\charts\metrics.py:9: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+__________ ERROR collecting tests/test_enneagram_scoring_options.py ___________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_enneagram_scoring_options.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_enneagram_scoring_options.py:3: in <module>
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+____________ ERROR collecting tests/test_fine_tune_hourly_scan.py _____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_fine_tune_hourly_scan.py:9: in <module>
+    from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.controller import (
+ephemeraldaddy\gui\features\chart_editor\time_sensitivity\__init__.py:7: in <module>
+    from .hourly_scan import (
+ephemeraldaddy\gui\features\chart_editor\time_sensitivity\hourly_scan.py:16: in <module>
+    from ephemeraldaddy.analysis.time_sensitivity import _get_nakshatra
+ephemeraldaddy\analysis\time_sensitivity.py:14: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+______ ERROR collecting tests/test_hd_collection_save_refresh_source.py _______
+tests\test_hd_collection_save_refresh_source.py:4: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+_______________ ERROR collecting tests/test_house_prevalence.py _______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_house_prevalence.py:10: in <module>
+    from ephemeraldaddy.gui.features.charts.metrics import calculate_house_prevalence_counts
+ephemeraldaddy\gui\features\charts\metrics.py:9: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_____ ERROR collecting tests/test_human_design_electrochemistry_norms.py ______
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_electrochemistry_norms.py:1: in <module>
+    from ephemeraldaddy.analysis.human_design_electrochemistry_norms import (
+ephemeraldaddy\analysis\human_design_electrochemistry_norms.py:12: in <module>
+    from ephemeraldaddy.analysis.human_design_synastry import (
+ephemeraldaddy\analysis\human_design_synastry.py:14: in <module>
+    from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+___ ERROR collecting tests/test_human_design_electrochemistry_predictor.py ____
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_electrochemistry_predictor.py:1: in <module>
+    from ephemeraldaddy.analysis.human_design_synastry import (
+ephemeraldaddy\analysis\human_design_synastry.py:14: in <module>
+    from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+___________ ERROR collecting tests/test_human_design_environment.py ___________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_environment.py:19: in <module>
+    from ephemeraldaddy.analysis import human_design as hd_output
+ephemeraldaddy\analysis\human_design.py:10: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_________ ERROR collecting tests/test_human_design_rectified_time.py __________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_rectified_time.py:7: in <module>
+    from ephemeraldaddy.core import human_design_system as hds
+ephemeraldaddy\core\human_design_system.py:11: in <module>
+    from ephemeraldaddy.core.ephemeris import planetary_longitude
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_human_design_synastry_centers.py _________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_synastry_centers.py:14: in <module>
+    from ephemeraldaddy.analysis.human_design import build_human_design_synastry_data_output
+ephemeraldaddy\analysis\human_design.py:10: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+__________ ERROR collecting tests/test_human_design_synastry_plot.py __________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_human_design_synastry_plot.py:55: in <module>
+    from ephemeraldaddy.core.human_design_system import HumanDesignResult
+ephemeraldaddy\core\human_design_system.py:11: in <module>
+    from ephemeraldaddy.core.ephemeris import planetary_longitude
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+______________ ERROR collecting tests/test_material_facts_uid.py ______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_material_facts_uid.py:1: in <module>
+    from ephemeraldaddy.core import material_facts
+ephemeraldaddy\core\material_facts.py:16: in <module>
+    from ephemeraldaddy.core.db import DB_PATH, get_chart_uid
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+__ ERROR collecting tests/test_metric_canvas_recalculation_sizing_source.py ___
+tests\test_metric_canvas_recalculation_sizing_source.py:4: in <module>
+    APP_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+____________ ERROR collecting tests/test_nonastral_batch_writes.py ____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_nonastral_batch_writes.py:6: in <module>
+    from ephemeraldaddy.core import db
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_ocean_mbti_neuroticism_prefix.py _________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_ocean_mbti_neuroticism_prefix.py:4: in <module>
+    ocean = pytest.importorskip("ephemeraldaddy.gui.features.predictions.ocean", exc_type=ImportError)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1342: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:938: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:759: in exec_module
+    ???
+<frozen importlib._bootstrap>:491: in _call_with_frames_removed
+    ???
+ephemeraldaddy\gui\features\predictions\ocean.py:20: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+______________ ERROR collecting tests/test_percentage_weights.py ______________
+tests\test_percentage_weights.py:3: in <module>
+    from ephemeraldaddy.gui.settings.percentage_weights import (
+ephemeraldaddy\gui\settings\percentage_weights.py:9: in <module>
+    from ephemeraldaddy.gui.style import COLOR_ACCENT_SUCCESS
+ephemeraldaddy\gui\style.py:48: in <module>
+    APP_CHART_INFO_LINK_CURSOR = Qt.WhatsThisCursor
+                                 ^^^^^^^^^^^^^^^^^^
+E   AttributeError: type object '_Qt' has no attribute 'WhatsThisCursor'
+__________ ERROR collecting tests/test_photo_gallery_profile_pic.py ___________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_photo_gallery_profile_pic.py:13: in <module>
+    from ephemeraldaddy.core import db, photo_gallery
+ephemeraldaddy\core\db.py:22: in <module>
+    from ephemeraldaddy.core.chart import (
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_______ ERROR collecting tests/test_prediction_norms_snapshot_source.py _______
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_prediction_norms_snapshot_source.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_prediction_norms_snapshot_source.py:3: in <module>
+    from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+ephemeraldaddy\gui\features\charts\prediction_norms_snapshot.py:19: in <module>
+    from ephemeraldaddy.analysis.traits import list_traits, trait_uid_for_profile
+ephemeraldaddy\analysis\traits.py:303: in <module>
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+_ ERROR collecting tests/test_predictions_placeholder_current_render_source.py _
+tests\test_predictions_placeholder_current_render_source.py:5: in <module>
+    SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 21382: character maps to <undefined>
+_________ ERROR collecting tests/test_predictions_settings_source.py __________
+tests\test_predictions_settings_source.py:4: in <module>
+    APP_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+____ ERROR collecting tests/test_property_manager_column_layout_source.py _____
+tests\test_property_manager_column_layout_source.py:4: in <module>
+    DEV_TOOLS_SOURCE = Path("ephemeraldaddy/gui/dev_tools.py").read_text()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 19890: character maps to <undefined>
+____ ERROR collecting tests/test_property_manager_settings_embed_source.py ____
+tests\test_property_manager_settings_embed_source.py:5: in <module>
+    DEV_TOOLS_SOURCE = Path("ephemeraldaddy/gui/dev_tools.py").read_text()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 19890: character maps to <undefined>
+___ ERROR collecting tests/test_property_manager_settings_height_source.py ____
+tests\test_property_manager_settings_height_source.py:4: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+__ ERROR collecting tests/test_property_manager_settings_tab_style_source.py __
+tests\test_property_manager_settings_tab_style_source.py:4: in <module>
+    DEV_TOOLS_SOURCE = Path("ephemeraldaddy/gui/dev_tools.py").read_text()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 19890: character maps to <undefined>
+______ ERROR collecting tests/test_rectification_engine_views_source.py _______
+tests\test_rectification_engine_views_source.py:5: in <module>
+    APP_SOURCE = (ROOT / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+_____________ ERROR collecting tests/test_rectification_range.py ______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_rectification_range.py:8: in <module>
+    import ephemeraldaddy.core.chart as chart_module
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_reminds_me_of_completer_source.py ________
+tests\test_reminds_me_of_completer_source.py:3: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+______ ERROR collecting tests/test_reminds_me_of_reciprocity_cleanup.py _______
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_reminds_me_of_reciprocity_cleanup.py:8: in <module>
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+______________ ERROR collecting tests/test_reminds_me_of_uid.py _______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_reminds_me_of_uid.py:5: in <module>
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_retcon_dropdown_styles_source.py _________
+tests\test_retcon_dropdown_styles_source.py:5: in <module>
+    STYLE_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/style.py").read_text()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 38746: character maps to <undefined>
+________________ ERROR collecting tests/test_retcon_search.py _________________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_retcon_search.py:3: in <module>
+    from ephemeraldaddy.core import retcon
+ephemeraldaddy\core\retcon.py:6: in <module>
+    from ephemeraldaddy.core.ephemeris import planetary_positions
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_______________ ERROR collecting tests/test_selection_header.py _______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_selection_header.py:1: in <module>
+    from ephemeraldaddy.gui.features.charts.collections import CustomCollection
+ephemeraldaddy\gui\features\charts\collections.py:10: in <module>
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+____ ERROR collecting tests/test_similar_charts_collection_scope_source.py ____
+tests\test_similar_charts_collection_scope_source.py:4: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+____________ ERROR collecting tests/test_similar_charts_popout.py _____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similar_charts_popout.py:113: in <module>
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: E402
+ephemeraldaddy\gui\features\charts\similar_charts_popout.py:34: in <module>
+    from ephemeraldaddy.analysis.human_design import build_human_design_result
+ephemeraldaddy\analysis\human_design.py:10: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+__________ ERROR collecting tests/test_similarities_algorithm_log.py __________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similarities_algorithm_log.py:2: in <module>
+    from ephemeraldaddy.analysis.get_astro_twin import SimilarityCalculatorSettings
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+____________ ERROR collecting tests/test_similarities_analysis.py _____________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_similarities_analysis.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_similarities_analysis.py:76: in <module>
+    from ephemeraldaddy.gui.features.charts.similarities_analysis import (  # noqa: E402
+ephemeraldaddy\gui\features\charts\similarities_analysis.py:23: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import bazi_sign_weights_from_chart
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+______ ERROR collecting tests/test_similarities_export_dialog_source.py _______
+tests\test_similarities_export_dialog_source.py:6: in <module>
+    APP_SOURCE = (ROOT / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+___________ ERROR collecting tests/test_similarities_json_export.py ___________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_similarities_json_export.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_similarities_json_export.py:1: in <module>
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+____ ERROR collecting tests/test_similarity_algorithm_accuracy_ranking.py _____
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similarity_algorithm_accuracy_ranking.py:4: in <module>
+    from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
+ephemeraldaddy\gui\features\charts\similarities_algorithm_log.py:14: in <module>
+    from ephemeraldaddy.analysis.get_astro_twin import (
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_similarity_calculator_settings.py ________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similarity_calculator_settings.py:4: in <module>
+    from ephemeraldaddy.analysis import get_astro_twin
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_similarity_dominance_profiles.py _________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_similarity_dominance_profiles.py:3: in <module>
+    from ephemeraldaddy.analysis.get_astro_twin import (
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+___________ ERROR collecting tests/test_statistical_significance.py ___________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_statistical_significance.py:10: in <module>
+    from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
+ephemeraldaddy\gui\features\charts\similarity_norms.py:7: in <module>
+    from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
+ephemeraldaddy\analysis\get_astro_twin.py:11: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_______ ERROR collecting tests/test_tag_manager_parent_counts_source.py _______
+tests\test_tag_manager_parent_counts_source.py:5: in <module>
+    DEV_TOOLS_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/dev_tools.py").read_text()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 19890: character maps to <undefined>
+________ ERROR collecting tests/test_tags_manager_drag_drop_source.py _________
+tests\test_tags_manager_drag_drop_source.py:5: in <module>
+    DEV_TOOLS_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/dev_tools.py").read_text()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 19890: character maps to <undefined>
+_______ ERROR collecting tests/test_tags_manager_parent_tags_source.py ________
+tests\test_tags_manager_parent_tags_source.py:4: in <module>
+    DEV_TOOLS_SOURCE = Path("ephemeraldaddy/gui/dev_tools.py").read_text()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 19890: character maps to <undefined>
+_______________ ERROR collecting tests/test_time_sensitivity.py _______________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_time_sensitivity.py:1: in <module>
+    from ephemeraldaddy.analysis.time_sensitivity import (
+ephemeraldaddy\analysis\time_sensitivity.py:14: in <module>
+    from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+________ ERROR collecting tests/test_time_sensitivity_token_source.py _________
+tests\test_time_sensitivity_token_source.py:3: in <module>
+    APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+______ ERROR collecting tests/test_trait_likelihood_signature_source.py _______
+tests\test_trait_likelihood_signature_source.py:5: in <module>
+    SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 101376: character maps to <undefined>
+_________ ERROR collecting tests/test_trait_prediction_chart_info.py __________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_trait_prediction_chart_info.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_trait_prediction_chart_info.py:3: in <module>
+    from ephemeraldaddy.gui.features.charts import trait_predictions
+ephemeraldaddy\gui\features\charts\trait_predictions.py:57: in <module>
+    from ephemeraldaddy.analysis.trait_prediction_index import (
+ephemeraldaddy\analysis\trait_prediction_index.py:21: in <module>
+    from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods, trait_possible_score
+ephemeraldaddy\analysis\traits.py:303: in <module>
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+___________ ERROR collecting tests/test_trait_prediction_factors.py ___________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_trait_prediction_factors.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_trait_prediction_factors.py:3: in <module>
+    from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+___________ ERROR collecting tests/test_trait_predictions_cache.py ____________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_trait_predictions_cache.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_trait_predictions_cache.py:6: in <module>
+    from ephemeraldaddy.gui.features.charts import trait_predictions
+ephemeraldaddy\gui\features\charts\trait_predictions.py:57: in <module>
+    from ephemeraldaddy.analysis.trait_prediction_index import (
+ephemeraldaddy\analysis\trait_prediction_index.py:21: in <module>
+    from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods, trait_possible_score
+ephemeraldaddy\analysis\traits.py:303: in <module>
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+____________________ ERROR collecting tests/test_traits.py ____________________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_traits.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_traits.py:6: in <module>
+    from ephemeraldaddy.analysis import traits
+ephemeraldaddy\analysis\traits.py:303: in <module>
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+________________ ERROR collecting tests/test_transit_export.py ________________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_transit_export.py:3: in <module>
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_________ ERROR collecting tests/test_transit_position_diagnostic.py __________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_transit_position_diagnostic.py:5: in <module>
+    from ephemeraldaddy.gui.features.transits import diagnostics
+ephemeraldaddy\gui\features\transits\__init__.py:3: in <module>
+    from .cache import TransitWindowCache
+ephemeraldaddy\gui\features\transits\cache.py:9: in <module>
+    from ephemeraldaddy.core.composite import TRANSIT_ASPECT_RULES
+ephemeraldaddy\core\composite.py:9: in <module>
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+_____________ ERROR collecting tests/test_transit_window_cache.py _____________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_transit_window_cache.py:4: in <module>
+    from ephemeraldaddy.gui.features.transits.cache import TransitWindowCache
+ephemeraldaddy\gui\features\transits\__init__.py:3: in <module>
+    from .cache import TransitWindowCache
+ephemeraldaddy\gui\features\transits\cache.py:9: in <module>
+    from ephemeraldaddy.core.composite import TRANSIT_ASPECT_RULES
+ephemeraldaddy\core\composite.py:9: in <module>
+    from ephemeraldaddy.core.chart import Chart
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+___________ ERROR collecting tests/test_uid_finalization_source.py ____________
+tests\test_uid_finalization_source.py:5: in <module>
+    APP_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py:23: in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 73667: character maps to <undefined>
+___________ ERROR collecting tests/test_weighted_chart_predictor.py ___________
+ImportError while importing test module 'C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\test_weighted_chart_predictor.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_weighted_chart_predictor.py:3: in <module>
+    from ephemeraldaddy.analysis.weighted_chart_predictor import (
+ephemeraldaddy\analysis\weighted_chart_predictor.py:15: in <module>
+    from ephemeraldaddy.analysis.bazi_getter import (
+ephemeraldaddy\analysis\bazi_getter.py:8: in <module>
+    from lunar_python import Solar
+E   ModuleNotFoundError: No module named 'lunar_python'
+_________ ERROR collecting tests/test_wheel_plot_aspect_rendering.py __________
+ephemeraldaddy\core\deps.py:49: in ensure_package
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1335: in _find_and_load_unlocked
+    ???
+E   ModuleNotFoundError: No module named 'swisseph'
+
+The above exception was the direct cause of the following exception:
+tests\test_wheel_plot_aspect_rendering.py:26: in <module>
+    from ephemeraldaddy.graphics.wheel_plot import (
+ephemeraldaddy\graphics\wheel_plot.py:8: in <module>
+    from ephemeraldaddy.core.chart import chart_uses_houses
+ephemeraldaddy\core\chart.py:2: in <module>
+    from .ephemeris import planetary_positions, planetary_retrogrades, local_sidereal_time_deg
+ephemeraldaddy\core\ephemeris.py:14: in <module>
+    _swe = ensure_package("pyswisseph")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ephemeraldaddy\core\deps.py:51: in ensure_package
+    raise RuntimeError(_missing_dependency_message(pkg_name, module_name)) from import_error
+E   RuntimeError: Missing dependency 'pyswisseph' (import 'swisseph'). Install project dependencies before launching (example: `pip install -r requirements.txt` or `pip install -e .`), or run a bundled desktop build generated via `python tools/build_desktop_app.py --onefile`.
+- generated xml file: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\results\test-runs\pytest-20260814T134213Z.xml -
+=========================== short test summary info ===========================
+ERROR tests/test_anagrams_presenter.py
+ERROR tests/test_appwide_collapsible_autoscroll_source.py - UnicodeDecodeErro...
+ERROR tests/test_appwide_tooltip_style_source.py - UnicodeDecodeError: 'charm...
+ERROR tests/test_aspect_display_rules.py - RuntimeError: Missing dependency '...
+ERROR tests/test_astro_twin_presets_manager.py - RuntimeError: Missing depend...
+ERROR tests/test_backup_packages.py - RuntimeError: Missing dependency 'pyswi...
+ERROR tests/test_batch_subjective_single_chart_fast_path_source.py - UnicodeD...
+ERROR tests/test_body_dynamics_metadata.py - RuntimeError: Missing dependency...
+ERROR tests/test_chart_data_position_glyphs.py - RuntimeError: Missing depend...
+ERROR tests/test_chart_data_uid_visibility.py - RuntimeError: Missing depende...
+ERROR tests/test_chart_editor_exit_performance.py - UnicodeDecodeError: 'char...
+ERROR tests/test_chart_editor_unsaved_summary.py - RuntimeError: Missing depe...
+ERROR tests/test_chart_provenance.py - RuntimeError: Missing dependency 'pysw...
+ERROR tests/test_chart_right_panel_state_and_tabs.py - RuntimeError: Missing ...
+ERROR tests/test_chart_similarity_relationships.py - RuntimeError: Missing de...
+ERROR tests/test_chart_trait_metadata.py - RuntimeError: Missing dependency '...
+ERROR tests/test_chart_typology_metadata.py - RuntimeError: Missing dependenc...
+ERROR tests/test_chart_uids.py - RuntimeError: Missing dependency 'pyswisseph...
+ERROR tests/test_chart_view_metadata_only_save_source.py - UnicodeDecodeError...
+ERROR tests/test_chart_view_rectified_time_preview_source.py - UnicodeDecodeE...
+ERROR tests/test_chart_view_save_integrity_regression_source.py - UnicodeDeco...
+ERROR tests/test_chart_view_session_completers_source.py - UnicodeDecodeError...
+ERROR tests/test_chart_view_sexiness_metadata.py - RuntimeError: Missing depe...
+ERROR tests/test_chart_view_tag_crash_diagnostics_source.py - UnicodeDecodeEr...
+ERROR tests/test_chart_view_unsaved_prompt_source.py - UnicodeDecodeError: 'c...
+ERROR tests/test_collapsed_section_initial_layout_source.py - UnicodeDecodeEr...
+ERROR tests/test_collapsible_subsection_background_source.py - UnicodeDecodeE...
+ERROR tests/test_collections.py - RuntimeError: Missing dependency 'pyswissep...
+ERROR tests/test_compare_collections.py - RuntimeError: Missing dependency 'p...
+ERROR tests/test_database_analytics_age_share.py - AttributeError: type objec...
+ERROR tests/test_database_analytics_axis_scaling.py - RuntimeError: Missing d...
+ERROR tests/test_database_analytics_enneagram_source.py - UnicodeDecodeError:...
+ERROR tests/test_database_analytics_optional_module_visibility.py - UnicodeDe...
+ERROR tests/test_database_analytics_popout_info.py - RuntimeError: Missing de...
+ERROR tests/test_database_analytics_tags_header_source.py - UnicodeDecodeErro...
+ERROR tests/test_database_close_progress.py - UnicodeDecodeError: 'charmap' c...
+ERROR tests/test_database_metrics_persistent_cache_source.py - UnicodeDecodeE...
+ERROR tests/test_database_search_optional_module_visibility_source.py - Unico...
+ERROR tests/test_database_view_selection_persistence_source.py - RuntimeError...
+ERROR tests/test_dnd_stat_normalization.py
+ERROR tests/test_dominant_sign_weights.py - RuntimeError: Missing dependency ...
+ERROR tests/test_dominant_weight_cache_migration.py - RuntimeError: Missing d...
+ERROR tests/test_element_prevalence.py - RuntimeError: Missing dependency 'py...
+ERROR tests/test_enneagram_scoring_options.py
+ERROR tests/test_fine_tune_hourly_scan.py - RuntimeError: Missing dependency ...
+ERROR tests/test_hd_collection_save_refresh_source.py - UnicodeDecodeError: '...
+ERROR tests/test_house_prevalence.py - RuntimeError: Missing dependency 'pysw...
+ERROR tests/test_human_design_electrochemistry_norms.py - RuntimeError: Missi...
+ERROR tests/test_human_design_electrochemistry_predictor.py - RuntimeError: M...
+ERROR tests/test_human_design_environment.py - RuntimeError: Missing dependen...
+ERROR tests/test_human_design_rectified_time.py - RuntimeError: Missing depen...
+ERROR tests/test_human_design_synastry_centers.py - RuntimeError: Missing dep...
+ERROR tests/test_human_design_synastry_plot.py - RuntimeError: Missing depend...
+ERROR tests/test_material_facts_uid.py - RuntimeError: Missing dependency 'py...
+ERROR tests/test_metric_canvas_recalculation_sizing_source.py - UnicodeDecode...
+ERROR tests/test_nonastral_batch_writes.py - RuntimeError: Missing dependency...
+ERROR tests/test_ocean_mbti_neuroticism_prefix.py - RuntimeError: Missing dep...
+ERROR tests/test_percentage_weights.py - AttributeError: type object '_Qt' ha...
+ERROR tests/test_photo_gallery_profile_pic.py - RuntimeError: Missing depende...
+ERROR tests/test_prediction_norms_snapshot_source.py
+ERROR tests/test_predictions_placeholder_current_render_source.py - UnicodeDe...
+ERROR tests/test_predictions_settings_source.py - UnicodeDecodeError: 'charma...
+ERROR tests/test_property_manager_column_layout_source.py - UnicodeDecodeErro...
+ERROR tests/test_property_manager_settings_embed_source.py - UnicodeDecodeErr...
+ERROR tests/test_property_manager_settings_height_source.py - UnicodeDecodeEr...
+ERROR tests/test_property_manager_settings_tab_style_source.py - UnicodeDecod...
+ERROR tests/test_rectification_engine_views_source.py - UnicodeDecodeError: '...
+ERROR tests/test_rectification_range.py - RuntimeError: Missing dependency 'p...
+ERROR tests/test_reminds_me_of_completer_source.py - UnicodeDecodeError: 'cha...
+ERROR tests/test_reminds_me_of_reciprocity_cleanup.py - RuntimeError: Missing...
+ERROR tests/test_reminds_me_of_uid.py - RuntimeError: Missing dependency 'pys...
+ERROR tests/test_retcon_dropdown_styles_source.py - UnicodeDecodeError: 'char...
+ERROR tests/test_retcon_search.py - RuntimeError: Missing dependency 'pyswiss...
+ERROR tests/test_selection_header.py - RuntimeError: Missing dependency 'pysw...
+ERROR tests/test_similar_charts_collection_scope_source.py - UnicodeDecodeErr...
+ERROR tests/test_similar_charts_popout.py - RuntimeError: Missing dependency ...
+ERROR tests/test_similarities_algorithm_log.py - RuntimeError: Missing depend...
+ERROR tests/test_similarities_analysis.py
+ERROR tests/test_similarities_export_dialog_source.py - UnicodeDecodeError: '...
+ERROR tests/test_similarities_json_export.py
+ERROR tests/test_similarity_algorithm_accuracy_ranking.py - RuntimeError: Mis...
+ERROR tests/test_similarity_calculator_settings.py - RuntimeError: Missing de...
+ERROR tests/test_similarity_dominance_profiles.py - RuntimeError: Missing dep...
+ERROR tests/test_statistical_significance.py - RuntimeError: Missing dependen...
+ERROR tests/test_tag_manager_parent_counts_source.py - UnicodeDecodeError: 'c...
+ERROR tests/test_tags_manager_drag_drop_source.py - UnicodeDecodeError: 'char...
+ERROR tests/test_tags_manager_parent_tags_source.py - UnicodeDecodeError: 'ch...
+ERROR tests/test_time_sensitivity.py - RuntimeError: Missing dependency 'pysw...
+ERROR tests/test_time_sensitivity_token_source.py - UnicodeDecodeError: 'char...
+ERROR tests/test_trait_likelihood_signature_source.py - UnicodeDecodeError: '...
+ERROR tests/test_trait_prediction_chart_info.py
+ERROR tests/test_trait_prediction_factors.py
+ERROR tests/test_trait_predictions_cache.py
+ERROR tests/test_traits.py
+ERROR tests/test_transit_export.py - RuntimeError: Missing dependency 'pyswis...
+ERROR tests/test_transit_position_diagnostic.py - RuntimeError: Missing depen...
+ERROR tests/test_transit_window_cache.py - RuntimeError: Missing dependency '...
+ERROR tests/test_uid_finalization_source.py - UnicodeDecodeError: 'charmap' c...
+ERROR tests/test_weighted_chart_predictor.py
+ERROR tests/test_wheel_plot_aspect_rendering.py - RuntimeError: Missing depen...
+!!!!!!!!!!!!!!!!!! Interrupted: 100 errors during collection !!!!!!!!!!!!!!!!!!
+================== 549 tests collected, 100 errors in 10.46s ==================
+------------------------------------------------------------------------
+Exit code: 2
+Text report: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\results\test-runs\pytest-20260814T134213Z.log
+JUnit report: C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy\tests\results\test-runs\pytest-20260814T134213Z.xml

@@ -103,6 +103,10 @@ def _build_datas() -> list[tuple[str, str]]:
         (REPO_ROOT / "ephemeraldaddy" / "analysis" / "default_traits.json", "ephemeraldaddy/analysis"),
         (REPO_ROOT / "ephemeraldaddy" / "graphics", "ephemeraldaddy/graphics"),
         (REPO_ROOT / "ephemeraldaddy" / "gui" / "fonts", "ephemeraldaddy/gui/fonts"),
+        (
+            REPO_ROOT / "ephemeraldaddy" / "gui" / "features" / "popouts" / "assets",
+            "ephemeraldaddy/gui/features/popouts/assets",
+        ),
         (REPO_ROOT / "ephemeraldaddy" / "data" / "compiled", "ephemeraldaddy/data/compiled"),
     ):
         if src_dir.exists():
@@ -191,7 +195,12 @@ exe = EXE(
 )
 """
     if args.onefile:
-        spec += "\napp = BUNDLE(exe, name='EphemeralDaddy.app', icon=None, bundle_identifier=None)\n" if sys.platform == "darwin" else ""
+        spec += (
+            "\napp = BUNDLE(exe, name='EphemeralDaddy.app', "
+            f"icon={icon_literal}, bundle_identifier='io.github.ephemeraldaddy.EphemeralDaddy')\n"
+            if sys.platform == "darwin"
+            else ""
+        )
     else:
         spec += """
 coll = COLLECT(
@@ -205,6 +214,11 @@ coll = COLLECT(
     name='EphemeralDaddy',
 )
 """
+        if sys.platform == "darwin":
+            spec += (
+                "\napp = BUNDLE(coll, name='EphemeralDaddy.app', "
+                f"icon={icon_literal}, bundle_identifier='io.github.ephemeraldaddy.EphemeralDaddy')\n"
+            )
     SPEC_PATH.write_text(spec, encoding="utf-8")
     return SPEC_PATH
 

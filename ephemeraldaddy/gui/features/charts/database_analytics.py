@@ -85,7 +85,7 @@ DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "human_design",
     "bazi",
 )
-TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 3
+TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 4
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME = ".traits_distribution_likelihood_cache.json"
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES = 100_000
 TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS = 8.0
@@ -1446,17 +1446,39 @@ class DatabaseAnalyticsChartsMixin:
         return ZODIAC_NAMES[int(normalized // 30) % 12]
 
     def _display_name_for_chart_id(self, chart_id: int) -> str:
-        # Integer chart IDs are a Database Analytics row/sort adapter only;
-        # app-wide identity and persisted metadata should be keyed by UID.
-        row = self._active_chart_rows_by_id.get(int(chart_id))
-        if row is not None and len(row) > 1:
-            name = str(row[1] or "").strip()
-            if name:
-                return name
-        chart = self._get_chart_for_filter(int(chart_id))
-        chart_name = str(getattr(chart, "name", "") or "").strip() if chart is not None else ""
-        return chart_name or f"Chart {int(chart_id)}"
+    # """Resolve a display name from an internal SQLite row-key adapter.
 
+    # The integer argument is private database plumbing, not the user-facing
+    # current-sort Chart ID. Never expose the SQLite key as display text.
+    # """
+    # try:
+    #     chart_db_key = int(chart_id)
+    # except (TypeError, ValueError):
+    #     return "Unnamed Chart"
+    # chart = self._get_chart_for_filter(chart_db_key)
+    # chart_name = (
+    #     str(getattr(chart, "name", "") or "").strip()
+    #     if chart is not None
+    #     else ""
+    # )
+    # return chart_name or "Unnamed Chart"
+
+        """Resolve a display name from an internal SQLite row-key adapter.
+
+        The integer argument is private database plumbing, not the user-facing
+        current-sort Chart ID. Never expose the SQLite key as display text.
+        """
+        try:
+            chart_db_key = int(chart_id)
+        except (TypeError, ValueError):
+            return "Unnamed Chart"
+        chart = self._get_chart_for_filter(chart_db_key)
+        chart_name = (
+            str(getattr(chart, "name", "") or "").strip()
+            if chart is not None
+            else ""
+        )
+        return chart_name or "Unnamed Chart"
     def _analysis_matching_charts(
         self,
         chart_key: str,
@@ -4687,7 +4709,7 @@ class DatabaseAnalyticsChartsMixin:
         if not isinstance(context, dict) or not isinstance(rank_label, QLabel):
             return
         rankings = self._traits_distribution_chart_rankings(
-            chart_ids=context.get("chart_ids", ()),
+            chart_uids=context.get("chart_uids", ()),
             trait_signature=context.get("trait_signature", ()),
             selected_trait_name=str(context.get("selected_trait_name", "") or ""),
             database_values=context.get("database_values", {}),
@@ -4707,11 +4729,11 @@ class DatabaseAnalyticsChartsMixin:
             )
         )
 
-    def _refresh_traits_distribution_rankings_after_hidden_chart_change(self, hidden_chart_ids: set[int]) -> None:
+    def _refresh_traits_distribution_rankings_after_hidden_chart_change(self, hidden_chart_uids: set[str]) -> None:
         current_ranked_uids = getattr(self, "_traits_distribution_current_ranked_chart_uids", set())
         hidden_uids = {
             str(uid).strip().upper()
-            for uid in db.get_chart_uid_map({int(chart_id) for chart_id in hidden_chart_ids}).values()
+            for uid in hidden_chart_uids
             if str(uid or "").strip()
         }
         if not hidden_uids or not current_ranked_uids or not (hidden_uids & set(current_ranked_uids)):
@@ -4745,17 +4767,9 @@ class DatabaseAnalyticsChartsMixin:
     def _on_traits_distribution_rank_selected_clicked(self) -> None:
         """Manually switch Trait Rankings to the current Database View selection."""
         current_selection = tuple(
-            sorted(
-                {
-                    int(chart_id)
-                    for chart_id in getattr(self, "_traits_distribution_latest_selected_local_row_ids", ())
-                }
-            )
+            sorted(getattr(self, "_traits_distribution_latest_selected_chart_uids", ()))
         )
-        if current_selection:
-            self._traits_distribution_manual_rank_chart_ids = current_selection
-        else:
-            self._traits_distribution_manual_rank_chart_ids = ()
+        self._traits_distribution_manual_rank_chart_uids = current_selection
         update = getattr(self, "_update_sentiment_tally", None)
         if callable(update):
             update(
@@ -4802,7 +4816,7 @@ class DatabaseAnalyticsChartsMixin:
     def _traits_distribution_chart_rankings(
         self,
         *,
-        chart_ids: list[int] | set[int],
+        chart_uids: list[str] | set[str] | tuple[str, ...],
         trait_signature: tuple[tuple[str, str, str], ...],
         selected_trait_name: str,
         database_values: Mapping[str, float],
@@ -4810,23 +4824,33 @@ class DatabaseAnalyticsChartsMixin:
         """Return cached top chart matches for a trait without a second all-traits pass."""
         if not selected_trait_name:
             return []
-        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
+        normalized_chart_uids = tuple(
+            sorted({str(chart_uid or "").strip().upper() for chart_uid in chart_uids if str(chart_uid or "").strip()})
+        )
+        chart_ids_by_uid = db.get_chart_ids_by_uid(normalized_chart_uids)
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
         likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
         if not isinstance(likelihood_cache, dict):
             return []
         rows: list[dict[str, Any]] = []
-        hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
+        hidden_chart_uids = {
+            str(chart_uid or "").strip().upper()
+            for chart_uid in getattr(self, "_hidden_chart_uids", set())
+            if str(chart_uid or "").strip()
+        }
         db_average_pct = float(database_values.get(selected_trait_name, 0.0)) * 100.0
         chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
-        for chart_id in normalized_chart_ids:
-            if int(chart_id) in hidden_chart_ids:
+        for chart_uid in normalized_chart_uids:
+            if chart_uid in hidden_chart_uids:
+                continue
+            chart_id = chart_ids_by_uid.get(chart_uid)
+            if chart_id is None:
                 continue
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            chart_uid = chart_uid_by_id.get(int(chart_id), "")
-            if not chart_uid:
+            resolved_chart_uid = chart_uid_by_id.get(int(chart_id), "")
+            if not resolved_chart_uid or resolved_chart_uid != chart_uid:
                 continue
             chart_cache_key = (cache_revision, trait_signature, chart_uid)
             likelihoods = likelihood_cache.get(chart_cache_key)
@@ -5246,10 +5270,16 @@ class DatabaseAnalyticsChartsMixin:
         if not isinstance(payload, dict):
             return False
         payload_version = payload.get("version")
-        if payload_version not in {2, TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION}:
+        if payload_version not in {3, TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION}:
             return False
-        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
-        chart_tokens = self._traits_distribution_chart_tokens()
+        saved_change_sequence = int(payload.get("db_change_sequence", 0) or 0)
+        journal_changes = db.chart_changes_since(saved_change_sequence) if saved_change_sequence else []
+        changed_chart_uids = {
+            str(change.get("chart_uid", "") or "").strip().upper()
+            for change in journal_changes
+            if bool(change.get("astro_data_changed", False))
+        }
+        chart_tokens = {} if saved_change_sequence else self._traits_distribution_chart_tokens()
         likelihood_cache: dict[tuple[Any, ...], dict[str, float]] = {}
         individual_cache: dict[tuple[tuple[str, str, str], str], float] = {}
         individual_profile_cache: dict[tuple[str, str], float] = {}
@@ -5257,14 +5287,16 @@ class DatabaseAnalyticsChartsMixin:
         skipped_entries = 0
 
         def chart_is_current(chart_uid: str, saved_chart_token: str) -> bool:
+            if saved_change_sequence:
+                return chart_uid not in changed_chart_uids
             current_chart_token = chart_tokens.get(chart_uid)
             return not (current_chart_token and saved_chart_token and saved_chart_token != current_chart_token)
 
-        # Version 3 stores each analytical profile once and then stores per-chart
+        # Versions 3-4 store each analytical profile once and then store per-chart
         # likelihood rows by compact profile index.  This avoids rewriting whole
         # trait signatures/profiles for every chart and makes the cache reusable
         # across trait renames/recolors while still preserving row-level staleness.
-        if payload_version == TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION:
+        if payload_version in {3, TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION}:
             raw_profiles = payload.get("profiles", [])
             profile_keys = [str(item) for item in raw_profiles] if isinstance(raw_profiles, list) else []
             profile_entries = payload.get("profile_entries", [])
@@ -5302,9 +5334,13 @@ class DatabaseAnalyticsChartsMixin:
                 if not chart_uid or profile_index < 0 or profile_index >= len(profile_keys):
                     skipped_entries += 1
                     continue
+                saved_chart_token = str(entry.get("chart_token", "") or "")
+                if not chart_is_current(chart_uid, saved_chart_token):
+                    skipped_entries += 1
+                    continue
                 profile_cache_key = (profile_keys[profile_index], chart_uid)
                 individual_profile_cache[profile_cache_key] = likelihood
-                individual_profile_token_cache[profile_cache_key] = str(entry.get("chart_token", "") or "")
+                individual_profile_token_cache[profile_cache_key] = saved_chart_token
         else:
             logger.info("Ignoring obsolete traits distribution likelihood cache version %s.", payload_version)
             return False
@@ -5320,7 +5356,10 @@ class DatabaseAnalyticsChartsMixin:
         self._traits_distribution_individual_likelihood_cache = individual_cache
         self._traits_distribution_individual_profile_likelihood_cache = individual_profile_cache
         self._traits_distribution_individual_profile_token_cache = individual_profile_token_cache
-        self._traits_distribution_likelihood_cache_dirty = False
+        self._traits_distribution_likelihood_cache_created_at = str(payload.get("created_at", "") or "")
+        self._traits_distribution_likelihood_cache_change_sequence = db.latest_chart_change_sequence()
+        self._traits_distribution_likelihood_cache_changes = journal_changes
+        self._traits_distribution_likelihood_cache_dirty = bool(journal_changes)
         _predictions_debug(
             self,
             "Traits distribution likelihood cache loaded chart_entries=%s individual_entries=%s profile_entries=%s skipped=%s",
@@ -5408,9 +5447,14 @@ class DatabaseAnalyticsChartsMixin:
         try:
             path = self._traits_distribution_likelihood_cache_path()
             path.parent.mkdir(parents=True, exist_ok=True)
+            saved_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+            created_at = str(getattr(self, "_traits_distribution_likelihood_cache_created_at", "") or saved_at)
             payload: dict[str, Any] = {
                 "version": TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION,
-                "format": "profile_likelihoods_v1",
+                "format": "profile_likelihoods_v2_change_journal",
+                "created_at": created_at,
+                "last_modified_at": saved_at,
+                "db_change_sequence": db.latest_chart_change_sequence(),
                 "profiles": profiles,
                 "profile_entries": entries,
             }
@@ -5420,6 +5464,8 @@ class DatabaseAnalyticsChartsMixin:
             temp_path = path.with_suffix(f"{path.suffix}.tmp")
             temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
             temp_path.replace(path)
+            self._traits_distribution_likelihood_cache_created_at = created_at
+            self._traits_distribution_likelihood_cache_change_sequence = int(payload["db_change_sequence"])
             self._traits_distribution_likelihood_cache_dirty = False
             _predictions_debug(self, "Traits distribution likelihood cache saved profile_entries=%s path=%s", len(entries), path)
         except Exception:
@@ -5432,6 +5478,12 @@ class DatabaseAnalyticsChartsMixin:
         trait_signature: tuple[tuple[str, str, str], ...] | None = None,
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
     ) -> dict[str, Any]:
+        """Legacy Database View row-ID adapter for UID-keyed trait analytics.
+
+        Numeric IDs are accepted only at the Qt/SQLite row boundary. All cache,
+        persistence, and Predictions callers must use
+        :meth:`_collect_traits_distribution_analytics_by_uids`.
+        """
         _predictions_debug(
             self,
             "Traits distribution collect start charts=%s traits=%s time_budget=%s",
@@ -5640,7 +5692,7 @@ class DatabaseAnalyticsChartsMixin:
                         for name, total in totals.items()
                     },
                 )
-        if cache_updated:
+        if cache_updated or bool(getattr(self, "_traits_distribution_likelihood_cache_dirty", False)):
             self._traits_distribution_likelihood_cache_dirty = True
             self._save_traits_distribution_likelihood_cache()
         _predictions_debug(
@@ -5669,7 +5721,18 @@ class DatabaseAnalyticsChartsMixin:
         normalized_uids = tuple(
             sorted({str(uid or "").strip().upper() for uid in chart_uids if str(uid or "").strip()})
         )
-        chart_ids_by_uid = db.get_chart_ids_by_uid(normalized_uids) if normalized_uids else {}
+        # Prefer the already-hydrated Database View rows. Falling back to one
+        # batched database lookup keeps numeric row IDs confined to this
+        # persistence adapter and avoids an N+1 UID resolution path.
+        local_ids_by_uid = {
+            chart_uid: chart_id
+            for chart_id, chart_uid in self._traits_distribution_chart_uid_by_id().items()
+            if chart_uid in normalized_uids
+        }
+        missing_uids = tuple(uid for uid in normalized_uids if uid not in local_ids_by_uid)
+        chart_ids_by_uid = dict(local_ids_by_uid)
+        if missing_uids:
+            chart_ids_by_uid.update(db.get_chart_ids_by_uid(missing_uids))
         return self._collect_traits_distribution_analytics(
             set(chart_ids_by_uid.values()),
             trait_items=trait_items,
@@ -5716,11 +5779,11 @@ class DatabaseAnalyticsChartsMixin:
         selected_trait_name = self._sync_traits_distribution_rank_combo(trait_items)
         rankings_mode = self._traits_distribution_display_mode() == "trait_rankings"
         if rankings_mode and not selected_trait_name:
-            self._traits_distribution_latest_selected_local_row_ids = tuple(
-                sorted({int(chart_id) for chart_id in chart_ids})
+            self._traits_distribution_latest_selected_chart_uids = tuple(
+                sorted(db.get_chart_uid_map(chart_ids).values())
             ) if loaded_charts > 0 else ()
             self._traits_distribution_rank_context = {
-                "chart_ids": (),
+                "chart_uids": (),
                 "trait_signature": trait_signature,
                 "selected_trait_name": "",
                 "database_values": {},
@@ -5734,7 +5797,7 @@ class DatabaseAnalyticsChartsMixin:
             self._analysis_chart_export_rows["traits_distribution"] = []
             rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
             if isinstance(rank_selected_button, QPushButton):
-                has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_local_row_ids", ()))
+                has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_uids", ()))
                 rank_selected_button.setEnabled(has_current_selection)
                 rank_selected_button.setText("rank selected" if has_current_selection else "show database")
             rank_label = getattr(self, "traits_distribution_rank_label", None)
@@ -5783,13 +5846,15 @@ class DatabaseAnalyticsChartsMixin:
                 trait_items=trait_items,
                 trait_signature=trait_signature,
             )
-        self._traits_distribution_latest_selected_local_row_ids = tuple(
-            sorted({int(chart_id) for chart_id in chart_ids})
+        self._traits_distribution_latest_selected_chart_uids = tuple(
+            sorted(db.get_chart_uid_map(chart_ids).values())
         ) if loaded_charts > 0 else ()
-        manual_rank_ids = tuple(
-            int(chart_id)
-            for chart_id in getattr(self, "_traits_distribution_manual_rank_chart_ids", ())
+        manual_rank_uids = tuple(
+            str(chart_uid).strip().upper()
+            for chart_uid in getattr(self, "_traits_distribution_manual_rank_chart_uids", ())
+            if str(chart_uid).strip()
         )
+        manual_rank_ids = tuple(db.get_chart_ids_by_uid(manual_rank_uids).values())
         if rankings_mode and manual_rank_ids:
             selection_analytics = self._collect_traits_distribution_analytics(
                 list(manual_rank_ids),
@@ -5821,22 +5886,23 @@ class DatabaseAnalyticsChartsMixin:
             name: (float(database_totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
             for name in trait_names
         }
-        if manual_rank_ids:
-            ranking_scope_ids: list[int] | set[int] = list(manual_rank_ids)
+        database_rank_uids = tuple(sorted(db.get_chart_uid_map(database_chart_ids).values()))
+        if manual_rank_uids:
+            ranking_scope_uids = manual_rank_uids
             ranking_scope_label = "the manually ranked selection"
         else:
-            ranking_scope_ids = database_chart_ids
+            ranking_scope_uids = database_rank_uids
             ranking_scope_label = "the database"
         rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
         if isinstance(rank_selected_button, QPushButton):
-            has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_local_row_ids", ()))
+            has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_uids", ()))
             rank_selected_button.setEnabled(has_current_selection or bool(manual_rank_ids))
             rank_selected_button.setText(
                 "rank selected" if has_current_selection else "show database"
             )
         rank_label = getattr(self, "traits_distribution_rank_label", None)
         self._traits_distribution_rank_context = {
-            "chart_ids": tuple(sorted({int(chart_id) for chart_id in ranking_scope_ids})),
+            "chart_uids": tuple(ranking_scope_uids),
             "trait_signature": trait_signature,
             "selected_trait_name": selected_trait_name or "",
             "database_values": dict(database_values),
@@ -5846,7 +5912,7 @@ class DatabaseAnalyticsChartsMixin:
         }
         if isinstance(rank_label, QLabel):
             rankings = self._traits_distribution_chart_rankings(
-                chart_ids=ranking_scope_ids,
+                chart_uids=ranking_scope_uids,
                 trait_signature=trait_signature,
                 selected_trait_name=selected_trait_name or "",
                 database_values=database_values,

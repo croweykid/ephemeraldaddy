@@ -41,7 +41,7 @@ def test_similar_charts_app_passes_current_hidden_chart_visibility_to_candidates
         "def _export_similar_charts_popout_share", 1
     )[0]
 
-    assert 'hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set()))' in load_method
+    assert 'hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence())' in load_method
     assert 'include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False))' in load_method
     assert 'if getattr(self, "_show_hidden_charts", False):' in visible_rows_method
     assert 'if chart_id not in hidden_chart_ids:' in visible_rows_method
@@ -56,10 +56,10 @@ def test_chart_view_similar_charts_worker_receives_hidden_chart_visibility():
     )[0]
     worker_source = _worker_source()
 
-    assert 'hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set()))' in start_method
+    assert 'hidden_chart_uids=set(self._hidden_chart_uids)' in start_method
     assert 'include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False))' in start_method
-    assert "hidden_chart_ids: set[int] | None = None" in worker_source
-    assert "self._hidden_chart_ids = set(hidden_chart_ids or set())" in worker_source
+    assert "hidden_chart_uids: set[str] | None = None" in worker_source
+    assert "self._hidden_chart_uids =" in worker_source
     assert "include_hidden_charts=self._include_hidden_charts" in worker_source
     assert "load_charts_by_ids=load_charts" in worker_source
 
@@ -92,10 +92,10 @@ def test_trait_prediction_rankings_skip_hidden_charts_but_keep_aggregate_cache_s
         "def _render_traits_distribution_section", 1
     )[0]
 
-    assert 'hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}' in ranking_method
-    assert "if int(chart_id) in hidden_chart_ids:" in ranking_method
-    assert "continue" in ranking_method.split("if int(chart_id) in hidden_chart_ids:", 1)[1]
-    assert "_hidden_chart_ids" not in collect_method
+    assert 'hidden_chart_uids = {' in ranking_method
+    assert 'getattr(self, "_hidden_chart_uids", set())' in ranking_method
+    assert "if chart_uid in hidden_chart_uids:" in ranking_method
+    assert "_hidden_chart_uids" not in collect_method
 
 
 def test_trait_rankings_are_moved_to_rankings_panel():
@@ -109,13 +109,33 @@ def test_trait_rankings_are_moved_to_rankings_panel():
     assert '("Trait Predictions", "trait_predictions")' in create_method
     assert '("Trait Rankings", "trait_rankings")' not in create_method
     assert 'from ephemeraldaddy.gui.ranking_panel import RankingsPanelMixin' in app_source
-    assert 'class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):' in app_source
+    assert 'class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):' in app_source
     assert 'self.rankings_panel_button = QPushButton("🏆")' in app_source
     assert '"rankings": self.rankings_panel_scroll' in app_source
     assert '"🧬Traits"' in ranking_panel_source
     assert '"♏ Sign Dominance"' in ranking_panel_source
     assert 'self.rankings_trait_combo' in ranking_panel_source
     assert 'self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
+    assert 'most_sign_layout = self._add_left_panel_collapsible_section(' in ranking_panel_source
+    assert 'least_sign_layout = self._add_left_panel_collapsible_section(' in ranking_panel_source
+    assert 'hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_PARENT' in ranking_panel_source
+    assert 'self.rankings_least_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
+
+
+def test_rankings_panel_least_sign_mode_ranks_lowest_scores_and_limits_glyphs():
+    ranking_panel_source = _ranking_panel_source()
+    method = ranking_panel_source.split("def _refresh_sign_dominance_ranking", 1)[1]
+
+    assert "value_direction = 1.0 if least else -1.0" in method
+    assert "value_direction * float(row[\"value\"])" in method
+    assert "value / chart_total_weight if chart_total_weight > 0.0 else 0.0" in method
+    assert '"value": normalized_value if least else value' in method
+    assert '/ float(row.get("total_weight") or 1.0)' in method
+    assert "Bottom {display_limit} charts" in method
+    assert "display_limit = min(20, len(rows))" in method
+    assert 'show_glyphs = not least or float(row["value"]) > chart_average' in method
+    assert "if show_glyphs and len(shared_signs) >= 2:" in method
+    assert 'sun_color = "#ffd966" if least else "#39ff14"' in ranking_panel_source
 
 
 def test_rankings_panel_uses_current_chart_uids_and_sequence_weight_loading():
@@ -160,10 +180,12 @@ def test_rankings_links_use_chart_uids_for_navigation_targets():
     )[0]
 
     assert 'target_chart_uid = self._normalized_chart_uid_key(normalized_target)' in app_link_method
-    assert 'trait_uid_map = get_chart_uid_map(row.get("chart_id") for row in trait_rankings)' in rankings_refresh
-    assert 'row["chart_uid"] = chart_uid' in rankings_refresh
+    assert 'database_chart_uids = tuple(' in rankings_refresh
+    assert 'get_chart_uid_map(database_chart_ids).values()' in rankings_refresh
+    assert 'chart_uids=database_chart_uids' in rankings_refresh
+    assert 'chart_ids=database_chart_ids' not in rankings_refresh
     assert 'chart_uid = str(row.get("chart_uid", "") or "").strip()' in renderer
-    assert 'chart_target = chart_uid or (str(chart_id) if chart_id else "")' in renderer
+    assert 'chart_target = chart_uid' in renderer
     assert 'open_link(normalized_target, transition_to_chart_view=True)' in link_handler
 
 
@@ -180,8 +202,8 @@ def test_trait_rankings_default_to_database_until_manual_rank_selected():
     )[0]
 
     assert 'QPushButton("rank selected")' in create_method
-    assert "_traits_distribution_latest_selected_chart_ids" in click_method
-    assert "_traits_distribution_manual_rank_chart_ids = current_selection" in click_method
+    assert "_traits_distribution_latest_selected_chart_uids" in click_method
+    assert "_traits_distribution_manual_rank_chart_uids = current_selection" in click_method
     assert 'rankings_mode = self._traits_distribution_display_mode() == "trait_rankings"' in render_method
     assert "if rankings_mode and manual_rank_ids:" in render_method
     assert "selection_analytics = self._collect_traits_distribution_analytics" in render_method.split(
@@ -189,7 +211,7 @@ def test_trait_rankings_default_to_database_until_manual_rank_selected():
     )[1]
     assert "elif rankings_mode:" in render_method
     assert "selection_analytics = copy.deepcopy(database_analytics)" in render_method.split("elif rankings_mode:", 1)[1]
-    assert "ranking_scope_ids = database_chart_ids" in render_method
+    assert "ranking_scope_uids = database_rank_uids" in render_method
     assert 'ranking_scope_label = "the database"' in render_method
     assert 'ranking_scope_label = "the manually ranked selection"' in render_method
     assert "rank_selected_button.setEnabled(has_current_selection or bool(manual_rank_ids))" in render_method
@@ -207,8 +229,8 @@ def test_hiding_current_trait_ranking_members_refreshes_cached_top_ten():
     app_source = _app_source()
     hide_method = app_source.split("def _hide_selected_charts", 1)[1].split("def _unhide_selected_charts", 1)[0]
 
-    assert "_traits_distribution_current_ranked_chart_ids" in refresh_method
-    assert "set(hidden_chart_ids) & set(current_ranked_ids)" in refresh_method
+    assert "_traits_distribution_current_ranked_chart_uids" in refresh_method
+    assert "hidden_uids & set(current_ranked_uids)" in refresh_method
     rankings_panel_source = _ranking_panel_source()
     rankings_refresh_method = rankings_panel_source.split(
         "def _refresh_rankings_after_hidden_chart_change", 1
@@ -216,7 +238,7 @@ def test_hiding_current_trait_ranking_members_refreshes_cached_top_ten():
 
     assert "self._refresh_traits_distribution_rankings_from_cached_context()" in refresh_method
     assert "self._traits_distribution_rank_context =" in render_method
-    assert "self._traits_distribution_current_ranked_chart_ids" in render_method
+    assert "self._traits_distribution_current_ranked_chart_uids" in render_method
     assert "_refresh_traits_distribution_rankings_after_hidden_chart_change" in hide_method
     assert "_refresh_rankings_after_hidden_chart_change" in hide_method
     assert 'getattr(self, "_active_left_panel", None) != "rankings"' in rankings_refresh_method

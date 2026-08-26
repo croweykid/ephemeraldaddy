@@ -1,0 +1,36 @@
+#The Sidereal vs Tropical Argument
+
+The best pro-tropical argument is:
+
+**Astrology is not primarily mapping “where the planet is among the stars.” It is mapping where the planet is within Earth’s solar-year field: light, season, declination, angular relationship to horizon, and the equinox/solstice cycle.**
+
+Precession does not refute tropical astrology. It only refutes the claim that tropical Aries still equals the constellation Aries. But serious tropical astrology is not claiming that. Tropical Aries = the first 30 degrees after the March equinox, not “the stars of Aries.” NASA describes equinoxes as Earth-Sun tilt/light events, and precession as a slow change in Earth’s axial orientation; that is exactly why tropical and sidereal frames drift apart over time [NASA equinox overview](https://science.nasa.gov/solar-system/skywatching/night-sky-network/embracing-the-equinox/), [NASA on precession](https://science.nasa.gov/earth/earth-observatory/earths-orbital-precession-541/).
+
+The argument, distilled:
+
+| Tropical Claim                         | Why It Matters                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------------------- |
+| `0 Aries` is the March equinox         | The zodiac begins with the annual renewal point of solar light, not a star group. |
+| `0 Cancer` is the June solstice        | Maximum northern solar ascent/light.                                              |
+| `0 Libra` is the September equinox     | Balance point: day/night symmetry.                                                |
+| `0 Capricorn` is the December solstice | Minimum northern solar light, turning point upward.                               |
+
+That structure is hard to dismiss because the sign meanings are packed with seasonal logic: Aries initiates, Cancer protects/nests, Libra balances, Capricorn consolidates/endures. You can argue about whether that symbolism “works,” but it is not random. It is an Earth-Sun symbolic machine.
+
+The second strong argument: **sidereal astrology does not actually use the visible constellations either.** Most sidereal systems still divide the ecliptic into twelve equal 30-degree signs. But the real constellations are unequal in size. So sidereal is usually not “astronomy-accurate constellation astrology”; it is a star-anchored 30-degree zodiac. That is valid as a symbolic system, but it should not get to claim perfect realism while tropical gets called fake for using a symbolic frame. Astrodienst gives the clean distinction: tropical fixes `0 Aries` to the vernal equinox; sidereal fixes zodiacal signs closer to the star background, with an ayanamsha offset between the two systems [Astrodienst on precession](https://www.astro.com/astrowiki/en/Precession), [Astrodienst on sidereal zodiac](https://www.astro.com/astrowiki/en/Sidereal_zodiac).
+
+The third argument: **tropical better preserves the original logic of Western astrology’s seasonal qualities.** Classical Western sign descriptions are full of hot/cold, wet/dry, diurnal/nocturnal, increase/decrease of light, equinoctial/tropical signs, etc. Those concepts are not mainly stellar. They are solar-year concepts. If Western astrology’s interpretive grammar is seasonal, then tropical is the cleaner coordinate system.
+
+The fourth argument: **precession makes tropical more honest, not less.** Tropical says: “The equinox point moves relative to the stars, and we are choosing the equinox point anyway.” Sidereal says: “We choose a stellar reference point,” but then must answer: which ayanamsha? Lahiri? Raman? Fagan-Bradley? Krishnamurti? Yukteswar? That disagreement can move placements by meaningful degrees. Sidereal has a real anchoring problem too; it is just less obvious to casual users.
+
+The best anti-tropical argument is the Southern Hemisphere problem. If Aries is spring-coded, what does that mean for someone born in Argentina or South Africa during autumn? Tropical defenders usually answer one of three ways:
+
+1. The zodiac is based on the northern-origin symbolic tradition, so the symbolism is inherited rather than local-seasonal.
+2. The equinox/solstice points are global Earth-Sun events even if local seasons invert.
+3. Signs are not literal weather; they are abstract phases of the solar cycle.
+
+I think answer 2 is the strongest, but the Southern Hemisphere objection is not trivial. 
+
+**Tropical is the stronger system for Western astrology specifically**, because Western sign meanings are deeply tied to equinox/solstice logic. **Sidereal is stronger if your claim is that signs are anchored to fixed stars, traditional nakshatra assignments, or older star-based divination.** But sidereal does not automatically defeat tropical just by invoking precession. Precession only proves they are different coordinate systems. It does not prove which symbolic target astrology should prioritize.
+
+Note: this app uses tropical degrees for nakshatra calculation, in keeping with Vic DiCara's method (and that of some other contemporaries).

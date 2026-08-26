@@ -48,6 +48,7 @@ from ephemeraldaddy.gui.tooltips import (
 )
 from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY_PREFIXES
 from ephemeraldaddy.gui.style import (
+    apply_button_cursor,
     apply_shared_dropdown_style,
     CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_HIGHLIGHT_COLOR,
@@ -69,6 +70,7 @@ from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
     update_custom_astro_twin_preset,
 )
 from ephemeraldaddy.gui.features.predictions.ocean_settings import OCEAN_WEIGHT_ROWS
+from ephemeraldaddy.gui.settings.percentage_weights import update_percentage_weight_constraints
 from ephemeraldaddy.core.diagnostics import (
     DEFAULT_ERROR_REPORTING_MODE,
     ErrorReportingMode,
@@ -1396,7 +1398,7 @@ class MetadataMigrationPanel(QDialog):
         layout.addWidget(get_bio_button)
 
         get_bio_caption = QLabel(
-            "Imports biography from Astrotheme for selected chart(s). "
+            "Imports biography from Wikipedia for selected chart(s). "
             "When multiple charts are selected, requests are delayed 1–6 seconds each."
         )
         get_bio_caption.setWordWrap(True)
@@ -3149,8 +3151,19 @@ def build_predictions_settings_section(
     ocean_grid.addWidget(QLabel("Use"), 0, 0, alignment=Qt.AlignCenter)
     ocean_grid.addWidget(QLabel("Scoring category"), 0, 1)
     ocean_grid.addWidget(QLabel("Contribution"), 0, 2)
+    ocean_grid.addWidget(QLabel("Total"), 0, 3, alignment=Qt.AlignCenter)
     ocean_checkboxes: dict[str, QCheckBox] = {}
     ocean_weight_spinboxes: dict[str, QDoubleSpinBox] = {}
+    ocean_total_label = QLabel("0.0%/100.0%")
+    ocean_total_label.setAlignment(Qt.AlignCenter | Qt.AlignTop)
+    ocean_grid.addWidget(
+        ocean_total_label,
+        1,
+        3,
+        len(OCEAN_WEIGHT_ROWS),
+        1,
+        alignment=Qt.AlignCenter | Qt.AlignTop,
+    )
     for row, (key, title, default_weight) in enumerate(OCEAN_WEIGHT_ROWS, start=1):
         checkbox = QCheckBox()
         checkbox.setAccessibleName(title)
@@ -3175,6 +3188,17 @@ def build_predictions_settings_section(
         ocean_grid.addWidget(spinbox, row, 2)
         ocean_checkboxes[key] = checkbox
         ocean_weight_spinboxes[key] = spinbox
+
+    def update_ocean_weight_constraints(*_args) -> None:
+        update_percentage_weight_constraints(
+            ocean_checkboxes, ocean_weight_spinboxes, ocean_total_label
+        )
+
+    for checkbox in ocean_checkboxes.values():
+        checkbox.toggled.connect(update_ocean_weight_constraints)
+    for spinbox in ocean_weight_spinboxes.values():
+        spinbox.valueChanged.connect(update_ocean_weight_constraints)
+    update_ocean_weight_constraints()
     section_layout.addLayout(ocean_grid)
 
     advanced_label = QLabel("Advanced")
@@ -3247,6 +3271,8 @@ def build_predictions_settings_section(
         "total_label": QLabel("disabled"),
         "ocean_checkboxes": ocean_checkboxes,
         "ocean_weight_spinboxes": ocean_weight_spinboxes,
+        "ocean_total_label": ocean_total_label,
+        "update_ocean_weight_constraints": update_ocean_weight_constraints,
     }
 
 
