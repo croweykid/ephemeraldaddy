@@ -2367,8 +2367,8 @@ class ChartListWidget(QListWidget):
     def _handle_letter_jump(self, event) -> bool:
         return _handle_list_letter_jump(self, event)
 
-# Database View / Manage Charts Window
-class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
+# Database View window
+class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
     _DATABASE_VIEW_PANEL_WIDTH_RATIOS: tuple[float, float, float] = (0.276, 0.447, 0.277)
     _DATABASE_VIEW_FALLBACK_SPLITTER_SIZES: tuple[int, int, int] = (387, 627, 388)
 
@@ -3764,8 +3764,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 "__database_metrics_cache_type__": "dict",
                 "items": [
                     [
-                        ManageChartsDialog._encode_database_metrics_cache_value(key),
-                        ManageChartsDialog._encode_database_metrics_cache_value(item_value),
+                        DatabaseViewWindow._encode_database_metrics_cache_value(key),
+                        DatabaseViewWindow._encode_database_metrics_cache_value(item_value),
                     ]
                     for key, item_value in value.items()
                 ],
@@ -3774,7 +3774,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return {
                 "__database_metrics_cache_type__": "set",
                 "items": [
-                    ManageChartsDialog._encode_database_metrics_cache_value(item)
+                    DatabaseViewWindow._encode_database_metrics_cache_value(item)
                     for item in value
                 ],
             }
@@ -3782,13 +3782,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return {
                 "__database_metrics_cache_type__": "tuple",
                 "items": [
-                    ManageChartsDialog._encode_database_metrics_cache_value(item)
+                    DatabaseViewWindow._encode_database_metrics_cache_value(item)
                     for item in value
                 ],
             }
         if isinstance(value, list):
             return [
-                ManageChartsDialog._encode_database_metrics_cache_value(item)
+                DatabaseViewWindow._encode_database_metrics_cache_value(item)
                 for item in value
             ]
         return value
@@ -3797,29 +3797,29 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _decode_database_metrics_cache_value(value: Any) -> Any:
         if isinstance(value, list):
             return [
-                ManageChartsDialog._decode_database_metrics_cache_value(item)
+                DatabaseViewWindow._decode_database_metrics_cache_value(item)
                 for item in value
             ]
         if isinstance(value, dict):
             cache_type = value.get("__database_metrics_cache_type__")
             if cache_type == "dict":
                 return {
-                    ManageChartsDialog._decode_database_metrics_cache_value(key):
-                    ManageChartsDialog._decode_database_metrics_cache_value(item_value)
+                    DatabaseViewWindow._decode_database_metrics_cache_value(key):
+                    DatabaseViewWindow._decode_database_metrics_cache_value(item_value)
                     for key, item_value in value.get("items", [])
                 }
             if cache_type == "set":
                 return {
-                    ManageChartsDialog._decode_database_metrics_cache_value(item)
+                    DatabaseViewWindow._decode_database_metrics_cache_value(item)
                     for item in value.get("items", [])
                 }
             if cache_type == "tuple":
                 return tuple(
-                    ManageChartsDialog._decode_database_metrics_cache_value(item)
+                    DatabaseViewWindow._decode_database_metrics_cache_value(item)
                     for item in value.get("items", [])
                 )
             return {
-                key: ManageChartsDialog._decode_database_metrics_cache_value(item_value)
+                key: DatabaseViewWindow._decode_database_metrics_cache_value(item_value)
                 for key, item_value in value.items()
             }
         return value
@@ -7573,7 +7573,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if item is None:
             return None
         raw_chart_uid = item.data(Qt.UserRole) or item.data(Qt.UserRole + 2)
-        return ManageChartsDialog._normalized_chart_uid_key(raw_chart_uid)
+        return DatabaseViewWindow._normalized_chart_uid_key(raw_chart_uid)
 
     @staticmethod
     def _item_local_row_id(item: QListWidgetItem | None) -> int | None:
@@ -9797,7 +9797,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     @staticmethod
     def _normalized_location_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
-        city, state, country = ManageChartsDialog._extract_birthplace_components(raw_place)
+        city, state, country = DatabaseViewWindow._extract_birthplace_components(raw_place)
         canonical_city = normalize_city(city or "", country)
         canonical_country = normalize_country(country) if country else None
         canonical_state = None
@@ -25204,9 +25204,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
 #Familiarity Calculator Window
 
+# Transitional compatibility alias for third-party imports.  Internal callers use
+# DatabaseViewWindow; delete this alias once downstream integrations have migrated.
+ManageChartsDialog = DatabaseViewWindow
+
 #Main Window Begins
 class MainWindow(AspectPopoutMixin, QMainWindow):
-    _update_sentiment_tally = ManageChartsDialog._update_sentiment_tally
+    _update_sentiment_tally = DatabaseViewWindow._update_sentiment_tally
 
     def _window_chrome_commands(self) -> WindowChromeCommands:
         """Return Chart Editor's explicit app-menu command boundary."""
@@ -26989,7 +26993,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _least_similar_matches_from_similarity_ranking(self, matches: list[Any]) -> list[Any]:
         return sorted(list(matches), key=lambda match: (float(match.score), int(match.chart_id)))
 
-    def _database_view_dialog_for_chart_link_transition(self) -> ManageChartsDialog | None:
+    def _database_view_dialog_for_chart_link_transition(self) -> DatabaseViewWindow | None:
         manage_dialog = self._manage_charts_dialog
         if manage_dialog is None or not manage_dialog.isVisible():
             return None
@@ -26998,7 +27002,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _database_view_display_chart_ids_by_uid(self) -> dict[str, int]:
         """Snapshot Database View's current-sort presentation ranks for Chart Editor."""
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        if not isinstance(manage_dialog, ManageChartsDialog):
+        if not isinstance(manage_dialog, DatabaseViewWindow):
             return {}
         return dict(getattr(manage_dialog, "_display_chart_id_by_chart_uid", {}))
 
@@ -27276,7 +27280,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _refresh_similarity_algorithm_accuracy_label(self) -> None:
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        if isinstance(manage_dialog, ManageChartsDialog):
+        if isinstance(manage_dialog, DatabaseViewWindow):
             manage_dialog._refresh_similarity_algorithm_accuracy_label()
 
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
@@ -36023,11 +36027,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._manage_charts_pending_changed_uids.clear()
         self._manage_charts_full_refresh_pending = False
 
-    def _get_or_create_manage_charts_dialog(self) -> ManageChartsDialog:
+    def _get_or_create_manage_charts_dialog(self) -> DatabaseViewWindow:
         # Be tolerant of partially initialized/restored MainWindow instances;
         # startup must always be able to create the default database view.
         if getattr(self, "_manage_charts_dialog", None) is None:
-            self._manage_charts_dialog = ManageChartsDialog(self)
+            self._manage_charts_dialog = DatabaseViewWindow(self)
             self._manage_charts_dialog.setWindowModality(Qt.NonModal)
         return self._manage_charts_dialog
 

@@ -109,7 +109,7 @@ def test_trait_rankings_are_moved_to_rankings_panel():
     assert '("Trait Predictions", "trait_predictions")' in create_method
     assert '("Trait Rankings", "trait_rankings")' not in create_method
     assert 'from ephemeraldaddy.gui.ranking_panel import RankingsPanelMixin' in app_source
-    assert 'class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):' in app_source
+    assert 'class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):' in app_source
     assert 'self.rankings_panel_button = QPushButton("🏆")' in app_source
     assert '"rankings": self.rankings_panel_scroll' in app_source
     assert '"🧬Traits"' in ranking_panel_source

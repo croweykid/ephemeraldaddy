@@ -5,7 +5,7 @@ APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
 
 
 def test_database_view_collection_save_notifies_chart_editor_predictions():
-    database_view = APP_SOURCE.split("class ManageChartsDialog", 1)[1].split("class MainWindow", 1)[0]
+    database_view = APP_SOURCE.split("class DatabaseViewWindow", 1)[1].split("class MainWindow", 1)[0]
     save_method = database_view.split("def _save_custom_collections_to_settings", 1)[1].split(
         "@staticmethod", 1
     )[0]

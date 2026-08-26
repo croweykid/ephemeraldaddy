@@ -13,7 +13,7 @@ def _class_source(name: str, next_name: str | None = None) -> str:
 
 
 def test_database_view_hidden_and_visible_state_is_uid_owned():
-    source = _class_source("ManageChartsDialog", "MainWindow")
+    source = _class_source("DatabaseViewWindow", "MainWindow")
 
     assert "self._hidden_chart_uids" in source
     assert "self._hidden_local_row_ids =" not in source
@@ -32,7 +32,7 @@ def test_chart_editor_hidden_state_is_uid_owned():
 
 
 def test_batch_refresh_does_not_retain_parallel_local_ids():
-    source = _class_source("ManageChartsDialog", "MainWindow")
+    source = _class_source("DatabaseViewWindow", "MainWindow")
 
     assert "_pending_batch_refresh_uids" in source
     assert "_pending_batch_refresh_ids" not in source
@@ -50,7 +50,7 @@ def test_similar_charts_worker_owns_uid_identity_only():
 
 
 def test_inline_rename_identity_is_uid_owned():
-    source = _class_source("ManageChartsDialog", "MainWindow")
+    source = _class_source("DatabaseViewWindow", "MainWindow")
 
     assert "_inline_rename_chart_uid" in source
     assert "_inline_rename_chart_id" not in source
@@ -59,7 +59,7 @@ def test_inline_rename_identity_is_uid_owned():
 
 
 def test_possible_duplicate_controller_state_is_uid_keyed():
-    source = _class_source("ManageChartsDialog", "MainWindow")
+    source = _class_source("DatabaseViewWindow", "MainWindow")
 
     assert "_possible_duplicate_chart_uids" in source
     assert "_possible_duplicate_related_names_by_uid" in source
@@ -83,7 +83,7 @@ def test_trait_ranking_selection_state_is_uid_owned():
 
 
 def test_database_metrics_dirty_and_snapshot_state_is_uid_keyed():
-    source = _class_source("ManageChartsDialog", "MainWindow")
+    source = _class_source("DatabaseViewWindow", "MainWindow")
 
     assert "_database_metric_snapshots_by_uid: dict[str" in source
     assert "_database_metrics_lucy_goosey_uids: set[str]" in source
@@ -93,7 +93,7 @@ def test_database_metrics_dirty_and_snapshot_state_is_uid_keyed():
 
 
 def test_active_and_displayed_row_caches_are_uid_keyed():
-    source = _class_source("ManageChartsDialog", "MainWindow")
+    source = _class_source("DatabaseViewWindow", "MainWindow")
 
     assert "_active_chart_rows_by_uid: dict[str" in source
     assert "_displayed_chart_rows_by_uid: dict[str" in source
@@ -102,7 +102,7 @@ def test_active_and_displayed_row_caches_are_uid_keyed():
 
 
 def test_displayed_row_uid_is_normalized_before_cache_insertion():
-    source = _class_source("ManageChartsDialog", "MainWindow")
+    source = _class_source("DatabaseViewWindow", "MainWindow")
     populate_source = source[source.index("    def _populate_list(") :]
 
     normalize_uid = populate_source.index(
@@ -162,7 +162,7 @@ def test_high_similarity_and_worker_callers_pass_hidden_uids():
 
 
 def test_weirdness_metadata_cache_is_uid_keyed():
-    source = _class_source("ManageChartsDialog", "MainWindow")
+    source = _class_source("DatabaseViewWindow", "MainWindow")
 
     assert "_weirdness_cache_metadata_by_uid" in source
     assert "_weirdness_cache_metadata_by_id" not in source
