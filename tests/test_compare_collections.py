@@ -89,12 +89,13 @@ def test_shared_column_export_combines_both_collections_independently():
         Counter({sun: 20}),
         Counter({sun: 20}),
         Counter({sun: 100}),
+        cohort_size=35,
     )
 
     profile = build_similarities_json_export_payload("Shared", sections)["Shared"]
 
     assert profile["positions"] == {"Sun in Aries": 50}
-    assert profile["samples"] == [20, 0]
+    assert profile["samples"] == [35, 0]
 
 
 def test_collection_export_accepts_every_similarities_analysis_factor_section():

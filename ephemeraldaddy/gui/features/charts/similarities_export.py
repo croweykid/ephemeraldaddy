@@ -384,6 +384,13 @@ def sort_similarities_json_aspects(profile: OrderedDict) -> None:
 def _similarities_export_sample_size(export_sections) -> int:
     for _section_title, matches in export_sections or []:
         for match in matches or []:
+            if len(match) > 7:
+                try:
+                    cohort_size = int(match[7])
+                except (TypeError, ValueError):
+                    cohort_size = 0
+                if cohort_size > 0:
+                    return cohort_size
             if len(match) < 3:
                 continue
             try:

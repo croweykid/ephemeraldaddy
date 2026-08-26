@@ -56,6 +56,8 @@ def collection_trait_export_sections(
     known_totals: Counter[CollectionNorm],
     database_counts: Counter[CollectionNorm],
     database_known_totals: Counter[CollectionNorm],
+    *,
+    cohort_size: int | None = None,
 ) -> tuple[tuple[str, tuple[tuple[object, ...], ...]], ...]:
     """Adapt one comparison column to the Similarities trait exporter shape."""
     matches_by_section: dict[str, list[tuple[object, ...]]] = {}
@@ -76,6 +78,8 @@ def collection_trait_export_sections(
                 database_counts[norm],
                 database_known_totals[norm],
                 (),
+                "",
+                max(0, int(cohort_size)) if cohort_size is not None else 0,
             )
         )
     return tuple(

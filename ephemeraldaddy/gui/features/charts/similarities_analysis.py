@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from html import escape as _html_escape
 from typing import Any, Callable, Mapping, Protocol
@@ -365,12 +366,24 @@ def _build_similarity_factor_counts(
 def build_similarity_factor_counts_for_charts(
     provider: DissimilaritiesFactorProvider,
     charts: list[Any],
+    *,
+    exclude_uncertain_signs: bool = False,
 ) -> dict[str, tuple[dict[str, int], dict[str, int]]]:
     """Count every factor used by Similarities Analysis for an object cohort."""
     charts = [chart for chart in charts if chart is not None]
+    if exclude_uncertain_signs:
+        charts = [_chart_without_uncertain_signs(chart) for chart in charts]
     chart_count = len(charts)
     time_specific_chart_count = sum(1 for chart in charts if chart_uses_houses(chart))
     angular_bodies = ASPECT_DISPLAY_ANGLE_BODIES
+    known_body_totals = {
+        body: sum(
+            body in (getattr(chart, "positions", {}) or {})
+            and (getattr(chart, "positions", {}) or {}).get(body) is not None
+            for chart in charts
+        )
+        for body in PLANET_ORDER
+    }
 
     sections: dict[str, tuple[dict[str, int], dict[str, int]]] = {}
 
@@ -398,7 +411,9 @@ def build_similarity_factor_counts_for_charts(
                 add_position(
                     "Signs in positions in contrast",
                     f"{body_label} in {sign_for_longitude(lon)}",
-                    chart_count,
+                    known_body_totals.get(body, chart_count)
+                    if exclude_uncertain_signs
+                    else chart_count,
                 )
             if use_houses:
                 house_num = house_for_longitude(getattr(chart, "houses", None), lon)
@@ -471,9 +486,21 @@ def build_similarity_factor_counts_for_charts(
             body_a, body_b = sorted([p1_label, p2_label])
             aspect_label = f"{body_a} {_aspect_label(aspect_type).lower()} {body_b}"
             chart_aspects[aspect_label] = (
-                time_specific_chart_count
-                if raw_p1 in angular_bodies or raw_p2 in angular_bodies
-                else chart_count
+                sum(
+                    (raw_p1 in (getattr(candidate, "positions", {}) or {}))
+                    and (raw_p2 in (getattr(candidate, "positions", {}) or {}))
+                    and (
+                        (raw_p1 not in angular_bodies and raw_p2 not in angular_bodies)
+                        or chart_uses_houses(candidate)
+                    )
+                    for candidate in charts
+                )
+                if exclude_uncertain_signs
+                else (
+                    time_specific_chart_count
+                    if raw_p1 in angular_bodies or raw_p2 in angular_bodies
+                    else chart_count
+                )
             )
         for aspect_label, total in chart_aspects.items():
             add("Aspects in contrast", aspect_label, total)
@@ -515,6 +542,31 @@ def build_similarity_factor_counts_for_charts(
             add("BaZi signs in contrast", sign)
 
     return sections
+
+
+def _chart_without_uncertain_signs(chart: Any) -> Any:
+    """Copy a chart with uncertain bodies removed from direct and derived astrology."""
+    uncertain = {
+        str(body).strip().casefold()
+        for body in (getattr(chart, "unknown_signs", ()) or ())
+        if str(body).strip()
+    }
+    if not uncertain:
+        return chart
+    filtered = copy.copy(chart)
+    filtered.positions = {
+        body: longitude
+        for body, longitude in (getattr(chart, "positions", {}) or {}).items()
+        if str(body).strip().casefold() not in uncertain
+    }
+    for attribute in (
+        "dominant_sign_weights",
+        "dominant_planet_weights",
+        "dominant_element_weights",
+    ):
+        if hasattr(filtered, attribute):
+            setattr(filtered, attribute, None)
+    return filtered
 
 
 def build_dissimilarity_export_sections(
