@@ -33,6 +33,7 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
 )
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.gui.style import (
+    COLLAPSIBLE_HEADER_LEVEL_PARENT,
     DROPDOWN_ACCENT_ITEM_TEXT_COLOR,
     DROPDOWN_MUTED_ITEM_TEXT_COLOR,
     set_dropdown_item_text_color,
@@ -105,15 +106,21 @@ class RankingsPanelMixin:
             layout,
             "♏ Sign Dominance",
             expanded=True,
+            nested=True,
+            hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_PARENT,
             on_toggled=lambda expanded: self._on_rankings_section_toggled(
                 "sign_dominance", expanded
             ),
         )
-        most_sign_heading = QLabel("Most Dominant Sign")
-        most_sign_heading.setStyleSheet(
-            "font-weight: 700; color: #f5f5f5; font-size: 9pt;"
+        most_sign_layout = self._add_left_panel_collapsible_section(
+            panel,
+            signs_layout,
+            "Most Dominant Sign",
+            expanded=True,
+            on_toggled=lambda expanded: (
+                self._refresh_rankings_panel({"sign_dominance"}) if expanded else None
+            ),
         )
-        signs_layout.addWidget(most_sign_heading)
         sign_row = QWidget()
         sign_row_layout = QHBoxLayout(sign_row)
         sign_row_layout.setContentsMargins(0, 0, 0, 0)
@@ -127,7 +134,7 @@ class RankingsPanelMixin:
             lambda _index: self._refresh_rankings_panel({"sign_dominance"})
         )
         sign_row_layout.addWidget(self.rankings_sign_combo, 1)
-        signs_layout.addWidget(sign_row)
+        most_sign_layout.addWidget(sign_row)
         self.rankings_signs_label = QLabel("")
         self.rankings_signs_label.setTextFormat(Qt.RichText)
         self.rankings_signs_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
@@ -144,13 +151,17 @@ class RankingsPanelMixin:
         )
         self.rankings_signs_label.setWordWrap(True)
         self.rankings_signs_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
-        signs_layout.addWidget(self.rankings_signs_label)
+        most_sign_layout.addWidget(self.rankings_signs_label)
 
-        least_sign_heading = QLabel("Least Dominant Sign")
-        least_sign_heading.setStyleSheet(
-            "font-weight: 700; color: #f5f5f5; font-size: 9pt;"
+        least_sign_layout = self._add_left_panel_collapsible_section(
+            panel,
+            signs_layout,
+            "Least Dominant Sign",
+            expanded=True,
+            on_toggled=lambda expanded: (
+                self._refresh_rankings_panel({"sign_dominance"}) if expanded else None
+            ),
         )
-        signs_layout.addWidget(least_sign_heading)
         least_sign_row = QWidget()
         least_sign_row_layout = QHBoxLayout(least_sign_row)
         least_sign_row_layout.setContentsMargins(0, 0, 0, 0)
@@ -164,7 +175,7 @@ class RankingsPanelMixin:
             lambda _index: self._refresh_rankings_panel({"sign_dominance"})
         )
         least_sign_row_layout.addWidget(self.rankings_least_sign_combo, 1)
-        signs_layout.addWidget(least_sign_row)
+        least_sign_layout.addWidget(least_sign_row)
         self.rankings_least_signs_label = QLabel("")
         self.rankings_least_signs_label.setTextFormat(Qt.RichText)
         self.rankings_least_signs_label.setTextInteractionFlags(
@@ -185,7 +196,7 @@ class RankingsPanelMixin:
         self.rankings_least_signs_label.setStyleSheet(
             "color: #d8d8d8; padding: 2px 0 6px 0;"
         )
-        signs_layout.addWidget(self.rankings_least_signs_label)
+        least_sign_layout.addWidget(self.rankings_least_signs_label)
         layout.addStretch(1)
         return panel
 
@@ -643,7 +654,9 @@ class RankingsPanelMixin:
         except (TypeError, ValueError):
             return None
 
-    def _sign_dominance_chart_name_style(self, chart: Any, selected_sign: str) -> str:
+    def _sign_dominance_chart_name_style(
+        self, chart: Any, selected_sign: str, *, least: bool = False
+    ) -> str:
         sun_matches = self._rankings_chart_body_sign(chart, "Sun") == selected_sign
         moon_matches = self._rankings_chart_body_sign(chart, "Moon") == selected_sign
         rising_matches = (
@@ -653,7 +666,9 @@ class RankingsPanelMixin:
         css_parts = ["text-decoration:none"]
         if not sun_matches:
             css_parts.append("font-style:italic")
-        if sun_matches and moon_matches:
+        if least and sun_matches:
+            css_parts.append("color:#ffd966")
+        elif sun_matches and moon_matches:
             css_parts.append("color:#39ff14")
         elif moon_matches and not sun_matches:
             css_parts.append("color:#5dade2")
@@ -664,14 +679,15 @@ class RankingsPanelMixin:
         return "; ".join(css_parts)
 
     @staticmethod
-    def _sign_dominance_key_html(selected_sign: str) -> str:
+    def _sign_dominance_key_html(selected_sign: str, *, least: bool = False) -> str:
         """Return the visual key for chart-name styling in dominance rankings."""
         safe_sign = html.escape(selected_sign)
+        sun_color = "#ffd966" if least else "#39ff14"
         entries = (
-            ("font-weight:700; color:#39ff14", f"Sun/Moon/AS all in {safe_sign}"),
-            ("color:#39ff14", f"Sun/Moon in {safe_sign}"),
+            (f"font-weight:700; color:{sun_color}", f"Sun/Moon/AS all in {safe_sign}"),
+            (f"color:{sun_color}", f"Sun/Moon in {safe_sign}"),
             ("font-style:italic; color:#f0f0f0", f"AS in {safe_sign}"),
-            ("color:#f0f0f0", f"Sun in {safe_sign}"),
+            (f"color:{sun_color}", f"Sun in {safe_sign}"),
             ("font-style:italic; color:#5dade2", f"Moon in {safe_sign}"),
         )
         return "<div style='padding:0 0 4px 8px;'>" + "<br>".join(
@@ -746,7 +762,7 @@ class RankingsPanelMixin:
                     "value": value,
                     "weights": weights,
                     "name_style": self._sign_dominance_chart_name_style(
-                        chart, selected_sign
+                        chart, selected_sign, least=least
                     ),
                 }
             )
@@ -770,16 +786,6 @@ class RankingsPanelMixin:
         setattr(self, tooltip_attribute, dominance_tooltips)
         if not db_average and db_count:
             db_average = sum(float(row["value"]) for row in rows) / float(db_count)
-        if least:
-            rows = [
-                row
-                for row in rows
-                if (row.get("weights") or {})
-                and float(row["value"])
-                == min(
-                    float(value or 0.0) for value in (row.get("weights") or {}).values()
-                )
-            ]
         value_direction = 1.0 if least else -1.0
         rows.sort(
             key=lambda row: (
@@ -815,7 +821,7 @@ class RankingsPanelMixin:
         deepest_shared_rank = max(shared_top_20_ranks, default=0)
         display_limit = min(20, max(10 + shared_top_20_count, deepest_shared_rank))
         if least:
-            display_limit = len(rows)
+            display_limit = min(20, len(rows))
 
         table_rows = []
         for rank, row in enumerate(rows[:display_limit], start=1):
@@ -828,7 +834,13 @@ class RankingsPanelMixin:
             )
             glyph_html = ""
             shared_signs = sign_top_20_memberships.get(chart_key, [])
-            if len(shared_signs) >= 2:
+            chart_weights = row.get("weights") or {}
+            chart_average = (
+                sum(float(chart_weights.get(sign, 0.0) or 0.0) for sign in ZODIAC_NAMES)
+                / len(ZODIAC_NAMES)
+            )
+            show_glyphs = not least or float(row["value"]) > chart_average
+            if show_glyphs and len(shared_signs) >= 2:
                 glyph_html = " " + "".join(
                     f"<span style='color:{html.escape(str(SIGN_COLORS.get(sign, '#d8d8d8')))};'>{html.escape(sign_glyphs.get(sign, ''))}</span>"
                     for sign in shared_signs
@@ -856,8 +868,8 @@ class RankingsPanelMixin:
             )
             return
         label.setText(
-            f"<div style='padding-bottom:3px;'>{f'All charts whose least dominant sign is <b>{safe_sign}</b>' if least else f'Top {display_limit} charts by <b>{safe_sign}</b> dominance'} in the database.</div>"
-            f"{self._sign_dominance_key_html(selected_sign)}"
+            f"<div style='padding-bottom:3px;'>{f'Bottom {display_limit} charts by <b>{safe_sign}</b> dominance' if least else f'Top {display_limit} charts by <b>{safe_sign}</b> dominance'} in the database.</div>"
+            f"{self._sign_dominance_key_html(selected_sign, least=least)}"
             "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
             "<tr><th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>#</th>"
             "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:left;'>chart</th>"
