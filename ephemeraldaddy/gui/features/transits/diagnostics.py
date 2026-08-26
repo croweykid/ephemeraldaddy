@@ -1,4 +1,4 @@
-"""Terminal diagnostics for Personal Transit chart inputs."""
+"""Validation and refresh helpers for Personal Transit natal inputs."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def _effective_datetime(chart: Any) -> datetime.datetime | None:
 
 
 def _fresh_derived_snapshot(chart: Any) -> dict[str, Any]:
-    """Recalculate the persisted derived fields without mutating the loaded chart."""
+    """Recalculate persisted derived fields from canonical natal inputs."""
     moment = _effective_datetime(chart)
     if moment is None:
         raise ValueError("chart has no effective datetime")
@@ -46,6 +46,40 @@ def _fresh_derived_snapshot(chart: Any) -> dict[str, Any]:
         add_fortune()
     fresh_chart.aspects = find_aspects(fresh_chart.positions)
     return {field: copy.deepcopy(getattr(fresh_chart, field, None)) for field in DERIVED_FIELDS}
+
+
+def _apply_fresh_derived_snapshot(chart: Any, fresh: Mapping[str, Any]) -> None:
+    """Replace loaded cache-derived fields with the freshly calculated values."""
+    for field in DERIVED_FIELDS:
+        if field in fresh:
+            setattr(chart, field, copy.deepcopy(fresh[field]))
+
+    modal_distribution = getattr(chart, "_modal_distribution", None)
+    if callable(modal_distribution):
+        try:
+            chart.modal_distribution = modal_distribution()
+        except Exception:
+            logger.exception(
+                "Personal transit natal refresh could not recompute modal distribution: chart_uid=%s chart=%r",
+                getattr(chart, "chart_uid", None),
+                getattr(chart, "name", ""),
+            )
+
+
+def refresh_natal_derived_state(
+    natal_chart: Any,
+    *,
+    snapshot_builder: Callable[[Any], dict[str, Any]] = _fresh_derived_snapshot,
+) -> dict[str, Any]:
+    """Refresh the natal fields consumed by Personal Transits in place.
+
+    Persisted derived values are an optimization, not an authority for this
+    correctness-sensitive calculation path.  Birth datetime/location and the
+    chart's time/rectification metadata are authoritative.
+    """
+    fresh = snapshot_builder(natal_chart)
+    _apply_fresh_derived_snapshot(natal_chart, fresh)
+    return fresh
 
 
 def _angular_difference(stored: Any, fresh: Any) -> float | None:
@@ -103,17 +137,25 @@ def log_natal_derived_cache_diagnostic(
     *,
     snapshot_builder: Callable[[Any], dict[str, Any]] = _fresh_derived_snapshot,
 ) -> None:
-    """Log every loaded derived-cache field beside a fresh recalculation."""
+    """Compare cached natal fields with fresh values, then use the fresh values.
+
+    This intentionally changes the old diagnostic-only behavior: Personal
+    Transits must never continue calculating from a known-stale natal cache.
+    """
     moment = _effective_datetime(natal_chart)
     identity = (
         f"chart_uid={getattr(natal_chart, 'chart_uid', None)} "
         f"chart={getattr(natal_chart, 'name', '')!r}"
     )
+    stored = {
+        field: copy.deepcopy(getattr(natal_chart, field, None))
+        for field in DERIVED_FIELDS
+    }
     try:
         fresh = snapshot_builder(natal_chart)
     except Exception:
         logger.exception(
-            "Personal transit derived-cache diagnostic failed: %s effective_datetime=%r",
+            "Personal transit natal refresh failed: %s effective_datetime=%r",
             identity,
             None if moment is None else moment.isoformat(),
         )
@@ -126,15 +168,18 @@ def log_natal_derived_cache_diagnostic(
     )
     mismatch_counts: dict[str, int] = {}
     for field in DERIVED_FIELDS:
-        stored_value = getattr(natal_chart, field, None)
+        stored_value = stored.get(field)
         fresh_value = fresh.get(field)
         if field in {"positions", "retrogrades"}:
             mismatch_counts[field] = _log_mapping(field, stored_value, fresh_value)
         else:
             mismatch_counts[field] = _log_sequence(field, stored_value, fresh_value)
+
+    _apply_fresh_derived_snapshot(natal_chart, fresh)
+
     logger.info(
         "Personal transit derived-cache diagnostic completed: %s mismatch_counts=%s "
-        "cache_mismatch=%s",
+        "cache_mismatch=%s refreshed_for_calculation=True",
         identity,
         mismatch_counts,
         any(mismatch_counts.values()),
