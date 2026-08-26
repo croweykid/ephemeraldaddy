@@ -17963,6 +17963,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             panel.update_selected_chart_label(
                 self._exclude_placeholder_local_row_ids(self._selected_local_row_ids())
             )
+        similarities_visible = (
+            self._left_panel_visible
+            and self._active_left_panel == "similarities"
+        )
+        if similarities_visible:
+            # Similarities is selection-driven, not a database-metrics refresh.
+            # Programmatic selection paths deliberately pass refresh_metrics=False,
+            # but the visible panel must still follow those selection changes.
+            self.similarities_controller.update_analysis(
+                self._selected_local_row_ids()
+            )
         if not refresh_metrics:
             self._update_selection_header()
             return
@@ -17972,10 +17983,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     self._left_panel_visible
                     and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
                 ),
-                update_similarities=(
-                    self._left_panel_visible
-                    and self._active_left_panel == "similarities"
-                ),
+                update_similarities=False,
             )
         finally:
             if active_left_scrollbar is not None and active_left_scroll_value is not None:
