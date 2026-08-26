@@ -17,8 +17,13 @@ class IncompleteWikipediaImportChoice(Enum):
 def missing_wikipedia_birth_fields(profile: Mapping[str, Any]) -> tuple[str, ...]:
     """Describe authoritative fields that Wikipedia could not provide."""
     missing: list[str] = []
-    if not all(profile.get(key) is not None for key in ("birth_year", "birth_month", "birth_day")):
-        missing.append("birth date")
+    for key, label in (
+        ("birth_year", "birth year"),
+        ("birth_month", "birth month"),
+        ("birth_day", "birth day"),
+    ):
+        if profile.get(key) is None:
+            missing.append(label)
     if not str(profile.get("birth_place", "") or "").strip():
         missing.append("birth place")
     return tuple(missing)

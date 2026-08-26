@@ -16,5 +16,13 @@ def test_missing_wikipedia_birth_fields_reports_only_unavailable_values():
 
 def test_missing_wikipedia_birth_fields_supports_fully_partial_profile():
     assert missing_wikipedia_birth_fields({"birth_place": "Exampleville"}) == (
-        "birth date",
+        "birth year",
+        "birth month",
+        "birth day",
     )
+
+
+def test_missing_wikipedia_birth_fields_preserves_known_year():
+    assert missing_wikipedia_birth_fields(
+        {"birth_year": 1946, "birth_place": "Exampleville"}
+    ) == ("birth month", "birth day")

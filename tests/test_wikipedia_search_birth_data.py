@@ -292,6 +292,49 @@ def test_parse_wikipedia_birth_data_rejects_partial_wikidata_date(monkeypatch):
         subject.parse_wikipedia_birth_data("Example Person")
 
 
+@pytest.mark.parametrize(
+    ("precision", "time_text", "expected"),
+    [
+        (9, "+1946-00-00T00:00:00Z", {"birth_year": 1946}),
+        (
+            10,
+            "+1946-07-00T00:00:00Z",
+            {"birth_year": 1946, "birth_month": 7},
+        ),
+    ],
+)
+def test_available_birth_data_preserves_wikidata_precision_components(
+    monkeypatch,
+    precision,
+    time_text,
+    expected,
+):
+    monkeypatch.setattr(
+        subject,
+        "_wikipedia_api_query",
+        lambda _params: _wiki_response("{{Infobox person|name=Example Person}}"),
+    )
+    monkeypatch.setattr(
+        subject,
+        "_wikidata_api_query",
+        lambda _params: {
+            "entities": {
+                "Q123": {
+                    "claims": {
+                        "P569": [_time_claim(time_text, precision=precision)],
+                        "P19": [],
+                    }
+                }
+            }
+        },
+    )
+
+    result = subject.parse_wikipedia_available_birth_data("Example Person")
+
+    assert {key: result[key] for key in expected} == expected
+    assert "birth_day" not in result
+
+
 def test_available_birth_data_preserves_place_when_date_is_missing(monkeypatch):
     monkeypatch.setattr(
         subject,

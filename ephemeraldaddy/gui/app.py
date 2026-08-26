@@ -13528,18 +13528,21 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
                 parent._reset_new_chart_form()
                 parent.name_edit.setText(profile_data["name"])
-                if not any(field == "birth date" for field in missing_fields):
-                    parent._set_birth_date_fields_from_qdate(
-                        QDate(
-                            profile_data["birth_year"],
-                            profile_data["birth_month"],
-                            profile_data["birth_day"],
-                        )
-                    )
-                else:
-                    parent.birth_month_edit.clear()
-                    parent.birth_day_edit.clear()
-                    parent.birth_year_edit.clear()
+                parent.birth_year_edit.setText(
+                    f"{profile_data['birth_year']:04d}"
+                    if profile_data.get("birth_year") is not None
+                    else ""
+                )
+                parent.birth_month_edit.setText(
+                    f"{profile_data['birth_month']:02d}"
+                    if profile_data.get("birth_month") is not None
+                    else ""
+                )
+                parent.birth_day_edit.setText(
+                    f"{profile_data['birth_day']:02d}"
+                    if profile_data.get("birth_day") is not None
+                    else ""
+                )
                 parent.place_edit.setText(profile_data["birth_place"])
                 parent.time_unknown_checkbox.setChecked(True)
                 data_rating_index = parent.data_rating_combo.findData("XX")
