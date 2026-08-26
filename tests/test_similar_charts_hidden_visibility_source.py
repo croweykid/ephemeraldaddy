@@ -116,6 +116,26 @@ def test_trait_rankings_are_moved_to_rankings_panel():
     assert '"♏ Sign Dominance"' in ranking_panel_source
     assert 'self.rankings_trait_combo' in ranking_panel_source
     assert 'self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
+    assert 'most_sign_layout = self._add_left_panel_collapsible_section(' in ranking_panel_source
+    assert 'least_sign_layout = self._add_left_panel_collapsible_section(' in ranking_panel_source
+    assert 'hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_PARENT' in ranking_panel_source
+    assert 'self.rankings_least_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
+
+
+def test_rankings_panel_least_sign_mode_ranks_lowest_scores_and_limits_glyphs():
+    ranking_panel_source = _ranking_panel_source()
+    method = ranking_panel_source.split("def _refresh_sign_dominance_ranking", 1)[1]
+
+    assert "value_direction = 1.0 if least else -1.0" in method
+    assert "value_direction * float(row[\"value\"])" in method
+    assert "value / chart_total_weight if chart_total_weight > 0.0 else 0.0" in method
+    assert '"value": normalized_value if least else value' in method
+    assert '/ float(row.get("total_weight") or 1.0)' in method
+    assert "Bottom {display_limit} charts" in method
+    assert "display_limit = min(20, len(rows))" in method
+    assert 'show_glyphs = not least or float(row["value"]) > chart_average' in method
+    assert "if show_glyphs and len(shared_signs) >= 2:" in method
+    assert 'sun_color = "#ffd966" if least else "#39ff14"' in ranking_panel_source
 
 
 def test_rankings_panel_uses_current_chart_uids_and_sequence_weight_loading():
