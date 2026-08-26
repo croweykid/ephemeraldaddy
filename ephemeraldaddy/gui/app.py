@@ -19282,6 +19282,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             self._chart_rows = []
         self._rebuild_hydrated_chart_identity_indexes()
+        # Collection counts depend on the hydrated UID index. Refresh them at
+        # the same boundary so initial load and chart additions/deletions do
+        # not leave stale ``(0)`` or membership counts in Collection Manager.
+        self._refresh_collection_list_widget()
         self._rankings_data_dirty = True
         if refresh_tag_completers:
             if progress_callback:
