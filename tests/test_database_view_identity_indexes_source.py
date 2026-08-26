@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
 
 
@@ -21,8 +20,12 @@ def test_hydrated_rows_build_bidirectional_uid_persistence_indexes():
 
 
 def test_filter_and_placeholder_hot_paths_do_not_query_for_uids():
+    filter_method = _method_source("_chart_matches_filters")
+    assert "chart_row: tuple[Any, ...]" in filter_method
+    assert "self._chart_uid_by_local_row_id" not in filter_method
+    assert "get_chart_uid(chart_id)" not in filter_method
+
     for method_name in (
-        "_chart_matches_filters",
         "_is_placeholder_local_row_id",
         "_is_similarities_placeholder_local_row_id",
     ):
@@ -66,8 +69,9 @@ def test_refresh_builds_identity_indexes_at_hydration_boundary():
 
     loaded_rows = method.index("self._chart_rows = list_charts()")
     built_indexes = method.index("self._rebuild_hydrated_chart_identity_indexes()")
+    refreshed_collection_counts = method.index("self._refresh_collection_list_widget()")
     populated_list = method.index("self._populate_list(")
-    assert loaded_rows < built_indexes < populated_list
+    assert loaded_rows < built_indexes < refreshed_collection_counts < populated_list
 
 
 def test_metrics_row_token_reuses_uid_stored_in_hydrated_row():

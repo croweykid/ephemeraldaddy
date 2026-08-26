@@ -695,7 +695,13 @@ def _json_safe_trait_value(value: Any) -> Any:
         return [_json_safe_trait_value(child) for child in sorted(value, key=str)]
     return value
 
-def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = None) -> Path:
+def save_trait(
+    name: str,
+    profile: Mapping[str, Any],
+    *,
+    color: str | None = None,
+    description: str | None = None,
+) -> Path:
     clean_name = name.strip()
     if not clean_name:
         raise ValueError("Trait name cannot be blank.")
@@ -710,7 +716,9 @@ def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = Non
     elif not _is_valid_trait_color(str(stored.get("color", ""))):
         stored["color"] = DEFAULT_TRAIT_COLOR
     stored["archived"] = bool(stored.get("archived", False))
-    stored["description"] = str(stored.get("description", "")).strip()
+    stored["description"] = str(
+        stored.get("description", "") if description is None else description
+    ).strip()
     stored["samples"] = normalize_trait_samples(stored.get("samples"), trait_name=clean_name)
     preserved_comments = _extract_hash_comments(str(profile.get("_source_text", "")))
     stored.pop("_source_text", None)
@@ -722,12 +730,18 @@ def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = Non
     return destination
 
 
-def install_trait_file(path: str | Path, name: str, *, color: str | None = None) -> Path:
+def install_trait_file(
+    path: str | Path,
+    name: str,
+    *,
+    color: str | None = None,
+    description: str | None = None,
+) -> Path:
     source = Path(path)
     profiles = parse_trait_file(source)
     first_profile = dict(next(iter(profiles.values())))
     first_profile["_source_text"] = source.read_text(encoding="utf-8")
-    return save_trait(name, first_profile, color=color)
+    return save_trait(name, first_profile, color=color, description=description)
 
 
 def _trait_item_from_profile(name: str, profile: Mapping[str, Any], path: Path, *, bundled: bool) -> dict[str, Any]:
