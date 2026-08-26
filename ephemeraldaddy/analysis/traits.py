@@ -754,6 +754,13 @@ def _trait_item_from_profile(name: str, profile: Mapping[str, Any], path: Path, 
 def _default_trait_items(*, skip_corrupt: bool) -> list[dict[str, Any]]:
     _maybe_clear_possible_score_cache_for_default_source_change()
     if not DEFAULT_TRAITS_PATH.exists():
+        #     raise
+        # logger.warning(
+        #     "Yo default traits file is missing, dawg.",
+        #     DEFAULT_TRAITS_PATH,
+        #     exc,
+        #     exc_info=True,
+        # )
         return []
     try:
         profiles = parse_trait_file(DEFAULT_TRAITS_PATH, skip_invalid_profiles=skip_corrupt)
