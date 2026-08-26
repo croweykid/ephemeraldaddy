@@ -164,7 +164,7 @@
     "description": "Nimbleness, sleight of hand. This is an agregated sample of magicians, pickpockets, acrobats, dancers and martial artists.",
     "quotes": {},
     "archived": false,
-    "uid": "default_actor"
+    "uid": "default_DEX"
   },
   "agriculture": {
     "name": "agriculture",
@@ -1249,7 +1249,7 @@
     "description": "Based on common factors found in the charts of democratically elected leaders around the world.",
     "quotes": {},
     "archived": false,
-    "uid": "default_dancer"
+    "uid": "default_democratically_elected"
   },
   "effortless magnetism": {
     "name": "effortless magnetism",
@@ -2167,7 +2167,7 @@
     "description": "Overlapping chart factors shared between an agregate of heads of state (including democratically elected, monarchs and dictators).",
     "quotes": {},
     "archived": false,
-    "uid": "default_famous_scientist"
+    "uid": "default_head_of_state"
   },
   "hilarious": {
     "name": "hilarious",
@@ -4304,7 +4304,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_pro_actor"
   },
   "regular scientist": {
     "samples": [
@@ -5408,6 +5409,6 @@
     "description": "Mostly ballet. This was 'democratically sourced' from internet lists of 'best dancers of the 20th & 21st century', mixed with a selection of great dancers and choreographers the developer is personally aware of. The internet lists skewed ballet and world-famous. The developer's list was rather more eclectic & niche, but contributed only a few entries.",
     "quotes": {},
     "archived": false,
-    "uid": "default_treacherous"
+    "uid": "default_dancer"
   }
 }
