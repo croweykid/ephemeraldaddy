@@ -85,14 +85,14 @@ def test_copy_uses_persistent_selection_for_all_selected_chart_names():
     assert "\"\\n\".join(selected_names)" in copy_method
 
 def test_database_view_has_local_uid_normalizer_for_persistent_selection():
-    assert "class DatabaseViewWindow" in APP_SOURCE
-    class_source = APP_SOURCE[APP_SOURCE.index("class DatabaseViewWindow"):APP_SOURCE.index("class MainWindow")]
+    assert "class ManageChartsDialog" in APP_SOURCE
+    class_source = APP_SOURCE[APP_SOURCE.index("class ManageChartsDialog"):APP_SOURCE.index("class MainWindow")]
     assert "def _normalized_chart_uid_key" in class_source
-    assert "return DatabaseViewWindow._normalized_chart_uid_key(raw_chart_uid)" in class_source
+    assert "return ManageChartsDialog._normalized_chart_uid_key(raw_chart_uid)" in class_source
 
 
 def test_database_view_does_not_retain_parallel_integer_selection_state():
-    class_source = APP_SOURCE[APP_SOURCE.index("class DatabaseViewWindow"):APP_SOURCE.index("class MainWindow")]
+    class_source = APP_SOURCE[APP_SOURCE.index("class ManageChartsDialog"):APP_SOURCE.index("class MainWindow")]
 
     assert "_selected_local_row_id_order" not in class_source
     assert "_selected_local_row_ids_set" not in class_source
@@ -102,7 +102,7 @@ def test_database_view_does_not_retain_parallel_integer_selection_state():
 
 
 def test_navigation_anchor_does_not_retain_parallel_integer_identity():
-    class_source = APP_SOURCE[APP_SOURCE.index("class DatabaseViewWindow"):APP_SOURCE.index("class MainWindow")]
+    class_source = APP_SOURCE[APP_SOURCE.index("class ManageChartsDialog"):APP_SOURCE.index("class MainWindow")]
 
     assert "_filter_navigation_anchor_local_row_id" not in class_source
     assert "_filter_navigation_anchor_chart_uid: str | None" in class_source

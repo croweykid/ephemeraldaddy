@@ -44,7 +44,7 @@ def test_hd_similarity_targets_use_canonical_chart_info_renderers():
 
 def test_manage_charts_routes_similarity_state_lifecycle_through_controller():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
-    manage_charts_source = app_source.split("class DatabaseViewWindow", 1)[1].split(
+    manage_charts_source = app_source.split("class ManageChartsDialog", 1)[1].split(
         "class MainWindow", 1
     )[0]
 

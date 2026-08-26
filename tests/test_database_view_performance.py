@@ -50,9 +50,9 @@ def test_database_view_timer_starts_before_cold_dialog_construction() -> None:
         "    def _hide_chart_view_while_database_view_is_open", 1
     )[0]
 
-    confirmation = method.index("confirm_database_view_open")
+    confirmation = method.index("confirm_manage_charts_open")
     timing_start = method.index("database_view_open_timing = DatabaseViewOpenTiming()")
     dialog_construction = method.index("self._get_or_create_manage_charts_dialog()")
     controller_handoff = method.index("open_timing=database_view_open_timing")
 
-    assert timing_start < confirmation < dialog_construction < controller_handoff
+    assert confirmation < timing_start < dialog_construction < controller_handoff

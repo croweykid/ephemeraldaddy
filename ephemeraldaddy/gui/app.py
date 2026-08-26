@@ -1335,10 +1335,10 @@ from ephemeraldaddy.gui.features.retcon.transit_window import (
 from ephemeraldaddy.gui.features.coordination.event_hub import FeatureEventHub
 from ephemeraldaddy.gui.features.controllers.main_window import (
     ChartAnalysisSectionsController,
+    ChartsController,
     EphemerisPrefetchController,
     RetconDialogController,
 )
-from ephemeraldaddy.gui.features.windowing import AppwideWindowCoordinator
 from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOpenTiming
 from ephemeraldaddy.gui.features.charts.section_availability import (
     is_chart_analysis_section_available,
@@ -2367,45 +2367,10 @@ class ChartListWidget(QListWidget):
     def _handle_letter_jump(self, event) -> bool:
         return _handle_list_letter_jump(self, event)
 
-# Database View window
-class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
+# Database View / Manage Charts Window
+class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
     _DATABASE_VIEW_PANEL_WIDTH_RATIOS: tuple[float, float, float] = (0.276, 0.447, 0.277)
     _DATABASE_VIEW_FALLBACK_SPLITTER_SIZES: tuple[int, int, int] = (387, 627, 388)
-
-    def is_database_view_visible(self) -> bool:
-        """Expose visibility without leaking the Qt widget API to coordination."""
-        return self.isVisible()
-
-    def has_chart_rows(self) -> bool:
-        """Return whether the initial Database View hydration has completed."""
-        return bool(self._chart_rows)
-
-    def is_launch_foreground_complete(self) -> bool:
-        """Return whether the one-time foreground policy has been applied."""
-        return bool(self._launch_foreground_completed)
-
-    def refresh_for_window_open(
-        self,
-        *,
-        refresh_metrics: bool,
-        changed_chart_uids: set[str] | None = None,
-        defer_metrics_refresh: bool = False,
-        refresh_tag_completers: bool = False,
-        progress_callback: Callable[[str, int], None] | None = None,
-    ) -> None:
-        """Hydrate Database View through its UID-first coordination boundary."""
-        changed_ids = (
-            set(self._local_row_ids_for_uids(changed_chart_uids))
-            if changed_chart_uids
-            else None
-        )
-        self._refresh_charts(
-            refresh_metrics=refresh_metrics,
-            changed_ids=changed_ids,
-            defer_metrics_refresh=defer_metrics_refresh,
-            refresh_tag_completers=refresh_tag_completers,
-            progress_callback=progress_callback,
-        )
 
     def __init__(self, parent=None):
         # Database View is the user-facing hub, so keep it as an independent
@@ -3266,7 +3231,7 @@ class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._initialize_transit_location_defaults()
         self._refresh_todays_transits_panel()
         # The initial database row/metric load can take tens of seconds on
-        # large local databases.  Keep construction cheap; AppwideWindowCoordinator
+        # large local databases.  Keep construction cheap; ChartsController
         # schedules the first refresh after the Database View shell is visible
         # and the startup loading widget has had a chance to close.
         apply_default_text_tooltips(self)
@@ -3799,8 +3764,8 @@ class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 "__database_metrics_cache_type__": "dict",
                 "items": [
                     [
-                        DatabaseViewWindow._encode_database_metrics_cache_value(key),
-                        DatabaseViewWindow._encode_database_metrics_cache_value(item_value),
+                        ManageChartsDialog._encode_database_metrics_cache_value(key),
+                        ManageChartsDialog._encode_database_metrics_cache_value(item_value),
                     ]
                     for key, item_value in value.items()
                 ],
@@ -3809,7 +3774,7 @@ class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return {
                 "__database_metrics_cache_type__": "set",
                 "items": [
-                    DatabaseViewWindow._encode_database_metrics_cache_value(item)
+                    ManageChartsDialog._encode_database_metrics_cache_value(item)
                     for item in value
                 ],
             }
@@ -3817,13 +3782,13 @@ class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return {
                 "__database_metrics_cache_type__": "tuple",
                 "items": [
-                    DatabaseViewWindow._encode_database_metrics_cache_value(item)
+                    ManageChartsDialog._encode_database_metrics_cache_value(item)
                     for item in value
                 ],
             }
         if isinstance(value, list):
             return [
-                DatabaseViewWindow._encode_database_metrics_cache_value(item)
+                ManageChartsDialog._encode_database_metrics_cache_value(item)
                 for item in value
             ]
         return value
@@ -3832,29 +3797,29 @@ class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _decode_database_metrics_cache_value(value: Any) -> Any:
         if isinstance(value, list):
             return [
-                DatabaseViewWindow._decode_database_metrics_cache_value(item)
+                ManageChartsDialog._decode_database_metrics_cache_value(item)
                 for item in value
             ]
         if isinstance(value, dict):
             cache_type = value.get("__database_metrics_cache_type__")
             if cache_type == "dict":
                 return {
-                    DatabaseViewWindow._decode_database_metrics_cache_value(key):
-                    DatabaseViewWindow._decode_database_metrics_cache_value(item_value)
+                    ManageChartsDialog._decode_database_metrics_cache_value(key):
+                    ManageChartsDialog._decode_database_metrics_cache_value(item_value)
                     for key, item_value in value.get("items", [])
                 }
             if cache_type == "set":
                 return {
-                    DatabaseViewWindow._decode_database_metrics_cache_value(item)
+                    ManageChartsDialog._decode_database_metrics_cache_value(item)
                     for item in value.get("items", [])
                 }
             if cache_type == "tuple":
                 return tuple(
-                    DatabaseViewWindow._decode_database_metrics_cache_value(item)
+                    ManageChartsDialog._decode_database_metrics_cache_value(item)
                     for item in value.get("items", [])
                 )
             return {
-                key: DatabaseViewWindow._decode_database_metrics_cache_value(item_value)
+                key: ManageChartsDialog._decode_database_metrics_cache_value(item_value)
                 for key, item_value in value.items()
             }
         return value
@@ -7608,7 +7573,7 @@ class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if item is None:
             return None
         raw_chart_uid = item.data(Qt.UserRole) or item.data(Qt.UserRole + 2)
-        return DatabaseViewWindow._normalized_chart_uid_key(raw_chart_uid)
+        return ManageChartsDialog._normalized_chart_uid_key(raw_chart_uid)
 
     @staticmethod
     def _item_local_row_id(item: QListWidgetItem | None) -> int | None:
@@ -9832,7 +9797,7 @@ class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     @staticmethod
     def _normalized_location_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
-        city, state, country = DatabaseViewWindow._extract_birthplace_components(raw_place)
+        city, state, country = ManageChartsDialog._extract_birthplace_components(raw_place)
         canonical_city = normalize_city(city or "", country)
         canonical_country = normalize_country(country) if country else None
         canonical_state = None
@@ -25239,13 +25204,9 @@ class DatabaseViewWindow(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
 #Familiarity Calculator Window
 
-# Transitional compatibility alias for third-party imports.  Internal callers use
-# DatabaseViewWindow; delete this alias once downstream integrations have migrated.
-ManageChartsDialog = DatabaseViewWindow
-
 #Main Window Begins
 class MainWindow(AspectPopoutMixin, QMainWindow):
-    _update_sentiment_tally = DatabaseViewWindow._update_sentiment_tally
+    _update_sentiment_tally = ManageChartsDialog._update_sentiment_tally
 
     def _window_chrome_commands(self) -> WindowChromeCommands:
         """Return Chart Editor's explicit app-menu command boundary."""
@@ -25557,10 +25518,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._manage_charts_pending_changed_uids: dict[str, bool] = {}
         self._manage_charts_full_refresh_pending = False
         self._prediction_norms_revision = 0
-        self._appwide_window_coordinator = AppwideWindowCoordinator(
+        self._charts_controller = ChartsController(
             confirm_discard_or_save=self._confirm_discard_or_save,
-            get_or_create_database_view=self._get_or_create_manage_charts_dialog,
-            raise_database_view=self._raise_manage_charts_dialog,
+            get_or_create_manage_dialog=self._get_or_create_manage_charts_dialog,
+            raise_manage_dialog=self._raise_manage_charts_dialog,
             get_pending_changed_refreshes=self._pending_manage_chart_refreshes,
             clear_pending_changed_refreshes=self._clear_pending_manage_chart_refreshes,
         )
@@ -27028,7 +26989,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _least_similar_matches_from_similarity_ranking(self, matches: list[Any]) -> list[Any]:
         return sorted(list(matches), key=lambda match: (float(match.score), int(match.chart_id)))
 
-    def _database_view_dialog_for_chart_link_transition(self) -> DatabaseViewWindow | None:
+    def _database_view_dialog_for_chart_link_transition(self) -> ManageChartsDialog | None:
         manage_dialog = self._manage_charts_dialog
         if manage_dialog is None or not manage_dialog.isVisible():
             return None
@@ -27037,7 +26998,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _database_view_display_chart_ids_by_uid(self) -> dict[str, int]:
         """Snapshot Database View's current-sort presentation ranks for Chart Editor."""
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        if not isinstance(manage_dialog, DatabaseViewWindow):
+        if not isinstance(manage_dialog, ManageChartsDialog):
             return {}
         return dict(getattr(manage_dialog, "_display_chart_id_by_chart_uid", {}))
 
@@ -27315,7 +27276,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _refresh_similarity_algorithm_accuracy_label(self) -> None:
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        if isinstance(manage_dialog, DatabaseViewWindow):
+        if isinstance(manage_dialog, ManageChartsDialog):
             manage_dialog._refresh_similarity_algorithm_accuracy_label()
 
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
@@ -36037,27 +35998,36 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             # rehydrate its rows and analytics instead of leaving a stale row.
             self._manage_charts_full_refresh_pending = True
 
-    def _pending_manage_chart_refreshes(self) -> tuple[set[str], set[str], bool]:
-        """Return UID-first refresh requests split by metrics requirements."""
-        metric_uids: set[str] = set()
-        lightweight_uids: set[str] = set()
-        for chart_uid, requires_metrics in self._manage_charts_pending_changed_uids.items():
+    def _pending_manage_chart_refreshes(self) -> tuple[set[int], set[int], bool]:
+        """Return pending Database View refresh IDs split by metrics requirements.
+
+        Pending state is stored by UID because Chart UIDs are the stable source
+        of truth.  The existing Database View refresh API still accepts row IDs,
+        so this method resolves UIDs at the boundary and separates lightweight
+        row-only refreshes from analytics/metrics refreshes.
+        """
+        metric_ids: set[int] = set()
+        lightweight_ids: set[int] = set()
+        for chart_uid, requires_metrics in list(self._manage_charts_pending_changed_uids.items()):
+            chart_id = get_chart_id_by_uid(chart_uid)
+            if chart_id is None:
+                continue
             if requires_metrics:
-                metric_uids.add(chart_uid)
+                metric_ids.add(int(chart_id))
             else:
-                lightweight_uids.add(chart_uid)
-        lightweight_uids.difference_update(metric_uids)
-        return metric_uids, lightweight_uids, bool(self._manage_charts_full_refresh_pending)
+                lightweight_ids.add(int(chart_id))
+        lightweight_ids.difference_update(metric_ids)
+        return metric_ids, lightweight_ids, bool(self._manage_charts_full_refresh_pending)
 
     def _clear_pending_manage_chart_refreshes(self) -> None:
         self._manage_charts_pending_changed_uids.clear()
         self._manage_charts_full_refresh_pending = False
 
-    def _get_or_create_manage_charts_dialog(self) -> DatabaseViewWindow:
+    def _get_or_create_manage_charts_dialog(self) -> ManageChartsDialog:
         # Be tolerant of partially initialized/restored MainWindow instances;
         # startup must always be able to create the default database view.
         if getattr(self, "_manage_charts_dialog", None) is None:
-            self._manage_charts_dialog = DatabaseViewWindow(self)
+            self._manage_charts_dialog = ManageChartsDialog(self)
             self._manage_charts_dialog.setWindowModality(Qt.NonModal)
         return self._manage_charts_dialog
 
@@ -36240,7 +36210,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._current_local_row_id(),
         )
         database_view_open_timing = DatabaseViewOpenTiming()
-        if not self._appwide_window_coordinator.confirm_database_view_open(startup_progress):
+        if not self._charts_controller.confirm_manage_charts_open(startup_progress):
             database_view_open_timing.complete(
                 was_visible=False,
                 refresh_reason="cancelled_unsaved_changes",
@@ -36271,7 +36241,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             startup_progress("Preparing Database View…", 65)
         manage_dialog = self._get_or_create_manage_charts_dialog()
         manage_dialog.adopt_window_placement(self)
-        opened = self._appwide_window_coordinator.open_database_view(
+        opened = self._charts_controller.open_manage_charts(
             open_timing=database_view_open_timing,
             progress_callback=startup_progress,
         )

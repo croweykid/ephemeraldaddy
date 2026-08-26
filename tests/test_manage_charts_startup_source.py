@@ -34,4 +34,4 @@ def test_manage_dialog_factory_tolerates_a_missing_lazy_slot():
     factory = _method_source("_get_or_create_manage_charts_dialog")
 
     assert 'getattr(self, "_manage_charts_dialog", None)' in factory
-    assert "self._manage_charts_dialog = DatabaseViewWindow(self)" in factory
+    assert "self._manage_charts_dialog = ManageChartsDialog(self)" in factory

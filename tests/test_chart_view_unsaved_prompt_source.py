@@ -294,10 +294,7 @@ def test_pending_database_refresh_state_is_uid_owned():
 
     assert "_manage_charts_pending_changed_ids" not in class_source
     assert "_manage_charts_pending_changed_uids" in class_source
-    assert "tuple[set[str], set[str], bool]" in pending_method
-    assert "metric_uids.add(chart_uid)" in pending_method
-    assert "lightweight_uids.add(chart_uid)" in pending_method
-    assert "get_chart_id_by_uid" not in pending_method
+    assert "get_chart_id_by_uid(chart_uid)" in pending_method
 
 
 def test_saved_chart_right_panel_consumers_use_uid_identity():
@@ -316,8 +313,8 @@ def test_deleted_chart_uid_is_queued_as_full_refresh_tombstone():
     record_method = _method_source("_record_manage_charts_pending_change")
     pending_method = _method_source("_pending_manage_chart_refreshes")
     clear_method = _method_source("_clear_pending_manage_chart_refreshes")
-    coordinator_source = Path(
-        "ephemeraldaddy/gui/features/windowing/appwide_window_coordinator.py"
+    controller_source = Path(
+        "ephemeraldaddy/gui/features/controllers/main_window.py"
     ).read_text()
 
     assert "chart_uid = self._current_chart_uid_for_navigation()" in delete_method
@@ -329,8 +326,8 @@ def test_deleted_chart_uid_is_queued_as_full_refresh_tombstone():
     assert "self._manage_charts_full_refresh_pending = True" in record_method
     assert "bool(self._manage_charts_full_refresh_pending)" in pending_method
     assert "self._manage_charts_full_refresh_pending = False" in clear_method
-    assert "if force_full_refresh:" in coordinator_source
-    assert 'refresh_reason = "deleted_chart"' in coordinator_source
+    assert "if force_full_refresh:" in controller_source
+    assert 'refresh_reason = "deleted_chart"' in controller_source
 
 
 def test_persisted_chart_object_caches_local_row_id_before_hot_path_use():
