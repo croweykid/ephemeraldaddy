@@ -292,6 +292,27 @@ def test_parse_wikipedia_birth_data_rejects_partial_wikidata_date(monkeypatch):
         subject.parse_wikipedia_birth_data("Example Person")
 
 
+def test_available_birth_data_preserves_place_when_date_is_missing(monkeypatch):
+    monkeypatch.setattr(
+        subject,
+        "_wikipedia_api_query",
+        lambda _params: _wiki_response(
+            "{{Infobox person|name=Example Person|birth_place=[[Exampleville]]}}"
+        ),
+    )
+    monkeypatch.setattr(
+        subject,
+        "_wikidata_api_query",
+        lambda _params: {"entities": {}},
+    )
+
+    result = subject.parse_wikipedia_available_birth_data("Example Person")
+
+    assert result["birth_place"] == "Exampleville"
+    assert "birth_year" not in result
+    assert result["source_url"].endswith("/Example_Person")
+
+
 def test_rendered_wikipedia_html_is_not_part_of_birth_lookup():
     source = subject.__file__
     assert source is not None

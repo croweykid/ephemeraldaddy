@@ -503,8 +503,8 @@ def _wikidata_place_name(entity_id: str) -> str:
     return ""
 
 
-def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
-    """Return birth data without depending on Wikipedia's rendered HTML.
+def parse_wikipedia_available_birth_data(page_title: str) -> dict[str, Any]:
+    """Return every available birth field without requiring a complete date.
 
     The canonical Wikipedia infobox source is preferred because it matches the
     article the user sees and often contains more specific birthplace text.
@@ -543,17 +543,26 @@ def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
                 except Exception:
                     birth_place = ""
 
-    if birth_date is None:
-        raise ValueError("No complete birthdate info is available")
-
     page_slug = quote(normalized_title.replace(" ", "_"))
     page_url = f"https://en.wikipedia.org/wiki/{page_slug}"
 
-    return {
+    result: dict[str, Any] = {
         "name": normalized_title,
-        "birth_year": birth_date.year,
-        "birth_month": birth_date.month,
-        "birth_day": birth_date.day,
         "birth_place": birth_place,
         "source_url": page_url,
     }
+    if birth_date is not None:
+        result.update(
+            birth_year=birth_date.year,
+            birth_month=birth_date.month,
+            birth_day=birth_date.day,
+        )
+    return result
+
+
+def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
+    """Return Wikipedia birth data, retaining the legacy complete-date contract."""
+    result = parse_wikipedia_available_birth_data(page_title)
+    if not all(key in result for key in ("birth_year", "birth_month", "birth_day")):
+        raise ValueError("No complete birthdate info is available")
+    return result
