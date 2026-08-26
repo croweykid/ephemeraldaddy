@@ -154,14 +154,13 @@ ASTRO_DATA_DERIVED_FIELDS = frozenset(
 
 ASTRO_DATA = ASTRO_DATA_INPUT_FIELDS | ASTRO_DATA_DERIVED_FIELDS
 
-# Result-population / UI eligibility state. ``chart_type`` and ``source`` are
-# included because hypothetical status is currently encoded through chart type;
+# Result-population / UI eligibility state. ``chart_type`` participates because
+# hypothetical status is currently represented through chart type.
 # ``is_hidden``/``is_hypothetical`` are accepted synthetic event names even
 # where they are not persisted as literal chart-table columns.
 CHART_INFO_STATUS = frozenset(
     {
         "chart_type",
-        "source",
         "is_placeholder",
         "is_hidden",
         "is_hypothetical",
@@ -203,6 +202,7 @@ NONASTRAL_DATA = frozenset(
         "last_encounter",
         "data_rating",
         "social_score",
+        "source",
         "is_deceased",
         "traits",
         "traits_above_average",
