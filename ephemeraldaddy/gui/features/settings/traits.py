@@ -153,6 +153,10 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     owner._traits_status_label = QLabel("")
     owner._traits_status_label.setWordWrap(True)
     owner._traits_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+    # Keep the status local to the Traits manager as well as mirroring it into
+    # Settings' footer. This remains visible when Traits is hosted in a nested
+    # Property Manager tab, where no top-level "Traits" footer key exists.
+    traits_section.addWidget(owner._traits_status_label)
     refresh_traits_settings_list(owner)
 
 
@@ -219,10 +223,10 @@ def refresh_traits_settings_list(owner: Any) -> None:
         f"{count} of {TRAIT_RECOMMENDED_WORKING_SET_LIMIT} traits currently defined." #recommended maximum, until this feature is performance-optimized.
     )
     footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
+    if isinstance(status_label, QLabel):
+        status_label.setText(status_text)
     if callable(footer_writer):
         footer_writer("Traits", status_text)
-    elif isinstance(status_label, QLabel):
-        status_label.setText(status_text)
     _sync_trait_action_buttons(owner)
 
 
