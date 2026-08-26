@@ -108,11 +108,12 @@ def test_trait_presentation_events_do_not_request_chart_rescoring(change_type):
     assert not invalidation.reposition_chart_uids
 
 
-def test_property_manager_nonastral_reload_blocks_rankings_and_full_analysis():
+def test_property_manager_nonastral_reload_blocks_rankings_and_generic_analysis():
     refresh_method = PROPERTY_MANAGER_SOURCE.split(
         "def _refresh_host_after_nonastral_change", 1
     )[1].split("def refresh_after_close", 1)[0]
     assert 'host._refresh_visible_rankings_sections = lambda: None' in refresh_method
+    assert "refresh_metrics=False" in refresh_method
     assert "force_full_analysis_refresh=False" in refresh_method
     assert 'host._rankings_data_dirty = previous_dirty' in refresh_method
 
