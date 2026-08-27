@@ -218,7 +218,8 @@ def test_compare_dialog_imports_shared_similarity_indicator_template():
         "from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row"
         in source
     )
-    assert "similarity_delta_rgb(percent, db_percent, known_total)" in source
+    assert "similarity_delta_rgb(" in source
+    assert "percent, db_percent, known_total" in source
     assert 'selection_label="collection"' in source
     assert 'database_label="database"' in source
     assert "filter_aggregable_charts" in source
@@ -237,3 +238,28 @@ def test_dialog_initializes_button_before_populating_and_loads_population_once()
         "    @staticmethod", 1
     )[0]
     assert compare_body.count("self._load_chart_population()") == 1
+
+
+def test_compare_dialog_adds_default_significance_filter_and_global_sort_controls():
+    source = Path(
+        "ephemeraldaddy/gui/features/similarities/compare_collections.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"Omit similarities less than one standard deviation"' in source
+    assert "self.omit_insignificant_checkbox.setChecked(True)" in source
+    assert 'self.sort_combo.addItem("Number of matches", "matches")' in source
+    assert (
+        'self.sort_combo.addItem("Significance vs. DB norms", "significance")' in source
+    )
+    assert "abs(values[4]) < 1.0" in source
+
+
+def test_compare_dialog_groups_aspects_by_body_and_placements_by_position():
+    source = Path(
+        "ephemeraldaddy/gui/features/similarities/compare_collections.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'if "Aspect" in norm.category:' in source
+    assert 'return norm.label.split(" ", 1)[0]' in source
+    assert "return position if separator else None" in source
+    assert 'QListWidgetItem(f"▼ {group} ({len(group_rows)})")' in source
