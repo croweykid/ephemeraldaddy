@@ -90,6 +90,7 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
 )
 from ephemeraldaddy.gui.features.predictions.trait_factor_explanations import (
     build_trait_factor_evidence,
+    missing_factor_html,
 )
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
@@ -436,7 +437,7 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
         def _missing_factor_list(values: list[str]) -> str:
             return "".join(
                 "<li style='margin:2px 0; color:#eadfb4;'>"
-                f"{html.escape(value)}</li>"
+                f"{missing_factor_html(value)}</li>"
                 for value in values
             )
 
