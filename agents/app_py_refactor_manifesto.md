@@ -5,6 +5,17 @@
 **Audience:** Codex agents and human contributors  
 **Primary constraint:** Preserve every existing feature while measurably improving responsiveness, throughput, troubleshooting, and future development speed.
 
+- app.py should be no more than 5,000–8,000 lines. It should serve as application/window orchestration only. We are currently in the process of refactoring accordingly, toward and end result resembling something like:
+features/
+    chart_editor/
+    import_export/
+    database/
+    search/
+    transit/
+    human_design/
+    research/
+    settings/
+
 ## 1. Mission
 
 The `app.py` refactor is not a line-count exercise. Its primary purpose is to
