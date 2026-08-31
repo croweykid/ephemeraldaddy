@@ -43,6 +43,8 @@ def test_trait_info_renders_compact_missing_section_with_semantic_tokens(monkeyp
     assert "Gate 49</li>" in result
     assert "Missing:</div>" in result
     assert "Missing Gates " in result and "29" in result and "55" in result
+    assert style.chart_info_token_color_map()["Gate 29"] in result
+    assert style.chart_info_token_color_map()["Gate 55"] in result
     assert "Mars not in Libra, Taurus or Virgo</li>" in result
     assert "Jupiter trine Pallas</li>" in result
     assert "Pluto in Taurus" not in result
