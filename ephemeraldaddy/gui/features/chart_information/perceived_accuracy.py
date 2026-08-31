@@ -7,7 +7,7 @@ locator.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from weakref import WeakSet
@@ -28,6 +28,27 @@ class PerceivedAccuracyTarget:
     scope: PerceivedAccuracyScope
     key: str
     version: int = PERCEIVED_ACCURACY_VERSION
+
+
+def property_target_from_entry(
+    entry: Mapping[str, object],
+) -> PerceivedAccuracyTarget | None:
+    """Build a stable target only from semantic presenter fields, never prose."""
+    kind = str(entry.get("kind", "") or "").strip().lower()
+    identity_fields = (
+        "property_key", "property_value", "body", "sign", "house",
+        "nakshatra", "gate", "line", "gate_a", "gate_b", "color",
+        "tone", "base", "class_key", "family", "subtype",
+        "p1", "p2", "type",
+    )
+    identity = [
+        f"{field}={str(entry[field]).strip().lower()}"
+        for field in identity_fields
+        if entry.get(field) not in (None, "")
+    ]
+    if not kind or not identity:
+        return None
+    return PerceivedAccuracyTarget("properties", ":".join([kind, *identity]))
 
 
 _CONTROLS: WeakSet["PerceivedAccuracyThumbs"] = WeakSet()
@@ -128,6 +149,15 @@ def set_perceived_accuracy_controls_visible(visible: bool) -> None:
         control.setVisible(bool(visible))
         if visible:
             control.refresh()
+
+
+def refresh_perceived_accuracy_controls(owner: object, *, clear_property: bool = False) -> None:
+    """Refresh controls after Chart Editor identity changes."""
+    for control in getattr(owner, "_perceived_accuracy_module_controls", {}).values():
+        control.refresh()
+    property_control = getattr(owner, "chart_information_accuracy_control", None)
+    if property_control is not None:
+        property_control.retarget(None) if clear_property else property_control.refresh()
 
 
 def install_chart_editor_module_controls(

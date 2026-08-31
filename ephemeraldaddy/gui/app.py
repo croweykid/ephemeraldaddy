@@ -588,9 +588,12 @@ from ephemeraldaddy.gui.features.similarities.compare_collections import (
     show_compare_collections_dialog,
 )
 from ephemeraldaddy.gui.features.chart_information import (
-    PerceivedAccuracyTarget,
     install_chart_editor_module_controls,
+    property_target_from_entry,
+    refresh_perceived_accuracy_controls,
     set_perceived_accuracy_controls_visible,
+    summary_info_cursor_is_on_link,
+    update_summary_info_hover_cursor,
 )
 from ephemeraldaddy.gui.settings.core import (
     SETTINGS_KEY_PERCEIVED_ACCURACY_THUMBS_VISIBLE,
@@ -31338,79 +31341,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
 
-    def _summary_info_cursor_is_on_link(
-        self,
-        cursor,
-        position_info_map: dict[int, list[dict[str, object]]],
-        aspect_info_map: dict[int, dict[str, object]],
-        species_info_map: dict[int, list[dict[str, object]]],
-        block_offset: int = 0,
-    ) -> bool:
-        """Return True when the text cursor is over a Chart Info click target."""
-        block = cursor.block()
-        block_number = block.blockNumber() + block_offset
-        block_text = block.text()
-        cursor_pos = cursor.positionInBlock()
-
-        for entries in (
-            species_info_map.get(block_number, []),
-            position_info_map.get(block_number, []),
-        ):
-            for entry in entries:
-                span_start = entry.get("span_start")
-                span_end = entry.get("span_end")
-                if (
-                    isinstance(span_start, int)
-                    and isinstance(span_end, int)
-                    and span_start <= cursor_pos < span_end
-                ):
-                    return True
-            icon_indices = [
-                int(entry["icon_index"])
-                for entry in entries
-                if isinstance(entry.get("icon_index"), int)
-                and int(entry.get("icon_index", -1)) >= 0
-            ]
-            if any(cursor_pos >= icon_index for icon_index in icon_indices):
-                return True
-
-        aspect_info = aspect_info_map.get(block_number)
-        if aspect_info:
-            info_index = block_text.rfind("ⓘ")
-            if info_index != -1 and cursor_pos >= info_index:
-                return True
-            span_start = aspect_info.get("span_start")
-            span_end = aspect_info.get("span_end")
-            if (
-                isinstance(span_start, int)
-                and isinstance(span_end, int)
-                and span_start <= cursor_pos < span_end
-            ):
-                return True
-        return False
-
-    def _update_summary_info_hover_cursor(
-        self,
-        output_widget: QPlainTextEdit,
-        viewport: QWidget,
-        position,
-        position_info_map: dict[int, list[dict[str, object]]],
-        aspect_info_map: dict[int, dict[str, object]],
-        species_info_map: dict[int, list[dict[str, object]]],
-        block_offset: int = 0,
-    ) -> None:
-        """Set the question cursor when hovering Chart Info links in output text."""
-        cursor = output_widget.cursorForPosition(position.toPoint())
-        if self._summary_info_cursor_is_on_link(
-            cursor,
-            position_info_map,
-            aspect_info_map,
-            species_info_map,
-            block_offset,
-        ):
-            apply_chart_info_link_cursor(viewport)
-        else:
-            viewport.unsetCursor()
+    _summary_info_cursor_is_on_link = staticmethod(summary_info_cursor_is_on_link)
+    _update_summary_info_hover_cursor = staticmethod(update_summary_info_hover_cursor)
 
     def _handle_summary_info_click(
         self,
@@ -31432,24 +31364,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         def retarget(entry: Mapping[str, object]) -> None:
             if not targets_main_chart_info:
                 return
-            kind = str(entry.get("kind", "") or "").strip().lower()
-            identity_fields = (
-                "property_key", "property_value", "body", "sign", "house",
-                "nakshatra", "gate", "line", "gate_a", "gate_b", "color",
-                "tone", "base", "class_key", "family", "subtype",
-            )
-            identity = [
-                f"{field}={str(entry[field]).strip().lower()}"
-                for field in identity_fields
-                if entry.get(field) not in (None, "")
-            ]
             control = getattr(self, "chart_information_accuracy_control", None)
             if control is not None:
-                control.retarget(
-                    PerceivedAccuracyTarget("properties", ":".join([kind, *identity]))
-                    if kind and identity
-                    else None
-                )
+                control.retarget(property_target_from_entry(entry))
 
 
         # cursor_pos = cursor.positionInBlock()
@@ -31670,6 +31587,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if info_index != -1 and cursor.positionInBlock() >= info_index:
                 aspect_info = aspect_info_map.get(block_number)
                 if aspect_info:
+                    retarget({"kind": "aspect", **aspect_info})
                     self._show_aspect_info(
                         aspect_info["p1"],
                         aspect_info["p2"],
@@ -31691,6 +31609,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 and isinstance(span_end, int)
                 and span_start <= cursor_pos < span_end
             ):
+                retarget({"kind": "aspect_keyword", **aspect_info})
                 self._show_aspect_keyword_info(str(aspect_info.get("type", "")))
                 return True
             return False
@@ -35603,20 +35522,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             raise ValueError("A persisted chart must have a non-empty chart UID")
         self.current_chart_uid = normalized_uid
         self._chart_edit_session.active_chart_uid = normalized_uid
-        for control in getattr(self, "_perceived_accuracy_module_controls", {}).values():
-            control.refresh()
-        chart_info_control = getattr(self, "chart_information_accuracy_control", None)
-        if chart_info_control is not None:
-            chart_info_control.refresh()
+        refresh_perceived_accuracy_controls(self)
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
         self.current_chart_uid = None
-        for control in getattr(self, "_perceived_accuracy_module_controls", {}).values():
-            control.refresh()
-        chart_info_control = getattr(self, "chart_information_accuracy_control", None)
-        if chart_info_control is not None:
-            chart_info_control.retarget(None)
+        refresh_perceived_accuracy_controls(self, clear_property=True)
         self._chart_edit_session.active_chart_uid = None
 
     def _current_chart_uid_for_navigation(self) -> str | None:
