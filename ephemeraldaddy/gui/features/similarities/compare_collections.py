@@ -32,6 +32,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
 from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
     CollectionContrast,
+    collection_norm_subgroup_label,
     collection_trait_export_sections,
     filter_aggregable_charts,
 )
@@ -41,7 +42,7 @@ from ephemeraldaddy.gui.features.charts.exporters import (
 )
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
-    similarity_deviation_z_score,
+    similarity_prevalence_comparison,
 )
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     build_similarity_factor_counts_for_charts,
@@ -415,28 +416,17 @@ class CompareCollectionsDialog(QDialog):
     def _row_values(row: _DisplayNorm, database_counts, database_known_totals):
         count = row.counts[row.norm]
         known = row.known_totals[row.norm]
-        percent = round(count / known * 100) if known else 0
         db_known = database_known_totals[row.norm]
-        db_percent = (
-            round(database_counts[row.norm] / db_known * 100) if db_known else 0
+        exact_percent, exact_db_percent, z_score = similarity_prevalence_comparison(
+            count, known, database_counts[row.norm], db_known
         )
-        z_score = similarity_deviation_z_score(percent, db_percent, known)
-        if z_score is None and percent != db_percent and db_percent in {0, 100}:
-            z_score = float("inf") if percent > db_percent else float("-inf")
-        return count, known, percent, db_percent, z_score
-
-    @staticmethod
-    def _subgroup_label(norm: CollectionNorm) -> str | None:
-        if "Aspect" in norm.category:
-            return norm.label.split(" ", 1)[0]
-        if norm.category in {
-            "Placements",
-            "Signs in positions in common",
-            "Houses in positions in common",
-        }:
-            _body, separator, position = norm.label.partition(" in ")
-            return position if separator else None
-        return None
+        return (
+            count,
+            known,
+            round(exact_percent),
+            round(exact_db_percent),
+            z_score,
+        )
 
     def _rerender_results(self, *_args: object) -> None:
         if not self._display_columns:
@@ -500,7 +490,9 @@ class CompareCollectionsDialog(QDialog):
     def _populate_section_list(self, section_list: QListWidget, rows) -> None:
         groups: dict[str | None, list[tuple[_DisplayNorm, tuple]]] = {}
         for pair in rows:
-            groups.setdefault(self._subgroup_label(pair[0].norm), []).append(pair)
+            groups.setdefault(collection_norm_subgroup_label(pair[0].norm), []).append(
+                pair
+            )
         for group, group_rows in groups.items():
             header = None
             child_items = []

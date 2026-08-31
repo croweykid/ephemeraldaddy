@@ -6,9 +6,13 @@ from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
     aggregate_collection_norms,
     collection_norm_counts,
+    collection_norm_subgroup_label,
     collection_trait_export_sections,
     contrast_collection_norms,
     filter_aggregable_charts,
+)
+from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
+    similarity_prevalence_comparison,
 )
 from ephemeraldaddy.gui.features.charts.similarities_export import (
     build_similarities_json_export_payload,
@@ -255,11 +259,28 @@ def test_compare_dialog_adds_default_significance_filter_and_global_sort_control
 
 
 def test_compare_dialog_groups_aspects_by_body_and_placements_by_position():
-    source = Path(
-        "ephemeraldaddy/gui/features/similarities/compare_collections.py"
-    ).read_text(encoding="utf-8")
+    assert (
+        collection_norm_subgroup_label(
+            CollectionNorm("Aspects in common", "Ceres trine Moon")
+        )
+        == "Ceres"
+    )
+    assert (
+        collection_norm_subgroup_label(CollectionNorm("Placements", "Venus in Libra"))
+        == "Libra"
+    )
+    assert (
+        collection_norm_subgroup_label(
+            CollectionNorm("Houses in positions in common", "Sun: House 4")
+        )
+        == "House 4"
+    )
 
-    assert 'if "Aspect" in norm.category:' in source
-    assert 'return norm.label.split(" ", 1)[0]' in source
-    assert "return position if separator else None" in source
-    assert 'QListWidgetItem(f"▼ {group} ({len(group_rows)})")' in source
+
+def test_significance_uses_exact_prevalence_before_display_rounding():
+    percent, db_percent, z_score = similarity_prevalence_comparison(2, 300, 4, 1000)
+
+    assert round(percent) == 1
+    assert round(db_percent) == 0
+    assert z_score is not None
+    assert abs(z_score) < 1.0
