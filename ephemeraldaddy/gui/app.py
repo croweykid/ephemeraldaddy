@@ -25966,6 +25966,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.death_year_edit.setMaxLength(4)
         self.death_year_edit.setFixedWidth(56)
         self.death_time_unknown_checkbox = QCheckBox("Unknown")
+        self.death_time_unknown_checkbox.setChecked(True)
         self.death_time_edit = SegmentedTimeEdit()
         self.death_time_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
         self.death_time_edit.setTime(QTime(12, 0))
@@ -25974,7 +25975,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.death_place_edit.setPlaceholderText("Place")
         self.death_show_chart_button = QPushButton("show 💀Chart")
         self.death_show_chart_button.clicked.connect(self._show_death_chart_popout)
-        self.death_time_unknown_checkbox.toggled.connect(self.death_time_edit.setDisabled)
+        self.death_time_unknown_checkbox.toggled.connect(
+            self._update_death_time_input_visibility
+        )
         death_row.addWidget(QLabel("💀Date"), 0)
         death_row.addWidget(self.death_month_edit, 0)
         death_row.addWidget(self.death_day_edit, 0)
@@ -25989,6 +25992,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         death_row.addWidget(self.death_show_chart_button, 0)
         self.death_row_widget.setLayout(death_row)
         self.death_row_widget.setVisible(False)
+        self._update_death_time_input_visibility()
         form.addRow("", self.death_row_widget)
         # Conditional indicators for unknown birth time: these remain factual and
         # should be shown whenever birth time is marked unknown, even if rectified time is enabled.
@@ -34403,6 +34407,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if checked and hasattr(self, "death_time_unknown_checkbox"):
             self.death_time_unknown_checkbox.setChecked(True)
 
+    def _update_death_time_input_visibility(self, _unknown: bool | None = None) -> None:
+        """Mirror the birth-time row by hiding an unknown death-time input."""
+        self.death_time_edit.setVisible(
+            not self.death_time_unknown_checkbox.isChecked()
+        )
+
     def _set_chart_view_hide_checkbox_checked(self, checked: bool) -> None:
         checkbox = getattr(self, "hide_chart_checkbox", None)
         if checkbox is None:
@@ -35340,7 +35350,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.death_month_edit.clear()
         self.death_day_edit.clear()
         self.death_year_edit.clear()
-        self.death_time_unknown_checkbox.setChecked(False)
+        self.death_time_unknown_checkbox.setChecked(True)
         self.death_time_edit.setTime(QTime(12, 0))
         self.death_place_edit.clear()
         self._sync_chart_view_hide_checkbox()
