@@ -88,6 +88,9 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     prospective_trait_snapshot_token,
     trait_snapshot_averages,
 )
+from ephemeraldaddy.gui.features.predictions.trait_factor_explanations import (
+    build_trait_factor_evidence,
+)
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     apply_chart_info_link_cursor,
@@ -402,20 +405,23 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
             if chart_name
             else "Matching factors in this chart:"
         )
-        matches = matched_weighted_criteria(chart, trait.get("profile", {}))
-        positive = matches.get("positive", [])
-        negative = matches.get("negative", [])
+        profile = trait.get("profile", {})
+        matches = matched_weighted_criteria(chart, profile)
+        evidence = build_trait_factor_evidence(chart, profile, matches=matches)
+        positive = list(evidence.supporting)
+        negative = list(evidence.counter_factors)
+        missing = list(evidence.missing)
 
         def _dominance_labels(polarity: str) -> set[str]:
             prefix = "anti" if polarity == "negative" else ""
             labels = {
                 str(value)
                 for category in ("signs", "bodies", "nakshatras")
-                for value in weighted_string_entries(trait.get("profile", {}).get(f"{prefix}{category}", {}))
+                for value in weighted_string_entries(profile.get(f"{prefix}{category}", {}))
             }
             labels.update(
                 f"House {value}"
-                for value in weighted_house_entries(trait.get("profile", {}).get(f"{prefix}houses", {}))
+                for value in weighted_house_entries(profile.get(f"{prefix}houses", {}))
             )
             return labels
 
@@ -424,6 +430,13 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
             return "".join(
                 f"<li style='margin:2px 0; color:{color};'>"
                 f"{html.escape(value)}{' above baseline in chart' if value in dominance_labels else ''}</li>" #note: above baseline doesn't mean "top 3 most dominant", nor does it mean "above average database wide" (i.e. 'a distinguishing factor'); would we get better trait results if we were scoring based on THAT, or matching 'dominance to dominance'?
+                for value in values
+            )
+
+        def _missing_factor_list(values: list[str]) -> str:
+            return "".join(
+                "<li style='margin:2px 0; color:#eadfb4;'>"
+                f"{html.escape(value)}</li>"
                 for value in values
             )
 
@@ -438,15 +451,20 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
                 "<div style='font-size:12px; font-weight:700; color:#9fd6aa;'>Supporting:</div>"
                 f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(positive, '#d9f2de', polarity='positive')}</ul>"
             )
-        if negative:
-            evidence_html += (
-                "<div style='margin-top:5px; font-size:9px; color:#e1a1a1;'>COUNTER-FACTORS</div>"
-                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(negative, '#f0d3d3', polarity='negative')}</ul>"
-            )
         if not positive and not negative:
             evidence_html += (
                 "<div style='margin-top:5px; font-size:10px; color:#b8b8b8;'>"
                 "No configured factors directly matched this chart.</div>"
+            )
+        if missing:
+            evidence_html += (
+                "<div style='margin-top:5px; font-size:12px; font-weight:700; color:#d8c27a;'>Missing:</div>"
+                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_missing_factor_list(missing)}</ul>"
+            )
+        if negative:
+            evidence_html += (
+                "<div style='margin-top:5px; font-size:9px; color:#e1a1a1;'>COUNTER-FACTORS</div>"
+                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(negative, '#f0d3d3', polarity='negative')}</ul>"
             )
     return (
         f"<div style='font-size:18px; font-weight:700; color:{html.escape(color)};'>"
