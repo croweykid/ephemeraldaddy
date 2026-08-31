@@ -95,12 +95,12 @@ def populate_display_preferences_section(
     )
 
     section_layout.addWidget(config.build_subheader_label("Database (middle) Panel"))
-    section_layout.addWidget(
-        config.build_help_label(
-            "Choose which details appear in the middle-panel chart list. "
-            "HD profile is shown only for charts whose chart_uses_houses flag is TRUE."
-        )
-    )
+    # section_layout.addWidget(
+    #     config.build_help_label(
+    #         "Choose which details appear in the middle-panel chart list. "
+    #         "HD profile is shown only for charts whose chart_uses_houses flag is TRUE."
+    #     )
+    # )
     row_info_checkboxes: dict[str, QCheckBox] = {}
     for row_info_key, row_info_label in DATABASE_VIEW_ROW_INFO_OPTIONS:
         checkbox = _add_checkbox(

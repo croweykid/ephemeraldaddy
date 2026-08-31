@@ -40,18 +40,34 @@ def choose_incomplete_wikipedia_import(
 
     missing_text = " and ".join(missing_fields) or "some birth information"
     availability_verb = "is" if len(missing_fields) == 1 else "are"
+
     prompt = QMessageBox(parent)
     prompt.setIcon(QMessageBox.Icon.Information)
     prompt.setWindowTitle("Astrotheme import")
     prompt.setText(
-        f"{page_title} was found on Wikipedia, but {missing_text} {availability_verb} not available.\n\n"
+        f"{page_title} was found on Wikipedia, but "
+        f"{missing_text} {availability_verb} not available.\n\n"
         "Import the available information anyway and fill in the blank fields manually?"
     )
-    cancel_button = prompt.addButton("Cancel import", QMessageBox.ButtonRole.RejectRole)
-    finish_button = prompt.addButton("Finish manually", QMessageBox.ButtonRole.AcceptRole)
-    prompt.setDefaultButton(cancel_button)
-    prompt.setEscapeButton(cancel_button)
-    prompt.exec()
-    if prompt.clickedButton() is finish_button:
+
+    prompt.setStandardButtons(
+        QMessageBox.StandardButton.Ok
+        | QMessageBox.StandardButton.Cancel
+    )
+
+    finish_button = prompt.button(QMessageBox.StandardButton.Ok)
+    if finish_button is not None:
+        finish_button.setText("Finish manually")
+
+    cancel_button = prompt.button(QMessageBox.StandardButton.Cancel)
+    if cancel_button is not None:
+        cancel_button.setText("Cancel import")
+
+    prompt.setDefaultButton(QMessageBox.StandardButton.Cancel)
+
+    result = prompt.exec()
+
+    if result == int(QMessageBox.StandardButton.Ok):
         return IncompleteWikipediaImportChoice.FINISH_MANUALLY
+
     return IncompleteWikipediaImportChoice.CANCEL

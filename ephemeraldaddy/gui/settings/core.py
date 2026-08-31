@@ -16,7 +16,7 @@ DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("birth_place", "Birth place"),
     ("current_age", "Current age"),
     ("sign_glyphs", "Sun/Moon/Rising sign glyphs"),
-    ("human_design_profile", "HD profile"),
+    ("human_design_profile", "HD profile (*if birth time is known or rectified)"),
     ("gender", "Gender glyph"),
 )
 
