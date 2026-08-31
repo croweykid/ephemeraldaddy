@@ -386,6 +386,7 @@ from PySide6.QtWidgets import (
     QAbstractButton,
     QSlider,
     QToolTip,
+    QTabWidget,
 )
 from PySide6.QtCore import (
     Qt,
@@ -1204,6 +1205,7 @@ from ephemeraldaddy.analysis.human_design_plugins import (
     installed_plugin_names,
     recognized_plugin_names,
 )
+from ephemeraldaddy.gui.settings.modules.plugins import build_plugin_manager_panel
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
     HD_CENTERS,
@@ -1656,7 +1658,7 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
-from ephemeraldaddy.gui.features.settings.traits import add_traits_settings_section
+from ephemeraldaddy.gui.features.settings.traits import populate_traits_settings_layout
 from ephemeraldaddy.gui.settings.modules.ocean_predictor import (
     OceanPredictorSettingsController,
     configure_ocean_predictor_from_settings,
@@ -18703,14 +18705,48 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         manager_widget.finished.connect(lambda _result: coordinator.refresh_after_close())
         manager_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._settings_property_manager_widget = manager_widget
-        section_layout.addWidget(manager_widget)
+        property_tabs = QTabWidget(self._settings_dialog or self)
+        property_tabs.addTab(manager_widget, "Properties")
+        traits_widget = QWidget(property_tabs)
+        traits_layout = QVBoxLayout(traits_widget)
+        traits_layout.setContentsMargins(8, 8, 8, 8)
+        populate_traits_settings_layout(self, traits_layout)
+        property_tabs.addTab(traits_widget, "Traits")
+        self._settings_property_manager_tabs = property_tabs
+        section_layout.addWidget(property_tabs)
+
+    def _ensure_settings_astro_twin_presets_widget(self, tab_index: int) -> None:
+        """Build the expensive presets manager only when its tab is selected."""
+        if tab_index != 1 or getattr(self, "_settings_astro_twin_presets_widget", None) is not None:
+            return
+        tab_layout = getattr(self, "_settings_astro_twin_presets_layout", None)
+        if not isinstance(tab_layout, QVBoxLayout):
+            return
+        coordinator = getattr(self, "_property_manager_coordinator", None)
+        if coordinator is None:
+            coordinator = PropertyManagerCoordinator(self)
+            self._property_manager_coordinator = coordinator
+        manager_widget = coordinator.create_widget(
+            parent=self._settings_dialog or self,
+            initial_field=ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS,
+            embedded=True,
+            lock_field=True,
+            include_astro_twin_presets=True,
+        )
+        manager_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._settings_astro_twin_presets_widget = manager_widget
+        tab_layout.addWidget(manager_widget)
 
     def _show_settings_astro_twin_presets_manager(self) -> None:
-        tab_index = getattr(self, "_settings_section_title_to_index", {}).get("Property Managers")
+        tab_index = getattr(self, "_settings_section_title_to_index", {}).get("Astro Twin Calculator")
         tab_stack = getattr(self, "_settings_tab_stack", None)
         if isinstance(tab_stack, QStackedWidget) and tab_index is not None:
             tab_stack.setCurrentIndex(int(tab_index))
-        manager_widget = getattr(self, "_settings_property_manager_widget", None)
+        astro_twin_tabs = getattr(self, "_settings_astro_twin_tabs", None)
+        if isinstance(astro_twin_tabs, QTabWidget):
+            astro_twin_tabs.setCurrentIndex(1)
+            self._ensure_settings_astro_twin_presets_widget(1)
+        manager_widget = getattr(self, "_settings_astro_twin_presets_widget", None)
         if isinstance(manager_widget, ManageMetadataLabelsDialog):
             manager_widget.refresh_usage()
             manager_widget.select_field(ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS)
@@ -22388,6 +22424,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             )
                         )
                         del blocker
+            self._refresh_plugins_status_labels()
             self._resize_and_center_settings_dialog(self._settings_dialog)
             return self._settings_dialog
 
@@ -22622,9 +22659,23 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             content_layout,
             "Astro Twin Calculator",
         )
+        astro_twin_tabs = QTabWidget(dialog)
+        calculator_tab = QWidget(astro_twin_tabs)
+        calculator_layout = QVBoxLayout(calculator_tab)
+        calculator_layout.setContentsMargins(8, 8, 8, 8)
+        presets_tab = QWidget(astro_twin_tabs)
+        presets_layout = QVBoxLayout(presets_tab)
+        presets_layout.setContentsMargins(8, 8, 8, 8)
+        astro_twin_tabs.addTab(calculator_tab, "Calculator")
+        astro_twin_tabs.addTab(presets_tab, "Astro Twin Presets Manager")
+        similarity_calculator_section.addWidget(astro_twin_tabs)
+        self._settings_astro_twin_tabs = astro_twin_tabs
+        self._settings_astro_twin_presets_layout = presets_layout
+        self._settings_astro_twin_presets_widget = None
+        astro_twin_tabs.currentChanged.connect(self._ensure_settings_astro_twin_presets_widget)
         similarity_controls = build_similarity_calculator_settings_section(
             dialog=dialog,
-            section_layout=similarity_calculator_section,
+            section_layout=calculator_layout,
             subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
             on_mode_default_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT),
@@ -22722,11 +22773,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         enneagram_controls["update_ocean_weight_constraints"]()
 
-        add_traits_settings_section(self, content_layout)
-
         property_manager_section = self._add_settings_collapsible_section(
             content_layout,
-            "Property Managers",
+            "Property Manager",
             fill_available_height=True,
         )
         self._populate_settings_property_manager_section(property_manager_section)
@@ -22740,7 +22789,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._populate_settings_custom_db_export_section(custom_db_export_section)
 
         plugins_section = self._add_settings_collapsible_section(content_layout, "Plugins")
-        plugins_section.addWidget(
+        upload_panel = QGroupBox("Upload Panel")
+        upload_layout = QVBoxLayout(upload_panel)
+        upload_layout.addWidget(
             self._build_settings_help_label(
                 "Install recognized local supplements. Installed plugins remain local and extend app-native descriptions when available."
             )
@@ -22748,10 +22799,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._plugins_upload_button = QPushButton("Upload Plugin File…")
         self._plugins_upload_button.setStyleSheet("QPushButton { padding-top: 7px; }")
         self._plugins_upload_button.clicked.connect(self._on_plugin_upload_clicked)
-        plugins_section.addWidget(self._plugins_upload_button, alignment=Qt.AlignLeft)
-        self._plugins_installed_label = QLabel("")
-        self._plugins_installed_label.setWordWrap(True)
-        plugins_section.addWidget(self._plugins_installed_label)
+        upload_layout.addWidget(self._plugins_upload_button, alignment=Qt.AlignLeft)
+        plugins_section.addWidget(upload_panel)
+        self._plugins_manager_panel = build_plugin_manager_panel(self, dialog)
+        plugins_section.addWidget(self._plugins_manager_panel, 1)
         self._plugins_status_label = QLabel("")
         self._plugins_status_label.setWordWrap(True)
         self._plugins_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
@@ -22969,15 +23020,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if isinstance(upload_button, QPushButton):
             upload_button.setToolTip("Currently recognized plugins: " + ", ".join(recognized_plugins))
 
-        installed_label = getattr(self, "_plugins_installed_label", None)
-        if isinstance(installed_label, QLabel):
-            if installed_plugins:
-                installed_label.setText("✓ Currently installed: " + ", ".join(installed_plugins))
-                installed_label.setStyleSheet("color: #6ee07f; font-style: italic; font-size: 8pt;")
-                installed_label.show()
-            else:
-                installed_label.clear()
-                installed_label.hide()
+        manager_panel = getattr(self, "_plugins_manager_panel", None)
+        if manager_panel is not None:
+            manager_panel.refresh()
 
         status_label = getattr(self, "_plugins_status_label", None)
         if not available_plugins and installed_plugins:

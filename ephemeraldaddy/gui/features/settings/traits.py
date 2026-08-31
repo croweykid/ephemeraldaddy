@@ -88,13 +88,8 @@ def _keep_settings_dialog_foreground(owner: Any) -> None:
     QTimer.singleShot(0, raise_dialog)
 
 
-def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
-    """Add the Settings > Traits manager section to the settings dialog."""
-    traits_section = owner._add_settings_collapsible_section(
-        content_layout,
-        "Traits",
-        fill_available_height=True,
-    )
+def populate_traits_settings_layout(owner: Any, traits_section: Any) -> None:
+    """Populate a Property Manager sub-tab with the Traits manager."""
     traits_section.addWidget(
         owner._build_settings_help_label(
             "Manage custom trait profiles exported from Similarities Analysis. Uploaded traits are saved locally in ~/.ephemeraldaddy/traits and scored in Chart Editor > Predictions."
@@ -153,7 +148,21 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     owner._traits_status_label = QLabel("")
     owner._traits_status_label.setWordWrap(True)
     owner._traits_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+    # Traits now lives inside Property Manager rather than owning a top-level
+    # Settings section/footer.  Keep its status in the Traits tab so it is not
+    # shown while the sibling Properties tab is selected.
+    traits_section.addWidget(owner._traits_status_label)
     refresh_traits_settings_list(owner)
+
+
+def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
+    """Compatibility wrapper for callers that still need a standalone section."""
+    traits_section = owner._add_settings_collapsible_section(
+        content_layout,
+        "Traits",
+        fill_available_height=True,
+    )
+    populate_traits_settings_layout(owner, traits_section)
 
 
 def selected_trait_item(owner: Any) -> QListWidgetItem | None:
@@ -218,10 +227,7 @@ def refresh_traits_settings_list(owner: Any) -> None:
         f"{archived_count} archived and excluded from Predictions. "
         f"{count} of {TRAIT_RECOMMENDED_WORKING_SET_LIMIT} traits currently defined." #recommended maximum, until this feature is performance-optimized.
     )
-    footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
-    if callable(footer_writer):
-        footer_writer("Traits", status_text)
-    elif isinstance(status_label, QLabel):
+    if isinstance(status_label, QLabel):
         status_label.setText(status_text)
     _sync_trait_action_buttons(owner)
 
