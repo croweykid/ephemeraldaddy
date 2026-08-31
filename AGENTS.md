@@ -1,5 +1,8 @@
 # AGENTS.md
 
+## Code revision policy
+- Before completing a task, reread the original requirement and review the final diff as if you did not author it. Do not treat passing tests as sufficient evidence of correctness. Trace affected callers and state transitions, look for behavioral regressions, and verify that the implementation addresses the underlying cause rather than only the observed symptom. Add regression coverage for the failure whenever practical.
+
 ## Active architecture direction
 - Before changing `ephemeraldaddy/gui/app.py` or relocating GUI features, read
   `agents/app_py_refactor_manifesto.md`. It defines the approved naming,
