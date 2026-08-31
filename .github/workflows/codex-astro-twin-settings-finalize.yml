@@ -1,0 +1,441 @@
+name: Finalize Astro Twin settings cleanup
+
+on:
+  push:
+    branches:
+      - codex/tidy-astro-twin-settings-and-ranking-actions
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/tidy-astro-twin-settings-and-ranking-actions
+          fetch-depth: 0
+
+      - name: Apply final source and test patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          DEV = Path("ephemeraldaddy/gui/dev_tools.py")
+          TEST = Path("tests/test_astro_twin_settings_layout_source.py")
+
+          def replace_between(text: str, start: str, end: str, replacement: str, label: str) -> str:
+              if text.count(start) != 1:
+                  raise SystemExit(f"{label}: expected one start marker, found {text.count(start)}")
+              start_at = text.index(start)
+              end_at = text.find(end, start_at + len(start))
+              if end_at < 0:
+                  raise SystemExit(f"{label}: end marker not found")
+              return text[:start_at] + replacement + text[end_at:]
+
+          source = DEV.read_text(encoding="utf-8")
+
+          source = replace_between(
+              source,
+              "class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):\n",
+              "\ndef _build_settings_help_label",
+              '''class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
+              """Collapsible algorithm ranking used by the Astro Twin Research settings."""
+
+              def __init__(
+                  self,
+                  parent: QWidget | None = None,
+                  *,
+                  on_use_row: Callable[[dict[str, object]], None] | None = None,
+              ) -> None:
+                  super().__init__(parent)
+                  self._expanded_rows: set[int] = set()
+                  self._rows: list[dict[str, object]] = []
+                  self._on_use_row = on_use_row
+                  self.setOpenLinks(False)
+                  self.setOpenExternalLinks(False)
+                  self.setFrameShape(QFrame.NoFrame)
+                  self.setStyleSheet("QTextBrowser { background: transparent; border: none; }")
+                  self.setMinimumHeight(100)
+                  self.anchorClicked.connect(self._toggle_algorithm_details)
+                  self.refresh_ranking()
+
+              @staticmethod
+              def _factor_weight_color(weight: float, maximum_weight: float) -> str:
+                  scale_max = float(maximum_weight) if float(maximum_weight) > 0.0 else 1.0
+                  red, green, blue = more_readable_color_scale_rgb_for_range(
+                      float(weight),
+                      0.0,
+                      scale_max,
+                  )
+                  return f"rgb({red}, {green}, {blue})"
+
+              def refresh_ranking(self) -> None:
+                  self._rows = aggregate_similarity_algorithm_accuracy(include_v2=True)
+                  self._expanded_rows.intersection_update(range(len(self._rows)))
+                  self.setHtml(
+                      format_similarity_algorithm_accuracy_ranking_html(
+                          self._rows,
+                          expanded_rows=self._expanded_rows,
+                          highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                          factor_weight_color=self._factor_weight_color,
+                      )
+                  )
+
+              def _toggle_algorithm_details(self, url) -> None:
+                  try:
+                      row_index = int(url.path())
+                  except ValueError:
+                      return
+                  if url.scheme() == "use":
+                      if 0 <= row_index < len(self._rows) and self._on_use_row is not None:
+                          self._on_use_row(dict(self._rows[row_index]))
+                      return
+                  if url.scheme() != "algorithm":
+                      return
+                  if row_index in self._expanded_rows:
+                      self._expanded_rows.remove(row_index)
+                  else:
+                      self._expanded_rows.add(row_index)
+                  self.refresh_ranking()
+
+          ''',
+              "ranking browser",
+          )
+
+          source = replace_between(
+              source,
+              '    demographic_match_header = QLabel("Demographic Matching")\n',
+              '    default_radio = QRadioButton("use default")\n',
+              '    algorithm_layout.addWidget(QLabel("Choose how Astro Twins are defined:"))\n\n',
+              "algorithm intro",
+          )
+
+          source = replace_between(
+              source,
+              '    for row_index, (key, label_text) in enumerate(SIMILARITY_CALCULATOR_FACTOR_ROWS, start=1):\n',
+              '\n    def current_custom_settings() -> dict[str, object]:\n',
+              '''    weighting_mode_combo = QComboBox()
+              weighting_mode_combo.addItem("Chart-defined weights", "chart_defined")
+              weighting_mode_combo.addItem("Generic base weights", "generic")
+              weighting_mode_combo.addItem("Hybrid (generic + dominant body bonuses)", "hybrid")
+              for index in range(weighting_mode_combo.count()):
+                  mode = str(weighting_mode_combo.itemData(index) or "")
+                  tooltip = str(PLACEMENT_WEIGHTING_MODE_TOOLTIPS.get(mode, "") or "")
+                  weighting_mode_combo.setItemData(index, tooltip, Qt.ToolTipRole)
+              weighting_mode_combo.currentIndexChanged.connect(
+                  lambda _index: on_placement_weighting_mode_changed(
+                      str(weighting_mode_combo.currentData() or "chart_defined")
+                  )
+              )
+
+              def update_weighting_mode_tooltip(index: int) -> None:
+                  weighting_mode_combo.setToolTip(
+                      str(weighting_mode_combo.itemData(index, Qt.ToolTipRole) or "")
+                  )
+
+              weighting_mode_combo.currentIndexChanged.connect(update_weighting_mode_tooltip)
+              apply_shared_dropdown_style(weighting_mode_combo)
+              update_weighting_mode_tooltip(weighting_mode_combo.currentIndex())
+
+              for row_index, (key, label_text) in enumerate(SIMILARITY_CALCULATOR_FACTOR_ROWS, start=1):
+                  criterion_tooltip = SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS.get(
+                      key,
+                      "Explains what this similarity criterion measures between two charts.",
+                  )
+                  criterion_label = TooltipHelpLabel(f"{label_text} Ⓘ", criterion_tooltip)
+                  if key == "placement":
+                      placement_criterion_row = QHBoxLayout()
+                      placement_criterion_row.setContentsMargins(0, 0, 0, 0)
+                      placement_criterion_row.setSpacing(6)
+                      placement_criterion_row.addWidget(criterion_label)
+                      placement_criterion_row.addWidget(weighting_mode_combo)
+                      placement_criterion_row.addStretch(1)
+                      calculator_grid.addLayout(placement_criterion_row, row_index, 1)
+                  else:
+                      calculator_grid.addWidget(criterion_label, row_index, 1)
+                  enabled_checkbox = QCheckBox()
+                  enabled_checkbox.setStyleSheet(SIMILARITY_CALCULATOR_CHECKBOX_STYLE)
+                  enabled_checkbox.setChecked(True)
+                  enabled_checkbox.stateChanged.connect(
+                      lambda _state, row_key=key, checkbox=enabled_checkbox: on_checkbox_toggled(
+                          row_key,
+                          checkbox.isChecked(),
+                      )
+                  )
+                  calculator_grid.addWidget(enabled_checkbox, row_index, 0, alignment=Qt.AlignCenter)
+                  weight_spinbox = QDoubleSpinBox()
+                  weight_spinbox.setDecimals(2)
+                  weight_spinbox.setRange(0.0, 1.0)
+                  weight_spinbox.setSingleStep(0.01)
+                  weight_spinbox.setFixedWidth(weight_column_width)
+                  weight_spinbox.setAlignment(Qt.AlignRight)
+                  weight_spinbox.valueChanged.connect(
+                      lambda _value, row_key=key, spinbox=weight_spinbox: on_weight_changed(
+                          row_key,
+                          float(spinbox.value()),
+                      )
+                  )
+                  calculator_grid.addWidget(weight_spinbox, row_index, 2)
+                  calculator_checkboxes[key] = enabled_checkbox
+                  calculator_weights[key] = weight_spinbox
+              custom_fields_layout.addLayout(calculator_grid)
+
+              reset_weights_row = QHBoxLayout()
+              reset_similarity_weights_button = QPushButton("Reset Weights to Default")
+              reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
+              reset_weights_row.addWidget(reset_similarity_weights_button)
+              reset_weights_row.addStretch(1)
+              custom_fields_layout.addLayout(reset_weights_row)
+          ''',
+              "placement weight mode",
+          )
+
+          source = replace_between(
+              source,
+              '    #reset_granular_row = QHBoxLayout()\n',
+              '    calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")\n',
+              '''    algorithm_layout.addWidget(custom_fields_frame)
+              algorithm_layout.addSpacing(18)
+
+              demographic_algorithm_divider = QFrame()
+              demographic_algorithm_divider.setFrameShape(QFrame.HLine)
+              demographic_algorithm_divider.setFrameShadow(QFrame.Sunken)
+              algorithm_layout.addWidget(demographic_algorithm_divider)
+
+              demographic_match_section = QFrame()
+              demographic_match_layout = QVBoxLayout(demographic_match_section)
+              demographic_match_layout.setContentsMargins(0, 8, 0, 0)
+              demographic_match_layout.setSpacing(6)
+              demographic_match_header = QLabel("Demographic Matching")
+              demographic_match_header.setStyleSheet(subheader_style)
+              demographic_match_layout.addWidget(demographic_match_header)
+
+              demographic_match_group = QButtonGroup(dialog)
+              demographic_match_group.setExclusive(True)
+              demographic_match_buttons: dict[str, QRadioButton] = {}
+              for mode, label_text in (
+                  ("none", "Include everyone (default)"),
+                  ("sex", "Match assigned sex"),
+                  ("opposite_sex", "Opposite assigned sex"),
+                  ("gender", "Match gender identity"),
+                  ("opposite_gender", "Opposite gender identity"),
+              ):
+                  button = QRadioButton(label_text)
+                  demographic_match_group.addButton(button)
+                  button.toggled.connect(
+                      lambda checked, selected_mode=mode: checked and on_demographic_match_mode_changed(selected_mode)
+                  )
+                  demographic_match_layout.addWidget(button)
+                  demographic_match_buttons[mode] = button
+              demographic_match_buttons["none"].setChecked(True)
+              algorithm_layout.addWidget(demographic_match_section)
+
+              scoring_method_radios = {
+                  "default": default_radio,
+                  "generic_astro": generic_astro_radio,
+                  "comprehensive": comprehensive_radio,
+                  "all_or_nothing": all_or_nothing_radio,
+                  "big_3": big_3_radio,
+                  "custom": custom_radio,
+                  "database_distinction": database_distinction_radio,
+              }
+
+              def apply_accuracy_ranking_row(row: dict[str, object]) -> None:
+                  mode = str(row.get("algorithm_mode") or "")
+                  target_radio = scoring_method_radios.get(mode)
+                  if target_radio is None:
+                      return
+                  snapshot = row.get("algorithm_snapshot")
+                  if mode == "custom":
+                      if not isinstance(snapshot, dict) or not bool(snapshot.get("details_available", True)):
+                          return
+                      factors = snapshot.get("selected_factors")
+                      if not isinstance(factors, list):
+                          return
+                      preset_state["applying"] = True
+                      try:
+                          for key in calculator_checkboxes:
+                              calculator_checkboxes[key].setChecked(False)
+                              calculator_weights[key].setValue(0.0)
+                          for factor in factors:
+                              if not isinstance(factor, dict):
+                                  continue
+                              key = str(factor.get("factor") or "")
+                              if key not in calculator_checkboxes:
+                                  continue
+                              calculator_checkboxes[key].setChecked(bool(factor.get("enabled", False)))
+                              calculator_weights[key].setValue(float(factor.get("weight", 0.0)))
+                          placement_index = weighting_mode_combo.findData(
+                              snapshot.get("placement_weighting_mode")
+                          )
+                          if placement_index >= 0:
+                              weighting_mode_combo.setCurrentIndex(placement_index)
+                          preset_state["name"] = None
+                          preset_state["preset_in_use"] = False
+                          select_preset_combo.blockSignals(True)
+                          try:
+                              select_preset_combo.setCurrentIndex(-1)
+                          finally:
+                              select_preset_combo.blockSignals(False)
+                          preset_status_label.setVisible(False)
+                      finally:
+                          preset_state["applying"] = False
+                      target_radio.setChecked(True)
+                      return
+                  if mode == "all_or_nothing" and isinstance(snapshot, dict):
+                      snapshot_settings = snapshot.get("settings")
+                      if isinstance(snapshot_settings, dict):
+                          criterion_index = all_or_nothing_criterion_combo.findData(
+                              snapshot_settings.get("all_or_nothing_component")
+                          )
+                          if criterion_index >= 0:
+                              all_or_nothing_criterion_combo.setCurrentIndex(criterion_index)
+                  target_radio.setChecked(True)
+
+              algorithm_layout.addStretch(1)
+
+          ''',
+              "demographic relocation and apply action",
+          )
+
+          old = '    algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser()\n'
+          new = '''    algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser(
+                  on_use_row=apply_accuracy_ranking_row
+              )
+          '''
+          if source.count(old) != 1:
+              raise SystemExit(f"research browser: expected one match, found {source.count(old)}")
+          source = source.replace(old, new, 1)
+          DEV.write_text(source, encoding="utf-8")
+
+          tests = TEST.read_text(encoding="utf-8")
+
+          def replace_test(name: str, next_name: str | None, replacement: str) -> None:
+              nonlocal_tests = globals().get("_unused")
+
+          def rewrite_function(text: str, name: str, next_name: str | None, replacement: str) -> str:
+              if next_name is None:
+                  pattern = rf"def {re.escape(name)}\(\):\n.*\Z"
+              else:
+                  pattern = rf"def {re.escape(name)}\(\):\n.*?(?=\ndef {re.escape(next_name)}\(\):)"
+              updated, count = re.subn(pattern, replacement.rstrip() + "\n", text, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f"test rewrite {name}: expected one match, found {count}")
+              return updated
+
+          tests = rewrite_function(
+              tests,
+              "test_demographic_matching_precedes_scoring_methods_and_has_divider",
+              "test_demographic_matching_labels_order_and_no_tooltips",
+              '''def test_algorithm_caption_leads_and_demographic_matching_follows_custom_subpanel():
+              chooser = SECTION.index('QLabel("Choose how Astro Twins are defined:")')
+              custom_attach = SECTION.index("algorithm_layout.addWidget(custom_fields_frame)")
+              divider = SECTION.index("demographic_algorithm_divider = QFrame()", custom_attach)
+              demographic = SECTION.index('QLabel("Demographic Matching")', divider)
+              stretch = SECTION.index("algorithm_layout.addStretch(1)", demographic)
+
+              assert chooser < custom_attach < divider < demographic < stretch
+              assert "demographic_match_header.setStyleSheet(subheader_style)" in SECTION
+              assert "demographic_algorithm_divider.setFrameShape(QFrame.HLine)" in SECTION
+              assert 'QLabel("Scoring Methods")' not in SECTION
+              assert '"Choose the metric by which Astro Twins are defined:"' not in SECTION
+              assert 'QLabel("Match preference")' not in SECTION
+              assert 'QLabel("Astro Twin Calculator")' not in SECTION
+          ''',
+          )
+
+          tests = rewrite_function(
+              tests,
+              "test_reset_weights_button_shares_placement_weighting_row",
+              "test_placement_weighting_modes_have_item_and_selected_tooltips",
+              '''def test_placement_weight_mode_is_inline_with_placement_criterion_without_label():
+              placement_branch = SECTION.index('if key == "placement":')
+              criterion = SECTION.index("placement_criterion_row.addWidget(criterion_label)", placement_branch)
+              combo = SECTION.index("placement_criterion_row.addWidget(weighting_mode_combo)", placement_branch)
+              reset = SECTION.index('QPushButton("Reset Weights to Default")', combo)
+
+              assert placement_branch < criterion < combo < reset
+              assert 'QLabel("Placement-weight mode")' not in SECTION
+          ''',
+          )
+
+          tests = rewrite_function(
+              tests,
+              "test_research_accuracy_ranking_fills_space_below_button_and_divider",
+              None,
+              '''def test_research_accuracy_ranking_fills_space_below_button_and_divider():
+              button = SECTION.index('QPushButton("Show 90-100% similarities")')
+              divider = SECTION.index("research_accuracy_divider = QFrame()")
+              ranking = SECTION.index("algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser(")
+
+              assert button < divider < ranking
+              assert "research_accuracy_divider.setFrameShape(QFrame.HLine)" in SECTION
+              assert "on_use_row=apply_accuracy_ranking_row" in SECTION
+              assert "research_layout.addWidget(algorithm_accuracy_label, 1)" in SECTION
+              assert "research_layout.addStretch(1)" not in SECTION
+              assert "self.setMaximumHeight(360)" not in SOURCE
+
+
+          def test_research_use_this_applies_mode_custom_snapshot_and_all_or_nothing_criterion():
+              assert '"database_distinction": database_distinction_radio' in SECTION
+              assert "def apply_accuracy_ranking_row(row: dict[str, object])" in SECTION
+              assert 'if mode == "custom":' in SECTION
+              assert "calculator_checkboxes[key].setChecked(bool(factor.get(\"enabled\", False)))" in SECTION
+              assert "calculator_weights[key].setValue(float(factor.get(\"weight\", 0.0)))" in SECTION
+              assert 'snapshot.get("placement_weighting_mode")' in SECTION
+              assert 'snapshot_settings.get("all_or_nothing_component")' in SECTION
+              assert "target_radio.setChecked(True)" in SECTION
+
+
+          def test_research_weight_coloring_uses_shared_zero_based_red_green_scale():
+              browser = SOURCE.split("class SimilarityAlgorithmAccuracyBrowser", 1)[1].split(
+                  "def _build_settings_help_label", 1
+              )[0]
+              assert "more_readable_color_scale_rgb_for_range(" in browser
+              assert "0.0," in browser
+              assert "scale_max," in browser
+              assert "factor_weight_color=self._factor_weight_color" in browser
+
+
+          def test_ranking_formatter_has_use_action_and_filters_disabled_factors():
+              ranking_source = (
+                  Path(__file__).resolve().parents[1]
+                  / "ephemeraldaddy/gui/features/charts/similarities_algorithm_log.py"
+              ).read_text(encoding="utf-8")
+              formatter = ranking_source.split(
+                  "def format_similarity_algorithm_accuracy_ranking_html", 1
+              )[1].split("def _settings_payload", 1)[0]
+              assert '<th align=\\"center\\">Use</th>' in formatter
+              assert 'href=\\"use:{index - 1}\\"' in formatter
+              assert "enabled_factors = [" in formatter
+              assert 'bool(factor.get(\\"enabled\\", False))' in formatter
+              assert "for factor in enabled_factors:" in formatter
+              assert "factor_weight_color(weight, maximum_weight)" in formatter
+              assert 'f\\"{label}: {weight:g} (on)\\"' in formatter
+              assert "(off)" not in formatter
+          ''',
+          )
+          TEST.write_text(tests, encoding="utf-8")
+
+          workflow = Path(".github/workflows/codex-astro-twin-settings-finalize.yml")
+          workflow.unlink()
+          PY
+
+      - name: Compile and run focused tests
+        run: |
+          python -m py_compile ephemeraldaddy/gui/dev_tools.py ephemeraldaddy/gui/features/charts/similarities_algorithm_log.py
+          python -m pip install -q pytest
+          python -m pytest -q tests/test_astro_twin_settings_layout_source.py
+
+      - name: Commit finalized feature
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Finish Astro Twin settings and ranking actions"
+          git push origin HEAD:codex/tidy-astro-twin-settings-and-ranking-actions
