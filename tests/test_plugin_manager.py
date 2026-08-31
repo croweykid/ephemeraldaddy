@@ -38,3 +38,18 @@ def test_settings_places_presets_traits_and_plugin_manager_in_requested_tabs():
     assert '"✓ Enabled" if enabled else "✕ Disabled"' in plugin_source
     assert 'self.toggle_button.setText("Disable" if enabled else "Enable")' in plugin_source
     assert 'f"Open Folder in {_file_browser_name()}"' in plugin_source
+
+
+def test_preset_manager_is_lazy_and_cached_settings_refreshes_plugins():
+    root = Path(__file__).resolve().parents[1]
+    app_source = (root / "ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+    settings_build = app_source.split(
+        'similarity_calculator_section = self._add_settings_collapsible_section(', 1
+    )[1].split("similarity_controls = build_similarity_calculator_settings_section", 1)[0]
+    cached_settings = app_source.split("if self._settings_dialog is not None:", 1)[1].split(
+        "dialog = QDialog(self)", 1
+    )[0]
+
+    assert "currentChanged.connect(self._ensure_settings_astro_twin_presets_widget)" in settings_build
+    assert "coordinator.create_widget" not in settings_build
+    assert "self._refresh_plugins_status_labels()" in cached_settings

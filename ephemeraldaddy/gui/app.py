@@ -18707,7 +18707,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._settings_property_manager_tabs = property_tabs
         section_layout.addWidget(property_tabs)
 
-    def _populate_settings_astro_twin_presets_tab(self, tab_layout: QVBoxLayout) -> None:
+    def _ensure_settings_astro_twin_presets_widget(self, tab_index: int) -> None:
+        """Build the expensive presets manager only when its tab is selected."""
+        if tab_index != 1 or getattr(self, "_settings_astro_twin_presets_widget", None) is not None:
+            return
+        tab_layout = getattr(self, "_settings_astro_twin_presets_layout", None)
+        if not isinstance(tab_layout, QVBoxLayout):
+            return
         coordinator = getattr(self, "_property_manager_coordinator", None)
         if coordinator is None:
             coordinator = PropertyManagerCoordinator(self)
@@ -18731,6 +18737,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         astro_twin_tabs = getattr(self, "_settings_astro_twin_tabs", None)
         if isinstance(astro_twin_tabs, QTabWidget):
             astro_twin_tabs.setCurrentIndex(1)
+            self._ensure_settings_astro_twin_presets_widget(1)
         manager_widget = getattr(self, "_settings_astro_twin_presets_widget", None)
         if isinstance(manager_widget, ManageMetadataLabelsDialog):
             manager_widget.refresh_usage()
@@ -22406,6 +22413,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             )
                         )
                         del blocker
+            self._refresh_plugins_status_labels()
             self._resize_and_center_settings_dialog(self._settings_dialog)
             return self._settings_dialog
 
@@ -22651,7 +22659,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         astro_twin_tabs.addTab(presets_tab, "Astro Twin Presets Manager")
         similarity_calculator_section.addWidget(astro_twin_tabs)
         self._settings_astro_twin_tabs = astro_twin_tabs
-        self._populate_settings_astro_twin_presets_tab(presets_layout)
+        self._settings_astro_twin_presets_layout = presets_layout
+        self._settings_astro_twin_presets_widget = None
+        astro_twin_tabs.currentChanged.connect(self._ensure_settings_astro_twin_presets_widget)
         similarity_controls = build_similarity_calculator_settings_section(
             dialog=dialog,
             section_layout=calculator_layout,
