@@ -1120,11 +1120,6 @@ def build_similarity_calculator_settings_section(
     calibration_layout.addLayout(thresholds_button_row)
     calibration_layout.addStretch(1)
 
-    perceived_accuracy_checkbox = add_similarity_perceived_accuracy_controls_setting(
-        section_layout=research_layout,
-        is_enabled=perceived_accuracy_controls_enabled,
-        on_toggled=on_perceived_accuracy_controls_toggled,
-    )
     show_high_similarity_button = QPushButton("Show 90-100% similarities")
     show_high_similarity_button.setToolTip(
         "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
@@ -1140,7 +1135,6 @@ def build_similarity_calculator_settings_section(
 
     algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser()
     algorithm_accuracy_label.setVisible(perceived_accuracy_controls_enabled)
-    perceived_accuracy_checkbox.toggled.connect(algorithm_accuracy_label.setVisible)
     research_layout.addWidget(algorithm_accuracy_label, 1)
 
     return {
@@ -1165,7 +1159,7 @@ def build_similarity_calculator_settings_section(
         "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
         "demographic_match_buttons": demographic_match_buttons,
         "threshold_spinboxes": threshold_spinboxes,
-        "perceived_accuracy_checkbox": perceived_accuracy_checkbox,
+        "perceived_accuracy_checkbox": None,
         "algorithm_accuracy_label": algorithm_accuracy_label,
         "tabs": tabs,
     }

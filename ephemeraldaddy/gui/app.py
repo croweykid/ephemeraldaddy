@@ -587,6 +587,15 @@ from ephemeraldaddy.gui.window_chrome import (
 from ephemeraldaddy.gui.features.similarities.compare_collections import (
     show_compare_collections_dialog,
 )
+from ephemeraldaddy.gui.features.chart_information import (
+    PerceivedAccuracyTarget,
+    install_chart_editor_module_controls,
+    set_perceived_accuracy_controls_visible,
+)
+from ephemeraldaddy.gui.settings.core import (
+    SETTINGS_KEY_PERCEIVED_ACCURACY_THUMBS_VISIBLE,
+    load_perceived_accuracy_thumbs_visible,
+)
 from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
     configure_initial_window_state,
 )
@@ -22478,6 +22487,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 astrotwin_granular_explanation=bool(
                     getattr(self, "_astrotwin_granular_explanation", False)
                 ),
+                perceived_accuracy_thumbs_visible=load_perceived_accuracy_thumbs_visible(
+                    self._settings, fallback=False
+                ),
+                astrotwin_perceived_accuracy_visible=bool(
+                    getattr(
+                        self,
+                        "_similarity_perceived_accuracy_controls_enabled",
+                        SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+                    )
+                ),
                 build_subheader_label=self._build_settings_subheader_label,
                 build_help_label=self._build_settings_help_label,
                 set_row_info_visibility=self._set_database_view_row_info_visibility,
@@ -22488,6 +22507,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 ),
                 set_astrotwin_granular_explanation=(
                     self._on_astrotwin_granular_explanation_toggled
+                ),
+                set_perceived_accuracy_thumbs_visible=(
+                    self._on_perceived_accuracy_thumbs_visible_toggled
+                ),
+                set_astrotwin_perceived_accuracy_visible=(
+                    self._on_similarity_perceived_accuracy_controls_toggled
                 ),
             ),
         )
@@ -22661,12 +22686,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             on_manage_presets_clicked=self._show_settings_astro_twin_presets_manager,
             threshold_rows=SIMILARITY_THRESHOLD_EDITOR_ROWS,
         )
-        self._similarity_perceived_accuracy_controls_checkbox = similarity_controls[
-            "perceived_accuracy_checkbox"
-        ]
+        # The existing Astro Twin preference now lives under Display
+        # Preferences > User Feedback; retain this attribute for legacy sync.
+        self._similarity_perceived_accuracy_controls_checkbox = (
+            display_preference_checkboxes.get("astrotwin_perceived_accuracy_visible")
+        )
         self._similarity_algorithm_accuracy_label = similarity_controls[
             "algorithm_accuracy_label"
         ]
+        self._similarity_perceived_accuracy_controls_checkbox.toggled.connect(
+            self._similarity_algorithm_accuracy_label.setVisible
+        )
         self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
         self._similar_charts_algo_generic_astro_radio = similarity_controls["generic_astro_radio"]
         self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
@@ -23546,6 +23576,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 int(self._similarity_perceived_accuracy_controls_enabled),
             )
             parent._sync_perceived_similarity_predictors_visibility()
+
+    def _on_perceived_accuracy_thumbs_visible_toggled(self, checked: bool) -> None:
+        """Persist and live-apply the shared Chart Editor feedback preference."""
+        visible = bool(checked)
+        self._settings.setValue(SETTINGS_KEY_PERCEIVED_ACCURACY_THUMBS_VISIBLE, int(visible))
+        set_perceived_accuracy_controls_visible(visible)
 
     def _clear_similar_charts_popout_cache(self) -> int:
         cache = getattr(self, "_similar_charts_popout_cache", None)
@@ -26598,6 +26634,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self,
             scrollbar_style=RIGHT_PANEL_SCROLLBAR_STYLE,
             get_share_icon_path=_get_share_icon_path,
+        )
+        self._perceived_accuracy_module_controls = install_chart_editor_module_controls(
+            self,
+            chart_uid=self._current_chart_uid_for_navigation,
+            visible=load_perceived_accuracy_thumbs_visible(self._settings, fallback=False),
         )
         self._sync_demo_mode_visibility()
 
@@ -31388,6 +31429,28 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # info_index = block_text.rfind("ⓘ")        
         targets_main_chart_info = target_info_widget is self.chart_info_output
 
+        def retarget(entry: Mapping[str, object]) -> None:
+            if not targets_main_chart_info:
+                return
+            kind = str(entry.get("kind", "") or "").strip().lower()
+            identity_fields = (
+                "property_key", "property_value", "body", "sign", "house",
+                "nakshatra", "gate", "line", "gate_a", "gate_b", "color",
+                "tone", "base", "class_key", "family", "subtype",
+            )
+            identity = [
+                f"{field}={str(entry[field]).strip().lower()}"
+                for field in identity_fields
+                if entry.get(field) not in (None, "")
+            ]
+            control = getattr(self, "chart_information_accuracy_control", None)
+            if control is not None:
+                control.retarget(
+                    PerceivedAccuracyTarget("properties", ":".join([kind, *identity]))
+                    if kind and identity
+                    else None
+                )
+
 
         # cursor_pos = cursor.positionInBlock()
         # original_chart_info_output = self.chart_info_output
@@ -31430,6 +31493,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         if cursor_pos >= int(entry["icon_index"]):
                             selected_species = entry
                 if selected_species:
+                    retarget(selected_species)
                     if selected_species.get("kind") == "class":
                         self._show_dnd_class_info(
                             str(selected_species.get("name", "Unknown Class")),
@@ -31460,6 +31524,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         and isinstance(span_end, int)
                         and span_start <= cursor_pos < span_end
                     ):
+                        retarget(entry)
                         if entry.get("kind") == "planet_keyword":
                             position_entry = next(
                                 (
@@ -31553,6 +31618,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     if cursor_pos >= int(entry["icon_index"]):
                         selected_entry = entry
                 if selected_entry:
+                    retarget(selected_entry)
                     if selected_entry.get("kind") == "nakshatra":
                         self._show_nakshatra_info(selected_entry["nakshatra"])
                         return True
@@ -35537,10 +35603,20 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             raise ValueError("A persisted chart must have a non-empty chart UID")
         self.current_chart_uid = normalized_uid
         self._chart_edit_session.active_chart_uid = normalized_uid
+        for control in getattr(self, "_perceived_accuracy_module_controls", {}).values():
+            control.refresh()
+        chart_info_control = getattr(self, "chart_information_accuracy_control", None)
+        if chart_info_control is not None:
+            chart_info_control.refresh()
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
         self.current_chart_uid = None
+        for control in getattr(self, "_perceived_accuracy_module_controls", {}).values():
+            control.refresh()
+        chart_info_control = getattr(self, "chart_information_accuracy_control", None)
+        if chart_info_control is not None:
+            chart_info_control.retarget(None)
         self._chart_edit_session.active_chart_uid = None
 
     def _current_chart_uid_for_navigation(self) -> str | None:

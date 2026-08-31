@@ -33,6 +33,8 @@ class DisplayPreferencesConfig:
     row_info_visibility: dict[str, bool]
     show_hidden_charts: bool
     astrotwin_granular_explanation: bool
+    perceived_accuracy_thumbs_visible: bool
+    astrotwin_perceived_accuracy_visible: bool
     build_subheader_label: BuildLabel
     build_help_label: BuildLabel
     set_row_info_visibility: RowInfoCallback
@@ -40,6 +42,8 @@ class DisplayPreferencesConfig:
     set_chart_data_visibility: ChartDataVisibilityCallback
     set_standard_deviation_indicators: BoolCallback
     set_astrotwin_granular_explanation: BoolCallback
+    set_perceived_accuracy_thumbs_visible: BoolCallback
+    set_astrotwin_perceived_accuracy_visible: BoolCallback
 
 
 @dataclass(frozen=True)
@@ -138,6 +142,20 @@ def populate_display_preferences_section(
         config.set_astrotwin_granular_explanation,
     )
     row_info_checkboxes["astrotwin_granular_explanation"] = astrotwin_checkbox
+    section_layout.addSpacing(8)
+    section_layout.addWidget(config.build_subheader_label("User Feedback"))
+    row_info_checkboxes["perceived_accuracy_thumbs_visible"] = _add_checkbox(
+        section_layout,
+        "Show 👍/👎 for ranking perceived accuracy",
+        config.perceived_accuracy_thumbs_visible,
+        config.set_perceived_accuracy_thumbs_visible,
+    )
+    row_info_checkboxes["astrotwin_perceived_accuracy_visible"] = _add_checkbox(
+        section_layout,
+        "Show perceived accuracy inputs for astro twins",
+        config.astrotwin_perceived_accuracy_visible,
+        config.set_astrotwin_perceived_accuracy_visible,
+    )
     return row_info_checkboxes
 
 

@@ -141,6 +141,10 @@ from ephemeraldaddy.gui.features.charts.tagging import (
     render_tag_chip_preview,
 )
 from ephemeraldaddy.gui.dbv_search_panel import refresh_tag_catalog_for_added_tags
+from ephemeraldaddy.gui.features.chart_information import (
+    PerceivedAccuracyThumbs,
+)
+from ephemeraldaddy.gui.settings.core import load_perceived_accuracy_thumbs_visible
 
 logger = logging.getLogger(__name__)
 
@@ -1102,6 +1106,18 @@ def build_chart_view_left_panel(
     chart_info_header_layout.addWidget(owner.chart_rectification_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_source_toggle_button, 0)
     chart_info_header_layout.addStretch(1)
+    owner.chart_information_accuracy_control = PerceivedAccuracyThumbs(
+        lambda: getattr(owner, "current_chart_uid", None),
+        parent=chart_info_header,
+    )
+    owner.chart_information_accuracy_control.setVisible(
+        load_perceived_accuracy_thumbs_visible(owner._settings, fallback=False)
+    )
+    chart_info_header_layout.addWidget(
+        owner.chart_information_accuracy_control,
+        0,
+        Qt.AlignRight | Qt.AlignTop,
+    )
     chart_panel_layout.addWidget(chart_info_header, 0)
 
     owner.chart_info_output = QTextEdit()
