@@ -12588,7 +12588,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             }
             if _should_refresh_database_metric_section("birth_time"):
                 birth_time_canvas = self._build_single_metric_chart(
-                    label=birth_time_label_by_mode.get(birth_time_mode, "🐣Time"),
+                    label=birth_time_label_by_mode.get(birth_time_mode, "Time"),
                     selection_value=selection_birth_time.get(birth_time_mode, 0.0),
                     database_value=database_birth_time.get(birth_time_mode, 0.0),
                     loaded_charts=loaded_charts,
@@ -12597,7 +12597,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self.birth_time_chart_layout.addWidget(birth_time_canvas, 0)
             self._analysis_chart_export_rows["birth_time"] = [
                 (
-                    birth_time_label_by_mode.get(birth_time_mode, "🐣Time"),
+                    birth_time_label_by_mode.get(birth_time_mode, "Time"),
                     selection_birth_time.get(birth_time_mode, 0.0) if loaded_charts else database_birth_time.get(birth_time_mode, 0.0),
                     database_birth_time.get(birth_time_mode, 0.0),
                     (selection_birth_time.get(birth_time_mode, 0.0) if loaded_charts else database_birth_time.get(birth_time_mode, 0.0)) - database_birth_time.get(birth_time_mode, 0.0),
@@ -25879,7 +25879,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         birth_time_row.addWidget(birth_year_widget, 0)
         birth_time_row.addWidget(self.deceased_checkbox, 0, Qt.AlignBottom)
         birth_time_row.addSpacing(14)
-        birth_time_row.addWidget(QLabel("🐣Time:"), 0, Qt.AlignBottom)
+        birth_time_row.addWidget(QLabel("Time:"), 0, Qt.AlignBottom)
         birth_time_row.addWidget(self.time_unknown_checkbox, 0, Qt.AlignBottom)
         birth_time_row.addWidget(self.time_edit, 0, Qt.AlignBottom)
         birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER)
@@ -25935,7 +25935,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         death_row.addWidget(self.death_day_edit, 0)
         death_row.addWidget(self.death_year_edit, 0)
         death_row.addSpacing(14)
-        death_row.addWidget(QLabel("💀Time:"), 0)
+        death_row.addWidget(QLabel("Time:"), 0)
         death_row.addWidget(self.death_time_unknown_checkbox, 0)
         death_row.addWidget(self.death_time_edit, 0)
         death_row.addSpacing(10)

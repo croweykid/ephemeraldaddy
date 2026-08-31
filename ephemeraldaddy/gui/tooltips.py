@@ -303,9 +303,8 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "Familiarity:": "How well you think you know them",
     "1st Encounter:": "first year you knowingly encountered this person/body",
     "🐣Date": "birth date",
-    "🐣Time:": "birth time (some features won't work without specific time, others will default to 'noon')",
+    "Time:": "some features won't work without specific time, others will default to 'noon'.",
     "💀Date": "death date",
-    "💀Time:": "death time (some features won't work without specific time, others will default to 'noon')",
     "Unknown": "tick if birth time is unknown", #; time-sensitive bodies/houses may be approximate or conditional
     "Use Rectified Time" : "tick if you have a guess about birth time, but are unsure",
     "😈 Most evil   ⟷   Most altruistic 😇": "alignment scale from most harmful to most altruistic",
