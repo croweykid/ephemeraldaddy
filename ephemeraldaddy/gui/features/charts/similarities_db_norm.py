@@ -46,6 +46,37 @@ def similarity_deviation_z_score(
     return z_score if math.isfinite(z_score) else None
 
 
+def similarity_prevalence_comparison(
+    selection_count: int,
+    selection_total: int,
+    database_count: int,
+    database_total: int,
+) -> tuple[float, float, float | None]:
+    """Return exact prevalence percentages and their signed DB-norm z-score."""
+    selection_percent = (
+        float(selection_count) / float(selection_total) * 100.0
+        if selection_total > 0
+        else 0.0
+    )
+    database_percent = (
+        float(database_count) / float(database_total) * 100.0
+        if database_total > 0
+        else 0.0
+    )
+    z_score = similarity_deviation_z_score(
+        selection_percent, database_percent, selection_total
+    )
+    if (
+        z_score is None
+        and selection_percent != database_percent
+        and database_percent in {0.0, 100.0}
+    ):
+        z_score = (
+            float("inf") if selection_percent > database_percent else float("-inf")
+        )
+    return selection_percent, database_percent, z_score
+
+
 def similarity_delta_rgb(
     selection_percent_value: int | float,
     db_percent_value: int | float,

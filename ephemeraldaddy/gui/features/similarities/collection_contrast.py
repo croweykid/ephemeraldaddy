@@ -50,6 +50,19 @@ class CollectionContrast:
     only_b: tuple[CollectionNorm, ...]
 
 
+def collection_norm_subgroup_label(norm: CollectionNorm) -> str | None:
+    """Return the nested display group for aspect and position norm labels."""
+    if "Aspect" in norm.category:
+        return norm.label.split(" ", 1)[0]
+    if norm.category == "Houses in positions in common":
+        _body, separator, house = norm.label.partition(": ")
+        return house if separator else None
+    if norm.category in {"Placements", "Signs in positions in common"}:
+        _body, separator, position = norm.label.partition(" in ")
+        return position if separator else None
+    return None
+
+
 def collection_trait_export_sections(
     norms: tuple[CollectionNorm, ...],
     counts: Counter[CollectionNorm],
