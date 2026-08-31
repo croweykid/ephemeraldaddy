@@ -88,6 +88,12 @@ def test_disabling_scorer_bucket_option_disables_missing_suppression_and_positio
             use_mutual_exclusive_bucket_scoring=False,
         ),
     )
+
+    def fail_if_bucketed(_value):
+        raise AssertionError("bucket helper should not run when scorer bucketing is disabled")
+
+    monkeypatch.setattr(explanations.predictor, "_singleton_position_bucket", fail_if_bucketed)
+    monkeypatch.setattr(explanations.predictor, "_one_bucket", fail_if_bucketed)
     profile = {
         "positions": {"Pluto in Cancer": 6, "Pluto in Taurus": 5},
         "profiles": {"4/6": 4, "5/2": 3},
