@@ -30,6 +30,53 @@ def test_matching_body_position_suppresses_alternate_positions_for_that_bucket(m
     assert "Pluto in Taurus" not in evidence.missing
 
 
+def test_mutual_exclusive_hd_buckets_suppress_alternatives_when_one_matches(monkeypatch):
+    monkeypatch.setattr(explanations, "chart_uses_houses", lambda _chart: False)
+    profile = {
+        "hdtypes": {"generator": 5, "projector": 4},
+        "profiles": {"4/6": 5, "5/2": 4},
+        "authorities": {"emotional": 5, "splenic": 4},
+    }
+
+    evidence = explanations.build_trait_factor_evidence(
+        _chart(),
+        profile,
+        matches={
+            "positive": ["Generator", "Profile 4/6", "Emotional Authority"],
+            "negative": [],
+        },
+    )
+
+    assert evidence.missing == ()
+    assert "Projector" not in evidence.missing
+    assert "Profile 5/2" not in evidence.missing
+    assert "Splenic Authority" not in evidence.missing
+
+
+def test_disabling_scorer_bucket_option_disables_missing_suppression_and_position_compaction(monkeypatch):
+    monkeypatch.setattr(explanations, "chart_uses_houses", lambda _chart: False)
+    monkeypatch.setattr(
+        explanations.predictor,
+        "DEFAULT_SCORING_OPTIONS",
+        explanations.predictor.WeightedPredictorScoringOptions(
+            simplify_anti_factor_handling=False,
+            use_mutual_exclusive_bucket_scoring=False,
+        ),
+    )
+    profile = {
+        "positions": {"Pluto in Cancer": 6, "Pluto in Taurus": 5},
+        "profiles": {"4/6": 4, "5/2": 3},
+    }
+
+    evidence = explanations.build_trait_factor_evidence(
+        _chart(),
+        profile,
+        matches={"positive": ["Pluto in Cancer", "Profile 4/6"], "negative": []},
+    )
+
+    assert evidence.missing == ("Profile 5/2", "Pluto in Taurus")
+
+
 def test_missing_gates_are_compacted_in_display_order(monkeypatch):
     monkeypatch.setattr(explanations, "chart_uses_houses", lambda _chart: False)
     profile = {"gates": {49: 5, 29: 4, 55: 3}}
