@@ -295,12 +295,10 @@ def build_trait_factor_evidence(
     matched_positive = set(supporting)
     candidates = _eligible_positive_candidates(chart, profile)
 
+    buckets = [_scorer_mutual_exclusive_bucket(candidate) for candidate in candidates]
     exclusive_groups: dict[tuple[str, Any], list[_PositiveCandidate]] = {}
     matched_exclusive_buckets: set[tuple[str, Any]] = set()
-    bucket_by_candidate: dict[int, tuple[str, Any] | None] = {}
-    for candidate in candidates:
-        bucket = _scorer_mutual_exclusive_bucket(candidate)
-        bucket_by_candidate[id(candidate)] = bucket
+    for candidate, bucket in zip(candidates, buckets):
         if bucket is None:
             continue
         exclusive_groups.setdefault(bucket, []).append(candidate)
@@ -316,7 +314,7 @@ def build_trait_factor_evidence(
     emitted_position_groups: set[tuple[str, Any]] = set()
     missing: list[str] = []
 
-    for candidate in candidates:
+    for candidate, bucket in zip(candidates, buckets):
         if candidate.label in matched_positive:
             continue
         if candidate.category == "gates":
@@ -325,7 +323,6 @@ def build_trait_factor_evidence(
                 emitted_gate_group = True
             continue
 
-        bucket = bucket_by_candidate.get(id(candidate))
         if bucket is not None and bucket in matched_exclusive_buckets:
             continue
         if candidate.category == "positions" and bucket is not None:
