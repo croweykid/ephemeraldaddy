@@ -36,6 +36,8 @@ def property_target_from_entry(
 ) -> PerceivedAccuracyTarget | None:
     """Build a stable target only from semantic presenter fields, never prose."""
     kind = str(entry.get("kind", "") or "").strip().lower()
+    if kind == "statblock":
+        return PerceivedAccuracyTarget("properties", "dnd_statblock")
     identity_fields = (
         "property_key", "property_value", "body", "sign", "house",
         "nakshatra", "gate", "line", "gate_a", "gate_b", "color",
@@ -71,6 +73,7 @@ class PerceivedAccuracyThumbs(QWidget):
         self._target = target
         self._db_path = db_path
         self._state: bool | None = None
+        self._context_visible = True
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
@@ -80,7 +83,8 @@ class PerceivedAccuracyThumbs(QWidget):
         layout.addWidget(self.negative_button)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         _CONTROLS.add(self)
-        self.refresh()
+        self.setEnabled(False)
+        self._render(None)
 
     def _button(self, text: str, value: bool) -> QToolButton:
         button = QToolButton(self)
@@ -103,6 +107,11 @@ class PerceivedAccuracyThumbs(QWidget):
     def retarget(self, target: PerceivedAccuracyTarget | None) -> None:
         self._target = target
         self.refresh()
+
+    def set_context_visible(self, visible: bool, *, preference_visible: bool) -> None:
+        """Apply a host-view visibility gate independently of the preference."""
+        self._context_visible = bool(visible)
+        self.setVisible(self._context_visible and bool(preference_visible))
 
     def refresh(self) -> None:
         uid = self._chart_uid()
@@ -160,21 +169,54 @@ class PerceivedAccuracyThumbs(QWidget):
 
 def set_perceived_accuracy_controls_visible(visible: bool) -> None:
     """Apply the Display Preferences value live to every existing control."""
+    eligible: list[PerceivedAccuracyThumbs] = []
     for control in tuple(_CONTROLS):
-        control.setVisible(bool(visible))
-        if visible:
-            control.refresh()
+        control.setVisible(bool(visible) and control._context_visible)
+        if visible and control._context_visible:
+            eligible.append(control)
+    _refresh_controls_batched(eligible)
+
+
+def _refresh_controls_batched(controls: list[PerceivedAccuracyThumbs]) -> None:
+    """Hydrate controls with at most one persistence read per chart/database."""
+    controls_by_source: dict[tuple[str, str], list[PerceivedAccuracyThumbs]] = {}
+    for control in controls:
+        uid = control._chart_uid()
+        if not uid:
+            control.setEnabled(False)
+            control._render(None)
+            continue
+        source = (uid, str(control._db_path or ""))
+        controls_by_source.setdefault(source, []).append(control)
+    for (uid, _path_key), grouped_controls in controls_by_source.items():
+        db_path = grouped_controls[0]._db_path
+        payload = load_perceived_accuracy(uid, db_path=db_path)
+        for control in grouped_controls:
+            control.refresh_from_payload(payload)
+
+
+def set_chart_information_control_mode(
+    control: PerceivedAccuracyThumbs | None,
+    *,
+    mode: str,
+    preference_visible: bool,
+) -> None:
+    """Expose property feedback only while Chart Information is displayed."""
+    if control is None:
+        return
+    if mode != "chart_info":
+        control.retarget(None)
+        control.set_context_visible(False, preference_visible=preference_visible)
+        return
+    control.set_context_visible(True, preference_visible=preference_visible)
 
 
 def refresh_perceived_accuracy_controls(owner: object, *, clear_property: bool = False) -> None:
     """Refresh controls after Chart Editor identity changes."""
-    controls = tuple(
+    controls = list(
         getattr(owner, "_perceived_accuracy_module_controls", {}).values()
     )
-    chart_uid = getattr(owner, "current_chart_uid", None)
-    payload = load_perceived_accuracy(chart_uid) if chart_uid else None
-    for control in controls:
-        control.refresh_from_payload(payload) if payload is not None else control.refresh()
+    _refresh_controls_batched([control for control in controls if not control.isHidden()])
     property_control = getattr(owner, "chart_information_accuracy_control", None)
     if property_control is not None:
         property_control.retarget(None) if clear_property else property_control.refresh()
@@ -203,4 +245,6 @@ def install_chart_editor_module_controls(
         candidate.layout().addWidget(control, 0, Qt.AlignRight | Qt.AlignVCenter)
         control.setVisible(visible)
         installed[key] = control
+    if visible:
+        _refresh_controls_batched(list(installed.values()))
     return installed

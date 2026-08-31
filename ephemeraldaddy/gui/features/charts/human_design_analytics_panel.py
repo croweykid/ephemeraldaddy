@@ -35,6 +35,9 @@ from ephemeraldaddy.gui.style import (
     apply_chart_info_link_cursor,
     configure_collapsible_header_toggle,
 )
+from ephemeraldaddy.gui.features.chart_information.perceived_accuracy import (
+    install_chart_editor_module_controls,
+)
 
 HD_ANALYTICS_SCROLL_MIN_WIDTH = 340
 HD_ANALYTICS_CONTAINER_MIN_WIDTH = 320
@@ -164,6 +167,8 @@ def build_human_design_analytics_panel(
     subheader_style: str,
     on_metric_selected: Callable[[str, int, str | None], None] | None = None,
     header_action_widget: QWidget | None = None,
+    chart_uid: Callable[[], str | None] | None = None,
+    show_perceived_accuracy: bool = False,
 ) -> QWidget:
     """Build the Human Design popout right-side analytics panel widget."""
 
@@ -521,4 +526,12 @@ def build_human_design_analytics_panel(
 
     hd_analytics_toggle.toggled.connect(_set_hd_analytics_expanded)
     _set_hd_analytics_expanded(True)
+    if chart_uid is not None:
+        hd_analytics_container._perceived_accuracy_module_controls = (  # type: ignore[attr-defined]
+            install_chart_editor_module_controls(
+                hd_analytics_container,
+                chart_uid=chart_uid,
+                visible=show_perceived_accuracy,
+            )
+        )
     return hd_analytics_container

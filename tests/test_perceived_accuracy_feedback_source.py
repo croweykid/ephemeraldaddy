@@ -6,6 +6,9 @@ APP_SOURCE = (ROOT / "ephemeraldaddy/gui/app.py").read_text()
 FEATURE_SOURCE = (
     ROOT / "ephemeraldaddy/gui/features/chart_information/perceived_accuracy.py"
 ).read_text()
+HD_PANEL_SOURCE = (
+    ROOT / "ephemeraldaddy/gui/features/charts/human_design_analytics_panel.py"
+).read_text()
 
 
 def test_chart_switch_clears_stale_chart_information_target():
@@ -23,8 +26,26 @@ def test_module_installer_traverses_semantically_keyed_descendants():
 
 
 def test_chart_refresh_loads_one_payload_before_rendering_module_controls():
+    batch_refresh = FEATURE_SOURCE.split("def _refresh_controls_batched", 1)[1].split(
+        "def set_chart_information_control_mode", 1
+    )[0]
+    assert batch_refresh.count("load_perceived_accuracy(") == 1
+    assert "control.refresh_from_payload(payload)" in batch_refresh
     refresh = FEATURE_SOURCE.split("def refresh_perceived_accuracy_controls", 1)[1].split(
         "def install_chart_editor_module_controls", 1
     )[0]
-    assert refresh.count("load_perceived_accuracy(") == 1
-    assert "control.refresh_from_payload(payload)" in refresh
+    assert "_refresh_controls_batched(" in refresh
+
+
+def test_human_design_popout_installs_controls_after_building_local_headers():
+    assert "chart_uid: Callable[[], str | None] | None = None" in HD_PANEL_SOURCE
+    install_position = HD_PANEL_SOURCE.rindex("install_chart_editor_module_controls(")
+    return_position = HD_PANEL_SOURCE.rindex("return hd_analytics_container")
+    assert install_position < return_position
+
+
+def test_chart_info_mode_routes_property_control_visibility():
+    method = APP_SOURCE.split("def _set_chart_info_panel_mode", 1)[1].split(
+        "def _prepare_chart_info_replacement", 1
+    )[0]
+    assert "set_chart_information_panel_mode(" in method

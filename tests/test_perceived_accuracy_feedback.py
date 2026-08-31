@@ -11,6 +11,8 @@ from ephemeraldaddy.gui.features.chart_information.perceived_accuracy import (
     PerceivedAccuracyTarget,
     PerceivedAccuracyThumbs,
     install_chart_editor_module_controls,
+    property_target_from_entry,
+    set_chart_information_control_mode,
 )
 from ephemeraldaddy.gui.style import (
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
@@ -31,6 +33,7 @@ def test_thumbs_map_toggle_replace_and_clear_states(tmp_path):
         target=PerceivedAccuracyTarget("modules", "dnd_species"),
         db_path=db_path,
     )
+    control.refresh()
 
     assert control.state is None
     control.positive_button.click()
@@ -54,6 +57,7 @@ def test_retargeting_keeps_property_and_module_namespaces_independent(tmp_path):
         target=PerceivedAccuracyTarget("modules", "same-key"),
         db_path=db_path,
     )
+    control.refresh()
     control.positive_button.click()
     control.retarget(PerceivedAccuracyTarget("properties", "same-key"))
     assert control.state is None
@@ -117,3 +121,38 @@ def test_installer_finds_nested_semantically_keyed_header():
     )
     assert set(controls) == {"chart_editor:anagrams"}
     assert controls["chart_editor:anagrams"].parent() is toggle
+
+
+def test_statblock_has_chart_scoped_singleton_property_target():
+    assert property_target_from_entry(
+        {"kind": "statblock", "profile_lines": ["STR 12"]}
+    ) == PerceivedAccuracyTarget("properties", "dnd_statblock")
+
+
+def test_non_chart_info_mode_clears_and_hides_property_control(tmp_path):
+    _app()
+    control = PerceivedAccuracyThumbs(
+        lambda: "ABCDEF1234567890",
+        target=PerceivedAccuracyTarget("properties", "moon_sign:aries"),
+        db_path=tmp_path / "ratings.sqlite",
+    )
+    set_chart_information_control_mode(
+        control, mode="biography", preference_visible=True
+    )
+    assert control.target is None
+    assert control.isHidden()
+
+
+def test_constructor_defers_persistence_read(monkeypatch):
+    _app()
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.chart_information.perceived_accuracy."
+        "get_perceived_accuracy_value",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected query")),
+    )
+    control = PerceivedAccuracyThumbs(
+        lambda: "ABCDEF1234567890",
+        target=PerceivedAccuracyTarget("modules", "anagrams"),
+    )
+    assert control.state is None
+    assert not control.isEnabled()

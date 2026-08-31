@@ -591,6 +591,7 @@ from ephemeraldaddy.gui.features.chart_information import (
     install_chart_editor_module_controls,
     property_target_from_entry,
     refresh_perceived_accuracy_controls,
+    set_chart_information_panel_mode,
     set_perceived_accuracy_controls_visible,
     summary_info_cursor_is_on_link,
     update_summary_info_hover_cursor,
@@ -31241,22 +31242,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
-        if mode not in {"chart_info", "comments", "quotes", "tags", "rectification", "biography", "source"}:
-            return
-        self._chart_info_panel_mode = mode
-        if hasattr(self, "chart_info_content_stack"):
-            mode_to_index = {
-                "chart_info": 0,
-                "comments": 1,
-                "quotes": 2,
-                "tags": 3,
-                "rectification": 4,
-                "biography": 5,
-                "source": 6,
-            }
-            self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
-        self._refresh_chart_info_panel_toggle_buttons()
-        self._update_get_bio_button_visibility()
+        if set_chart_information_panel_mode(
+            stack=getattr(self, "chart_info_content_stack", None),
+            control=getattr(self, "chart_information_accuracy_control", None),
+            mode=mode,
+            preference_visible=load_perceived_accuracy_thumbs_visible(
+                self._settings, fallback=False
+            ),
+            refresh_toggle_buttons=self._refresh_chart_info_panel_toggle_buttons,
+            update_bio_button_visibility=self._update_get_bio_button_visibility,
+        ):
+            self._chart_info_panel_mode = mode
 
     def _prepare_chart_info_replacement(self) -> None:
         """Show Chart Info and restore its default surface before new content."""
@@ -39116,12 +39112,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             lambda _checked=False: self._export_popout_chart_data_output(summary_output, hd_file_stem)
         )
 
+        hd_popout_chart_uid = self._current_chart_uid_for_navigation()
         right_panel = build_human_design_analytics_panel(
             hd_result=hd_result,
             chart_theme_colors=CHART_THEME_COLORS,
             subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
             on_metric_selected=_on_hd_metric_selected,
             header_action_widget=summary_share_button,
+            chart_uid=lambda uid=hd_popout_chart_uid: uid,
+            show_perceived_accuracy=load_perceived_accuracy_thumbs_visible(
+                self._settings, fallback=False
+            ),
         )
 
         middle_right_splitter = QSplitter(Qt.Horizontal)
