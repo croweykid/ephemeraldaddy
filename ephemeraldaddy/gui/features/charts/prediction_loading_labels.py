@@ -15,6 +15,7 @@ _LOADING_TIMER_ATTR = "_ephemeraldaddy_loading_blink_timer"
 _LOADING_STATE_ATTR = "_ephemeraldaddy_loading_blink_state"
 _LOADING_STYLE_ATTR = "_ephemeraldaddy_loading_blink_previous_style"
 _ELLIPSIS_TIMER_ATTR = "_ephemeraldaddy_loading_ellipsis_timer"
+_ELLIPSIS_STATE_ATTR = "_ephemeraldaddy_loading_ellipsis_state"
 
 
 def _stop_timer(timer: Any) -> None:
@@ -121,26 +122,25 @@ def start_prediction_loading_blink(label: Any) -> None:
 
 def start_prediction_loading_ellipsis(label: Any, message: str) -> None:
     """Animate a centered loading message with one through three periods."""
-    previous_timer = getattr(label, _ELLIPSIS_TIMER_ATTR, None)
-    if isinstance(previous_timer, QTimer):
-        previous_timer.stop()
-        previous_timer.deleteLater()
+    stop_prediction_loading_ellipsis(label)
 
-    label._ephemeraldaddy_loading_ellipsis_state = 0
+    setattr(label, _ELLIPSIS_STATE_ATTR, 0)
 
     def _tick() -> None:
         try:
             current_text = str(label.text())
         except RuntimeError:
-            timer.stop()
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
             return
         if current_text and not current_text.startswith(message):
-            timer.stop()
-            timer.deleteLater()
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
             return
-        state = int(getattr(label, "_ephemeraldaddy_loading_ellipsis_state", 0))
-        label.setText(f"{message}{'.' * ((state % 3) + 1)}")
-        label._ephemeraldaddy_loading_ellipsis_state = state + 1
+        state = int(getattr(label, _ELLIPSIS_STATE_ATTR, 0))
+        try:
+            label.setText(f"{message}{'.' * ((state % 3) + 1)}")
+            setattr(label, _ELLIPSIS_STATE_ATTR, state + 1)
+        except RuntimeError:
+            _discard_timer(label, _ELLIPSIS_TIMER_ATTR, expected=timer)
 
     timer = QTimer(label)
     timer.timeout.connect(_tick)

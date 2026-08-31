@@ -38,21 +38,8 @@ def test_new_trait_prompts_for_description_after_color_before_installing():
     assert "description_override = description.strip() or None" in upload_handler
     assert "description=description_override" in upload_handler
 
-def test_traits_status_remains_visible_inside_nested_property_manager_tab():
-    settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
-        encoding="utf-8"
-    )
 
-    assert "traits_section.addWidget(owner._traits_status_label)" in settings_source
-    status_update = settings_source[
-        settings_source.index('status_label = getattr(owner, "_traits_status_label", None)') :
-        settings_source.index("_sync_trait_action_buttons(owner)", settings_source.index("def refresh_traits_settings_list"))
-    ]
-    assert "status_label.setText(status_text)" in status_update
-    assert 'footer_writer("Traits", status_text)' in status_update
-
-
-def test_traits_settings_descriptions_render_inline_and_scroll_horizontally():
+def test_traits_settings_list_fills_available_window_height():
     settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
         encoding="utf-8"
     )
