@@ -1,0 +1,44 @@
+name: Apply trait norm repair patch
+
+on:
+  push:
+    branches:
+      - fix/trait-norm-repair-and-unavailable-rows
+    paths:
+      - .github/workflows/apply-trait-norm-repair-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/trait-norm-repair-and-unavailable-rows
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply source patch
+        run: python tools/_apply_trait_norm_repair_patch.py
+      - name: Validate patched Python and bundled JSON
+        run: |
+          python -m py_compile ephemeraldaddy/analysis/traits.py
+          python -m py_compile ephemeraldaddy/gui/features/charts/prediction_norms_snapshot.py
+          python -m py_compile ephemeraldaddy/gui/features/charts/trait_predictions.py
+          python -m py_compile tests/test_trait_norm_identity_migration.py
+          python -m json.tool ephemeraldaddy/analysis/default_traits.json >/dev/null
+          git diff --check
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ephemeraldaddy/analysis/traits.py \
+                  ephemeraldaddy/gui/features/charts/prediction_norms_snapshot.py \
+                  ephemeraldaddy/gui/features/charts/trait_predictions.py \
+                  tests/test_trait_norm_identity_migration.py
+          git diff --cached --quiet && exit 1
+          git commit -m "Repair bundled trait norm migration"
+          git push origin HEAD:fix/trait-norm-repair-and-unavailable-rows
