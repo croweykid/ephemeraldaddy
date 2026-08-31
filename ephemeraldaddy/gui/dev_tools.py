@@ -1751,6 +1751,7 @@ class ManageMetadataLabelsDialog(QDialog):
         settings=None,
         initial_field: str | None = None,
         lock_field: bool = False,
+        include_astro_twin_presets: bool = True,
         window_title: str = "Property Manager",
         intro_text: str = "Current + legacy labels found in database (including unused/orphaned).",
         show_close_button: bool = True,
@@ -1786,8 +1787,9 @@ class ManageMetadataLabelsDialog(QDialog):
             ("Collections", self.FIELD_COLLECTIONS),
             ("Tags", self.FIELD_TAGS),
             ("Names", self.FIELD_NAMES),
-            ("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS),
         ]
+        if include_astro_twin_presets:
+            field_options.append(("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS))
         for label, field_value in field_options:
             self._field_selector.addItem(label, field_value)
         self._field_selector.currentIndexChanged.connect(self._refresh_list)
