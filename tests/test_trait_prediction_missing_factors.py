@@ -9,6 +9,14 @@ def _chart() -> SimpleNamespace:
 
 def test_matching_body_position_suppresses_alternate_positions_for_that_bucket(monkeypatch):
     monkeypatch.setattr(explanations, "chart_uses_houses", lambda _chart: False)
+    position_calls: list[str] = []
+    real_bucket = explanations.predictor._singleton_position_bucket
+
+    def record_position_bucket(value):
+        position_calls.append(str(value))
+        return real_bucket(value)
+
+    monkeypatch.setattr(explanations.predictor, "_singleton_position_bucket", record_position_bucket)
     profile = {
         "positions": {
             "Pluto in Cancer": 2,
@@ -28,10 +36,25 @@ def test_matching_body_position_suppresses_alternate_positions_for_that_bucket(m
     assert evidence.supporting == ("Pluto in Cancer",)
     assert evidence.missing == ("Mars not in Libra, Taurus or Virgo",)
     assert "Pluto in Taurus" not in evidence.missing
+    assert position_calls == [
+        "Pluto in Cancer",
+        "Pluto in Taurus",
+        "Mars in Libra",
+        "Mars in Taurus",
+        "Mars in Virgo",
+    ]
 
 
 def test_mutual_exclusive_hd_buckets_suppress_alternatives_when_one_matches(monkeypatch):
     monkeypatch.setattr(explanations, "chart_uses_houses", lambda _chart: False)
+    one_bucket_calls: list[str] = []
+    real_bucket = explanations.predictor._one_bucket
+
+    def record_one_bucket(value):
+        one_bucket_calls.append(str(value))
+        return real_bucket(value)
+
+    monkeypatch.setattr(explanations.predictor, "_one_bucket", record_one_bucket)
     profile = {
         "hdtypes": {"generator": 5, "projector": 4},
         "profiles": {"4/6": 5, "5/2": 4},
@@ -51,6 +74,7 @@ def test_mutual_exclusive_hd_buckets_suppress_alternatives_when_one_matches(monk
     assert "Projector" not in evidence.missing
     assert "Profile 5/2" not in evidence.missing
     assert "Splenic Authority" not in evidence.missing
+    assert one_bucket_calls == ["generator", "projector", "4/6", "5/2", "Emotional", "Splenic"]
 
 
 def test_disabling_scorer_bucket_option_disables_missing_suppression_and_position_compaction(monkeypatch):
