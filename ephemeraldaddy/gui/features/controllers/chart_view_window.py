@@ -1577,6 +1577,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     alignment_box = _build_subjective_notes_metric_section(
         owner,
         title="💭Perceived alignment",
+        module_key="perceived_alignment",
         content_builder=lambda content_layout: _populate_alignment_section(owner, content_layout),
     )
     layout.addWidget(alignment_box)
@@ -1584,6 +1585,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     sexiness_box = _build_subjective_notes_metric_section(
         owner,
         title="Sexiness",
+        module_key="sexiness",
         content_builder=lambda content_layout: _populate_sexiness_section(owner, content_layout),
     )
     owner.sexiness_section_box = sexiness_box
@@ -1597,6 +1599,7 @@ def _build_subjective_notes_metric_section(
     owner: QWidget,
     *,
     title: str,
+    module_key: str,
     content_builder: Callable[[QVBoxLayout], None],
 ) -> QFrame:
     section_box = QFrame()
@@ -1619,6 +1622,7 @@ def _build_subjective_notes_metric_section(
         title=title,
         expanded=True,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        semantic_key=module_key,
     )
 
     content_widget = QWidget()
@@ -1690,6 +1694,7 @@ def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout
         title="Euphonics",
         expanded=True,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        semantic_key="euphonics",
     )
     toggle.setFocusPolicy(Qt.TabFocus)
     euphonics_box_layout.addWidget(toggle)

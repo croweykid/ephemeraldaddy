@@ -4,12 +4,17 @@ import pytest
 
 pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QToolButton, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.perceived_accuracy import get_perceived_accuracy_value
 from ephemeraldaddy.gui.features.chart_information.perceived_accuracy import (
     PerceivedAccuracyTarget,
     PerceivedAccuracyThumbs,
+    install_chart_editor_module_controls,
+)
+from ephemeraldaddy.gui.style import (
+    DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    configure_collapsible_header_toggle,
 )
 
 
@@ -68,3 +73,47 @@ def test_missing_uid_or_semantic_target_disables_persistence_control(tmp_path):
     assert not control.isEnabled()
     control.retarget(None)
     assert control.state is None
+
+
+def test_refresh_from_payload_maps_state_without_database_access(monkeypatch, tmp_path):
+    _app()
+    control = PerceivedAccuracyThumbs(
+        lambda: "ABCDEF1234567890",
+        target=PerceivedAccuracyTarget("modules", "anagrams"),
+        db_path=tmp_path / "ratings.sqlite",
+    )
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.chart_information.perceived_accuracy."
+        "get_perceived_accuracy_value",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected query")),
+    )
+    control.refresh_from_payload(
+        {"perceived_accuracy": {"modules": {"anagrams": {"value": True}}}}
+    )
+    assert control.state is True
+    assert control.positive_button.isChecked()
+
+
+def test_installer_finds_nested_semantically_keyed_header():
+    _app()
+    owner = QWidget()
+    child = QWidget(owner)
+    QVBoxLayout(owner).addWidget(child)
+    child_layout = QVBoxLayout(child)
+    toggle = QToolButton(child)
+    configure_collapsible_header_toggle(
+        toggle,
+        title="Copy-editable title",
+        expanded=False,
+        style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        semantic_key="anagrams",
+    )
+    child_layout.addWidget(toggle)
+
+    controls = install_chart_editor_module_controls(
+        owner,
+        chart_uid=lambda: "ABCDEF1234567890",
+        visible=True,
+    )
+    assert set(controls) == {"chart_editor:anagrams"}
+    assert controls["chart_editor:anagrams"].parent() is toggle

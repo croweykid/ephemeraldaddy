@@ -19,6 +19,7 @@ from ephemeraldaddy.core.perceived_accuracy import (
     PERCEIVED_ACCURACY_VERSION,
     PerceivedAccuracyScope,
     get_perceived_accuracy_value,
+    load_perceived_accuracy,
     toggle_perceived_accuracy,
 )
 
@@ -116,6 +117,20 @@ class PerceivedAccuracyThumbs(QWidget):
             )
         )
 
+    def refresh_from_payload(self, payload: Mapping[str, object]) -> None:
+        """Render this target from an already-loaded chart payload."""
+        if self._target is None:
+            self.setEnabled(False)
+            self._render(None)
+            return
+        root = payload.get("perceived_accuracy", {})
+        scopes = root if isinstance(root, Mapping) else {}
+        ratings = scopes.get(self._target.scope, {})
+        record = ratings.get(self._target.key) if isinstance(ratings, Mapping) else None
+        value = record.get("value") if isinstance(record, Mapping) else None
+        self.setEnabled(True)
+        self._render(value if isinstance(value, bool) else None)
+
     def _toggle(self, value: bool) -> None:
         uid = self._chart_uid()
         if not uid or self._target is None:
@@ -153,8 +168,13 @@ def set_perceived_accuracy_controls_visible(visible: bool) -> None:
 
 def refresh_perceived_accuracy_controls(owner: object, *, clear_property: bool = False) -> None:
     """Refresh controls after Chart Editor identity changes."""
-    for control in getattr(owner, "_perceived_accuracy_module_controls", {}).values():
-        control.refresh()
+    controls = tuple(
+        getattr(owner, "_perceived_accuracy_module_controls", {}).values()
+    )
+    chart_uid = getattr(owner, "current_chart_uid", None)
+    payload = load_perceived_accuracy(chart_uid) if chart_uid else None
+    for control in controls:
+        control.refresh_from_payload(payload) if payload is not None else control.refresh()
     property_control = getattr(owner, "chart_information_accuracy_control", None)
     if property_control is not None:
         property_control.retarget(None) if clear_property else property_control.refresh()
@@ -166,14 +186,15 @@ def install_chart_editor_module_controls(
     chart_uid: Callable[[], str | None],
     visible: bool,
 ) -> dict[str, PerceivedAccuracyThumbs]:
-    """Add controls to current Chart Editor collapsibles using stable attribute keys."""
+    """Add controls to semantically identified descendant collapsible headers."""
     installed: dict[str, PerceivedAccuracyThumbs] = {}
-    for attribute, candidate in tuple(vars(owner).items()):
-        if not isinstance(candidate, QToolButton):
+    for candidate in owner.findChildren(QToolButton):
+        semantic_key = str(candidate.property("collapsibleSemanticKey") or "").strip()
+        if not semantic_key or candidate.layout() is None:
             continue
-        if not candidate.property("collapsibleHeaderLevel") or candidate.layout() is None:
-            continue
-        key = f"chart_editor:{attribute}"
+        key = f"chart_editor:{semantic_key}"
+        if key in installed:
+            raise ValueError(f"Duplicate Chart Editor module key: {semantic_key}")
         control = PerceivedAccuracyThumbs(
             chart_uid,
             target=PerceivedAccuracyTarget("modules", key),

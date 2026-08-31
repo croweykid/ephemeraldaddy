@@ -1593,6 +1593,7 @@ def configure_collapsible_header_toggle(
     title_alignment: Qt.AlignmentFlag | Qt.Alignment = Qt.AlignLeft,
     hierarchy_level: str = COLLAPSIBLE_HEADER_LEVEL_PARENT,
     title_color: str | None = None,
+    semantic_key: str | None = None,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
     toggle.setCheckable(True)
@@ -1606,6 +1607,8 @@ def configure_collapsible_header_toggle(
     }:
         raise ValueError(f"Unknown collapsible header hierarchy level: {hierarchy_level}")
     toggle.setProperty("collapsibleHeaderLevel", hierarchy_level)
+    if semantic_key:
+        toggle.setProperty("collapsibleSemanticKey", semantic_key)
     is_parent = hierarchy_level == COLLAPSIBLE_HEADER_LEVEL_PARENT
     font_size = (
         COLLAPSIBLE_PARENT_FONT_SIZE_PX if is_parent else COLLAPSIBLE_SUBSECTION_FONT_SIZE_PX

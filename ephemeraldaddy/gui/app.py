@@ -26091,6 +26091,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             title="💭Sentiment Types",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            semantic_key="sentiment_types",
         )
         self.sentiment_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
@@ -26124,6 +26125,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             title="💭Relationship Types",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            semantic_key="relationship_types",
         )
         self.relationship_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
@@ -26158,6 +26160,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             title="💭Predictability",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            semantic_key="predictability",
         )
         predictability_box_layout.addWidget(self.predictability_panel_toggle)
         predictability_content_widget = QWidget()
@@ -26213,6 +26216,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             title="💭Reminds me of",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            semantic_key="reminds_me_of",
         )
         reminds_me_of_box_layout.addWidget(self.reminds_me_of_panel_toggle)
 
@@ -35522,7 +35526,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             raise ValueError("A persisted chart must have a non-empty chart UID")
         self.current_chart_uid = normalized_uid
         self._chart_edit_session.active_chart_uid = normalized_uid
-        refresh_perceived_accuracy_controls(self)
+        refresh_perceived_accuracy_controls(self, clear_property=True)
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""

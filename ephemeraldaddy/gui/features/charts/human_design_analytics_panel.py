@@ -218,6 +218,7 @@ def build_human_design_analytics_panel(
         title: str,
         *,
         expanded: bool = True,
+        module_key: str,
     ) -> QVBoxLayout:
         section = QWidget(panel)
         section_layout = QVBoxLayout(section)
@@ -230,6 +231,7 @@ def build_human_design_analytics_panel(
             title=title,
             expanded=expanded,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+            semantic_key=module_key,
         )
 
         content = QWidget(section)
@@ -260,6 +262,7 @@ def build_human_design_analytics_panel(
         hd_analytics_layout,
         "Line Distribution",
         expanded=True,
+        module_key="human_design_line_distribution",
     )
 
     hd_line_summary = QLabel("Line Distribution (Personality + Design activations)")
@@ -401,6 +404,7 @@ def build_human_design_analytics_panel(
         hd_analytics_layout,
         "Color Distribution",
         expanded=True,
+        module_key="human_design_color_distribution",
     )
     color_section_layout.addWidget(QLabel("Color Distribution (C column)", styleSheet=subheader_style))
     color_section_layout.addWidget(hd_color_chart_canvas)
@@ -453,6 +457,7 @@ def build_human_design_analytics_panel(
         hd_analytics_layout,
         "Tone Distribution",
         expanded=True,
+        module_key="human_design_tone_distribution",
     )
     tone_section_layout.addWidget(QLabel("Tone Distribution (T column)", styleSheet=subheader_style))
     tone_section_layout.addWidget(hd_tone_chart_canvas)
