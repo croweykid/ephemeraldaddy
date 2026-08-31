@@ -9,7 +9,7 @@ import os
 import re
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILARITY_COMPONENT_KEYS,
@@ -437,6 +437,7 @@ def format_similarity_algorithm_accuracy_ranking_html(
     *,
     expanded_rows: set[int] | None = None,
     highlight_color: str,
+    factor_weight_color: Callable[[float, float], str] | None = None,
 ) -> str:
     """Return the interactive Research ranking as compact, safe rich text."""
     ranked = aggregate_similarity_algorithm_accuracy(include_v2=True) if rows is None else rows
@@ -456,7 +457,8 @@ def format_similarity_algorithm_accuracy_ranking_html(
     parts.append(
         '<table cellspacing="0" cellpadding="3" style="width:100%; border-collapse:collapse;">'
         '<tr><th align="left">Algorithm</th><th align="right">v1 legacy</th>'
-        '<th align="right">v2 top 25</th><th align="right">v2 bottom 25</th></tr>'
+        '<th align="right">v2 top 25</th><th align="right">v2 bottom 25</th>'
+        '<th align="center">Use</th></tr>'
     )
     for index, row in enumerate(ranked, start=1):
         name = str(row.get("display_name") or row.get("algorithm_mode", "unknown")).replace("_", " ").title()
@@ -472,34 +474,57 @@ def format_similarity_algorithm_accuracy_ranking_html(
             f'<tr><td>{index}. <a href="algorithm:{index - 1}">{html.escape(name)}</a></td>'
             f'<td align="right">{average:.1f}% (n={count})</td>'
             f'<td align="right">{html.escape(top_text)}</td>'
-            f'<td align="right">{html.escape(bottom_text)}</td></tr>'
+            f'<td align="right">{html.escape(bottom_text)}</td>'
+            '<td align="center"><span style="border:1px solid #666666; padding:2px 5px;">'
+            f'<a href="use:{index - 1}" style="text-decoration:none;">use this</a>'
+            '</span></td></tr>'
         )
         if index - 1 not in expanded_rows:
             continue
         snapshot = row.get("algorithm_snapshot")
-        detail_lines: list[str] = []
+        detail_fragments: list[str] = []
         if isinstance(snapshot, Mapping):
             if not bool(snapshot.get("details_available", True)):
-                detail_lines.append(
-                    str(snapshot.get("details_unavailable_reason") or "Exact factor weights are unavailable.")
+                detail_fragments.append(
+                    html.escape(
+                        str(snapshot.get("details_unavailable_reason") or "Exact factor weights are unavailable.")
+                    )
                 )
             else:
                 placement = str(snapshot.get("placement_weighting_mode", "") or "").replace("_", " ").title()
                 if placement and placement != "Not Applicable":
-                    detail_lines.append(f"Placement weighting: {placement}")
+                    detail_fragments.append(html.escape(f"Placement weighting: {placement}"))
                 factors = snapshot.get("selected_factors")
                 if isinstance(factors, list):
-                    for factor in factors:
-                        if isinstance(factor, Mapping):
-                            state = "on" if bool(factor.get("enabled", False)) else "off"
-                            label = str(factor.get("factor", "")).replace("_", " ").title()
-                            detail_lines.append(f"{label}: {float(factor.get('weight', 0.0)):g} ({state})")
-        if not detail_lines:
-            detail_lines.append("Exact settings unavailable for this legacy observation.")
+                    enabled_factors = [
+                        factor
+                        for factor in factors
+                        if isinstance(factor, Mapping) and bool(factor.get("enabled", False))
+                    ]
+                    maximum_weight = max(
+                        (float(factor.get("weight", 0.0)) for factor in enabled_factors),
+                        default=0.0,
+                    )
+                    for factor in enabled_factors:
+                        weight = float(factor.get("weight", 0.0))
+                        label = str(factor.get("factor", "")).replace("_", " ").title()
+                        factor_text = html.escape(f"{label}: {weight:g} (on)")
+                        if factor_weight_color is not None:
+                            color = str(factor_weight_color(weight, maximum_weight) or "").strip()
+                            if color:
+                                factor_text = (
+                                    f'<span style="color:{html.escape(color, quote=True)};">'
+                                    f"{factor_text}</span>"
+                                )
+                        detail_fragments.append(factor_text)
+                    if not enabled_factors:
+                        detail_fragments.append("No enabled factors.")
+        if not detail_fragments:
+            detail_fragments.append("Exact settings unavailable for this legacy observation.")
         parts.append(
-            '<tr><td colspan="4"><div style="margin:3px 0 5px 18px; padding:5px 7px; border-left:2px solid '
+            '<tr><td colspan="5"><div style="margin:3px 0 5px 18px; padding:5px 7px; border-left:2px solid '
             f'{html.escape(highlight_color)}; font-size:11px;">'
-            + "<br>".join(html.escape(line) for line in detail_lines)
+            + "<br>".join(detail_fragments)
             + "</div></td></tr>"
         )
     parts.append("</table>")
