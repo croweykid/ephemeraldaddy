@@ -1,10 +1,10 @@
 """Build Chart Info evidence for custom Trait predictions.
 
 This module owns presentation-oriented factor grouping for the Predictions
-workflow.  It intentionally does not change weighted predictor scoring: it
-uses the scorer's existing normalizers, eligibility rules, and matched-factor
-result to explain which configured positive opportunities did not contribute
-to the current chart.
+workflow. It intentionally does not change weighted predictor scoring: it uses
+the scorer's existing normalizers, eligibility rules, active scoring options,
+and matched-factor result to explain which configured positive opportunities
+did not contribute to the current chart.
 """
 
 from __future__ import annotations
@@ -14,24 +14,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ephemeraldaddy.analysis.weighted_chart_predictor import (
-    aspect_spec_uses_houses,
-    coerce_weighted_entries,
-    matched_weighted_criteria,
-    parse_position_spec,
-    position_spec_uses_houses,
-    weighted_bazi_sign_entries,
-    weighted_channel_entries,
-    weighted_gate_entries,
-    weighted_hd_authority_entries,
-    weighted_hd_center_entries,
-    weighted_hd_profile_entries,
-    weighted_hd_type_entries,
-    weighted_house_entries,
-    weighted_position_entries,
-    weighted_string_entries,
-)
+from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
 
 
 @dataclass(frozen=True)
@@ -46,9 +31,9 @@ class TraitFactorEvidence:
 @dataclass(frozen=True)
 class _PositiveCandidate:
     category: str
+    criterion: Any
     label: str
     dominance: bool = False
-    position_bucket: tuple[str, str] | None = None
     position_subject: str = ""
     position_destination: str = ""
 
@@ -57,21 +42,21 @@ def _weighted_text_entries(values: Any) -> tuple[str, ...]:
     """Match weighted_chart_predictor's aspect-entry normalization and order."""
     return tuple(
         token
-        for raw_value in coerce_weighted_entries(values)
+        for raw_value in predictor.coerce_weighted_entries(values)
         if (token := str(raw_value).strip())
     )
 
 
 def _position_candidate(spec: str) -> _PositiveCandidate:
-    parsed = parse_position_spec(spec)
+    parsed = predictor.parse_position_spec(spec)
     if parsed is None:
-        return _PositiveCandidate("positions", spec)
+        return _PositiveCandidate("positions", spec, spec)
     category, container, subject = parsed
     if category == "body_in_sign" and isinstance(container, str):
         return _PositiveCandidate(
             "positions",
             spec,
-            position_bucket=(category, str(subject)),
+            spec,
             position_subject=str(subject),
             position_destination=container,
         )
@@ -79,7 +64,7 @@ def _position_candidate(spec: str) -> _PositiveCandidate:
         return _PositiveCandidate(
             "positions",
             spec,
-            position_bucket=(category, str(subject)),
+            spec,
             position_subject=str(subject),
             position_destination=f"House {container}",
         )
@@ -87,11 +72,11 @@ def _position_candidate(spec: str) -> _PositiveCandidate:
         return _PositiveCandidate(
             "positions",
             spec,
-            position_bucket=(category, str(container)),
+            spec,
             position_subject=f"House {container}",
             position_destination=str(subject),
         )
-    return _PositiveCandidate("positions", spec)
+    return _PositiveCandidate("positions", spec, spec)
 
 
 def _eligible_positive_candidates(chart: Any, factors: Mapping[str, Any]) -> list[_PositiveCandidate]:
@@ -101,8 +86,8 @@ def _eligible_positive_candidates(chart: Any, factors: Mapping[str, Any]) -> lis
 
     def add_strings(category: str, values: Any, *, dominance: bool = False) -> None:
         candidates.extend(
-            _PositiveCandidate(category, label, dominance=dominance)
-            for label in weighted_string_entries(values)
+            _PositiveCandidate(category, label, label, dominance=dominance)
+            for label in predictor.weighted_string_entries(values)
         )
 
     add_strings("signs", factors.get("signs", set()), dominance=True)
@@ -111,48 +96,67 @@ def _eligible_positive_candidates(chart: Any, factors: Mapping[str, Any]) -> lis
 
     if use_houses:
         candidates.extend(
-            _PositiveCandidate("houses", f"House {house}", dominance=True)
-            for house in weighted_house_entries(factors.get("houses", set()))
+            _PositiveCandidate("houses", house, f"House {house}", dominance=True)
+            for house in predictor.weighted_house_entries(factors.get("houses", set()))
         )
 
     candidates.extend(
-        _PositiveCandidate("gates", f"Gate {gate}")
-        for gate in weighted_gate_entries(factors.get("gates", set()))
+        _PositiveCandidate("gates", gate, f"Gate {gate}")
+        for gate in predictor.weighted_gate_entries(factors.get("gates", set()))
     )
     candidates.extend(
-        _PositiveCandidate("channels", f"Channel {left}–{right}")
-        for left, right in weighted_channel_entries(factors.get("channels", set()))
+        _PositiveCandidate("channels", channel, f"Channel {channel[0]}–{channel[1]}")
+        for channel in predictor.weighted_channel_entries(factors.get("channels", set()))
     )
     candidates.extend(
-        _PositiveCandidate("hdtypes", str(value).replace("_", " ").title())
-        for value in weighted_hd_type_entries(factors.get("hdtypes", set()))
+        _PositiveCandidate("hdtypes", value, str(value).replace("_", " ").title())
+        for value in predictor.weighted_hd_type_entries(factors.get("hdtypes", set()))
     )
     candidates.extend(
-        _PositiveCandidate("centers", f"{value} Center")
-        for value in weighted_hd_center_entries(factors.get("centers", set()))
+        _PositiveCandidate("centers", value, f"{value} Center")
+        for value in predictor.weighted_hd_center_entries(factors.get("centers", set()))
     )
     candidates.extend(
-        _PositiveCandidate("profiles", f"Profile {value}")
-        for value in weighted_hd_profile_entries(factors.get("profiles", set()))
+        _PositiveCandidate("profiles", value, f"Profile {value}")
+        for value in predictor.weighted_hd_profile_entries(factors.get("profiles", set()))
     )
     candidates.extend(
-        _PositiveCandidate("authorities", f"{value} Authority")
-        for value in weighted_hd_authority_entries(factors.get("authorities", set()))
+        _PositiveCandidate("authorities", value, f"{value} Authority")
+        for value in predictor.weighted_hd_authority_entries(factors.get("authorities", set()))
     )
     candidates.extend(
-        _PositiveCandidate("bazisigns", f"BaZi {value}")
-        for value in weighted_bazi_sign_entries(factors.get("bazisigns", set()))
+        _PositiveCandidate("bazisigns", value, f"BaZi {value}")
+        for value in predictor.weighted_bazi_sign_entries(factors.get("bazisigns", set()))
     )
 
-    for spec in weighted_position_entries(factors.get("positions", set())):
-        if use_houses or not position_spec_uses_houses(spec):
+    for spec in predictor.weighted_position_entries(factors.get("positions", set())):
+        if use_houses or not predictor.position_spec_uses_houses(spec):
             candidates.append(_position_candidate(spec))
 
     for spec in _weighted_text_entries(factors.get("aspects", set())):
-        if use_houses or not aspect_spec_uses_houses(spec):
-            candidates.append(_PositiveCandidate("aspects", spec))
+        if use_houses or not predictor.aspect_spec_uses_houses(spec):
+            candidates.append(_PositiveCandidate("aspects", spec, spec))
 
     return candidates
+
+
+def _scorer_mutual_exclusive_bucket(candidate: _PositiveCandidate) -> tuple[str, Any] | None:
+    """Return the active scorer bucket for a positive candidate, if any.
+
+    The scorer currently keeps the bucket helpers private, so the explainer
+    deliberately calls those exact helpers instead of maintaining a second
+    implementation. If the scorer's global option disables mutual-exclusive
+    bucket scoring, Missing must also treat every criterion independently.
+    """
+    if not predictor.DEFAULT_SCORING_OPTIONS.use_mutual_exclusive_bucket_scoring:
+        return None
+    if candidate.category == "positions":
+        bucket = predictor._singleton_position_bucket(candidate.criterion)
+    elif candidate.category in {"hdtypes", "profiles", "authorities"}:
+        bucket = predictor._one_bucket(candidate.criterion)
+    else:
+        return None
+    return (candidate.category, bucket) if bucket is not None else None
 
 
 def _join_values(values: list[str], *, conjunction: str) -> str:
@@ -172,31 +176,90 @@ def _format_missing_gates(gate_labels: list[str]) -> str:
     return f"Missing Gates {_join_values(gates, conjunction='&')}"
 
 
-def missing_factor_html(value: str) -> str:
-    """Escape one Missing row while retaining canonical gate colors in compact gate groups."""
-    text = str(value or "")
-    if not (text.startswith("Missing Gate ") or text.startswith("Missing Gates ")):
-        return html.escape(text)
+def _semantic_span(text: str, color: str | None) -> str:
+    escaped = html.escape(text)
+    if not color:
+        return escaped
+    return f'<span style="color:{html.escape(str(color), quote=True)};font-weight:700;">{escaped}</span>'
 
-    # The appwide Chart Info formatter recognizes ``Gate 29`` tokens. Compact
-    # groups intentionally read ``Missing Gates 29 & 55``, so color the numeric
-    # gate tokens explicitly while keeping that compact visible wording.
-    from ephemeraldaddy.gui.style import chart_info_token_color_map
+
+def _gate_number_html(gate: str, color_map: Mapping[str, str]) -> str:
+    return _semantic_span(gate, color_map.get(f"Gate {gate}"))
+
+
+def _profile_html(token: str, color_map: Mapping[str, str]) -> str:
+    match = re.fullmatch(r"Profile\s+([1-6])/([1-6])", token)
+    if not match:
+        return html.escape(token)
+    first, second = match.groups()
+    return (
+        "Profile "
+        f"{_semantic_span(first, color_map.get(f'Line {first}'))}/"
+        f"{_semantic_span(second, color_map.get(f'Line {second}'))}"
+    )
+
+
+def _house_html(token: str, color_map: Mapping[str, str]) -> str:
+    match = re.fullmatch(r"House\s+(1[0-2]|[1-9])", token)
+    if not match:
+        return html.escape(token)
+    house = int(match.group(1))
+    sign = ZODIAC_NAMES[house - 1] if 1 <= house <= len(ZODIAC_NAMES) else ""
+    return _semantic_span(token, color_map.get(sign))
+
+
+def _channel_html(token: str, color_map: Mapping[str, str]) -> str:
+    match = re.fullmatch(r"Channel\s+(\d{1,2})([-–])(\d{1,2})", token)
+    if not match:
+        return html.escape(token)
+    first, dash, second = match.groups()
+    return (
+        "Channel "
+        f"{_gate_number_html(first, color_map)}{html.escape(dash)}{_gate_number_html(second, color_map)}"
+    )
+
+
+def missing_factor_html(value: str) -> str:
+    """Escape one Missing row while retaining semantic colors for every factor family.
+
+    The shared Chart Info colorizer already covers signs, bodies, nakshatras,
+    aspects, HD types, centers, authorities, gates, and their occurrences inside
+    position text. This formatter fills the remaining gaps introduced by Missing:
+    compact gate groups, houses, profiles, en-dash channels, and BaZi labels.
+    """
+    text = str(value or "")
+    from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, chart_info_token_color_map
 
     color_map = chart_info_token_color_map()
-    rendered: list[str] = []
+    if text.startswith("Missing Gate ") or text.startswith("Missing Gates "):
+        rendered: list[str] = []
+        last = 0
+        for match in re.finditer(r"\b\d{1,2}\b", text):
+            rendered.append(html.escape(text[last:match.start()]))
+            rendered.append(_gate_number_html(match.group(0), color_map))
+            last = match.end()
+        rendered.append(html.escape(text[last:]))
+        return "".join(rendered)
+
+    pattern = re.compile(
+        r"\bProfile\s+[1-6]/[1-6]\b"
+        r"|\bHouse\s+(?:1[0-2]|[1-9])\b"
+        r"|\bChannel\s+\d{1,2}[-–]\d{1,2}\b"
+        r"|\bBaZi\s+[A-Za-z]+\b"
+    )
+    rendered = []
     last = 0
-    for match in re.finditer(r"\b\d{1,2}\b", text):
+    for match in pattern.finditer(text):
         rendered.append(html.escape(text[last:match.start()]))
-        gate = match.group(0)
-        color = color_map.get(f"Gate {gate}")
-        escaped_gate = html.escape(gate)
-        if color:
-            rendered.append(
-                f'<span style="color:{html.escape(str(color), quote=True)};font-weight:700;">{escaped_gate}</span>'
-            )
+        token = match.group(0)
+        if token.startswith("Profile "):
+            rendered.append(_profile_html(token, color_map))
+        elif token.startswith("House "):
+            rendered.append(_house_html(token, color_map))
+        elif token.startswith("Channel "):
+            rendered.append(_channel_html(token, color_map))
         else:
-            rendered.append(escaped_gate)
+            rendered.append(_semantic_span(token, CHART_DATA_HIGHLIGHT_COLOR))
         last = match.end()
     rendered.append(html.escape(text[last:]))
     return "".join(rendered)
@@ -218,28 +281,31 @@ def build_trait_factor_evidence(
 ) -> TraitFactorEvidence:
     """Return Supporting, Counter-factors, and compact Missing explanations.
 
-    ``Missing`` is the complement of *eligible positive* criteria only.  Anti
+    ``Missing`` is the complement of *eligible positive* criteria only. Anti
     criteria remain Counter-factors and are never presented as missing
-    positives.  Mutually exclusive position alternatives share the same
-    category/body bucket used by the scorer: once one alternative matches, the
-    other alternatives in that bucket are suppressed rather than described as
-    failures.
+    positives. Mutual-exclusion suppression follows the scorer's active global
+    option and its exact bucket helpers for positions, HD type, profile, and
+    authority. Position alternatives are compacted only while that scorer
+    option is enabled.
     """
     profile = factors if isinstance(factors, Mapping) else {}
-    resolved_matches = matches if isinstance(matches, Mapping) else matched_weighted_criteria(chart, profile)
+    resolved_matches = matches if isinstance(matches, Mapping) else predictor.matched_weighted_criteria(chart, profile)
     supporting = tuple(str(value) for value in resolved_matches.get("positive", []) if str(value))
     counter_factors = tuple(str(value) for value in resolved_matches.get("negative", []) if str(value))
     matched_positive = set(supporting)
     candidates = _eligible_positive_candidates(chart, profile)
 
-    position_groups: dict[tuple[str, str], list[_PositiveCandidate]] = {}
-    matched_position_buckets: set[tuple[str, str]] = set()
+    exclusive_groups: dict[tuple[str, Any], list[_PositiveCandidate]] = {}
+    matched_exclusive_buckets: set[tuple[str, Any]] = set()
+    bucket_by_candidate: dict[int, tuple[str, Any] | None] = {}
     for candidate in candidates:
-        if candidate.category != "positions" or candidate.position_bucket is None:
+        bucket = _scorer_mutual_exclusive_bucket(candidate)
+        bucket_by_candidate[id(candidate)] = bucket
+        if bucket is None:
             continue
-        position_groups.setdefault(candidate.position_bucket, []).append(candidate)
+        exclusive_groups.setdefault(bucket, []).append(candidate)
         if candidate.label in matched_positive:
-            matched_position_buckets.add(candidate.position_bucket)
+            matched_exclusive_buckets.add(bucket)
 
     unmatched_gates = [
         candidate.label
@@ -247,7 +313,7 @@ def build_trait_factor_evidence(
         if candidate.category == "gates" and candidate.label not in matched_positive
     ]
     emitted_gate_group = False
-    emitted_position_groups: set[tuple[str, str]] = set()
+    emitted_position_groups: set[tuple[str, Any]] = set()
     missing: list[str] = []
 
     for candidate in candidates:
@@ -258,17 +324,19 @@ def build_trait_factor_evidence(
                 missing.append(_format_missing_gates(unmatched_gates))
                 emitted_gate_group = True
             continue
-        if candidate.category == "positions" and candidate.position_bucket is not None:
-            bucket = candidate.position_bucket
-            if bucket in matched_position_buckets:
-                continue
+
+        bucket = bucket_by_candidate.get(id(candidate))
+        if bucket is not None and bucket in matched_exclusive_buckets:
+            continue
+        if candidate.category == "positions" and bucket is not None:
             if bucket in emitted_position_groups:
                 continue
-            group = [item for item in position_groups.get(bucket, []) if item.label not in matched_positive]
+            group = [item for item in exclusive_groups.get(bucket, []) if item.label not in matched_positive]
             if group:
                 missing.append(_format_missing_position_group(group))
             emitted_position_groups.add(bucket)
             continue
+
         if candidate.dominance:
             missing.append(f"{candidate.label} not above baseline in chart")
         else:
