@@ -9,6 +9,8 @@ to the current chart.
 
 from __future__ import annotations
 
+import html
+import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -168,6 +170,36 @@ def _format_missing_gates(gate_labels: list[str]) -> str:
     if len(gates) == 1:
         return f"Missing Gate {gates[0]}"
     return f"Missing Gates {_join_values(gates, conjunction='&')}"
+
+
+def missing_factor_html(value: str) -> str:
+    """Escape one Missing row while retaining canonical gate colors in compact gate groups."""
+    text = str(value or "")
+    if not (text.startswith("Missing Gate ") or text.startswith("Missing Gates ")):
+        return html.escape(text)
+
+    # The appwide Chart Info formatter recognizes ``Gate 29`` tokens. Compact
+    # groups intentionally read ``Missing Gates 29 & 55``, so color the numeric
+    # gate tokens explicitly while keeping that compact visible wording.
+    from ephemeraldaddy.gui.style import chart_info_token_color_map
+
+    color_map = chart_info_token_color_map()
+    rendered: list[str] = []
+    last = 0
+    for match in re.finditer(r"\b\d{1,2}\b", text):
+        rendered.append(html.escape(text[last:match.start()]))
+        gate = match.group(0)
+        color = color_map.get(f"Gate {gate}")
+        escaped_gate = html.escape(gate)
+        if color:
+            rendered.append(
+                f'<span style="color:{html.escape(str(color), quote=True)};font-weight:700;">{escaped_gate}</span>'
+            )
+        else:
+            rendered.append(escaped_gate)
+        last = match.end()
+    rendered.append(html.escape(text[last:]))
+    return "".join(rendered)
 
 
 def _format_missing_position_group(candidates: list[_PositiveCandidate]) -> str:
