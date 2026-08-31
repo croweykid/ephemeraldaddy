@@ -54,7 +54,7 @@ def test_trait_info_renders_compact_missing_section_with_semantic_tokens(monkeyp
     assert "font-weight:700;" in colorized
 
 
-def test_missing_formatter_colors_profile_house_channel_and_bazi_semantics():
+def test_missing_formatter_colors_previously_unmapped_semantic_factors():
     color_map = style.chart_info_token_color_map()
 
     profile_html = explanations.missing_factor_html("Profile 4/6")
