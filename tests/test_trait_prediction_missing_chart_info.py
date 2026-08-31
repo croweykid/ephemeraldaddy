@@ -62,8 +62,7 @@ def test_missing_formatter_colors_profile_house_channel_and_bazi_semantics():
     assert color_map["Line 6"] in profile_html
 
     house_html = explanations.missing_factor_html("House 10 not above baseline in chart")
-    house_sign = explanations.ZODIAC_NAMES[9]
-    assert color_map[house_sign] in house_html
+    assert style.CHART_DATA_HIGHLIGHT_COLOR in house_html
 
     channel_html = explanations.missing_factor_html("Channel 29–46")
     assert color_map["Gate 29"] in channel_html
