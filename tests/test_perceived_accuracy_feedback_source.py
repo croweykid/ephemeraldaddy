@@ -9,6 +9,12 @@ FEATURE_SOURCE = (
 HD_PANEL_SOURCE = (
     ROOT / "ephemeraldaddy/gui/features/charts/human_design_analytics_panel.py"
 ).read_text()
+CHART_SECTIONS_SOURCE = (
+    ROOT / "ephemeraldaddy/gui/features/controllers/main_window.py"
+).read_text()
+CHART_VIEW_SOURCE = (
+    ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py"
+).read_text()
 
 
 def test_chart_switch_clears_stale_chart_information_target():
@@ -49,3 +55,20 @@ def test_chart_info_mode_routes_property_control_visibility():
         "def _prepare_chart_info_replacement", 1
     )[0]
     assert "set_chart_information_panel_mode(" in method
+
+
+def test_standard_chart_analysis_headers_forward_stable_section_keys():
+    factory = CHART_SECTIONS_SOURCE.split("def add_collapsible_section", 1)[1].split(
+        "def add_section", 1
+    )[0]
+    assert "semantic_key=section_key" in factory
+    for section_key in (
+        "ocean",
+        "enneagram",
+        "dnd_statblock",
+        "dnd_species",
+        "dnd_class",
+        "dnd_alignment",
+        "hd_electrochemistry",
+    ):
+        assert f'section_key="{section_key}"' in CHART_VIEW_SOURCE

@@ -2005,6 +2005,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="OCEAN Personality",
         expanded=True,
+        section_key="ocean",
     )
     register_prediction_section("ocean", ocean_section_layout)
     _install_prediction_header_action(owner, ocean_section_layout, "ocean")
@@ -2029,6 +2030,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Enneagram",
         expanded=True,
+        section_key="enneagram",
     )
     register_prediction_section("enneagram", enneagram_section_layout)
     _install_prediction_header_action(owner, enneagram_section_layout, "enneagram")
@@ -2051,6 +2053,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Fantasy RPG Statblock",
         expanded=True,
+        section_key="dnd_statblock",
     )
     register_prediction_section("dnd_statblock", dnd_statblock_section_layout)
     _install_prediction_header_action(owner, dnd_statblock_section_layout, "dnd_statblock")
@@ -2070,6 +2073,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Fantasy RPG Species",
         expanded=True,
+        section_key="dnd_species",
     )
     register_prediction_section("dnd_species", dnd_species_section_layout)
     _install_prediction_header_action(owner, dnd_species_section_layout, "dnd_species")
@@ -2090,6 +2094,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Fantasy RPG Class",
         expanded=True,
+        section_key="dnd_class",
     )
     register_prediction_section("dnd_class", dnd_class_section_layout)
     _install_prediction_header_action(owner, dnd_class_section_layout, "dnd_class")
@@ -2110,6 +2115,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Fantasy RPG Alignment",
         expanded=True,
+        section_key="dnd_alignment",
     )
     register_prediction_section("dnd_alignment", dnd_alignment_section_layout)
     _install_prediction_header_action(owner, dnd_alignment_section_layout, "dnd_alignment")
@@ -2152,6 +2158,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Predicted Synastry",
         expanded=True,
+        section_key="hd_electrochemistry",
     )
     register_prediction_section("hd_electrochemistry", hd_electrochemistry_section_layout)
     hd_electrochemistry_gender_row = QWidget()
