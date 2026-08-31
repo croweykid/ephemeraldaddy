@@ -12,19 +12,20 @@ SECTION = SOURCE.split("def build_similarity_calculator_settings_section", 1)[1]
 )[0]
 
 
-def test_demographic_matching_precedes_scoring_methods_and_has_divider():
-    demographic = SECTION.index('QLabel("Demographic Matching")')
-    divider = SECTION.index("demographic_algorithm_divider = QFrame()")
-    scoring = SECTION.index('QLabel("Scoring Methods")')
-    chooser = SECTION.index('"Choose the metric by which Astro Twins are defined:"')
+def test_algorithm_caption_leads_and_demographic_matching_follows_custom_subpanel():
+    chooser = SECTION.index('QLabel("Choose how Astro Twins are defined:")')
+    custom_attach = SECTION.index("algorithm_layout.addWidget(custom_fields_frame)")
+    divider = SECTION.index("demographic_algorithm_divider = QFrame()", custom_attach)
+    demographic = SECTION.index('QLabel("Demographic Matching")', divider)
+    stretch = SECTION.index("algorithm_layout.addStretch(1)", demographic)
 
-    assert demographic < divider < scoring < chooser
+    assert chooser < custom_attach < divider < demographic < stretch
     assert "demographic_match_header.setStyleSheet(subheader_style)" in SECTION
-    assert "scoring_methods_header.setStyleSheet(subheader_style)" in SECTION
     assert "demographic_algorithm_divider.setFrameShape(QFrame.HLine)" in SECTION
+    assert 'QLabel("Scoring Methods")' not in SECTION
+    assert '"Choose the metric by which Astro Twins are defined:"' not in SECTION
     assert 'QLabel("Match preference")' not in SECTION
     assert 'QLabel("Astro Twin Calculator")' not in SECTION
-
 
 def test_demographic_matching_labels_order_and_no_tooltips():
     include_everyone = SECTION.index('("none", "Include everyone (default)")')
@@ -76,13 +77,14 @@ def test_custom_weight_grid_uses_centered_renamed_headers_and_compact_columns():
     assert 'weight_spinbox.setFixedWidth(weight_column_width)' in SECTION
 
 
-def test_reset_weights_button_shares_placement_weighting_row():
-    combo = SECTION.index("weighting_mode_row.addWidget(weighting_mode_combo)")
-    reset = SECTION.index("weighting_mode_row.addWidget(reset_similarity_weights_button)")
-    attach = SECTION.index("custom_fields_layout.addLayout(weighting_mode_row)")
+def test_placement_weight_mode_is_inline_with_placement_criterion_without_label():
+    placement_branch = SECTION.index('if key == "placement":')
+    criterion = SECTION.index("placement_criterion_row.addWidget(criterion_label)", placement_branch)
+    combo = SECTION.index("placement_criterion_row.addWidget(weighting_mode_combo)", placement_branch)
+    reset = SECTION.index('QPushButton("Reset Weights to Default")', combo)
 
-    assert combo < reset < attach
-
+    assert placement_branch < criterion < combo < reset
+    assert 'QLabel("Placement-weight mode")' not in SECTION
 
 def test_placement_weighting_modes_have_item_and_selected_tooltips():
     assert "PLACEMENT_WEIGHTING_MODE_TOOLTIPS" in SECTION
@@ -141,10 +143,50 @@ def test_manage_presets_button_is_file_gated_and_right_of_selector():
 def test_research_accuracy_ranking_fills_space_below_button_and_divider():
     button = SECTION.index('QPushButton("Show 90-100% similarities")')
     divider = SECTION.index("research_accuracy_divider = QFrame()")
-    ranking = SECTION.index("algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser()")
+    ranking = SECTION.index("algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser(")
 
     assert button < divider < ranking
     assert "research_accuracy_divider.setFrameShape(QFrame.HLine)" in SECTION
+    assert "on_use_row=apply_accuracy_ranking_row" in SECTION
     assert "research_layout.addWidget(algorithm_accuracy_label, 1)" in SECTION
     assert "research_layout.addStretch(1)" not in SECTION
     assert "self.setMaximumHeight(360)" not in SOURCE
+
+
+def test_research_use_this_applies_mode_custom_snapshot_and_all_or_nothing_criterion():
+    assert '"database_distinction": database_distinction_radio' in SECTION
+    assert "def apply_accuracy_ranking_row(row: dict[str, object])" in SECTION
+    assert 'if mode == "custom":' in SECTION
+    assert 'calculator_checkboxes[key].setChecked(bool(factor.get("enabled", False)))' in SECTION
+    assert 'calculator_weights[key].setValue(float(factor.get("weight", 0.0)))' in SECTION
+    assert 'snapshot.get("placement_weighting_mode")' in SECTION
+    assert 'snapshot_settings.get("all_or_nothing_component")' in SECTION
+    assert "target_radio.setChecked(True)" in SECTION
+
+
+def test_research_weight_coloring_uses_shared_zero_based_red_green_scale():
+    browser = SOURCE.split("class SimilarityAlgorithmAccuracyBrowser", 1)[1].split(
+        "def _build_settings_help_label", 1
+    )[0]
+    assert "more_readable_color_scale_rgb_for_range(" in browser
+    assert "0.0," in browser
+    assert "scale_max," in browser
+    assert "factor_weight_color=self._factor_weight_color" in browser
+
+
+def test_ranking_formatter_has_use_action_and_filters_disabled_factors():
+    ranking_source = (
+        Path(__file__).resolve().parents[1]
+        / "ephemeraldaddy/gui/features/charts/similarities_algorithm_log.py"
+    ).read_text(encoding="utf-8")
+    formatter = ranking_source.split(
+        "def format_similarity_algorithm_accuracy_ranking_html", 1
+    )[1].split("def _settings_payload", 1)[0]
+    assert '<th align=\"center\">Use</th>' in formatter
+    assert 'href=\"use:{index - 1}\"' in formatter
+    assert "enabled_factors = [" in formatter
+    assert 'bool(factor.get(\"enabled\", False))' in formatter
+    assert "for factor in enabled_factors:" in formatter
+    assert "factor_weight_color(weight, maximum_weight)" in formatter
+    assert 'f\"{label}: {weight:g} (on)\"' in formatter
+    assert "(off)" not in formatter
