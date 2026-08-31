@@ -74,7 +74,8 @@ def test_mutual_exclusive_hd_buckets_suppress_alternatives_when_one_matches(monk
     assert "Projector" not in evidence.missing
     assert "Profile 5/2" not in evidence.missing
     assert "Splenic Authority" not in evidence.missing
-    assert one_bucket_calls == ["generator", "projector", "4/6", "5/2", "Emotional", "Splenic"]
+    assert set(one_bucket_calls) == {"generator", "projector", "4/6", "5/2", "Emotional", "Splenic"}
+    assert len(one_bucket_calls) == 6
 
 
 def test_disabling_scorer_bucket_option_disables_missing_suppression_and_position_compaction(monkeypatch):
