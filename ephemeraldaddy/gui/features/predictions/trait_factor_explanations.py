@@ -16,7 +16,6 @@ from typing import Any, Mapping
 
 from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
 from ephemeraldaddy.core.chart import chart_uses_houses
-from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
 
 
 @dataclass(frozen=True)
@@ -199,15 +198,6 @@ def _profile_html(token: str, color_map: Mapping[str, str]) -> str:
     )
 
 
-def _house_html(token: str, color_map: Mapping[str, str]) -> str:
-    match = re.fullmatch(r"House\s+(1[0-2]|[1-9])", token)
-    if not match:
-        return html.escape(token)
-    house = int(match.group(1))
-    sign = ZODIAC_NAMES[house - 1] if 1 <= house <= len(ZODIAC_NAMES) else ""
-    return _semantic_span(token, color_map.get(sign))
-
-
 def _channel_html(token: str, color_map: Mapping[str, str]) -> str:
     match = re.fullmatch(r"Channel\s+(\d{1,2})([-–])(\d{1,2})", token)
     if not match:
@@ -254,8 +244,6 @@ def missing_factor_html(value: str) -> str:
         token = match.group(0)
         if token.startswith("Profile "):
             rendered.append(_profile_html(token, color_map))
-        elif token.startswith("House "):
-            rendered.append(_house_html(token, color_map))
         elif token.startswith("Channel "):
             rendered.append(_channel_html(token, color_map))
         else:
