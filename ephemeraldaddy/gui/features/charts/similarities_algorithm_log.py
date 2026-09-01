@@ -152,18 +152,29 @@ def similarity_custom_scoring_signature(snapshot: Mapping[str, Any]) -> str:
     factors = snapshot.get("selected_factors")
     canonical_factors = []
     if isinstance(factors, list):
-        canonical_factors = [
-            {
+        for factor in factors:
+            if not isinstance(factor, Mapping):
+                continue
+            enabled = bool(factor.get("enabled", False))
+            canonical_factor: dict[str, object] = {
                 "factor": str(factor.get("factor", "")),
-                "enabled": bool(factor.get("enabled", False)),
-                "weight": round(float(factor.get("weight", 0.0)), 6),
+                "enabled": enabled,
             }
-            for factor in factors
-            if isinstance(factor, Mapping)
-        ]
+            if enabled:
+                canonical_factor["weight"] = round(float(factor.get("weight", 0.0)), 6)
+            canonical_factors.append(canonical_factor)
+    placement_weighted_factor_enabled = any(
+        bool(factor.get("enabled", False))
+        and str(factor.get("factor", "")) in _PLACEMENT_WEIGHTED_ALL_OR_NOTHING_COMPONENTS
+        for factor in canonical_factors
+    )
     return json.dumps(
         {
-            "placement_weighting_mode": str(snapshot.get("placement_weighting_mode", "")),
+            "placement_weighting_mode": (
+                str(snapshot.get("placement_weighting_mode", ""))
+                if placement_weighted_factor_enabled
+                else "not_applicable"
+            ),
             "selected_factors": canonical_factors,
         },
         sort_keys=True,

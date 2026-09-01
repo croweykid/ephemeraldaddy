@@ -8,6 +8,10 @@ from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     format_similarity_algorithm_accuracy_ranking_html,
     build_similarity_algorithm_snapshot,
 )
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SimilarityCalculatorSettings,
+    similarity_algorithm_settings_snapshot,
+)
 
 
 def _append(path, mode, predicted, perceived, *, not_applicable=False, pair="AB"):
@@ -325,6 +329,52 @@ def test_demographic_filter_splits_variants_but_irrelevant_all_or_nothing_placem
     assert len(all_or_nothing_rows) == 1
     assert all_or_nothing_rows[0]["sample_count"] == 2
     assert all_or_nothing_rows[0]["display_name"] == "All Or Nothing — Aspect"
+
+
+def test_default_signature_ignores_disabled_weights_and_irrelevant_placement_mode(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    settings_rows = (
+        {
+            "use_placement": False,
+            "weight_placement": 0.1,
+            "use_aspect": True,
+            "weight_aspect": 0.5,
+            "placement_weighting_mode": "generic",
+            "demographic_match_mode": "none",
+        },
+        {
+            "use_placement": False,
+            "weight_placement": 0.9,
+            "use_aspect": True,
+            "weight_aspect": 0.5,
+            "placement_weighting_mode": "hybrid",
+            "demographic_match_mode": "none",
+        },
+    )
+    for pair, settings in zip(("AB", "AC"), settings_rows):
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("default", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 1
+    assert rows[0]["sample_count"] == 2
+
+
+def test_effective_snapshots_retain_demographics_for_derived_and_fixed_modes():
+    settings = SimilarityCalculatorSettings(demographic_match_mode="sex")
+
+    for mode in ("comprehensive", "big_3", "generic_astro", "database_distinction"):
+        snapshot = similarity_algorithm_settings_snapshot(mode, settings)
+        assert snapshot["demographic_match_mode"] == "sex"
 
 
 def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights():
