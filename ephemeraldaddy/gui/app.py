@@ -35548,6 +35548,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         normalized_uid = self._normalized_chart_uid_key(chart_uid)
         if normalized_uid is None:
             raise ValueError("A persisted chart must have a non-empty chart UID")
+        if normalized_uid == self._normalized_chart_uid_key(self.current_chart_uid):
+            self._chart_edit_session.active_chart_uid = normalized_uid
+            return
         self.current_chart_uid = normalized_uid
         self._chart_edit_session.active_chart_uid = normalized_uid
         refresh_perceived_accuracy_controls(self, clear_property=True)

@@ -23,6 +23,13 @@ def test_chart_switch_clears_stale_chart_information_target():
         "def _clear_current_chart_uid", 1
     )[0]
     assert "refresh_perceived_accuracy_controls(self, clear_property=True)" in method
+    same_uid_guard = method.index(
+        "if normalized_uid == self._normalized_chart_uid_key(self.current_chart_uid):"
+    )
+    refresh = method.index(
+        "refresh_perceived_accuracy_controls(self, clear_property=True)"
+    )
+    assert "return" in method[same_uid_guard:refresh]
 
 
 def test_module_installer_traverses_semantically_keyed_descendants():
