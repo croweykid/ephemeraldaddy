@@ -75,6 +75,7 @@ def test_custom_weight_grid_uses_centered_renamed_headers_and_compact_columns():
     assert 'total_column_width = character_width * 12' in SECTION
     assert 'calculator_grid.setColumnStretch(1, 1)' in SECTION
     assert 'weight_spinbox.setFixedWidth(weight_column_width)' in SECTION
+    assert "weight_spinbox.setDecimals(4)" in SECTION
 
 
 def test_placement_weight_mode_is_inline_with_placement_criterion_without_label():
@@ -184,6 +185,8 @@ def test_ranking_formatter_has_use_action_and_filters_disabled_factors():
     )[1].split("def _settings_payload", 1)[0]
     assert '<th align=\"center\">Use</th>' in formatter
     assert 'href=\"use:{index - 1}\"' in formatter
+    assert 'algorithm_mode != "custom" or custom_snapshot_available' in formatter
+    assert ">unavailable</span>" in formatter
     assert "enabled_factors = [" in formatter
     assert 'bool(factor.get(\"enabled\", False))' in formatter
     assert "for factor in enabled_factors:" in formatter

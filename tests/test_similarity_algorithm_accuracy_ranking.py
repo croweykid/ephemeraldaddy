@@ -250,6 +250,26 @@ def test_accuracy_ranking_html_marks_fixed_scorer_details_unavailable():
     assert "Placement: " not in html
 
 
+def test_accuracy_ranking_html_disables_use_action_for_unrecoverable_custom_snapshot():
+    html = format_similarity_algorithm_accuracy_ranking_html(
+        [{
+            "algorithm_mode": "custom",
+            "display_name": "Custom 1",
+            "average_accuracy": 88.0,
+            "sample_count": 2,
+            "algorithm_snapshot": {
+                "details_available": False,
+                "details_unavailable_reason": "Legacy custom weights were not logged.",
+            },
+        }],
+        highlight_color="#abcdef",
+    )
+
+    assert 'href="use:0"' not in html
+    assert ">unavailable</span>" in html
+    assert 'title="Legacy custom weights were not logged."' in html
+
+
 def test_algorithm_accuracy_uses_prediction_error_not_raw_perceived_score(tmp_path):
     path = tmp_path / "similarities_algorithm_log.txt"
     _append(path, "default", 90, 90)

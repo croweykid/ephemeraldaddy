@@ -462,6 +462,14 @@ def format_similarity_algorithm_accuracy_ranking_html(
     )
     for index, row in enumerate(ranked, start=1):
         name = str(row.get("display_name") or row.get("algorithm_mode", "unknown")).replace("_", " ").title()
+        algorithm_mode = str(row.get("algorithm_mode") or "").strip().lower()
+        snapshot = row.get("algorithm_snapshot")
+        custom_snapshot_available = (
+            isinstance(snapshot, Mapping)
+            and bool(snapshot.get("details_available", True))
+            and isinstance(snapshot.get("selected_factors"), list)
+        )
+        can_apply = algorithm_mode != "custom" or custom_snapshot_available
         average = float(row.get("average_accuracy", 0.0))
         count = int(row.get("sample_count", 0))
         top_average = row.get("v2_top_25_average")
@@ -470,18 +478,31 @@ def format_similarity_algorithm_accuracy_ranking_html(
         bottom_count = int(row.get("v2_bottom_25_chart_count", 0))
         top_text = "—" if top_average is None else f"{float(top_average):.1f}% (charts={top_count})"
         bottom_text = "—" if bottom_average is None else f"{float(bottom_average):.1f}% (charts={bottom_count})"
+        if can_apply:
+            use_cell = (
+                '<td align="center"><span style="border:1px solid #666666; padding:2px 5px;">'
+                f'<a href="use:{index - 1}" style="text-decoration:none;">use this</a>'
+                '</span></td>'
+            )
+        else:
+            unavailable_reason = "Exact custom settings are unavailable for this legacy observation."
+            if isinstance(snapshot, Mapping):
+                unavailable_reason = str(
+                    snapshot.get("details_unavailable_reason") or unavailable_reason
+                )
+            use_cell = (
+                '<td align="center"><span style="color:#777777;" title="'
+                f'{html.escape(unavailable_reason, quote=True)}">unavailable</span></td>'
+            )
         parts.append(
             f'<tr><td>{index}. <a href="algorithm:{index - 1}">{html.escape(name)}</a></td>'
             f'<td align="right">{average:.1f}% (n={count})</td>'
             f'<td align="right">{html.escape(top_text)}</td>'
             f'<td align="right">{html.escape(bottom_text)}</td>'
-            '<td align="center"><span style="border:1px solid #666666; padding:2px 5px;">'
-            f'<a href="use:{index - 1}" style="text-decoration:none;">use this</a>'
-            '</span></td></tr>'
+            f'{use_cell}</tr>'
         )
         if index - 1 not in expanded_rows:
             continue
-        snapshot = row.get("algorithm_snapshot")
         detail_fragments: list[str] = []
         if isinstance(snapshot, Mapping):
             if not bool(snapshot.get("details_available", True)):

@@ -915,7 +915,10 @@ def build_similarity_calculator_settings_section(
         )
         calculator_grid.addWidget(enabled_checkbox, row_index, 0, alignment=Qt.AlignCenter)
         weight_spinbox = QDoubleSpinBox()
-        weight_spinbox.setDecimals(2)
+        # Logged and built-in custom scorers can use quarter-percent weights
+        # (for example 0.0375).  Four decimal places lets a Research "use this"
+        # action reproduce those snapshots instead of silently rounding them.
+        weight_spinbox.setDecimals(4)
         weight_spinbox.setRange(0.0, 1.0)
         weight_spinbox.setSingleStep(0.01)
         weight_spinbox.setFixedWidth(weight_column_width)
