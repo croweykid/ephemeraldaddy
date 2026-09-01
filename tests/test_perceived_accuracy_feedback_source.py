@@ -56,6 +56,11 @@ def test_chart_info_mode_routes_property_control_visibility():
         "def _prepare_chart_info_replacement", 1
     )[0]
     assert "set_chart_information_panel_mode(" in method
+    mode_helper = FEATURE_SOURCE.split("def set_chart_information_control_mode", 1)[1].split(
+        "def refresh_perceived_accuracy_controls", 1
+    )[0]
+    assert "control.retarget(None)" not in mode_helper
+    assert "control.set_context_visible(False" in mode_helper
 
 
 def test_standard_chart_analysis_headers_forward_stable_section_keys():

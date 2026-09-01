@@ -129,7 +129,7 @@ def test_statblock_has_chart_scoped_singleton_property_target():
     ) == PerceivedAccuracyTarget("properties", "dnd_statblock")
 
 
-def test_non_chart_info_mode_clears_and_hides_property_control(tmp_path):
+def test_non_chart_info_mode_preserves_target_while_hiding_control(tmp_path):
     _app()
     control = PerceivedAccuracyThumbs(
         lambda: "ABCDEF1234567890",
@@ -139,8 +139,13 @@ def test_non_chart_info_mode_clears_and_hides_property_control(tmp_path):
     set_chart_information_control_mode(
         control, mode="biography", preference_visible=True
     )
-    assert control.target is None
+    assert control.target == PerceivedAccuracyTarget("properties", "moon_sign:aries")
     assert control.isHidden()
+    set_chart_information_control_mode(
+        control, mode="chart_info", preference_visible=True
+    )
+    assert control.target == PerceivedAccuracyTarget("properties", "moon_sign:aries")
+    assert not control.isHidden()
 
 
 def test_constructor_defers_persistence_read(monkeypatch):

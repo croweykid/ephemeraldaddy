@@ -205,7 +205,6 @@ def set_chart_information_control_mode(
     if control is None:
         return
     if mode != "chart_info":
-        control.retarget(None)
         control.set_context_visible(False, preference_visible=preference_visible)
         return
     control.set_context_visible(True, preference_visible=preference_visible)
