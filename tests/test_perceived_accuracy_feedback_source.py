@@ -66,6 +66,18 @@ def test_chart_info_mode_routes_property_control_visibility():
     )[0]
     assert "control.retarget(None)" not in mode_helper
     assert "control.set_context_visible(False" in mode_helper
+    assert "control.refresh()" in mode_helper
+
+
+def test_planet_keyword_target_uses_resolved_placement_context():
+    method = APP_SOURCE.split("def _show_planet_keyword_info", 1)[1].split(
+        "def _show_sign_keyword_info", 1
+    )[0]
+    retarget = method.index('"kind": "planet_keyword"')
+    assert method.index("resolved_sign_name =") < retarget
+    assert method.index("resolved_house_num =") < retarget
+    assert '"sign": resolved_sign_name' in method
+    assert '"house": resolved_house_num if resolved_uses_houses else None' in method
 
 
 def test_standard_chart_analysis_headers_forward_stable_section_keys():

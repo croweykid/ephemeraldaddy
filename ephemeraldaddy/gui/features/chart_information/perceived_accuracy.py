@@ -214,6 +214,8 @@ def set_chart_information_control_mode(
         control.set_context_visible(False, preference_visible=preference_visible)
         return
     control.set_context_visible(True, preference_visible=preference_visible)
+    if preference_visible and not control.isEnabled():
+        control.refresh()
 
 
 def refresh_perceived_accuracy_controls(owner: object, *, clear_property: bool = False) -> None:

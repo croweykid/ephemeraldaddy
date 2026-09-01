@@ -31947,14 +31947,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         chart_uses_houses: bool | None = None,
         display_body_label: str = "",
     ) -> None:
-        self._retarget_chart_information({"kind": "planet_keyword", "body": body, "sign": sign_name, "house": house_num})
         body_name = str(body or "").strip()
         display_body = str(display_body_label or "").strip() or _display_body_name(body_name)
         verbs = PLANET_KEYWORDS.get(body_name, {}).get("verbs", [])
         clean_verbs = [str(item).strip() for item in verbs if str(item).strip()]
-        if not clean_verbs:
-            self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
-            return
         status_line = ""
         resolved_sign_name = str(sign_name or "").strip().title()
         resolved_house_num = house_num if isinstance(house_num, int) else None
@@ -31968,6 +31964,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             resolved_house_num = chart_house if isinstance(chart_house, int) else None
         if resolved_uses_houses is None and chart is not None:
             resolved_uses_houses = _chart_uses_houses(chart)
+        self._retarget_chart_information(
+            {
+                "kind": "planet_keyword",
+                "body": body_name,
+                "sign": resolved_sign_name,
+                "house": resolved_house_num if resolved_uses_houses else None,
+            }
+        )
+        if not clean_verbs:
+            self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
+            return
 
         rulership_signs = PLANET_RULERSHIP.get(body_name, set())
         exaltation = PLANET_EXALTATION.get(body_name, {})

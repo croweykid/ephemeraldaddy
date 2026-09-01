@@ -171,6 +171,27 @@ def test_non_chart_info_mode_preserves_target_while_hiding_control(tmp_path):
     )
     assert control.target == PerceivedAccuracyTarget("properties", "moon_sign:aries")
     assert not control.isHidden()
+    assert control.isEnabled()
+
+
+def test_restoring_chart_info_hydrates_target_opened_while_preference_hidden(monkeypatch):
+    _app()
+    control = PerceivedAccuracyThumbs(lambda: "ABCDEF1234567890")
+    control.hide()
+    control.retarget(PerceivedAccuracyTarget("properties", "moon_sign:aries"))
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.chart_information.perceived_accuracy."
+        "get_perceived_accuracy_value",
+        lambda *_args, **_kwargs: True,
+    )
+    set_chart_information_control_mode(
+        control, mode="biography", preference_visible=True
+    )
+    set_chart_information_control_mode(
+        control, mode="chart_info", preference_visible=True
+    )
+    assert control.isEnabled()
+    assert control.state is True
 
 
 def test_constructor_defers_persistence_read(monkeypatch):
