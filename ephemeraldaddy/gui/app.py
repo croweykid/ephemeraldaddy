@@ -31258,6 +31258,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         """Show Chart Info and restore its default surface before new content."""
         self._set_chart_info_panel_mode("chart_info")
         set_chart_info_contrast_background(self.chart_info_output)
+        self._retarget_chart_information({})
+
+    def _retarget_chart_information(self, entry: Mapping[str, object]) -> None:
+        """Retarget feedback only when rendering into Chart Editor's main info tab."""
+        stack = getattr(self, "chart_info_content_stack", None)
+        if stack is None or stack.widget(0) is not self.chart_info_output:
+            return
+        control = getattr(self, "chart_information_accuracy_control", None)
+        if control is not None:
+            control.retarget(property_target_from_entry(entry))
 
     def _update_get_bio_button_visibility(self) -> None:
         button = getattr(self, "get_bio_button", None)
@@ -31364,9 +31374,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         def retarget(entry: Mapping[str, object]) -> None:
             if not targets_main_chart_info:
                 return
-            control = getattr(self, "chart_information_accuracy_control", None)
-            if control is not None:
-                control.retarget(property_target_from_entry(entry))
+            self._retarget_chart_information(entry)
 
 
         # cursor_pos = cursor.positionInBlock()
@@ -31742,6 +31750,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
+        self._retarget_chart_information({"kind": "position", "body": body, "sign": sign, "house": house_num})
         sign_key = sign.title()
         sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
         adverbs = sign_keywords.get("best_adverbs", []) + sign_keywords.get(
@@ -31838,6 +31847,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_chart_info_lines_with_segments(header, unique_lines)
 
     def _show_decan_info(self, body: str, sign: str, longitude: object | None) -> None:
+        self._retarget_chart_information({"kind": "decan_keyword", "body": body, "sign": sign})
         sign_key = str(sign or "").strip().title()
         body_key = str(body or "").strip()
         display_body = _display_body_name(body_key)
@@ -31917,6 +31927,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(cursor)
 
     def _show_nakshatra_info(self, nakshatra: str) -> None:
+        self._retarget_chart_information({"kind": "nakshatra", "nakshatra": nakshatra})
         formatted_text = _format_nakshatra_description_text(nakshatra)
         lines = formatted_text.splitlines()
         if len(lines) <= 1:
@@ -31935,6 +31946,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         chart_uses_houses: bool | None = None,
         display_body_label: str = "",
     ) -> None:
+        self._retarget_chart_information({"kind": "planet_keyword", "body": body, "sign": sign_name, "house": house_num})
         body_name = str(body or "").strip()
         display_body = str(display_body_label or "").strip() or _display_body_name(body_name)
         verbs = PLANET_KEYWORDS.get(body_name, {}).get("verbs", [])
@@ -31989,6 +32001,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         longitude: object | None = None,
         display_body_label: str = "",
     ) -> None:
+        self._retarget_chart_information({"kind": "sign_keyword", "sign": sign_name, "body": body_name})
         sign_key = str(sign_name or "").strip().title()
         body_key = str(body_name or "").strip()
         body_color = PLANET_COLORS.get(body_key) if body_key else None
@@ -32125,9 +32138,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_element_keyword_info(self, element: str) -> None:
+        self._retarget_chart_information({"kind": "element_keyword", "property_value": element})
         self.chart_info_output.setPlainText("\n".join(self._element_definition_lines(element)))
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
+        self._retarget_chart_information({"kind": "aspect_keyword", "type": atype})
         aspect_label = str(atype or "").strip()
         aspect_key = aspect_label.replace(" ", "_").lower()
         aspect_keywords = ASPECT_KEYWORDS.get(aspect_key, [])
@@ -32141,6 +32156,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
 
     def _show_mode_keyword_info(self, mode: str) -> None:
+        self._retarget_chart_information({"kind": "mode_keyword", "property_value": mode})
         mode_key = str(mode or "").strip().lower()
         mode_label = mode_key.title() if mode_key else "Mode"
         keywords = sorted(
@@ -32192,6 +32208,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return f"{format_ordinal(house_num)} House"
 
     def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
+        self._retarget_chart_information({"kind": "house_keyword", "house": house_num})
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
         header = self._ordinal_house_header(house_num)
@@ -32253,6 +32270,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         chart_context: Chart | None = None,
         placement_contexts: list[tuple[str, Chart]] | None = None,
     ) -> None:
+        self._retarget_chart_information({"kind": "hd_gate_line", "gate": gate, "line": line})
         line_number = int(line) if isinstance(line, int) else None
         gate_number = int(gate)
         gate_info = GATE_REFERENCE.get(
@@ -32389,6 +32407,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_human_design_property_info(self, property_key: str, property_value: str = "") -> None:
+        self._retarget_chart_information({"kind": "hd_property", "property_key": property_key, "property_value": property_value})
         key = str(property_key or "").strip().lower()
         raw_value = str(property_value or "").strip()
 
@@ -32700,6 +32719,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_human_design_center_info(self, center_name: str) -> None:
+        self._retarget_chart_information({"kind": "hd_center", "property_value": center_name})
         requested = str(center_name or "").strip()
         center_key = next(
             (
@@ -32724,6 +32744,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_human_design_info_text(f"Center: {center_key}", lines)
 
     def _show_human_design_channel_info(self, gate_a: int, gate_b: int, center: str) -> None:
+        self._retarget_chart_information({"kind": "hd_channel", "gate_a": gate_a, "gate_b": gate_b})
         sorted_gates = (min(gate_a, gate_b), max(gate_a, gate_b))
         channel_key = f"{sorted_gates[0]}-{sorted_gates[1]}"
         channel_info = HD_CHANNELS.get(channel_key)
@@ -32753,6 +32774,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_human_design_info_text(header, lines[2:])
 
     def _show_human_design_color_info(self, color_value: int) -> None:
+        self._retarget_chart_information({"kind": "hd_color", "color": color_value})
         if isinstance(HD_COLORS, dict):
             color_entry = HD_COLORS.get(int(color_value))
         else:
@@ -32783,6 +32805,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_human_design_tone_info(self, tone_value: int) -> None:
+        self._retarget_chart_information({"kind": "hd_tone", "tone": tone_value})
         if isinstance(HD_TONES, dict):
             tone_entry = HD_TONES.get(int(tone_value))
         else:
@@ -32829,6 +32852,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
 
     def _show_human_design_base_info(self, base_value: int) -> None:
+        self._retarget_chart_information({"kind": "hd_base", "base": base_value})
         base_entry = next(
             (
                 entry
@@ -32847,6 +32871,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_human_design_line_info(self, line_value: int, *, accent_color: str | None = None) -> None:
+        self._retarget_chart_information({"kind": "hd_line", "line": line_value})
         line_nickname = str(LINE_NICKNAMES.get(int(line_value), {}).get("name", "Unknown"))
         line_archetype = str(LINE_ARCHETYPES.get(int(line_value), "No line archetype available."))
         raw_line_color = str(accent_color or HD_LINE_COLORS.get(int(line_value), CHART_DATA_HIGHLIGHT_COLOR))
@@ -32871,6 +32896,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
+        self._retarget_chart_information({"kind": "species", "family": family, "subtype": subtype})
         set_chart_info_text(
             self.chart_info_output,
             _format_dnd_species_info_text(family, subtype, score, evidence)
@@ -32883,12 +32909,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         _score: float,
         axis_scores: dict[str, float],
     ) -> None:
+        self._retarget_chart_information({"kind": "class", "class_key": class_key})
         set_chart_info_text(
             self.chart_info_output,
             _format_dnd_class_info_text(class_name, class_key, axis_scores)
         )
 
     def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
+        self._retarget_chart_information({"kind": "statblock"})
         set_chart_info_text(self.chart_info_output, _format_dnd_statblock_info_text(profile_lines))
 
     def _show_aspect_info(
@@ -32904,6 +32932,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         house1: int | None = None,
         house2: int | None = None,
     ) -> None:
+        self._retarget_chart_information({"kind": "aspect", "p1": p1, "p2": p2, "type": atype})
         aspect_keywords = ASPECT_KEYWORDS.get(str(atype).replace(" ", "_").lower(), [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
         p2_nouns = PLANET_KEYWORDS.get(p2, {}).get("nouns", [])
@@ -37487,6 +37516,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         kind, raw_value = parts[1], parts[2]
         self._prepare_chart_info_replacement()
+        self._retarget_chart_information(
+            {"kind": f"chart_analysis_{kind}", "property_value": raw_value}
+        )
         if kind == "sign":
             self.chart_info_output.setHtml(self._build_sign_popout_info(self._latest_chart, raw_value))
         elif kind == "body":
@@ -38472,6 +38504,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         value = urllib.parse.unquote(parts[2])
 
         self._prepare_chart_info_replacement()
+        self._retarget_chart_information(
+            {"kind": f"distinguishing_factor_{kind}", "property_value": value}
+        )
         if kind == "planet":
             self._show_planet_keyword_info(value)
             return

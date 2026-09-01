@@ -92,3 +92,60 @@ def test_every_subjective_metric_section_call_has_stable_module_key():
         if keyword.arg == "module_key" and isinstance(keyword.value, ast.Constant)
     }
     assert keys == {"emoji_portrait", "typology", "perceived_alignment", "sexiness"}
+
+
+def test_every_main_chart_information_renderer_retargets_feedback():
+    tree = ast.parse(APP_SOURCE)
+    required_renderers = {
+        "_show_position_info",
+        "_show_decan_info",
+        "_show_nakshatra_info",
+        "_show_planet_keyword_info",
+        "_show_sign_keyword_info",
+        "_show_element_keyword_info",
+        "_show_aspect_keyword_info",
+        "_show_mode_keyword_info",
+        "_show_house_keyword_info",
+        "_show_human_design_gate_line_info",
+        "_show_human_design_property_info",
+        "_show_human_design_center_info",
+        "_show_human_design_channel_info",
+        "_show_human_design_color_info",
+        "_show_human_design_tone_info",
+        "_show_human_design_base_info",
+        "_show_human_design_line_info",
+        "_show_species_info",
+        "_show_dnd_class_info",
+        "_show_dnd_statblock_info",
+        "_show_aspect_info",
+    }
+    functions = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in required_renderers
+    }
+    assert functions.keys() == required_renderers
+    for name, function in functions.items():
+        assert any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_retarget_chart_information"
+            for node in ast.walk(function)
+        ), name
+
+
+def test_direct_chart_information_routes_clear_then_retarget():
+    prepare = APP_SOURCE.split("def _prepare_chart_info_replacement", 1)[1].split(
+        "def _retarget_chart_information", 1
+    )[0]
+    assert "self._retarget_chart_information({})" in prepare
+    for handler_name, next_name in (
+        ("_on_chart_analysis_above_average_link_activated", "_update_chart_analysis_above_average_links"),
+        ("_on_distinguishing_factor_link_activated", "_enneagram_prediction_adapter"),
+    ):
+        handler = APP_SOURCE.split(f"def {handler_name}", 1)[1].split(
+            f"def {next_name}", 1
+        )[0]
+        assert "self._prepare_chart_info_replacement()" in handler
+        assert "self._retarget_chart_information(" in handler
