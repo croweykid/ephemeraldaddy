@@ -1127,30 +1127,47 @@ def build_similarity_calculator_settings_section(
         if target_radio is None:
             return
         snapshot = row.get("algorithm_snapshot")
-        if mode == "custom":
-            if not isinstance(snapshot, dict) or not bool(snapshot.get("details_available", True)):
-                return
-            factors = snapshot.get("selected_factors")
-            if not isinstance(factors, list):
-                return
+
+        def restore_snapshot_controls(
+            snapshot_data: dict[str, object],
+            *,
+            restore_factors: bool,
+        ) -> bool:
+            factors = snapshot_data.get("selected_factors")
+            if restore_factors and not isinstance(factors, list):
+                return False
             preset_state["applying"] = True
             try:
-                for key in calculator_checkboxes:
-                    calculator_checkboxes[key].setChecked(False)
-                    calculator_weights[key].setValue(0.0)
-                for factor in factors:
-                    if not isinstance(factor, dict):
-                        continue
-                    key = str(factor.get("factor") or "")
-                    if key not in calculator_checkboxes:
-                        continue
-                    calculator_checkboxes[key].setChecked(bool(factor.get("enabled", False)))
-                    calculator_weights[key].setValue(float(factor.get("weight", 0.0)))
+                if restore_factors:
+                    for checkbox in calculator_checkboxes.values():
+                        checkbox.blockSignals(True)
+                    for spinbox in calculator_weights.values():
+                        spinbox.blockSignals(True)
+                        spinbox.setMaximum(1.0)
+                    try:
+                        for key in calculator_checkboxes:
+                            calculator_checkboxes[key].setChecked(False)
+                            calculator_weights[key].setValue(0.0)
+                        for factor in factors:
+                            if not isinstance(factor, dict):
+                                continue
+                            key = str(factor.get("factor") or "")
+                            if key not in calculator_checkboxes:
+                                continue
+                            calculator_checkboxes[key].setChecked(bool(factor.get("enabled", False)))
+                            calculator_weights[key].setValue(float(factor.get("weight", 0.0)))
+                    finally:
+                        for checkbox in calculator_checkboxes.values():
+                            checkbox.blockSignals(False)
+                        for spinbox in calculator_weights.values():
+                            spinbox.blockSignals(False)
+                weighting_mode_combo.blockSignals(True)
                 placement_index = weighting_mode_combo.findData(
-                    snapshot.get("placement_weighting_mode")
+                    snapshot_data.get("placement_weighting_mode")
                 )
                 if placement_index >= 0:
                     weighting_mode_combo.setCurrentIndex(placement_index)
+                weighting_mode_combo.blockSignals(False)
                 preset_state["name"] = None
                 preset_state["preset_in_use"] = False
                 select_preset_combo.blockSignals(True)
@@ -1160,7 +1177,25 @@ def build_similarity_calculator_settings_section(
                     select_preset_combo.blockSignals(False)
                 preset_status_label.setVisible(False)
             finally:
+                weighting_mode_combo.blockSignals(False)
                 preset_state["applying"] = False
+            if restore_factors and calculator_weights:
+                first_key = next(iter(calculator_weights))
+                on_weight_changed(first_key, float(calculator_weights[first_key].value()))
+            else:
+                on_placement_weighting_mode_changed(
+                    str(weighting_mode_combo.currentData() or "chart_defined")
+                )
+            return True
+
+        if mode in {"custom", "default", "comprehensive"}:
+            if not isinstance(snapshot, dict) or not bool(snapshot.get("details_available", True)):
+                return
+            if not restore_snapshot_controls(
+                snapshot,
+                restore_factors=mode in {"custom", "default"},
+            ):
+                return
             target_radio.setChecked(True)
             return
         if mode == "all_or_nothing" and isinstance(snapshot, dict):
@@ -1171,6 +1206,12 @@ def build_similarity_calculator_settings_section(
                 )
                 if criterion_index >= 0:
                     all_or_nothing_criterion_combo.setCurrentIndex(criterion_index)
+                else:
+                    return
+            else:
+                return
+        elif mode == "all_or_nothing":
+            return
         target_radio.setChecked(True)
 
     algorithm_layout.addStretch(1)

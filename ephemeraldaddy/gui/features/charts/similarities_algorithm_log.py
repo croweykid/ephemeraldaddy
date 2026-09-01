@@ -277,6 +277,12 @@ def aggregate_similarity_algorithm_accuracy(
         variant_key = ""
         if mode == "custom" and snapshot is not None:
             variant_key = similarity_custom_scoring_signature(snapshot)
+        elif mode == "all_or_nothing" and snapshot is not None:
+            snapshot_settings = snapshot.get("settings")
+            if isinstance(snapshot_settings, Mapping):
+                variant_key = str(
+                    snapshot_settings.get("all_or_nothing_component") or ""
+                ).strip()
         if mode == "custom" and variant_key not in custom_variant_order:
             custom_variant_order[variant_key] = len(custom_variant_order) + 1
         pair_key = _accuracy_pair_key(payload)
@@ -361,6 +367,9 @@ def aggregate_similarity_algorithm_accuracy(
     for row in ranked:
         if row["algorithm_mode"] == "custom":
             row["display_name"] = f"Custom {custom_variant_order[row['_variant_key']]}"
+        elif row["algorithm_mode"] == "all_or_nothing" and row["_variant_key"]:
+            criterion_name = str(row["_variant_key"]).replace("_", " ").title()
+            row["display_name"] = f"All Or Nothing — {criterion_name}"
         row.pop("_variant_key", None)
     return ranked
 
@@ -469,7 +478,18 @@ def format_similarity_algorithm_accuracy_ranking_html(
             and bool(snapshot.get("details_available", True))
             and isinstance(snapshot.get("selected_factors"), list)
         )
-        can_apply = algorithm_mode != "custom" or custom_snapshot_available
+        snapshot_settings = snapshot.get("settings") if isinstance(snapshot, Mapping) else None
+        all_or_nothing_snapshot_available = (
+            isinstance(snapshot_settings, Mapping)
+            and bool(snapshot_settings.get("all_or_nothing_component"))
+        )
+        can_apply = (
+            (algorithm_mode != "custom" or custom_snapshot_available)
+            and (
+                algorithm_mode != "all_or_nothing"
+                or all_or_nothing_snapshot_available
+            )
+        )
         average = float(row.get("average_accuracy", 0.0))
         count = int(row.get("sample_count", 0))
         top_average = row.get("v2_top_25_average")
@@ -485,7 +505,11 @@ def format_similarity_algorithm_accuracy_ranking_html(
                 '</span></td>'
             )
         else:
-            unavailable_reason = "Exact custom settings are unavailable for this legacy observation."
+            unavailable_reason = (
+                "The selected criterion is unavailable for this legacy observation."
+                if algorithm_mode == "all_or_nothing"
+                else "Exact custom settings are unavailable for this legacy observation."
+            )
             if isinstance(snapshot, Mapping):
                 unavailable_reason = str(
                     snapshot.get("details_unavailable_reason") or unavailable_reason

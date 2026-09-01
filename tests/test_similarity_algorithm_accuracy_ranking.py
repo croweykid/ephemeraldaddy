@@ -211,6 +211,34 @@ def test_custom_variant_identity_excludes_unrelated_all_or_nothing_setting(tmp_p
     assert rows[0]["sample_count"] == 2
 
 
+def test_all_or_nothing_criteria_are_ranked_as_distinct_algorithms(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, criterion in (("AB", "aspect"), ("AC", "big_3")):
+        snapshot = build_similarity_algorithm_snapshot(
+            "all_or_nothing",
+            {"all_or_nothing_component": criterion},
+        )
+        append_similarity_accuracy_observation(
+            algorithm_mode="all_or_nothing",
+            algorithm_snapshot=snapshot,
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 2
+    assert {row["display_name"] for row in rows} == {
+        "All Or Nothing — Aspect",
+        "All Or Nothing — Big 3",
+    }
+    assert all(row["sample_count"] == 1 for row in rows)
+
+
 def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights():
     snapshot = build_similarity_algorithm_snapshot(
         "big_3", {"use_big_3": True, "weight_big_3": 1.0}
@@ -268,6 +296,21 @@ def test_accuracy_ranking_html_disables_use_action_for_unrecoverable_custom_snap
     assert 'href="use:0"' not in html
     assert ">unavailable</span>" in html
     assert 'title="Legacy custom weights were not logged."' in html
+
+
+def test_accuracy_ranking_html_disables_legacy_all_or_nothing_without_criterion():
+    html = format_similarity_algorithm_accuracy_ranking_html(
+        [{
+            "algorithm_mode": "all_or_nothing",
+            "average_accuracy": 84.0,
+            "sample_count": 3,
+        }],
+        highlight_color="#abcdef",
+    )
+
+    assert 'href="use:0"' not in html
+    assert ">unavailable</span>" in html
+    assert "selected criterion is unavailable" in html
 
 
 def test_algorithm_accuracy_uses_prediction_error_not_raw_perceived_score(tmp_path):

@@ -157,12 +157,21 @@ def test_research_accuracy_ranking_fills_space_below_button_and_divider():
 def test_research_use_this_applies_mode_custom_snapshot_and_all_or_nothing_criterion():
     assert '"database_distinction": database_distinction_radio' in SECTION
     assert "def apply_accuracy_ranking_row(row: dict[str, object])" in SECTION
-    assert 'if mode == "custom":' in SECTION
+    assert 'mode in {"custom", "default", "comprehensive"}' in SECTION
+    assert 'restore_factors=mode in {"custom", "default"}' in SECTION
+    assert "checkbox.blockSignals(True)" in SECTION
+    assert "spinbox.blockSignals(True)" in SECTION
+    assert "spinbox.setMaximum(1.0)" in SECTION
     assert 'calculator_checkboxes[key].setChecked(bool(factor.get("enabled", False)))' in SECTION
     assert 'calculator_weights[key].setValue(float(factor.get("weight", 0.0)))' in SECTION
-    assert 'snapshot.get("placement_weighting_mode")' in SECTION
+    assert 'snapshot_data.get("placement_weighting_mode")' in SECTION
     assert 'snapshot_settings.get("all_or_nothing_component")' in SECTION
     assert "target_radio.setChecked(True)" in SECTION
+
+
+def test_weight_constraints_preserve_four_decimal_snapshot_values():
+    assert "spinbox.setValue(round(allowed_value, 4))" in APP_SOURCE
+    assert "spinbox.setMaximum(round(max_for_current, 4))" in APP_SOURCE
 
 
 def test_research_weight_coloring_uses_shared_zero_based_red_green_scale():
