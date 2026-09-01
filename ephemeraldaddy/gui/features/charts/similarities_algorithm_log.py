@@ -36,6 +36,13 @@ _RESTORABLE_DEMOGRAPHIC_MODES = frozenset({
     "gender",
     "opposite_gender",
 })
+_DEMOGRAPHIC_MODE_DISPLAY_NAMES = {
+    "none": "Include everyone",
+    "sex": "Match assigned sex",
+    "opposite_sex": "Opposite assigned sex",
+    "gender": "Match gender identity",
+    "opposite_gender": "Opposite gender identity",
+}
 
 SIMILARITIES_ALGORITHM_LOG_PATH_ENV = "EPHEMERALDADDY_SIMILARITIES_ALGORITHM_LOG_PATH"
 SIMILARITIES_ALGORITHM_LOG_FILENAME = "similarities_algorithm_log.txt"
@@ -155,13 +162,14 @@ def similarity_custom_scoring_signature(snapshot: Mapping[str, Any]) -> str:
         for factor in factors:
             if not isinstance(factor, Mapping):
                 continue
-            enabled = bool(factor.get("enabled", False))
+            weight = round(float(factor.get("weight", 0.0)), 6)
+            enabled = bool(factor.get("enabled", False)) and weight > 0.0
             canonical_factor: dict[str, object] = {
                 "factor": str(factor.get("factor", "")),
                 "enabled": enabled,
             }
             if enabled:
-                canonical_factor["weight"] = round(float(factor.get("weight", 0.0)), 6)
+                canonical_factor["weight"] = weight
             canonical_factors.append(canonical_factor)
     placement_weighted_factor_enabled = any(
         bool(factor.get("enabled", False))
@@ -465,6 +473,15 @@ def aggregate_similarity_algorithm_accuracy(
                 if str(criterion) in _PLACEMENT_WEIGHTED_ALL_OR_NOTHING_COMPONENTS
                 else f"All Or Nothing — {criterion_name}"
             )
+        row_snapshot = row.get("algorithm_snapshot")
+        if isinstance(row_snapshot, Mapping):
+            demographic_value = _snapshot_setting(row_snapshot, "demographic_match_mode")
+            if demographic_value is not None:
+                demographic_mode = normalize_astro_twin_demographic_match_mode(demographic_value)
+                demographic_name = _DEMOGRAPHIC_MODE_DISPLAY_NAMES.get(demographic_mode)
+                if demographic_name:
+                    base_name = str(row.get("display_name") or row["algorithm_mode"]).replace("_", " ").title()
+                    row["display_name"] = f"{base_name} · {demographic_name}"
         row.pop("_variant_key", None)
     return ranked
 
@@ -665,6 +682,14 @@ def format_similarity_algorithm_accuracy_ranking_html(
             continue
         detail_fragments: list[str] = []
         if isinstance(snapshot, Mapping):
+            demographic_value = _snapshot_setting(snapshot, "demographic_match_mode")
+            if demographic_value is not None:
+                demographic_mode = normalize_astro_twin_demographic_match_mode(demographic_value)
+                demographic_name = _DEMOGRAPHIC_MODE_DISPLAY_NAMES.get(demographic_mode)
+                if demographic_name:
+                    detail_fragments.append(
+                        html.escape(f"Demographic matching: {demographic_name}")
+                    )
             if not bool(snapshot.get("details_available", True)):
                 detail_fragments.append(
                     html.escape(

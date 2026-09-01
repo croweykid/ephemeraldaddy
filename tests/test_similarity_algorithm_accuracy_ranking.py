@@ -328,7 +328,7 @@ def test_demographic_filter_splits_variants_but_irrelevant_all_or_nothing_placem
     assert len(default_rows) == 2
     assert len(all_or_nothing_rows) == 1
     assert all_or_nothing_rows[0]["sample_count"] == 2
-    assert all_or_nothing_rows[0]["display_name"] == "All Or Nothing — Aspect"
+    assert all_or_nothing_rows[0]["display_name"] == "All Or Nothing — Aspect · Include everyone"
 
 
 def test_default_signature_ignores_disabled_weights_and_irrelevant_placement_mode(tmp_path):
@@ -367,6 +367,66 @@ def test_default_signature_ignores_disabled_weights_and_irrelevant_placement_mod
 
     assert len(rows) == 1
     assert rows[0]["sample_count"] == 2
+
+
+def test_default_signature_treats_enabled_zero_weight_as_inactive(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, enabled in (("AB", True), ("AC", False)):
+        settings = {
+            "use_placement": True,
+            "weight_placement": 0.5,
+            "use_aspect": enabled,
+            "weight_aspect": 0.0,
+            "demographic_match_mode": "none",
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("default", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 1
+    assert rows[0]["sample_count"] == 2
+
+
+def test_comprehensive_demographic_variants_have_distinct_visible_labels_and_details(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, demographic in (("AB", "none"), ("AC", "sex")):
+        settings = {
+            "placement_weighting_mode": "generic",
+            "demographic_match_mode": demographic,
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="comprehensive",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("comprehensive", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert {row["display_name"] for row in rows} == {
+        "Comprehensive — Generic · Include everyone",
+        "Comprehensive — Generic · Match assigned sex",
+    }
+    expanded = format_similarity_algorithm_accuracy_ranking_html(
+        rows,
+        expanded_rows={0, 1},
+        highlight_color="#abcdef",
+    )
+    assert "Demographic matching: Include everyone" in expanded
+    assert "Demographic matching: Match assigned sex" in expanded
 
 
 def test_effective_snapshots_retain_demographics_for_derived_and_fixed_modes():
