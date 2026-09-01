@@ -18,17 +18,15 @@ CHART_VIEW_SOURCE = (
 ).read_text()
 
 
-def test_chart_switch_clears_stale_chart_information_target():
+def test_chart_identity_sync_clears_only_between_persisted_uids():
     method = APP_SOURCE.split("def _set_current_chart_uid", 1)[1].split(
         "def _clear_current_chart_uid", 1
     )[0]
-    assert "refresh_perceived_accuracy_controls(self, clear_property=True)" in method
+    assert "clear_property=previous_uid is not None" in method
     same_uid_guard = method.index(
-        "if normalized_uid == self._normalized_chart_uid_key(self.current_chart_uid):"
+        "if normalized_uid == previous_uid:"
     )
-    refresh = method.index(
-        "refresh_perceived_accuracy_controls(self, clear_property=True)"
-    )
+    refresh = method.index("refresh_perceived_accuracy_controls(")
     assert "return" in method[same_uid_guard:refresh]
 
 

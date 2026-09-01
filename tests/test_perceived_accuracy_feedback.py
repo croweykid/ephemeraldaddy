@@ -129,6 +129,18 @@ def test_statblock_has_chart_scoped_singleton_property_target():
     ) == PerceivedAccuracyTarget("properties", "dnd_statblock")
 
 
+def test_decan_property_target_distinguishes_decan_boundaries():
+    first = property_target_from_entry(
+        {"kind": "decan_keyword", "body": "Moon", "sign": "Aries", "decan": 1}
+    )
+    second = property_target_from_entry(
+        {"kind": "decan_keyword", "body": "Moon", "sign": "Aries", "decan": 2}
+    )
+    assert first is not None
+    assert second is not None
+    assert first.key != second.key
+
+
 def test_non_chart_info_mode_preserves_target_while_hiding_control(tmp_path):
     _app()
     control = PerceivedAccuracyThumbs(

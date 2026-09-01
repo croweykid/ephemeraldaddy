@@ -31846,7 +31846,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_chart_info_lines_with_segments(header, unique_lines)
 
     def _show_decan_info(self, body: str, sign: str, longitude: object | None) -> None:
-        self._retarget_chart_information({"kind": "decan_keyword", "body": body, "sign": sign})
         sign_key = str(sign or "").strip().title()
         body_key = str(body or "").strip()
         display_body = _display_body_name(body_key)
@@ -31859,6 +31858,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         degree_in_sign = lon_value % 30.0
         decan_number = min(3, max(1, int(degree_in_sign // 10.0) + 1))
+        self._retarget_chart_information(
+            {"kind": "decan_keyword", "body": body, "sign": sign, "decan": decan_number}
+        )
         suffix = "th"
         if decan_number == 1:
             suffix = "st"
@@ -35548,12 +35550,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         normalized_uid = self._normalized_chart_uid_key(chart_uid)
         if normalized_uid is None:
             raise ValueError("A persisted chart must have a non-empty chart UID")
-        if normalized_uid == self._normalized_chart_uid_key(self.current_chart_uid):
+        previous_uid = self._normalized_chart_uid_key(self.current_chart_uid)
+        if normalized_uid == previous_uid:
             self._chart_edit_session.active_chart_uid = normalized_uid
             return
         self.current_chart_uid = normalized_uid
         self._chart_edit_session.active_chart_uid = normalized_uid
-        refresh_perceived_accuracy_controls(self, clear_property=True)
+        refresh_perceived_accuracy_controls(
+            self,
+            clear_property=previous_uid is not None,
+        )
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
