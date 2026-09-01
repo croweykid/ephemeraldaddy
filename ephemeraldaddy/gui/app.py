@@ -27537,6 +27537,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         popout_info_output = getattr(target_dialog, "_similar_chart_popout_info_output", None)
         if popout_info_output is None:
             self._prepare_chart_info_replacement()
+            self._retarget_chart_information({})
         if match is None:
             if popout_info_output is not None and hasattr(popout_info_output, "setText"):
                 popout_info_output.setText("Could not locate similarity details for this chart.")
@@ -31258,7 +31259,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         """Show Chart Info and restore its default surface before new content."""
         self._set_chart_info_panel_mode("chart_info")
         set_chart_info_contrast_background(self.chart_info_output)
-        self._retarget_chart_information({})
 
     def _retarget_chart_information(self, entry: Mapping[str, object]) -> None:
         """Retarget feedback only when rendering into Chart Editor's main info tab."""
@@ -31374,6 +31374,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         def retarget(entry: Mapping[str, object]) -> None:
             if not targets_main_chart_info:
                 return
+            self._prepare_chart_info_replacement()
             self._retarget_chart_information(entry)
 
 
@@ -31389,8 +31390,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             info_index = block_text.rfind("ⓘ")
 
             cursor_pos = cursor.positionInBlock()
-            if targets_main_chart_info:
-                self._prepare_chart_info_replacement()
             species_entries = species_info_map.get(block_number, [])
             if species_entries:
                 selected_species = None

@@ -105,7 +105,13 @@ class PerceivedAccuracyThumbs(QWidget):
         return self._state
 
     def retarget(self, target: PerceivedAccuracyTarget | None) -> None:
+        if target == self._target:
+            return
         self._target = target
+        if target is None or self.isHidden():
+            self.setEnabled(False)
+            self._render(None)
+            return
         self.refresh()
 
     def set_context_visible(self, visible: bool, *, preference_visible: bool) -> None:

@@ -161,3 +161,22 @@ def test_constructor_defers_persistence_read(monkeypatch):
     )
     assert control.state is None
     assert not control.isEnabled()
+
+
+def test_hidden_and_unchanged_retargets_do_not_query(monkeypatch):
+    _app()
+    original = PerceivedAccuracyTarget("properties", "moon_sign:aries")
+    control = PerceivedAccuracyThumbs(
+        lambda: "ABCDEF1234567890",
+        target=original,
+    )
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.chart_information.perceived_accuracy."
+        "get_perceived_accuracy_value",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected query")),
+    )
+    control.retarget(original)
+    control.hide()
+    control.retarget(PerceivedAccuracyTarget("properties", "mars_sign:taurus"))
+    assert control.target == PerceivedAccuracyTarget("properties", "mars_sign:taurus")
+    assert not control.isEnabled()

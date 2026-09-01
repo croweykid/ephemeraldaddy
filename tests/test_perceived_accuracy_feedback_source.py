@@ -140,11 +140,23 @@ def test_every_main_chart_information_renderer_retargets_feedback():
         ), name
 
 
-def test_direct_chart_information_routes_clear_then_retarget():
+def test_chart_information_replacement_does_not_clear_before_a_match():
     prepare = APP_SOURCE.split("def _prepare_chart_info_replacement", 1)[1].split(
         "def _retarget_chart_information", 1
     )[0]
-    assert "self._retarget_chart_information({})" in prepare
+    assert "self._retarget_chart_information({})" not in prepare
+    click_handler = APP_SOURCE.split("def _handle_summary_info_click", 1)[1].split(
+        "def _run_with_chart_info_output", 1
+    )[0]
+    early_dispatch = click_handler.split("species_entries =", 1)[0]
+    assert "self._prepare_chart_info_replacement()" not in early_dispatch.split(
+        "def retarget", 1
+    )[0]
+    retarget_helper = early_dispatch.split("def retarget", 1)[1]
+    assert "self._prepare_chart_info_replacement()" in retarget_helper
+
+
+def test_direct_chart_information_routes_prepare_then_retarget():
     for handler_name, next_name in (
         ("_on_chart_analysis_above_average_link_activated", "_update_chart_analysis_above_average_links"),
         ("_on_distinguishing_factor_link_activated", "_enneagram_prediction_adapter"),
