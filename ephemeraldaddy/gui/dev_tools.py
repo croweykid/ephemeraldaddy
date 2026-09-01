@@ -613,6 +613,12 @@ SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("outer_planet_placement", "Outer planet placement"),
     ("big_3", "Big 3"),
 )
+PLACEMENT_WEIGHTED_ALL_OR_NOTHING_CRITERIA = frozenset({
+    "placement",
+    "distribution",
+    "inner_planet_placement",
+    "outer_planet_placement",
+})
 
 
 SIMILARITY_CALCULATOR_CHECKBOX_STYLE = f"""
@@ -1128,6 +1134,22 @@ def build_similarity_calculator_settings_section(
             return
         snapshot = row.get("algorithm_snapshot")
 
+        def restore_snapshot_demographic(snapshot_data: dict[str, object]) -> bool:
+            snapshot_settings = snapshot_data.get("settings")
+            if not isinstance(snapshot_settings, dict):
+                return False
+            demographic_mode = str(snapshot_settings.get("demographic_match_mode") or "")
+            demographic_button = demographic_match_buttons.get(demographic_mode)
+            if demographic_button is None:
+                return False
+            demographic_button.blockSignals(True)
+            try:
+                demographic_button.setChecked(True)
+            finally:
+                demographic_button.blockSignals(False)
+            on_demographic_match_mode_changed(demographic_mode)
+            return True
+
         def restore_snapshot_controls(
             snapshot_data: dict[str, object],
             *,
@@ -1192,6 +1214,8 @@ def build_similarity_calculator_settings_section(
         if mode in {"custom", "default", "comprehensive"}:
             if not isinstance(snapshot, dict) or not bool(snapshot.get("details_available", True)):
                 return
+            if not restore_snapshot_demographic(snapshot):
+                return
             if not restore_snapshot_controls(
                 snapshot,
                 restore_factors=mode in {"custom", "default"},
@@ -1202,12 +1226,11 @@ def build_similarity_calculator_settings_section(
         if mode == "all_or_nothing" and isinstance(snapshot, dict):
             if not bool(snapshot.get("details_available", True)):
                 return
-            if not restore_snapshot_controls(snapshot, restore_factors=False):
-                return
             snapshot_settings = snapshot.get("settings")
             if isinstance(snapshot_settings, dict):
+                criterion = str(snapshot_settings.get("all_or_nothing_component") or "")
                 criterion_index = all_or_nothing_criterion_combo.findData(
-                    snapshot_settings.get("all_or_nothing_component")
+                    criterion
                 )
                 if criterion_index >= 0:
                     all_or_nothing_criterion_combo.setCurrentIndex(criterion_index)
@@ -1215,8 +1238,18 @@ def build_similarity_calculator_settings_section(
                     return
             else:
                 return
+            if not restore_snapshot_demographic(snapshot):
+                return
+            if (
+                criterion in PLACEMENT_WEIGHTED_ALL_OR_NOTHING_CRITERIA
+                and not restore_snapshot_controls(snapshot, restore_factors=False)
+            ):
+                return
         elif mode == "all_or_nothing":
             return
+        if mode == "big_3":
+            if not isinstance(snapshot, dict) or not restore_snapshot_demographic(snapshot):
+                return
         target_radio.setChecked(True)
 
     algorithm_layout.addStretch(1)

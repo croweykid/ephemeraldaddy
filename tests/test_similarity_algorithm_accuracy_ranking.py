@@ -233,8 +233,8 @@ def test_all_or_nothing_criteria_are_ranked_as_distinct_algorithms(tmp_path):
 
     assert len(rows) == 2
     assert {row["display_name"] for row in rows} == {
-        "All Or Nothing — Aspect (Hybrid)",
-        "All Or Nothing — Big 3 (Hybrid)",
+        "All Or Nothing — Aspect",
+        "All Or Nothing — Big 3",
     }
     assert all(row["sample_count"] == 1 for row in rows)
 
@@ -280,6 +280,51 @@ def test_effective_default_comprehensive_and_all_or_nothing_settings_split_ranki
         "All Or Nothing — Inner Planet Placement (Generic)",
         "All Or Nothing — Inner Planet Placement (Hybrid)",
     }
+
+
+def test_demographic_filter_splits_variants_but_irrelevant_all_or_nothing_placement_does_not(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, demographic in (("AB", "none"), ("AC", "sex")):
+        settings = {
+            "use_placement": True,
+            "weight_placement": 0.7,
+            "demographic_match_mode": demographic,
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("default", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+    for pair, placement_mode in (("AD", "generic"), ("AE", "hybrid")):
+        settings = {
+            "all_or_nothing_component": "aspect",
+            "placement_weighting_mode": placement_mode,
+            "demographic_match_mode": "none",
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="all_or_nothing",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("all_or_nothing", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+    default_rows = [row for row in rows if row["algorithm_mode"] == "default"]
+    all_or_nothing_rows = [row for row in rows if row["algorithm_mode"] == "all_or_nothing"]
+
+    assert len(default_rows) == 2
+    assert len(all_or_nothing_rows) == 1
+    assert all_or_nothing_rows[0]["sample_count"] == 2
+    assert all_or_nothing_rows[0]["display_name"] == "All Or Nothing — Aspect"
 
 
 def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights():
