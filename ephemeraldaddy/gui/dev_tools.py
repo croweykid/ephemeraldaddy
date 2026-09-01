@@ -1136,6 +1136,11 @@ def build_similarity_calculator_settings_section(
             factors = snapshot_data.get("selected_factors")
             if restore_factors and not isinstance(factors, list):
                 return False
+            placement_index = weighting_mode_combo.findData(
+                snapshot_data.get("placement_weighting_mode")
+            )
+            if placement_index < 0:
+                return False
             preset_state["applying"] = True
             try:
                 if restore_factors:
@@ -1162,11 +1167,7 @@ def build_similarity_calculator_settings_section(
                         for spinbox in calculator_weights.values():
                             spinbox.blockSignals(False)
                 weighting_mode_combo.blockSignals(True)
-                placement_index = weighting_mode_combo.findData(
-                    snapshot_data.get("placement_weighting_mode")
-                )
-                if placement_index >= 0:
-                    weighting_mode_combo.setCurrentIndex(placement_index)
+                weighting_mode_combo.setCurrentIndex(placement_index)
                 weighting_mode_combo.blockSignals(False)
                 preset_state["name"] = None
                 preset_state["preset_in_use"] = False

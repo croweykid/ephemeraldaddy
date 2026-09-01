@@ -473,10 +473,20 @@ def format_similarity_algorithm_accuracy_ranking_html(
         name = str(row.get("display_name") or row.get("algorithm_mode", "unknown")).replace("_", " ").title()
         algorithm_mode = str(row.get("algorithm_mode") or "").strip().lower()
         snapshot = row.get("algorithm_snapshot")
-        custom_snapshot_available = (
+        snapshot_details_available = (
             isinstance(snapshot, Mapping)
             and bool(snapshot.get("details_available", True))
-            and isinstance(snapshot.get("selected_factors"), list)
+        )
+        snapshot_factors = snapshot.get("selected_factors") if isinstance(snapshot, Mapping) else None
+        snapshot_placement_mode = (
+            snapshot.get("placement_weighting_mode")
+            if isinstance(snapshot, Mapping)
+            else None
+        )
+        factor_snapshot_available = (
+            snapshot_details_available
+            and isinstance(snapshot_factors, list)
+            and bool(snapshot_placement_mode)
         )
         snapshot_settings = snapshot.get("settings") if isinstance(snapshot, Mapping) else None
         all_or_nothing_snapshot_available = (
@@ -484,7 +494,17 @@ def format_similarity_algorithm_accuracy_ranking_html(
             and bool(snapshot_settings.get("all_or_nothing_component"))
         )
         can_apply = (
-            (algorithm_mode != "custom" or custom_snapshot_available)
+            (
+                algorithm_mode not in {"custom", "default"}
+                or factor_snapshot_available
+            )
+            and (
+                algorithm_mode != "comprehensive"
+                or (
+                    snapshot_details_available
+                    and bool(snapshot_placement_mode)
+                )
+            )
             and (
                 algorithm_mode != "all_or_nothing"
                 or all_or_nothing_snapshot_available
@@ -505,11 +525,12 @@ def format_similarity_algorithm_accuracy_ranking_html(
                 '</span></td>'
             )
         else:
-            unavailable_reason = (
-                "The selected criterion is unavailable for this legacy observation."
-                if algorithm_mode == "all_or_nothing"
-                else "Exact custom settings are unavailable for this legacy observation."
-            )
+            if algorithm_mode == "all_or_nothing":
+                unavailable_reason = "The selected criterion is unavailable for this legacy observation."
+            elif algorithm_mode in {"default", "comprehensive"}:
+                unavailable_reason = "Exact scorer settings are unavailable for this legacy observation."
+            else:
+                unavailable_reason = "Exact custom settings are unavailable for this legacy observation."
             if isinstance(snapshot, Mapping):
                 unavailable_reason = str(
                     snapshot.get("details_unavailable_reason") or unavailable_reason

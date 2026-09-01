@@ -170,6 +170,8 @@ def test_research_use_this_applies_mode_custom_snapshot_and_all_or_nothing_crite
 
 
 def test_weight_constraints_preserve_four_decimal_snapshot_values():
+    assert "spinbox.setValue(round(float(spinbox.value()) * scale, 4))" in APP_SOURCE
+    assert "new_spinbox.setValue(round(new_weight, 4))" in APP_SOURCE
     assert "spinbox.setValue(round(allowed_value, 4))" in APP_SOURCE
     assert "spinbox.setMaximum(round(max_for_current, 4))" in APP_SOURCE
 
@@ -194,7 +196,8 @@ def test_ranking_formatter_has_use_action_and_filters_disabled_factors():
     )[1].split("def _settings_payload", 1)[0]
     assert '<th align=\"center\">Use</th>' in formatter
     assert 'href=\"use:{index - 1}\"' in formatter
-    assert 'algorithm_mode != "custom" or custom_snapshot_available' in formatter
+    assert 'algorithm_mode not in {"custom", "default"}' in formatter
+    assert 'algorithm_mode != "comprehensive"' in formatter
     assert ">unavailable</span>" in formatter
     assert "enabled_factors = [" in formatter
     assert 'bool(factor.get(\"enabled\", False))' in formatter

@@ -313,6 +313,22 @@ def test_accuracy_ranking_html_disables_legacy_all_or_nothing_without_criterion(
     assert "selected criterion is unavailable" in html
 
 
+def test_accuracy_ranking_html_disables_default_and_comprehensive_without_snapshots():
+    for mode in ("default", "comprehensive"):
+        html = format_similarity_algorithm_accuracy_ranking_html(
+            [{
+                "algorithm_mode": mode,
+                "average_accuracy": 82.0,
+                "sample_count": 2,
+            }],
+            highlight_color="#abcdef",
+        )
+
+        assert 'href="use:0"' not in html
+        assert ">unavailable</span>" in html
+        assert "Exact scorer settings are unavailable" in html
+
+
 def test_algorithm_accuracy_uses_prediction_error_not_raw_perceived_score(tmp_path):
     path = tmp_path / "similarities_algorithm_log.txt"
     _append(path, "default", 90, 90)

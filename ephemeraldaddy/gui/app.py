@@ -23628,12 +23628,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     if spinbox is None:
                         continue
                     blocker = QSignalBlocker(spinbox)
-                    spinbox.setValue(round(float(spinbox.value()) * scale, 2))
+                    spinbox.setValue(round(float(spinbox.value()) * scale, 4))
                     del blocker
                 new_spinbox = self._similarity_calculator_weights.get(key)
                 if new_spinbox is not None:
                     blocker = QSignalBlocker(new_spinbox)
-                    new_spinbox.setValue(round(new_weight, 2))
+                    new_spinbox.setValue(round(new_weight, 4))
                     del blocker
         self._update_similarity_calculator_weight_constraints_and_total()
         self._save_similarity_calculator_from_controls()
