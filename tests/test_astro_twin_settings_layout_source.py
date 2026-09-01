@@ -166,6 +166,7 @@ def test_research_use_this_applies_mode_custom_snapshot_and_all_or_nothing_crite
     assert 'calculator_weights[key].setValue(float(factor.get("weight", 0.0)))' in SECTION
     assert 'snapshot_data.get("placement_weighting_mode")' in SECTION
     assert 'snapshot_settings.get("all_or_nothing_component")' in SECTION
+    assert "restore_snapshot_controls(snapshot, restore_factors=False)" in SECTION
     assert "target_radio.setChecked(True)" in SECTION
 
 
@@ -198,6 +199,7 @@ def test_ranking_formatter_has_use_action_and_filters_disabled_factors():
     assert 'href=\"use:{index - 1}\"' in formatter
     assert 'algorithm_mode not in {"custom", "default"}' in formatter
     assert 'algorithm_mode != "comprehensive"' in formatter
+    assert 'algorithm_mode not in {"generic_astro", "database_distinction"}' in formatter
     assert ">unavailable</span>" in formatter
     assert "enabled_factors = [" in formatter
     assert 'bool(factor.get(\"enabled\", False))' in formatter

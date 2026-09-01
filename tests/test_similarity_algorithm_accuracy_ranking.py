@@ -233,10 +233,53 @@ def test_all_or_nothing_criteria_are_ranked_as_distinct_algorithms(tmp_path):
 
     assert len(rows) == 2
     assert {row["display_name"] for row in rows} == {
-        "All Or Nothing — Aspect",
-        "All Or Nothing — Big 3",
+        "All Or Nothing — Aspect (Hybrid)",
+        "All Or Nothing — Big 3 (Hybrid)",
     }
     assert all(row["sample_count"] == 1 for row in rows)
+
+
+def test_effective_default_comprehensive_and_all_or_nothing_settings_split_rankings(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    observations = (
+        ("default", "AB", {"use_placement": True, "weight_placement": 0.7}),
+        ("default", "AC", {"use_placement": True, "weight_placement": 0.4}),
+        ("comprehensive", "AD", {"placement_weighting_mode": "generic"}),
+        ("comprehensive", "AE", {"placement_weighting_mode": "hybrid"}),
+        (
+            "all_or_nothing",
+            "AF",
+            {"all_or_nothing_component": "inner_planet_placement", "placement_weighting_mode": "generic"},
+        ),
+        (
+            "all_or_nothing",
+            "AG",
+            {"all_or_nothing_component": "inner_planet_placement", "placement_weighting_mode": "hybrid"},
+        ),
+    )
+    for mode, pair, settings in observations:
+        append_similarity_accuracy_observation(
+            algorithm_mode=mode,
+            algorithm_snapshot=build_similarity_algorithm_snapshot(mode, settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 6
+    assert {row["display_name"] for row in rows} == {
+        "Default 1",
+        "Default 2",
+        "Comprehensive — Generic",
+        "Comprehensive — Hybrid",
+        "All Or Nothing — Inner Planet Placement (Generic)",
+        "All Or Nothing — Inner Planet Placement (Hybrid)",
+    }
 
 
 def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights():
@@ -327,6 +370,25 @@ def test_accuracy_ranking_html_disables_default_and_comprehensive_without_snapsh
         assert 'href="use:0"' not in html
         assert ">unavailable</span>" in html
         assert "Exact scorer settings are unavailable" in html
+
+
+def test_accuracy_ranking_html_disables_fixed_modes_without_restorable_placement():
+    for mode in ("generic_astro", "database_distinction"):
+        html = format_similarity_algorithm_accuracy_ranking_html(
+            [{
+                "algorithm_mode": mode,
+                "average_accuracy": 81.0,
+                "sample_count": 2,
+                "algorithm_snapshot": {
+                    "details_available": False,
+                    "placement_weighting_mode": "not_applicable",
+                },
+            }],
+            highlight_color="#abcdef",
+        )
+
+        assert 'href="use:0"' not in html
+        assert ">unavailable</span>" in html
 
 
 def test_algorithm_accuracy_uses_prediction_error_not_raw_perceived_score(tmp_path):

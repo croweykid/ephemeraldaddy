@@ -222,6 +222,7 @@ def aggregate_similarity_algorithm_accuracy(
     observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None, int | None, str | None]] = {}
     observations_by_pair: dict[str, set[tuple[str, str, str]]] = {}
     custom_variant_order: dict[str, int] = {}
+    default_variant_order: dict[str, int] = {}
     decoder = json.JSONDecoder()
     cursor = 0
     active_mode: str | None = None
@@ -272,19 +273,33 @@ def aggregate_similarity_algorithm_accuracy(
             # derived modes exactly as the calculation path does (for example,
             # Big 3 is exclusively Big 3 at weight 1.0).
             snapshot = _scorer_snapshot_from_logged_settings(mode, logged_snapshot)
-        # Custom is an experiment rather than one stable algorithm. Its settings
-        # signature therefore forms part of the observation identity.
+        # Keep observations separate whenever editable settings change the
+        # effective scorer; otherwise a ranking row could average incompatible
+        # algorithms and retain an arbitrary snapshot for its apply action.
         variant_key = ""
-        if mode == "custom" and snapshot is not None:
+        if mode in {"custom", "default"} and snapshot is not None:
             variant_key = similarity_custom_scoring_signature(snapshot)
+        elif mode == "comprehensive" and snapshot is not None:
+            variant_key = str(snapshot.get("placement_weighting_mode") or "").strip()
         elif mode == "all_or_nothing" and snapshot is not None:
             snapshot_settings = snapshot.get("settings")
             if isinstance(snapshot_settings, Mapping):
-                variant_key = str(
-                    snapshot_settings.get("all_or_nothing_component") or ""
-                ).strip()
+                variant_key = json.dumps(
+                    {
+                        "criterion": str(
+                            snapshot_settings.get("all_or_nothing_component") or ""
+                        ).strip(),
+                        "placement_weighting_mode": str(
+                            snapshot.get("placement_weighting_mode") or ""
+                        ).strip(),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
         if mode == "custom" and variant_key not in custom_variant_order:
             custom_variant_order[variant_key] = len(custom_variant_order) + 1
+        if mode == "default" and variant_key not in default_variant_order:
+            default_variant_order[variant_key] = len(default_variant_order) + 1
         pair_key = _accuracy_pair_key(payload)
         observation_key = pair_key or f"legacy-offset:{marker_index}"
         composite_key = (mode, variant_key, observation_key)
@@ -367,9 +382,19 @@ def aggregate_similarity_algorithm_accuracy(
     for row in ranked:
         if row["algorithm_mode"] == "custom":
             row["display_name"] = f"Custom {custom_variant_order[row['_variant_key']]}"
+        elif row["algorithm_mode"] == "default" and row["_variant_key"]:
+            row["display_name"] = f"Default {default_variant_order[row['_variant_key']]}"
+        elif row["algorithm_mode"] == "comprehensive" and row["_variant_key"]:
+            placement_name = str(row["_variant_key"]).replace("_", " ").title()
+            row["display_name"] = f"Comprehensive — {placement_name}"
         elif row["algorithm_mode"] == "all_or_nothing" and row["_variant_key"]:
-            criterion_name = str(row["_variant_key"]).replace("_", " ").title()
-            row["display_name"] = f"All Or Nothing — {criterion_name}"
+            row_snapshot = row.get("algorithm_snapshot")
+            row_settings = row_snapshot.get("settings") if isinstance(row_snapshot, Mapping) else None
+            criterion = row_settings.get("all_or_nothing_component") if isinstance(row_settings, Mapping) else ""
+            placement = row_snapshot.get("placement_weighting_mode") if isinstance(row_snapshot, Mapping) else ""
+            criterion_name = str(criterion).replace("_", " ").title()
+            placement_name = str(placement).replace("_", " ").title()
+            row["display_name"] = f"All Or Nothing — {criterion_name} ({placement_name})"
         row.pop("_variant_key", None)
     return ranked
 
@@ -509,6 +534,7 @@ def format_similarity_algorithm_accuracy_ranking_html(
                 algorithm_mode != "all_or_nothing"
                 or all_or_nothing_snapshot_available
             )
+            and algorithm_mode not in {"generic_astro", "database_distinction"}
         )
         average = float(row.get("average_accuracy", 0.0))
         count = int(row.get("sample_count", 0))
@@ -529,6 +555,8 @@ def format_similarity_algorithm_accuracy_ranking_html(
                 unavailable_reason = "The selected criterion is unavailable for this legacy observation."
             elif algorithm_mode in {"default", "comprehensive"}:
                 unavailable_reason = "Exact scorer settings are unavailable for this legacy observation."
+            elif algorithm_mode in {"generic_astro", "database_distinction"}:
+                unavailable_reason = "The historical placement settings are unavailable for this fixed scorer."
             else:
                 unavailable_reason = "Exact custom settings are unavailable for this legacy observation."
             if isinstance(snapshot, Mapping):

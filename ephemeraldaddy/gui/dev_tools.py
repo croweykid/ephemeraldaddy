@@ -1200,6 +1200,10 @@ def build_similarity_calculator_settings_section(
             target_radio.setChecked(True)
             return
         if mode == "all_or_nothing" and isinstance(snapshot, dict):
+            if not bool(snapshot.get("details_available", True)):
+                return
+            if not restore_snapshot_controls(snapshot, restore_factors=False):
+                return
             snapshot_settings = snapshot.get("settings")
             if isinstance(snapshot_settings, dict):
                 criterion_index = all_or_nothing_criterion_combo.findData(
