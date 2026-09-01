@@ -141,6 +141,19 @@ def test_decan_property_target_distinguishes_decan_boundaries():
     assert first.key != second.key
 
 
+def test_aspect_property_target_includes_sign_and_house_context():
+    base = {"kind": "aspect", "p1": "Sun", "p2": "Moon", "type": "square"}
+    first = property_target_from_entry(
+        {**base, "sign1": "Aries", "sign2": "Cancer", "house1": 1, "house2": 4}
+    )
+    second = property_target_from_entry(
+        {**base, "sign1": "Taurus", "sign2": "Leo", "house1": 2, "house2": 5}
+    )
+    assert first is not None
+    assert second is not None
+    assert first.key != second.key
+
+
 def test_non_chart_info_mode_preserves_target_while_hiding_control(tmp_path):
     _app()
     control = PerceivedAccuracyThumbs(

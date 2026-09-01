@@ -145,6 +145,14 @@ def test_every_main_chart_information_renderer_retargets_feedback():
         ), name
 
 
+def test_aspect_renderer_forwards_placement_context_to_rating_target():
+    method = APP_SOURCE.split("def _show_aspect_info", 1)[1].split(
+        "def _build_aspect_line_segments", 1
+    )[0]
+    for field in ("sign1", "sign2", "house1", "house2"):
+        assert f'"{field}": {field}' in method
+
+
 def test_chart_information_replacement_does_not_clear_before_a_match():
     prepare = APP_SOURCE.split("def _prepare_chart_info_replacement", 1)[1].split(
         "def _retarget_chart_information", 1

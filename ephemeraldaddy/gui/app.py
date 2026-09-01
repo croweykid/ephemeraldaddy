@@ -32933,7 +32933,18 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         house1: int | None = None,
         house2: int | None = None,
     ) -> None:
-        self._retarget_chart_information({"kind": "aspect", "p1": p1, "p2": p2, "type": atype})
+        self._retarget_chart_information(
+            {
+                "kind": "aspect",
+                "p1": p1,
+                "p2": p2,
+                "type": atype,
+                "sign1": sign1,
+                "sign2": sign2,
+                "house1": house1,
+                "house2": house2,
+            }
+        )
         aspect_keywords = ASPECT_KEYWORDS.get(str(atype).replace(" ", "_").lower(), [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
         p2_nouns = PLANET_KEYWORDS.get(p2, {}).get("nouns", [])

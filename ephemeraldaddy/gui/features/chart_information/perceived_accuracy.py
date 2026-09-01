@@ -42,7 +42,7 @@ def property_target_from_entry(
         "property_key", "property_value", "body", "sign", "house",
         "nakshatra", "gate", "line", "gate_a", "gate_b", "color",
         "tone", "base", "class_key", "family", "subtype",
-        "p1", "p2", "type", "decan",
+        "p1", "p2", "type", "decan", "sign1", "sign2", "house1", "house2",
     )
     identity = [
         f"{field}={str(entry[field]).strip().lower()}"
