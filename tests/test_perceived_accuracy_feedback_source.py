@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 
@@ -72,3 +73,22 @@ def test_standard_chart_analysis_headers_forward_stable_section_keys():
         "hd_electrochemistry",
     ):
         assert f'section_key="{section_key}"' in CHART_VIEW_SOURCE
+
+
+def test_every_subjective_metric_section_call_has_stable_module_key():
+    tree = ast.parse(CHART_VIEW_SOURCE)
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_build_subjective_notes_metric_section"
+    ]
+    assert len(calls) == 4
+    keys = {
+        keyword.value.value
+        for call in calls
+        for keyword in call.keywords
+        if keyword.arg == "module_key" and isinstance(keyword.value, ast.Constant)
+    }
+    assert keys == {"emoji_portrait", "typology", "perceived_alignment", "sexiness"}
