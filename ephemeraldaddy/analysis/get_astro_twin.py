@@ -651,12 +651,17 @@ def similarity_algorithm_settings_snapshot(
             "demographic_match_mode": custom_settings.normalized_demographic_match_mode(),
         }
     fixed_name = "Generic Astro" if mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO else "Database Distinction"
+    placement_weighting_mode = (
+        custom_settings.normalized_placement_weighting_mode()
+        if mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO
+        else "not_applicable"
+    )
     return {
         "details_available": False,
         "details_unavailable_reason": (
             f"{fixed_name} uses a fixed scorer that does not expose custom factor weights."
         ),
-        "placement_weighting_mode": "not_applicable",
+        "placement_weighting_mode": placement_weighting_mode,
         "demographic_match_mode": custom_settings.normalized_demographic_match_mode(),
     }
 

@@ -791,6 +791,7 @@ def test_mode_specific_snapshots_describe_the_selected_scorer():
     assert comprehensive["demographic_match_mode"] == "none"
     assert generic["details_available"] is False
     assert "Generic Astro" in generic["details_unavailable_reason"]
+    assert generic["placement_weighting_mode"] == custom.normalized_placement_weighting_mode()
     assert generic["demographic_match_mode"] == "none"
     assert distinction["details_available"] is False
     assert "Database Distinction" in distinction["details_unavailable_reason"]

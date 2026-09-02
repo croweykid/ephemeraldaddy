@@ -484,6 +484,37 @@ def test_effective_snapshots_retain_demographics_for_derived_and_fixed_modes():
         assert snapshot["demographic_match_mode"] == "sex"
 
 
+def test_generic_astro_placement_modes_are_distinct_ranking_variants(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, placement_mode in (("AB", "generic"), ("AC", "hybrid")):
+        settings = SimilarityCalculatorSettings(
+            placement_weighting_mode=placement_mode,
+            demographic_match_mode="none",
+        )
+        effective_settings = similarity_algorithm_settings_snapshot("generic_astro", settings)
+        append_similarity_accuracy_observation(
+            algorithm_mode="generic_astro",
+            algorithm_snapshot=build_similarity_algorithm_snapshot(
+                "generic_astro",
+                effective_settings,
+            ),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 2
+    assert {row["display_name"] for row in rows} == {
+        "Generic Astro — Generic · Include everyone",
+        "Generic Astro — Hybrid · Include everyone",
+    }
+
+
 def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights():
     snapshot = build_similarity_algorithm_snapshot(
         "big_3", {"use_big_3": True, "weight_big_3": 1.0}

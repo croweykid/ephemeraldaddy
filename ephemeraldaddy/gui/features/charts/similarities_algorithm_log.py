@@ -376,8 +376,20 @@ def aggregate_similarity_algorithm_accuracy(
                     snapshot,
                 )
         elif snapshot is not None:
+            scorer_identity = normalize_similar_charts_algorithm_mode(mode)
+            if mode == "generic_astro":
+                scorer_identity = json.dumps(
+                    {
+                        "mode": mode,
+                        "placement_weighting_mode": str(
+                            snapshot.get("placement_weighting_mode") or ""
+                        ).strip(),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
             variant_key = _experiment_variant_key(
-                normalize_similar_charts_algorithm_mode(mode),
+                scorer_identity,
                 snapshot,
             )
         if mode == "custom" and variant_key not in custom_variant_order:
@@ -473,6 +485,11 @@ def aggregate_similarity_algorithm_accuracy(
             placement = row_snapshot.get("placement_weighting_mode") if isinstance(row_snapshot, Mapping) else ""
             placement_name = str(placement).replace("_", " ").title()
             row["display_name"] = f"Comprehensive — {placement_name}"
+        elif row["algorithm_mode"] == "generic_astro" and row["_variant_key"]:
+            row_snapshot = row.get("algorithm_snapshot")
+            placement = row_snapshot.get("placement_weighting_mode") if isinstance(row_snapshot, Mapping) else ""
+            placement_name = str(placement).replace("_", " ").title()
+            row["display_name"] = f"Generic Astro — {placement_name}"
         elif row["algorithm_mode"] == "all_or_nothing" and row["_variant_key"]:
             row_snapshot = row.get("algorithm_snapshot")
             row_settings = row_snapshot.get("settings") if isinstance(row_snapshot, Mapping) else None
