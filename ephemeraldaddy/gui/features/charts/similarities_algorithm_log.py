@@ -171,6 +171,18 @@ def similarity_custom_scoring_signature(snapshot: Mapping[str, Any]) -> str:
             if enabled:
                 canonical_factor["weight"] = weight
             canonical_factors.append(canonical_factor)
+    enabled_total = sum(
+        float(factor.get("weight", 0.0))
+        for factor in canonical_factors
+        if bool(factor.get("enabled", False))
+    )
+    if enabled_total > 0.0:
+        for factor in canonical_factors:
+            if bool(factor.get("enabled", False)):
+                factor["weight"] = round(
+                    float(factor.get("weight", 0.0)) / enabled_total,
+                    6,
+                )
     placement_weighted_factor_enabled = any(
         bool(factor.get("enabled", False))
         and str(factor.get("factor", "")) in _PLACEMENT_WEIGHTED_ALL_OR_NOTHING_COMPONENTS

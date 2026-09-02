@@ -120,8 +120,14 @@ def test_algorithm_accuracy_empty_state():
 
 def test_custom_settings_are_ranked_as_numbered_distinct_algorithms(tmp_path):
     path = tmp_path / "similarities_algorithm_log.txt"
-    first = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.7})
-    second = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.4})
+    first = build_similarity_algorithm_snapshot(
+        "custom",
+        {"use_placement": True, "weight_placement": 0.7, "use_aspect": True, "weight_aspect": 0.3},
+    )
+    second = build_similarity_algorithm_snapshot(
+        "custom",
+        {"use_placement": True, "weight_placement": 0.4, "use_aspect": True, "weight_aspect": 0.6},
+    )
     for pair, snapshot in (("AB", first), ("AC", second)):
         append_similarity_accuracy_observation(
             algorithm_mode="custom",
@@ -143,8 +149,14 @@ def test_custom_settings_are_ranked_as_numbered_distinct_algorithms(tmp_path):
 def test_relationship_override_updates_perception_for_every_prediction_of_pair(tmp_path):
     algorithm_path = tmp_path / "similarities_algorithm_log.txt"
     relationship_path = tmp_path / "chart_similarity_relationships.json"
-    first = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.7})
-    second = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.4})
+    first = build_similarity_algorithm_snapshot(
+        "custom",
+        {"use_placement": True, "weight_placement": 0.7, "use_aspect": True, "weight_aspect": 0.3},
+    )
+    second = build_similarity_algorithm_snapshot(
+        "custom",
+        {"use_placement": True, "weight_placement": 0.4, "use_aspect": True, "weight_aspect": 0.6},
+    )
     for snapshot, predicted, perceived in ((first, 90, 90), (second, 20, 20)):
         append_similarity_accuracy_observation(
             algorithm_mode="custom",
@@ -246,8 +258,16 @@ def test_all_or_nothing_criteria_are_ranked_as_distinct_algorithms(tmp_path):
 def test_effective_default_comprehensive_and_all_or_nothing_settings_split_rankings(tmp_path):
     path = tmp_path / "similarities_algorithm_log.txt"
     observations = (
-        ("default", "AB", {"use_placement": True, "weight_placement": 0.7}),
-        ("default", "AC", {"use_placement": True, "weight_placement": 0.4}),
+        (
+            "default",
+            "AB",
+            {"use_placement": True, "weight_placement": 0.7, "use_aspect": True, "weight_aspect": 0.3},
+        ),
+        (
+            "default",
+            "AC",
+            {"use_placement": True, "weight_placement": 0.4, "use_aspect": True, "weight_aspect": 0.6},
+        ),
         ("comprehensive", "AD", {"placement_weighting_mode": "generic"}),
         ("comprehensive", "AE", {"placement_weighting_mode": "hybrid"}),
         (
@@ -377,6 +397,33 @@ def test_default_signature_treats_enabled_zero_weight_as_inactive(tmp_path):
             "weight_placement": 0.5,
             "use_aspect": enabled,
             "weight_aspect": 0.0,
+            "demographic_match_mode": "none",
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("default", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 1
+    assert rows[0]["sample_count"] == 2
+
+
+def test_default_signature_normalizes_proportional_enabled_weights(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, weights in (("AB", (0.6, 0.4)), ("AC", (0.3, 0.2))):
+        settings = {
+            "use_placement": True,
+            "weight_placement": weights[0],
+            "use_aspect": True,
+            "weight_aspect": weights[1],
             "demographic_match_mode": "none",
         }
         append_similarity_accuracy_observation(
