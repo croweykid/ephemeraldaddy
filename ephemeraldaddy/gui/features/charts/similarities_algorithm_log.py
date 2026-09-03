@@ -14,6 +14,7 @@ from typing import Any, Callable, Mapping
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILARITY_COMPONENT_KEYS,
     SimilarityCalculatorSettings,
+    normalize_astro_twin_demographic_match_mode,
     normalize_similar_charts_algorithm_mode,
     similarity_algorithm_settings_snapshot,
 )
@@ -21,6 +22,27 @@ from ephemeraldaddy.core.feedback_prediction_fields import (
     perceived_similarity_feedback,
     require_classified_similarity_accuracy_observation,
 )
+
+_PLACEMENT_WEIGHTED_ALL_OR_NOTHING_COMPONENTS = frozenset({
+    "placement",
+    "distribution",
+    "inner_planet_placement",
+    "outer_planet_placement",
+})
+_RESTORABLE_DEMOGRAPHIC_MODES = frozenset({
+    "none",
+    "sex",
+    "opposite_sex",
+    "gender",
+    "opposite_gender",
+})
+_DEMOGRAPHIC_MODE_DISPLAY_NAMES = {
+    "none": "Include everyone",
+    "sex": "Match assigned sex",
+    "opposite_sex": "Opposite assigned sex",
+    "gender": "Match gender identity",
+    "opposite_gender": "Opposite gender identity",
+}
 
 SIMILARITIES_ALGORITHM_LOG_PATH_ENV = "EPHEMERALDADDY_SIMILARITIES_ALGORITHM_LOG_PATH"
 SIMILARITIES_ALGORITHM_LOG_FILENAME = "similarities_algorithm_log.txt"
@@ -137,20 +159,69 @@ def similarity_custom_scoring_signature(snapshot: Mapping[str, Any]) -> str:
     factors = snapshot.get("selected_factors")
     canonical_factors = []
     if isinstance(factors, list):
-        canonical_factors = [
-            {
+        for factor in factors:
+            if not isinstance(factor, Mapping):
+                continue
+            weight = round(float(factor.get("weight", 0.0)), 6)
+            enabled = bool(factor.get("enabled", False)) and weight > 0.0
+            canonical_factor: dict[str, object] = {
                 "factor": str(factor.get("factor", "")),
-                "enabled": bool(factor.get("enabled", False)),
-                "weight": round(float(factor.get("weight", 0.0)), 6),
+                "enabled": enabled,
             }
-            for factor in factors
-            if isinstance(factor, Mapping)
-        ]
+            if enabled:
+                canonical_factor["weight"] = weight
+            canonical_factors.append(canonical_factor)
+    enabled_total = sum(
+        float(factor.get("weight", 0.0))
+        for factor in canonical_factors
+        if bool(factor.get("enabled", False))
+    )
+    if enabled_total > 0.0:
+        for factor in canonical_factors:
+            if bool(factor.get("enabled", False)):
+                factor["weight"] = round(
+                    float(factor.get("weight", 0.0)) / enabled_total,
+                    6,
+                )
+    placement_weighted_factor_enabled = any(
+        bool(factor.get("enabled", False))
+        and str(factor.get("factor", "")) in _PLACEMENT_WEIGHTED_ALL_OR_NOTHING_COMPONENTS
+        for factor in canonical_factors
+    )
     return json.dumps(
         {
-            "placement_weighting_mode": str(snapshot.get("placement_weighting_mode", "")),
+            "placement_weighting_mode": (
+                str(snapshot.get("placement_weighting_mode", ""))
+                if placement_weighted_factor_enabled
+                else "not_applicable"
+            ),
             "selected_factors": canonical_factors,
         },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _snapshot_setting(snapshot: Mapping[str, Any], key: str) -> object:
+    settings = snapshot.get("settings")
+    if isinstance(settings, Mapping) and key in settings:
+        return settings.get(key)
+    return snapshot.get(key)
+
+
+def _experiment_variant_key(
+    scorer_key: str,
+    snapshot: Mapping[str, Any],
+) -> str:
+    """Include population filters in every reproducible scorer identity."""
+    demographic_value = _snapshot_setting(snapshot, "demographic_match_mode")
+    demographic_mode = (
+        normalize_astro_twin_demographic_match_mode(demographic_value)
+        if demographic_value is not None
+        else "unknown"
+    )
+    return json.dumps(
+        {"scorer": scorer_key, "demographic_match_mode": demographic_mode},
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -222,6 +293,7 @@ def aggregate_similarity_algorithm_accuracy(
     observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None, int | None, str | None]] = {}
     observations_by_pair: dict[str, set[tuple[str, str, str]]] = {}
     custom_variant_order: dict[str, int] = {}
+    default_variant_order: dict[str, int] = {}
     decoder = json.JSONDecoder()
     cursor = 0
     active_mode: str | None = None
@@ -272,13 +344,58 @@ def aggregate_similarity_algorithm_accuracy(
             # derived modes exactly as the calculation path does (for example,
             # Big 3 is exclusively Big 3 at weight 1.0).
             snapshot = _scorer_snapshot_from_logged_settings(mode, logged_snapshot)
-        # Custom is an experiment rather than one stable algorithm. Its settings
-        # signature therefore forms part of the observation identity.
+        # Keep observations separate whenever editable settings change the
+        # effective scorer; otherwise a ranking row could average incompatible
+        # algorithms and retain an arbitrary snapshot for its apply action.
         variant_key = ""
-        if mode == "custom" and snapshot is not None:
-            variant_key = similarity_custom_scoring_signature(snapshot)
+        if mode in {"custom", "default"} and snapshot is not None:
+            variant_key = _experiment_variant_key(
+                similarity_custom_scoring_signature(snapshot),
+                snapshot,
+            )
+        elif mode == "comprehensive" and snapshot is not None:
+            placement_mode = str(snapshot.get("placement_weighting_mode") or "").strip()
+            variant_key = _experiment_variant_key(placement_mode, snapshot)
+        elif mode == "all_or_nothing" and snapshot is not None:
+            snapshot_settings = snapshot.get("settings")
+            if isinstance(snapshot_settings, Mapping):
+                criterion = str(
+                    snapshot_settings.get("all_or_nothing_component") or ""
+                ).strip()
+                scorer_identity: dict[str, str] = {"criterion": criterion}
+                if criterion in _PLACEMENT_WEIGHTED_ALL_OR_NOTHING_COMPONENTS:
+                    scorer_identity["placement_weighting_mode"] = str(
+                        snapshot.get("placement_weighting_mode") or ""
+                    ).strip()
+                variant_key = _experiment_variant_key(
+                    json.dumps(
+                        scorer_identity,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    snapshot,
+                )
+        elif snapshot is not None:
+            scorer_identity = normalize_similar_charts_algorithm_mode(mode)
+            if mode == "generic_astro":
+                scorer_identity = json.dumps(
+                    {
+                        "mode": mode,
+                        "placement_weighting_mode": str(
+                            snapshot.get("placement_weighting_mode") or ""
+                        ).strip(),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            variant_key = _experiment_variant_key(
+                scorer_identity,
+                snapshot,
+            )
         if mode == "custom" and variant_key not in custom_variant_order:
             custom_variant_order[variant_key] = len(custom_variant_order) + 1
+        if mode == "default" and variant_key not in default_variant_order:
+            default_variant_order[variant_key] = len(default_variant_order) + 1
         pair_key = _accuracy_pair_key(payload)
         observation_key = pair_key or f"legacy-offset:{marker_index}"
         composite_key = (mode, variant_key, observation_key)
@@ -361,6 +478,39 @@ def aggregate_similarity_algorithm_accuracy(
     for row in ranked:
         if row["algorithm_mode"] == "custom":
             row["display_name"] = f"Custom {custom_variant_order[row['_variant_key']]}"
+        elif row["algorithm_mode"] == "default" and row["_variant_key"]:
+            row["display_name"] = f"Default {default_variant_order[row['_variant_key']]}"
+        elif row["algorithm_mode"] == "comprehensive" and row["_variant_key"]:
+            row_snapshot = row.get("algorithm_snapshot")
+            placement = row_snapshot.get("placement_weighting_mode") if isinstance(row_snapshot, Mapping) else ""
+            placement_name = str(placement).replace("_", " ").title()
+            row["display_name"] = f"Comprehensive — {placement_name}"
+        elif row["algorithm_mode"] == "generic_astro" and row["_variant_key"]:
+            row_snapshot = row.get("algorithm_snapshot")
+            placement = row_snapshot.get("placement_weighting_mode") if isinstance(row_snapshot, Mapping) else ""
+            placement_name = str(placement).replace("_", " ").title()
+            row["display_name"] = f"Generic Astro — {placement_name}"
+        elif row["algorithm_mode"] == "all_or_nothing" and row["_variant_key"]:
+            row_snapshot = row.get("algorithm_snapshot")
+            row_settings = row_snapshot.get("settings") if isinstance(row_snapshot, Mapping) else None
+            criterion = row_settings.get("all_or_nothing_component") if isinstance(row_settings, Mapping) else ""
+            placement = row_snapshot.get("placement_weighting_mode") if isinstance(row_snapshot, Mapping) else ""
+            criterion_name = str(criterion).replace("_", " ").title()
+            placement_name = str(placement).replace("_", " ").title()
+            row["display_name"] = (
+                f"All Or Nothing — {criterion_name} ({placement_name})"
+                if str(criterion) in _PLACEMENT_WEIGHTED_ALL_OR_NOTHING_COMPONENTS
+                else f"All Or Nothing — {criterion_name}"
+            )
+        row_snapshot = row.get("algorithm_snapshot")
+        if isinstance(row_snapshot, Mapping):
+            demographic_value = _snapshot_setting(row_snapshot, "demographic_match_mode")
+            if demographic_value is not None:
+                demographic_mode = normalize_astro_twin_demographic_match_mode(demographic_value)
+                demographic_name = _DEMOGRAPHIC_MODE_DISPLAY_NAMES.get(demographic_mode)
+                if demographic_name:
+                    base_name = str(row.get("display_name") or row["algorithm_mode"]).replace("_", " ").title()
+                    row["display_name"] = f"{base_name} · {demographic_name}"
         row.pop("_variant_key", None)
     return ranked
 
@@ -462,6 +612,61 @@ def format_similarity_algorithm_accuracy_ranking_html(
     )
     for index, row in enumerate(ranked, start=1):
         name = str(row.get("display_name") or row.get("algorithm_mode", "unknown")).replace("_", " ").title()
+        algorithm_mode = str(row.get("algorithm_mode") or "").strip().lower()
+        snapshot = row.get("algorithm_snapshot")
+        snapshot_details_available = (
+            isinstance(snapshot, Mapping)
+            and bool(snapshot.get("details_available", True))
+        )
+        snapshot_factors = snapshot.get("selected_factors") if isinstance(snapshot, Mapping) else None
+        snapshot_placement_mode = (
+            snapshot.get("placement_weighting_mode")
+            if isinstance(snapshot, Mapping)
+            else None
+        )
+        factor_snapshot_available = (
+            snapshot_details_available
+            and isinstance(snapshot_factors, list)
+            and bool(snapshot_placement_mode)
+        )
+        snapshot_settings = snapshot.get("settings") if isinstance(snapshot, Mapping) else None
+        demographic_snapshot_available = (
+            isinstance(snapshot_settings, Mapping)
+            and str(snapshot_settings.get("demographic_match_mode") or "")
+            in _RESTORABLE_DEMOGRAPHIC_MODES
+        )
+        all_or_nothing_snapshot_available = (
+            isinstance(snapshot_settings, Mapping)
+            and bool(snapshot_settings.get("all_or_nothing_component"))
+        )
+        all_or_nothing_criterion = (
+            str(snapshot_settings.get("all_or_nothing_component") or "")
+            if isinstance(snapshot_settings, Mapping)
+            else ""
+        )
+        if all_or_nothing_criterion in _PLACEMENT_WEIGHTED_ALL_OR_NOTHING_COMPONENTS:
+            all_or_nothing_snapshot_available = (
+                all_or_nothing_snapshot_available and bool(snapshot_placement_mode)
+            )
+        can_apply = (
+            (
+                algorithm_mode not in {"custom", "default"}
+                or factor_snapshot_available
+            )
+            and (
+                algorithm_mode != "comprehensive"
+                or (
+                    snapshot_details_available
+                    and bool(snapshot_placement_mode)
+                )
+            )
+            and (
+                algorithm_mode != "all_or_nothing"
+                or all_or_nothing_snapshot_available
+            )
+            and algorithm_mode not in {"generic_astro", "database_distinction"}
+            and demographic_snapshot_available
+        )
         average = float(row.get("average_accuracy", 0.0))
         count = int(row.get("sample_count", 0))
         top_average = row.get("v2_top_25_average")
@@ -470,20 +675,50 @@ def format_similarity_algorithm_accuracy_ranking_html(
         bottom_count = int(row.get("v2_bottom_25_chart_count", 0))
         top_text = "—" if top_average is None else f"{float(top_average):.1f}% (charts={top_count})"
         bottom_text = "—" if bottom_average is None else f"{float(bottom_average):.1f}% (charts={bottom_count})"
+        if can_apply:
+            use_cell = (
+                '<td align="center"><span style="border:1px solid #666666; padding:2px 5px;">'
+                f'<a href="use:{index - 1}" style="text-decoration:none;">use this</a>'
+                '</span></td>'
+            )
+        else:
+            if algorithm_mode == "all_or_nothing":
+                unavailable_reason = "The selected criterion is unavailable for this legacy observation."
+            elif algorithm_mode in {"default", "comprehensive"}:
+                unavailable_reason = "Exact scorer settings are unavailable for this legacy observation."
+            elif algorithm_mode in {"generic_astro", "database_distinction"}:
+                unavailable_reason = "The historical placement settings are unavailable for this fixed scorer."
+            elif not demographic_snapshot_available:
+                unavailable_reason = "The historical demographic filter is unavailable for this observation."
+            else:
+                unavailable_reason = "Exact custom settings are unavailable for this legacy observation."
+            if isinstance(snapshot, Mapping):
+                unavailable_reason = str(
+                    snapshot.get("details_unavailable_reason") or unavailable_reason
+                )
+            use_cell = (
+                '<td align="center"><span style="color:#777777;" title="'
+                f'{html.escape(unavailable_reason, quote=True)}">unavailable</span></td>'
+            )
         parts.append(
             f'<tr><td>{index}. <a href="algorithm:{index - 1}">{html.escape(name)}</a></td>'
             f'<td align="right">{average:.1f}% (n={count})</td>'
             f'<td align="right">{html.escape(top_text)}</td>'
             f'<td align="right">{html.escape(bottom_text)}</td>'
-            '<td align="center"><span style="border:1px solid #666666; padding:2px 5px;">'
-            f'<a href="use:{index - 1}" style="text-decoration:none;">use this</a>'
-            '</span></td></tr>'
+            f'{use_cell}</tr>'
         )
         if index - 1 not in expanded_rows:
             continue
-        snapshot = row.get("algorithm_snapshot")
         detail_fragments: list[str] = []
         if isinstance(snapshot, Mapping):
+            demographic_value = _snapshot_setting(snapshot, "demographic_match_mode")
+            if demographic_value is not None:
+                demographic_mode = normalize_astro_twin_demographic_match_mode(demographic_value)
+                demographic_name = _DEMOGRAPHIC_MODE_DISPLAY_NAMES.get(demographic_mode)
+                if demographic_name:
+                    detail_fragments.append(
+                        html.escape(f"Demographic matching: {demographic_name}")
+                    )
             if not bool(snapshot.get("details_available", True)):
                 detail_fragments.append(
                     html.escape(

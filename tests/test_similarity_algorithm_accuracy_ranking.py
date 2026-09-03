@@ -8,6 +8,10 @@ from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     format_similarity_algorithm_accuracy_ranking_html,
     build_similarity_algorithm_snapshot,
 )
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SimilarityCalculatorSettings,
+    similarity_algorithm_settings_snapshot,
+)
 
 
 def _append(path, mode, predicted, perceived, *, not_applicable=False, pair="AB"):
@@ -116,8 +120,14 @@ def test_algorithm_accuracy_empty_state():
 
 def test_custom_settings_are_ranked_as_numbered_distinct_algorithms(tmp_path):
     path = tmp_path / "similarities_algorithm_log.txt"
-    first = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.7})
-    second = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.4})
+    first = build_similarity_algorithm_snapshot(
+        "custom",
+        {"use_placement": True, "weight_placement": 0.7, "use_aspect": True, "weight_aspect": 0.3},
+    )
+    second = build_similarity_algorithm_snapshot(
+        "custom",
+        {"use_placement": True, "weight_placement": 0.4, "use_aspect": True, "weight_aspect": 0.6},
+    )
     for pair, snapshot in (("AB", first), ("AC", second)):
         append_similarity_accuracy_observation(
             algorithm_mode="custom",
@@ -139,8 +149,14 @@ def test_custom_settings_are_ranked_as_numbered_distinct_algorithms(tmp_path):
 def test_relationship_override_updates_perception_for_every_prediction_of_pair(tmp_path):
     algorithm_path = tmp_path / "similarities_algorithm_log.txt"
     relationship_path = tmp_path / "chart_similarity_relationships.json"
-    first = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.7})
-    second = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.4})
+    first = build_similarity_algorithm_snapshot(
+        "custom",
+        {"use_placement": True, "weight_placement": 0.7, "use_aspect": True, "weight_aspect": 0.3},
+    )
+    second = build_similarity_algorithm_snapshot(
+        "custom",
+        {"use_placement": True, "weight_placement": 0.4, "use_aspect": True, "weight_aspect": 0.6},
+    )
     for snapshot, predicted, perceived in ((first, 90, 90), (second, 20, 20)):
         append_similarity_accuracy_observation(
             algorithm_mode="custom",
@@ -211,6 +227,294 @@ def test_custom_variant_identity_excludes_unrelated_all_or_nothing_setting(tmp_p
     assert rows[0]["sample_count"] == 2
 
 
+def test_all_or_nothing_criteria_are_ranked_as_distinct_algorithms(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, criterion in (("AB", "aspect"), ("AC", "big_3")):
+        snapshot = build_similarity_algorithm_snapshot(
+            "all_or_nothing",
+            {"all_or_nothing_component": criterion},
+        )
+        append_similarity_accuracy_observation(
+            algorithm_mode="all_or_nothing",
+            algorithm_snapshot=snapshot,
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 2
+    assert {row["display_name"] for row in rows} == {
+        "All Or Nothing — Aspect",
+        "All Or Nothing — Big 3",
+    }
+    assert all(row["sample_count"] == 1 for row in rows)
+
+
+def test_effective_default_comprehensive_and_all_or_nothing_settings_split_rankings(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    observations = (
+        (
+            "default",
+            "AB",
+            {"use_placement": True, "weight_placement": 0.7, "use_aspect": True, "weight_aspect": 0.3},
+        ),
+        (
+            "default",
+            "AC",
+            {"use_placement": True, "weight_placement": 0.4, "use_aspect": True, "weight_aspect": 0.6},
+        ),
+        ("comprehensive", "AD", {"placement_weighting_mode": "generic"}),
+        ("comprehensive", "AE", {"placement_weighting_mode": "hybrid"}),
+        (
+            "all_or_nothing",
+            "AF",
+            {"all_or_nothing_component": "inner_planet_placement", "placement_weighting_mode": "generic"},
+        ),
+        (
+            "all_or_nothing",
+            "AG",
+            {"all_or_nothing_component": "inner_planet_placement", "placement_weighting_mode": "hybrid"},
+        ),
+    )
+    for mode, pair, settings in observations:
+        append_similarity_accuracy_observation(
+            algorithm_mode=mode,
+            algorithm_snapshot=build_similarity_algorithm_snapshot(mode, settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 6
+    assert {row["display_name"] for row in rows} == {
+        "Default 1",
+        "Default 2",
+        "Comprehensive — Generic",
+        "Comprehensive — Hybrid",
+        "All Or Nothing — Inner Planet Placement (Generic)",
+        "All Or Nothing — Inner Planet Placement (Hybrid)",
+    }
+
+
+def test_demographic_filter_splits_variants_but_irrelevant_all_or_nothing_placement_does_not(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, demographic in (("AB", "none"), ("AC", "sex")):
+        settings = {
+            "use_placement": True,
+            "weight_placement": 0.7,
+            "demographic_match_mode": demographic,
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("default", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+    for pair, placement_mode in (("AD", "generic"), ("AE", "hybrid")):
+        settings = {
+            "all_or_nothing_component": "aspect",
+            "placement_weighting_mode": placement_mode,
+            "demographic_match_mode": "none",
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="all_or_nothing",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("all_or_nothing", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+    default_rows = [row for row in rows if row["algorithm_mode"] == "default"]
+    all_or_nothing_rows = [row for row in rows if row["algorithm_mode"] == "all_or_nothing"]
+
+    assert len(default_rows) == 2
+    assert len(all_or_nothing_rows) == 1
+    assert all_or_nothing_rows[0]["sample_count"] == 2
+    assert all_or_nothing_rows[0]["display_name"] == "All Or Nothing — Aspect · Include everyone"
+
+
+def test_default_signature_ignores_disabled_weights_and_irrelevant_placement_mode(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    settings_rows = (
+        {
+            "use_placement": False,
+            "weight_placement": 0.1,
+            "use_aspect": True,
+            "weight_aspect": 0.5,
+            "placement_weighting_mode": "generic",
+            "demographic_match_mode": "none",
+        },
+        {
+            "use_placement": False,
+            "weight_placement": 0.9,
+            "use_aspect": True,
+            "weight_aspect": 0.5,
+            "placement_weighting_mode": "hybrid",
+            "demographic_match_mode": "none",
+        },
+    )
+    for pair, settings in zip(("AB", "AC"), settings_rows):
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("default", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 1
+    assert rows[0]["sample_count"] == 2
+
+
+def test_default_signature_treats_enabled_zero_weight_as_inactive(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, enabled in (("AB", True), ("AC", False)):
+        settings = {
+            "use_placement": True,
+            "weight_placement": 0.5,
+            "use_aspect": enabled,
+            "weight_aspect": 0.0,
+            "demographic_match_mode": "none",
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("default", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 1
+    assert rows[0]["sample_count"] == 2
+
+
+def test_default_signature_normalizes_proportional_enabled_weights(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, weights in (("AB", (0.6, 0.4)), ("AC", (0.3, 0.2))):
+        settings = {
+            "use_placement": True,
+            "weight_placement": weights[0],
+            "use_aspect": True,
+            "weight_aspect": weights[1],
+            "demographic_match_mode": "none",
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("default", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 1
+    assert rows[0]["sample_count"] == 2
+
+
+def test_comprehensive_demographic_variants_have_distinct_visible_labels_and_details(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, demographic in (("AB", "none"), ("AC", "sex")):
+        settings = {
+            "placement_weighting_mode": "generic",
+            "demographic_match_mode": demographic,
+        }
+        append_similarity_accuracy_observation(
+            algorithm_mode="comprehensive",
+            algorithm_snapshot=build_similarity_algorithm_snapshot("comprehensive", settings),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert {row["display_name"] for row in rows} == {
+        "Comprehensive — Generic · Include everyone",
+        "Comprehensive — Generic · Match assigned sex",
+    }
+    expanded = format_similarity_algorithm_accuracy_ranking_html(
+        rows,
+        expanded_rows={0, 1},
+        highlight_color="#abcdef",
+    )
+    assert "Demographic matching: Include everyone" in expanded
+    assert "Demographic matching: Match assigned sex" in expanded
+
+
+def test_effective_snapshots_retain_demographics_for_derived_and_fixed_modes():
+    settings = SimilarityCalculatorSettings(demographic_match_mode="sex")
+
+    for mode in ("comprehensive", "big_3", "generic_astro", "database_distinction"):
+        snapshot = similarity_algorithm_settings_snapshot(mode, settings)
+        assert snapshot["demographic_match_mode"] == "sex"
+
+
+def test_generic_astro_placement_modes_are_distinct_ranking_variants(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for pair, placement_mode in (("AB", "generic"), ("AC", "hybrid")):
+        settings = SimilarityCalculatorSettings(
+            placement_weighting_mode=placement_mode,
+            demographic_match_mode="none",
+        )
+        effective_settings = similarity_algorithm_settings_snapshot("generic_astro", settings)
+        append_similarity_accuracy_observation(
+            algorithm_mode="generic_astro",
+            algorithm_snapshot=build_similarity_algorithm_snapshot(
+                "generic_astro",
+                effective_settings,
+            ),
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 2
+    assert {row["display_name"] for row in rows} == {
+        "Generic Astro — Generic · Include everyone",
+        "Generic Astro — Hybrid · Include everyone",
+    }
+
+
 def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights():
     snapshot = build_similarity_algorithm_snapshot(
         "big_3", {"use_big_3": True, "weight_big_3": 1.0}
@@ -248,6 +552,76 @@ def test_accuracy_ranking_html_marks_fixed_scorer_details_unavailable():
 
     assert "Generic Astro uses fixed weights." in html
     assert "Placement: " not in html
+
+
+def test_accuracy_ranking_html_disables_use_action_for_unrecoverable_custom_snapshot():
+    html = format_similarity_algorithm_accuracy_ranking_html(
+        [{
+            "algorithm_mode": "custom",
+            "display_name": "Custom 1",
+            "average_accuracy": 88.0,
+            "sample_count": 2,
+            "algorithm_snapshot": {
+                "details_available": False,
+                "details_unavailable_reason": "Legacy custom weights were not logged.",
+            },
+        }],
+        highlight_color="#abcdef",
+    )
+
+    assert 'href="use:0"' not in html
+    assert ">unavailable</span>" in html
+    assert 'title="Legacy custom weights were not logged."' in html
+
+
+def test_accuracy_ranking_html_disables_legacy_all_or_nothing_without_criterion():
+    html = format_similarity_algorithm_accuracy_ranking_html(
+        [{
+            "algorithm_mode": "all_or_nothing",
+            "average_accuracy": 84.0,
+            "sample_count": 3,
+        }],
+        highlight_color="#abcdef",
+    )
+
+    assert 'href="use:0"' not in html
+    assert ">unavailable</span>" in html
+    assert "selected criterion is unavailable" in html
+
+
+def test_accuracy_ranking_html_disables_default_and_comprehensive_without_snapshots():
+    for mode in ("default", "comprehensive"):
+        html = format_similarity_algorithm_accuracy_ranking_html(
+            [{
+                "algorithm_mode": mode,
+                "average_accuracy": 82.0,
+                "sample_count": 2,
+            }],
+            highlight_color="#abcdef",
+        )
+
+        assert 'href="use:0"' not in html
+        assert ">unavailable</span>" in html
+        assert "Exact scorer settings are unavailable" in html
+
+
+def test_accuracy_ranking_html_disables_fixed_modes_without_restorable_placement():
+    for mode in ("generic_astro", "database_distinction"):
+        html = format_similarity_algorithm_accuracy_ranking_html(
+            [{
+                "algorithm_mode": mode,
+                "average_accuracy": 81.0,
+                "sample_count": 2,
+                "algorithm_snapshot": {
+                    "details_available": False,
+                    "placement_weighting_mode": "not_applicable",
+                },
+            }],
+            highlight_color="#abcdef",
+        )
+
+        assert 'href="use:0"' not in html
+        assert ">unavailable</span>" in html
 
 
 def test_algorithm_accuracy_uses_prediction_error_not_raw_perceived_score(tmp_path):

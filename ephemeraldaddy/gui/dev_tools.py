@@ -99,9 +99,16 @@ SETTINGS_KEY_PROPERTY_MANAGER_PRESET_COLUMN_SIZES = "property_manager/preset_col
 class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
     """Collapsible algorithm ranking used by the Astro Twin Research settings."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        on_use_row: Callable[[dict[str, object]], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self._expanded_rows: set[int] = set()
+        self._rows: list[dict[str, object]] = []
+        self._on_use_row = on_use_row
         self.setOpenLinks(False)
         self.setOpenExternalLinks(False)
         self.setFrameShape(QFrame.NoFrame)
@@ -110,23 +117,38 @@ class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
         self.anchorClicked.connect(self._toggle_algorithm_details)
         self.refresh_ranking()
 
+    @staticmethod
+    def _factor_weight_color(weight: float, maximum_weight: float) -> str:
+        scale_max = float(maximum_weight) if float(maximum_weight) > 0.0 else 1.0
+        red, green, blue = more_readable_color_scale_rgb_for_range(
+            float(weight),
+            0.0,
+            scale_max,
+        )
+        return f"rgb({red}, {green}, {blue})"
+
     def refresh_ranking(self) -> None:
-        rows = aggregate_similarity_algorithm_accuracy(include_v2=True)
-        self._expanded_rows.intersection_update(range(len(rows)))
+        self._rows = aggregate_similarity_algorithm_accuracy(include_v2=True)
+        self._expanded_rows.intersection_update(range(len(self._rows)))
         self.setHtml(
             format_similarity_algorithm_accuracy_ranking_html(
-                rows,
+                self._rows,
                 expanded_rows=self._expanded_rows,
                 highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                factor_weight_color=self._factor_weight_color,
             )
         )
 
     def _toggle_algorithm_details(self, url) -> None:
-        if url.scheme() != "algorithm":
-            return
         try:
             row_index = int(url.path())
         except ValueError:
+            return
+        if url.scheme() == "use":
+            if 0 <= row_index < len(self._rows) and self._on_use_row is not None:
+                self._on_use_row(dict(self._rows[row_index]))
+            return
+        if url.scheme() != "algorithm":
             return
         if row_index in self._expanded_rows:
             self._expanded_rows.remove(row_index)
@@ -591,6 +613,12 @@ SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("outer_planet_placement", "Outer planet placement"),
     ("big_3", "Big 3"),
 )
+PLACEMENT_WEIGHTED_ALL_OR_NOTHING_CRITERIA = frozenset({
+    "placement",
+    "distribution",
+    "inner_planet_placement",
+    "outer_planet_placement",
+})
 
 
 SIMILARITY_CALCULATOR_CHECKBOX_STYLE = f"""
@@ -709,42 +737,7 @@ def build_similarity_calculator_settings_section(
     tabs.setCurrentIndex(0)
     section_layout.addWidget(tabs)
 
-    demographic_match_header = QLabel("Demographic Matching")
-    demographic_match_header.setStyleSheet(subheader_style)
-    algorithm_layout.addWidget(demographic_match_header)
-
-    demographic_match_group = QButtonGroup(dialog)
-    demographic_match_group.setExclusive(True)
-    demographic_match_buttons: dict[str, QRadioButton] = {}
-    for mode, label_text in (
-        ("none", "Include everyone (default)"),
-        ("sex", "Match assigned sex"),
-        ("opposite_sex", "Opposite assigned sex"),
-        ("gender", "Match gender identity"),
-        ("opposite_gender", "Opposite gender identity"),
-    ):
-        button = QRadioButton(label_text)
-        demographic_match_group.addButton(button)
-        button.toggled.connect(
-            lambda checked, selected_mode=mode: checked and on_demographic_match_mode_changed(selected_mode)
-        )
-        algorithm_layout.addWidget(button)
-        demographic_match_buttons[mode] = button
-    demographic_match_buttons["none"].setChecked(True)
-
-    demographic_algorithm_divider = QFrame()
-    demographic_algorithm_divider.setFrameShape(QFrame.HLine)
-    demographic_algorithm_divider.setFrameShadow(QFrame.Sunken)
-    algorithm_layout.addWidget(demographic_algorithm_divider)
-
-    scoring_methods_header = QLabel("Scoring Methods")
-    scoring_methods_header.setStyleSheet(subheader_style)
-    algorithm_layout.addWidget(scoring_methods_header)
-    algorithm_layout.addWidget(
-        QLabel(
-            "Choose the metric by which Astro Twins are defined:"
-        )
-    )
+    algorithm_layout.addWidget(QLabel("Choose how Astro Twins are defined:"))
 
     default_radio = QRadioButton("use default")
     generic_astro_radio = QRadioButton("use generic astro")
@@ -878,13 +871,45 @@ def build_similarity_calculator_settings_section(
         1,
         alignment=Qt.AlignRight | Qt.AlignTop,
     )
+    weighting_mode_combo = QComboBox()
+    weighting_mode_combo.addItem("Chart-defined weights", "chart_defined")
+    weighting_mode_combo.addItem("Generic base weights", "generic")
+    weighting_mode_combo.addItem("Hybrid (generic + dominant body bonuses)", "hybrid")
+    for index in range(weighting_mode_combo.count()):
+        mode = str(weighting_mode_combo.itemData(index) or "")
+        tooltip = str(PLACEMENT_WEIGHTING_MODE_TOOLTIPS.get(mode, "") or "")
+        weighting_mode_combo.setItemData(index, tooltip, Qt.ToolTipRole)
+    weighting_mode_combo.currentIndexChanged.connect(
+        lambda _index: on_placement_weighting_mode_changed(
+            str(weighting_mode_combo.currentData() or "chart_defined")
+        )
+    )
+
+    def update_weighting_mode_tooltip(index: int) -> None:
+        weighting_mode_combo.setToolTip(
+            str(weighting_mode_combo.itemData(index, Qt.ToolTipRole) or "")
+        )
+
+    weighting_mode_combo.currentIndexChanged.connect(update_weighting_mode_tooltip)
+    apply_shared_dropdown_style(weighting_mode_combo)
+    update_weighting_mode_tooltip(weighting_mode_combo.currentIndex())
+
     for row_index, (key, label_text) in enumerate(SIMILARITY_CALCULATOR_FACTOR_ROWS, start=1):
         criterion_tooltip = SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS.get(
             key,
             "Explains what this similarity criterion measures between two charts.",
         )
         criterion_label = TooltipHelpLabel(f"{label_text} Ⓘ", criterion_tooltip)
-        calculator_grid.addWidget(criterion_label, row_index, 1)
+        if key == "placement":
+            placement_criterion_row = QHBoxLayout()
+            placement_criterion_row.setContentsMargins(0, 0, 0, 0)
+            placement_criterion_row.setSpacing(6)
+            placement_criterion_row.addWidget(criterion_label)
+            placement_criterion_row.addWidget(weighting_mode_combo)
+            placement_criterion_row.addStretch(1)
+            calculator_grid.addLayout(placement_criterion_row, row_index, 1)
+        else:
+            calculator_grid.addWidget(criterion_label, row_index, 1)
         enabled_checkbox = QCheckBox()
         enabled_checkbox.setStyleSheet(SIMILARITY_CALCULATOR_CHECKBOX_STYLE)
         enabled_checkbox.setChecked(True)
@@ -896,7 +921,10 @@ def build_similarity_calculator_settings_section(
         )
         calculator_grid.addWidget(enabled_checkbox, row_index, 0, alignment=Qt.AlignCenter)
         weight_spinbox = QDoubleSpinBox()
-        weight_spinbox.setDecimals(2)
+        # Logged and built-in custom scorers can use quarter-percent weights
+        # (for example 0.0375).  Four decimal places lets a Research "use this"
+        # action reproduce those snapshots instead of silently rounding them.
+        weight_spinbox.setDecimals(4)
         weight_spinbox.setRange(0.0, 1.0)
         weight_spinbox.setSingleStep(0.01)
         weight_spinbox.setFixedWidth(weight_column_width)
@@ -912,25 +940,12 @@ def build_similarity_calculator_settings_section(
         calculator_weights[key] = weight_spinbox
     custom_fields_layout.addLayout(calculator_grid)
 
-    weighting_mode_row = QHBoxLayout()
-    weighting_mode_label = QLabel("Placement-weight mode")
-    weighting_mode_combo = QComboBox()
-    weighting_mode_combo.addItem("Chart-defined weights", "chart_defined")
-    weighting_mode_combo.addItem("Generic base weights", "generic")
-    weighting_mode_combo.addItem("Hybrid (generic + dominant body bonuses)", "hybrid")
-    weighting_mode_combo.currentIndexChanged.connect(
-        lambda _index: on_placement_weighting_mode_changed(
-            str(weighting_mode_combo.currentData() or "chart_defined")
-        )
-    )
-    apply_shared_dropdown_style(weighting_mode_combo)
-    weighting_mode_row.addWidget(weighting_mode_label)
-    weighting_mode_row.addWidget(weighting_mode_combo)
+    reset_weights_row = QHBoxLayout()
     reset_similarity_weights_button = QPushButton("Reset Weights to Default")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
-    weighting_mode_row.addWidget(reset_similarity_weights_button)
-    weighting_mode_row.addStretch(1)
-    custom_fields_layout.addLayout(weighting_mode_row)
+    reset_weights_row.addWidget(reset_similarity_weights_button)
+    reset_weights_row.addStretch(1)
+    custom_fields_layout.addLayout(reset_weights_row)
 
     def current_custom_settings() -> dict[str, object]:
         settings: dict[str, object] = {
@@ -1066,12 +1081,177 @@ def build_similarity_calculator_settings_section(
     preset_action_row.addStretch(1)
     custom_fields_layout.addLayout(preset_action_row)
 
-    #reset_granular_row = QHBoxLayout()
-    #reset_granular_row.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
-    #reset_granular_row.addStretch(1)
-    #reset_granular_row.addWidget(granular_explanations_checkbox, alignment=Qt.AlignRight)
-    #custom_fields_layout.addLayout(reset_granular_row)
     algorithm_layout.addWidget(custom_fields_frame)
+    algorithm_layout.addSpacing(18)
+
+    demographic_algorithm_divider = QFrame()
+    demographic_algorithm_divider.setFrameShape(QFrame.HLine)
+    demographic_algorithm_divider.setFrameShadow(QFrame.Sunken)
+    algorithm_layout.addWidget(demographic_algorithm_divider)
+
+    demographic_match_section = QFrame()
+    demographic_match_layout = QVBoxLayout(demographic_match_section)
+    demographic_match_layout.setContentsMargins(0, 8, 0, 0)
+    demographic_match_layout.setSpacing(6)
+    demographic_match_header = QLabel("Demographic Matching")
+    demographic_match_header.setStyleSheet(subheader_style)
+    demographic_match_layout.addWidget(demographic_match_header)
+
+    demographic_match_group = QButtonGroup(dialog)
+    demographic_match_group.setExclusive(True)
+    demographic_match_buttons: dict[str, QRadioButton] = {}
+    for mode, label_text in (
+        ("none", "Include everyone (default)"),
+        ("sex", "Match assigned sex"),
+        ("opposite_sex", "Opposite assigned sex"),
+        ("gender", "Match gender identity"),
+        ("opposite_gender", "Opposite gender identity"),
+    ):
+        button = QRadioButton(label_text)
+        demographic_match_group.addButton(button)
+        button.toggled.connect(
+            lambda checked, selected_mode=mode: checked and on_demographic_match_mode_changed(selected_mode)
+        )
+        demographic_match_layout.addWidget(button)
+        demographic_match_buttons[mode] = button
+    demographic_match_buttons["none"].setChecked(True)
+    algorithm_layout.addWidget(demographic_match_section)
+
+    scoring_method_radios = {
+        "default": default_radio,
+        "generic_astro": generic_astro_radio,
+        "comprehensive": comprehensive_radio,
+        "all_or_nothing": all_or_nothing_radio,
+        "big_3": big_3_radio,
+        "custom": custom_radio,
+        "database_distinction": database_distinction_radio,
+    }
+
+    def apply_accuracy_ranking_row(row: dict[str, object]) -> None:
+        mode = str(row.get("algorithm_mode") or "")
+        target_radio = scoring_method_radios.get(mode)
+        if target_radio is None:
+            return
+        snapshot = row.get("algorithm_snapshot")
+
+        def restore_snapshot_demographic(snapshot_data: dict[str, object]) -> bool:
+            snapshot_settings = snapshot_data.get("settings")
+            if not isinstance(snapshot_settings, dict):
+                return False
+            demographic_mode = str(snapshot_settings.get("demographic_match_mode") or "")
+            demographic_button = demographic_match_buttons.get(demographic_mode)
+            if demographic_button is None:
+                return False
+            demographic_button.blockSignals(True)
+            try:
+                demographic_button.setChecked(True)
+            finally:
+                demographic_button.blockSignals(False)
+            on_demographic_match_mode_changed(demographic_mode)
+            return True
+
+        def restore_snapshot_controls(
+            snapshot_data: dict[str, object],
+            *,
+            restore_factors: bool,
+        ) -> bool:
+            factors = snapshot_data.get("selected_factors")
+            if restore_factors and not isinstance(factors, list):
+                return False
+            placement_index = weighting_mode_combo.findData(
+                snapshot_data.get("placement_weighting_mode")
+            )
+            if placement_index < 0:
+                return False
+            preset_state["applying"] = True
+            try:
+                if restore_factors:
+                    for checkbox in calculator_checkboxes.values():
+                        checkbox.blockSignals(True)
+                    for spinbox in calculator_weights.values():
+                        spinbox.blockSignals(True)
+                        spinbox.setMaximum(1.0)
+                    try:
+                        for key in calculator_checkboxes:
+                            calculator_checkboxes[key].setChecked(False)
+                            calculator_weights[key].setValue(0.0)
+                        for factor in factors:
+                            if not isinstance(factor, dict):
+                                continue
+                            key = str(factor.get("factor") or "")
+                            if key not in calculator_checkboxes:
+                                continue
+                            calculator_checkboxes[key].setChecked(bool(factor.get("enabled", False)))
+                            calculator_weights[key].setValue(float(factor.get("weight", 0.0)))
+                    finally:
+                        for checkbox in calculator_checkboxes.values():
+                            checkbox.blockSignals(False)
+                        for spinbox in calculator_weights.values():
+                            spinbox.blockSignals(False)
+                weighting_mode_combo.blockSignals(True)
+                weighting_mode_combo.setCurrentIndex(placement_index)
+                weighting_mode_combo.blockSignals(False)
+                preset_state["name"] = None
+                preset_state["preset_in_use"] = False
+                select_preset_combo.blockSignals(True)
+                try:
+                    select_preset_combo.setCurrentIndex(-1)
+                finally:
+                    select_preset_combo.blockSignals(False)
+                preset_status_label.setVisible(False)
+            finally:
+                weighting_mode_combo.blockSignals(False)
+                preset_state["applying"] = False
+            if restore_factors and calculator_weights:
+                first_key = next(iter(calculator_weights))
+                on_weight_changed(first_key, float(calculator_weights[first_key].value()))
+            else:
+                on_placement_weighting_mode_changed(
+                    str(weighting_mode_combo.currentData() or "chart_defined")
+                )
+            return True
+
+        if mode in {"custom", "default", "comprehensive"}:
+            if not isinstance(snapshot, dict) or not bool(snapshot.get("details_available", True)):
+                return
+            if not restore_snapshot_demographic(snapshot):
+                return
+            if not restore_snapshot_controls(
+                snapshot,
+                restore_factors=mode in {"custom", "default"},
+            ):
+                return
+            target_radio.setChecked(True)
+            return
+        if mode == "all_or_nothing" and isinstance(snapshot, dict):
+            if not bool(snapshot.get("details_available", True)):
+                return
+            snapshot_settings = snapshot.get("settings")
+            if isinstance(snapshot_settings, dict):
+                criterion = str(snapshot_settings.get("all_or_nothing_component") or "")
+                criterion_index = all_or_nothing_criterion_combo.findData(
+                    criterion
+                )
+                if criterion_index >= 0:
+                    all_or_nothing_criterion_combo.setCurrentIndex(criterion_index)
+                else:
+                    return
+            else:
+                return
+            if not restore_snapshot_demographic(snapshot):
+                return
+            if (
+                criterion in PLACEMENT_WEIGHTED_ALL_OR_NOTHING_CRITERIA
+                and not restore_snapshot_controls(snapshot, restore_factors=False)
+            ):
+                return
+        elif mode == "all_or_nothing":
+            return
+        if mode == "big_3":
+            if not isinstance(snapshot, dict) or not restore_snapshot_demographic(snapshot):
+                return
+        target_radio.setChecked(True)
+
     algorithm_layout.addStretch(1)
 
     calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
@@ -1138,7 +1318,9 @@ def build_similarity_calculator_settings_section(
     research_accuracy_divider.setFrameShadow(QFrame.Sunken)
     research_layout.addWidget(research_accuracy_divider)
 
-    algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser()
+    algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser(
+        on_use_row=apply_accuracy_ranking_row
+    )
     algorithm_accuracy_label.setVisible(perceived_accuracy_controls_enabled)
     perceived_accuracy_checkbox.toggled.connect(algorithm_accuracy_label.setVisible)
     research_layout.addWidget(algorithm_accuracy_label, 1)
