@@ -23713,12 +23713,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     if spinbox is None:
                         continue
                     blocker = QSignalBlocker(spinbox)
-                    spinbox.setValue(round(float(spinbox.value()) * scale, 2))
+                    spinbox.setValue(round(float(spinbox.value()) * scale, 4))
                     del blocker
                 new_spinbox = self._similarity_calculator_weights.get(key)
                 if new_spinbox is not None:
                     blocker = QSignalBlocker(new_spinbox)
-                    new_spinbox.setValue(round(new_weight, 2))
+                    new_spinbox.setValue(round(new_weight, 4))
                     del blocker
         self._update_similarity_calculator_weight_constraints_and_total()
         self._save_similarity_calculator_from_controls()
@@ -23738,7 +23738,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             allowed_value = max(0.0, min(1.0, 1.0 - checked_total_excluding_current))
             if value > allowed_value + 1e-9:
                 blocker = QSignalBlocker(spinbox)
-                spinbox.setValue(round(allowed_value, 2))
+                spinbox.setValue(round(allowed_value, 4))
                 del blocker
         self._update_similarity_calculator_weight_constraints_and_total()
         self._save_similarity_calculator_from_controls()
@@ -23805,7 +23805,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 max_for_current = max(0.0, 1.0 - other_checked_total)
             else:
                 max_for_current = 1.0
-            spinbox.setMaximum(round(max_for_current, 2))
+            spinbox.setMaximum(round(max_for_current, 4))
 
         total_label = getattr(self, "_similarity_calculator_total_label", None)
         if isinstance(total_label, QLabel):

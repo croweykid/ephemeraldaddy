@@ -641,20 +641,28 @@ def similarity_algorithm_settings_snapshot(
     if mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
         comprehensive = SimilarityCalculatorSettings.defaults_from_comprehensive()
         comprehensive.placement_weighting_mode = custom_settings.normalized_placement_weighting_mode()
+        comprehensive.demographic_match_mode = custom_settings.normalized_demographic_match_mode()
         return asdict(comprehensive)
     if mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
         return {
             "use_big_3": True,
             "weight_big_3": 1.0,
             "placement_weighting_mode": "not_applicable",
+            "demographic_match_mode": custom_settings.normalized_demographic_match_mode(),
         }
     fixed_name = "Generic Astro" if mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO else "Database Distinction"
+    placement_weighting_mode = (
+        custom_settings.normalized_placement_weighting_mode()
+        if mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO
+        else "not_applicable"
+    )
     return {
         "details_available": False,
         "details_unavailable_reason": (
             f"{fixed_name} uses a fixed scorer that does not expose custom factor weights."
         ),
-        "placement_weighting_mode": "not_applicable",
+        "placement_weighting_mode": placement_weighting_mode,
+        "demographic_match_mode": custom_settings.normalized_demographic_match_mode(),
     }
 
 
