@@ -10,7 +10,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.interpretations import (
@@ -46,6 +46,47 @@ from ephemeraldaddy.gui.tooltips import (
     sign_dominance_tooltip_html,
     set_link_hover_tooltip,
 )
+
+
+class _RankingsTraitWorker(QObject):
+    """Populate one ranking trait's chart cache outside the GUI thread."""
+
+    progress = Signal(object, float)
+    finished = Signal(object, object)
+    failed = Signal(object, str)
+
+    def __init__(
+        self,
+        owner: Any,
+        token: object,
+        chart_ids: list[int] | set[int],
+        trait_items: list[dict[str, Any]],
+        trait_signature: tuple[tuple[str, str, str], ...],
+    ) -> None:
+        super().__init__()
+        self._owner = owner
+        self._token = token
+        self._chart_ids = chart_ids
+        self._trait_items = trait_items
+        self._trait_signature = trait_signature
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            result = self._owner._collect_traits_distribution_analytics(
+                self._chart_ids,
+                trait_items=self._trait_items,
+                trait_signature=self._trait_signature,
+                time_budget_seconds=None,
+                progress_callback=lambda percent: self.progress.emit(
+                    self._token, percent
+                ),
+                should_cancel=QThread.currentThread().isInterruptionRequested,
+            )
+        except Exception as exc:
+            self.failed.emit(self._token, str(exc))
+            return
+        self.finished.emit(self._token, result)
 
 
 class RankingsPanelMixin:
@@ -482,44 +523,109 @@ class RankingsPanelMixin:
             return False
         return True
 
-    def _schedule_rankings_traits_continuation(self, selected_trait_name: str) -> None:
-        """Continue an incomplete trait ranking without blocking the UI thread.
-
-        The analytics collector deliberately observes a time budget.  A Rankings
-        refresh used to consume one budget and then simply leave the partial
-        result on screen forever.  Keep asking it for another small slice; the
-        per-chart cache makes every slice resume at the first missing chart.
-        """
+    def _start_rankings_trait_worker(
+        self,
+        selected_trait_name: str,
+        database_chart_ids: list[int] | set[int],
+        trait_items: list[dict[str, Any]],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        snapshot_database_values: dict[str, float],
+    ) -> None:
+        """Run the formerly timer-sliced scoring collector in one worker thread."""
+        active_thread = getattr(self, "_rankings_traits_thread", None)
+        active_token = getattr(self, "_rankings_traits_worker_token", None)
         token = (
-            str(selected_trait_name or ""),
+            selected_trait_name,
             int(getattr(self, "_database_metrics_cache_revision", 0)),
+            trait_signature,
         )
-        self._rankings_traits_continuation_token = token
+        if isinstance(active_thread, QThread) and active_thread.isRunning():
+            if active_token == token:
+                return
+            active_thread.requestInterruption()
 
-        def continue_ranking() -> None:
-            if getattr(self, "_rankings_traits_continuation_token", None) != token:
-                return
-            combo = getattr(self, "rankings_trait_combo", None)
-            if (
-                not isinstance(combo, QComboBox)
-                or str(combo.currentData() or "") != token[0]
-            ):
-                return
-            rankings_visible = getattr(
-                self, "_active_left_panel", None
-            ) == "rankings" and bool(getattr(self, "_left_panel_visible", False))
-            is_collapsed = getattr(self, "_is_left_panel_collapsed", None)
-            if callable(is_collapsed) and is_collapsed():
-                rankings_visible = False
-            if not rankings_visible:
-                # The queued callback is the only continuation for this partial
-                # pass.  Preserve it as dirty work so showing Rankings again
-                # restarts warmup through _refresh_visible_rankings_sections.
-                self._rankings_data_dirty = True
-                return
-            self._refresh_rankings_panel({"traits"})
+        self._rankings_traits_worker_token = token
+        self._rankings_traits_worker_context = snapshot_database_values
+        thread = QThread(self if isinstance(self, QObject) else None)
+        worker = _RankingsTraitWorker(
+            self, token, list(database_chart_ids), trait_items, trait_signature
+        )
+        self._rankings_traits_thread = thread
+        self._rankings_traits_worker = worker
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.progress.connect(self._on_rankings_trait_progress, Qt.QueuedConnection)
+        worker.finished.connect(self._on_rankings_trait_finished, Qt.QueuedConnection)
+        worker.failed.connect(self._on_rankings_trait_failed, Qt.QueuedConnection)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.failed.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.start()
 
-        QTimer.singleShot(0, continue_ranking)
+    def _stop_rankings_trait_worker(self, wait_msecs: int | None = None) -> None:
+        """Stop cache population before the Database View owner is destroyed."""
+        self._rankings_traits_worker_token = None
+        thread = getattr(self, "_rankings_traits_thread", None)
+        if not isinstance(thread, QThread) or not thread.isRunning():
+            return
+        thread.requestInterruption()
+        thread.quit()
+        if wait_msecs is None:
+            thread.wait()
+        else:
+            thread.wait(max(0, int(wait_msecs)))
+
+    @Slot(object, float)
+    def _on_rankings_trait_progress(self, token: object, parsed_percent: float) -> None:
+        if token != getattr(self, "_rankings_traits_worker_token", None):
+            return
+        trait_name = str(token[0])
+        safe_trait = html.escape(trait_name)
+        self.rankings_traits_label.setText(
+            f"<span style='color:#9a9a9a;'>Calculating top chart matches for "
+            f"<b>{safe_trait}</b>… {parsed_percent:.0f}% of DB parsed.</span>"
+        )
+
+    @Slot(object, object)
+    def _on_rankings_trait_finished(self, token: object, result: object) -> None:
+        if token != getattr(self, "_rankings_traits_worker_token", None):
+            return
+        analytics = result if isinstance(result, dict) else {}
+        trait_name = str(token[0])
+        trait_signature = token[2]
+        chart_count = max(0, int(analytics.get("chart_count", 0)))
+        totals = analytics.get("totals", {})
+        database_values = {
+            name: float(totals.get(name, 0.0)) / float(chart_count)
+            if chart_count else 0.0
+            for name in analytics.get("trait_names", [])
+        }
+        snapshot_values = getattr(self, "_rankings_traits_worker_context", {})
+        if snapshot_values:
+            database_values = dict(snapshot_values)
+        chart_uids = self._rankings_database_chart_uids()
+        rankings = self._traits_distribution_chart_rankings(
+            chart_uids=chart_uids,
+            trait_signature=trait_signature,
+            selected_trait_name=trait_name,
+            database_values=database_values,
+        )
+        self.rankings_traits_label.setText(
+            self._render_traits_distribution_rankings_html(
+                trait_name, rankings, scope_label="the database",
+                cache_warmed=True, parsed_percent=100.0,
+            )
+        )
+
+    @Slot(object, str)
+    def _on_rankings_trait_failed(self, token: object, message: str) -> None:
+        if token != getattr(self, "_rankings_traits_worker_token", None):
+            return
+        self.rankings_traits_label.setText(
+            f"<span style='color:#ffb3b3;'>Trait ranking failed: {html.escape(message)}</span>"
+        )
 
     def _refresh_rankings_panel(self, sections: set[str] | None = None) -> None:
         if not hasattr(self, "rankings_traits_label"):
@@ -589,39 +695,23 @@ class RankingsPanelMixin:
                     database_values = {}
                     cache_warmed = False
             if not database_values:
-                database_analytics = self._collect_traits_distribution_analytics(
+                self._start_rankings_trait_worker(
+                    selected_trait_name,
                     database_chart_ids,
-                    trait_items=ranking_trait_items,
-                    trait_signature=trait_signature,
-                    # Yield frequently so the progress text and the rest of the
-                    # application remain responsive while a cold cache warms.
-                    time_budget_seconds=0.1,
+                    ranking_trait_items,
+                    trait_signature,
+                    snapshot_database_values,
                 )
-                database_count = max(0, int(database_analytics.get("chart_count", 0)))
-                totals = database_analytics.get("totals", {})
-                names = list(database_analytics.get("trait_names", []))
-                database_values = {
-                    name: (
-                        float(totals.get(name, 0.0)) / float(database_count)
-                        if database_count
-                        else 0.0
-                    )
-                    for name in names
-                }
-                # Norms define the comparison baseline.  The local collector is
-                # invoked here only to populate missing per-chart scores.
-                if snapshot_database_values:
-                    database_values = snapshot_database_values
-                cache_warmed = database_count > 0 and not bool(
-                    database_analytics.get("partial", False)
+                self._on_rankings_trait_progress(
+                    getattr(self, "_rankings_traits_worker_token", None), 0.0
                 )
-                parsed_percent = database_analytics.get("parsed_percent", 100.0)
-                if bool(database_analytics.get("partial", False)):
-                    self._schedule_rankings_traits_continuation(selected_trait_name)
-                else:
-                    self._rankings_traits_continuation_token = None
+                if "sign_dominance" in requested_sections:
+                    self._refresh_sign_dominance_rankings(database_chart_ids)
+                return
             else:
-                self._rankings_traits_continuation_token = None
+                self._stop_rankings_trait_worker(wait_msecs=0)
+        else:
+            self._stop_rankings_trait_worker(wait_msecs=0)
         database_chart_uids = tuple(
             sorted(
                 str(chart_uid).strip().upper()

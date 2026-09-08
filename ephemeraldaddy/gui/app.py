@@ -17389,6 +17389,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._is_closing = True
         close_progress = DatabaseCloseProgress(self)
         close_progress.update("Stopping background database work…", 12)
+        self._stop_rankings_trait_worker()
         self._database_metrics_preload_enabled = False
         self._database_metrics_background_preload_sections.clear()
         self._database_metrics_background_preload_scheduled = False

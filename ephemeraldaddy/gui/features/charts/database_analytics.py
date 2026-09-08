@@ -5477,6 +5477,8 @@ class DatabaseAnalyticsChartsMixin:
         trait_items: list[dict[str, Any]] | None = None,
         trait_signature: tuple[tuple[str, str, str], ...] | None = None,
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
+        progress_callback: Callable[[float], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         """Legacy Database View row-ID adapter for UID-keyed trait analytics.
 
@@ -5565,6 +5567,16 @@ class DatabaseAnalyticsChartsMixin:
         chart_likelihoods_for_metadata: dict[str, dict[str, float]] = {}
         uncached_started_at = time.monotonic()
         for chart_id in normalized_chart_ids:
+            if should_cancel is not None and should_cancel():
+                partial = True
+                break
+            if progress_callback is not None and normalized_chart_ids:
+                # Report only charts whose scoring is already complete.  In
+                # particular, never announce 100% before the last expensive
+                # score has returned.
+                progress_callback(
+                    (float(parsed_chart_count) / float(len(normalized_chart_ids))) * 100.0
+                )
             parsed_chart_count += 1
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
@@ -5658,6 +5670,12 @@ class DatabaseAnalyticsChartsMixin:
                     totals[name] += float(likelihoods.get(name, 0.0)) / 100.0
                 except (TypeError, ValueError):
                     continue
+            if progress_callback is not None:
+                progress_callback(
+                    (float(parsed_chart_count) / float(len(normalized_chart_ids))) * 100.0
+                    if normalized_chart_ids
+                    else 100.0
+                )
         result = {
             "trait_names": trait_names,
             "totals": totals,
