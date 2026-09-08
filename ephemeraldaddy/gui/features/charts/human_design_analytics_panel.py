@@ -35,9 +35,6 @@ from ephemeraldaddy.gui.style import (
     apply_chart_info_link_cursor,
     configure_collapsible_header_toggle,
 )
-from ephemeraldaddy.gui.features.chart_information.perceived_accuracy import (
-    install_chart_editor_module_controls,
-)
 
 HD_ANALYTICS_SCROLL_MIN_WIDTH = 340
 HD_ANALYTICS_CONTAINER_MIN_WIDTH = 320
@@ -167,8 +164,6 @@ def build_human_design_analytics_panel(
     subheader_style: str,
     on_metric_selected: Callable[[str, int, str | None], None] | None = None,
     header_action_widget: QWidget | None = None,
-    chart_uid: Callable[[], str | None] | None = None,
-    show_perceived_accuracy: bool = False,
 ) -> QWidget:
     """Build the Human Design popout right-side analytics panel widget."""
 
@@ -223,7 +218,6 @@ def build_human_design_analytics_panel(
         title: str,
         *,
         expanded: bool = True,
-        module_key: str,
     ) -> QVBoxLayout:
         section = QWidget(panel)
         section_layout = QVBoxLayout(section)
@@ -236,7 +230,6 @@ def build_human_design_analytics_panel(
             title=title,
             expanded=expanded,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
-            semantic_key=module_key,
         )
 
         content = QWidget(section)
@@ -267,7 +260,6 @@ def build_human_design_analytics_panel(
         hd_analytics_layout,
         "Line Distribution",
         expanded=True,
-        module_key="human_design_line_distribution",
     )
 
     hd_line_summary = QLabel("Line Distribution (Personality + Design activations)")
@@ -409,7 +401,6 @@ def build_human_design_analytics_panel(
         hd_analytics_layout,
         "Color Distribution",
         expanded=True,
-        module_key="human_design_color_distribution",
     )
     color_section_layout.addWidget(QLabel("Color Distribution (C column)", styleSheet=subheader_style))
     color_section_layout.addWidget(hd_color_chart_canvas)
@@ -462,7 +453,6 @@ def build_human_design_analytics_panel(
         hd_analytics_layout,
         "Tone Distribution",
         expanded=True,
-        module_key="human_design_tone_distribution",
     )
     tone_section_layout.addWidget(QLabel("Tone Distribution (T column)", styleSheet=subheader_style))
     tone_section_layout.addWidget(hd_tone_chart_canvas)
@@ -526,12 +516,4 @@ def build_human_design_analytics_panel(
 
     hd_analytics_toggle.toggled.connect(_set_hd_analytics_expanded)
     _set_hd_analytics_expanded(True)
-    if chart_uid is not None:
-        hd_analytics_container._perceived_accuracy_module_controls = (  # type: ignore[attr-defined]
-            install_chart_editor_module_controls(
-                hd_analytics_container,
-                chart_uid=chart_uid,
-                visible=show_perceived_accuracy,
-            )
-        )
     return hd_analytics_container

@@ -382,9 +382,7 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QStyle,
-    QStyleOptionSlider,
     QAbstractButton,
-    QSlider,
     QToolTip,
     QTabWidget,
 )
@@ -587,19 +585,6 @@ from ephemeraldaddy.gui.window_chrome import (
 )
 from ephemeraldaddy.gui.features.similarities.compare_collections import (
     show_compare_collections_dialog,
-)
-from ephemeraldaddy.gui.features.chart_information import (
-    install_chart_editor_module_controls,
-    property_target_from_entry,
-    refresh_perceived_accuracy_controls,
-    set_chart_information_panel_mode,
-    set_perceived_accuracy_controls_visible,
-    summary_info_cursor_is_on_link,
-    update_summary_info_hover_cursor,
-)
-from ephemeraldaddy.gui.settings.core import (
-    SETTINGS_KEY_PERCEIVED_ACCURACY_THUMBS_VISIBLE,
-    load_perceived_accuracy_thumbs_visible,
 )
 from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
     configure_initial_window_state,
@@ -1062,6 +1047,10 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     snapshot_human_design_search_selections,
     weight_is_at_least_triple_next_highest,
 )
+from ephemeraldaddy.gui.widgets.signed_emoji_slider import AlignmentEmojiSlider
+from ephemeraldaddy.gui.features.chart_editor.cultural_contribution import (
+    CulturalContributionController,
+)
 from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     add_chart_editor_personal_relevance_rows,
     apply_chart_editor_last_encounter_metadata,
@@ -1069,6 +1058,10 @@ from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     load_chart_editor_last_encounter_controls,
     parse_last_encounter_text,
     reset_chart_editor_last_encounter_controls,
+)
+from ephemeraldaddy.gui.features.database_view.batch_editor.cultural_contribution import (
+    CulturalContributionBatchCallbacks,
+    CulturalContributionBatchEditor,
 )
 from ephemeraldaddy.gui.features.database_view.batch_editor.personal_relevance import (
     build_batch_last_encounter_controls,
@@ -1853,72 +1846,6 @@ def _find_children_for_types(container: QObject, *widget_types: type[QObject]) -
 
 def _sentiment_label_color(label: str) -> str | None:
     return SENTIMENT_COLORS.get((label or "").strip().lower())
-
-
-class AlignmentEmojiSlider(QSlider):
-    """Horizontal alignment slider with an emoji marker that tracks thresholds."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(Qt.Horizontal, parent)
-        self.setRange(-10, 10)
-        self.setSingleStep(1)
-        self.setPageStep(1)
-        self.setTickInterval(5)
-        self.setValue(0)
-        self.setMinimumHeight(34)
-        self.setStyleSheet(
-            "QSlider::groove:horizontal {"
-            "height: 12px;"
-            "border-radius: 6px;"
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-            "stop:0 #c62828, stop:0.5 #7f7f7f, stop:1 #1565c0);"
-            "}"
-            "QSlider::handle:horizontal {"
-            "background: transparent;"
-            "border: none;"
-            "width: 20px;"
-            "margin: -8px 0px;"
-            "}"
-        )
-        self._emoji_marker = QLabel(self)
-        self._emoji_marker.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self._emoji_marker.setAlignment(Qt.AlignCenter)
-        self._emoji_marker.setFixedSize(24, 24)
-        self._refresh_emoji()
-        self.valueChanged.connect(self._refresh_emoji)
-
-    @staticmethod
-    def _emoji_for_value(value: int) -> str:
-        if value <= -10:
-            return "😈"
-        if value <= -5:
-            return "😠"
-        if value < 5:
-            return "⚖️"
-        if value < 10:
-            return "🙂"
-        return "😇"
-
-    def _refresh_emoji(self) -> None:
-        self._emoji_marker.setText(self._emoji_for_value(self.value()))
-        self._position_emoji_marker()
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        self._position_emoji_marker()
-
-    def _position_emoji_marker(self) -> None:
-        opt = QStyleOptionSlider()
-        self.initStyleOption(opt)
-        handle_rect = self.style().subControlRect(
-            QStyle.CC_Slider,
-            opt,
-            QStyle.SC_SliderHandle,
-            self,
-        )
-        x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
-        y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
-        self._emoji_marker.move(x, y)
 
 
 SEARCH_GENDER_BLANK_ALIASES = {"", "none", "unknown", "blank", "undefined", "__blank__"}
@@ -14007,6 +13934,24 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         alignment_section_layout.addWidget(self.batch_alignment_apply_button)
         layout.addWidget(alignment_section)
 
+        cultural_section, cultural_section_layout = add_collapsible_section(
+            "Perceived Cultural Contributions"
+        )
+        self.batch_cultural_contribution_section = cultural_section
+        self.batch_cultural_contribution_editor = CulturalContributionBatchEditor(
+            CulturalContributionBatchCallbacks(
+                selected_chart_uids=self._selected_chart_uids,
+                apply_patch=self._apply_batch_nonastral_patch,
+                confirm=self._confirm_batch_edit,
+                refresh_selection=self._update_batch_edit_state,
+                refresh_filters=self._refresh_filters_after_batch_edit,
+            ),
+            parent=self,
+            slider_factory=AlignmentEmojiSlider,
+            layout=cultural_section_layout,
+        )
+        layout.addWidget(cultural_section)
+
 
         layout.addWidget(build_batch_similarity_section(self, add_collapsible_section))
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section, SOURCE_OPTIONS, GENDER_OPTIONS, QuadStateSlider))
@@ -14454,6 +14399,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._batch_last_typology_selection_uids = set(chart_uid_set)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
+        self.batch_cultural_contribution_editor.refresh(
+            chart for _chart_id, chart in resolved_items
+        )
         self._batch_last_selection_uids = chart_uid_set
 
     def _update_batch_tag_state(self) -> None:
@@ -17215,6 +17163,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.batch_alignment_slider.blockSignals(False)
         self._update_batch_alignment_score_label(0)
         self.batch_alignment_slider.setToolTip("")
+        self.batch_cultural_contribution_editor.clear()
         if hasattr(self, "_batch_metric_lucygoosey"):
             for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered", "last_encounter", "matched_expectations"):
                 self._set_batch_metric_lucygoosey_state(metric_key, False)
@@ -22528,16 +22477,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 astrotwin_granular_explanation=bool(
                     getattr(self, "_astrotwin_granular_explanation", False)
                 ),
-                perceived_accuracy_thumbs_visible=load_perceived_accuracy_thumbs_visible(
-                    self._settings, fallback=False
-                ),
-                astrotwin_perceived_accuracy_visible=bool(
-                    getattr(
-                        self,
-                        "_similarity_perceived_accuracy_controls_enabled",
-                        SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
-                    )
-                ),
                 build_subheader_label=self._build_settings_subheader_label,
                 build_help_label=self._build_settings_help_label,
                 set_row_info_visibility=self._set_database_view_row_info_visibility,
@@ -22548,12 +22487,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 ),
                 set_astrotwin_granular_explanation=(
                     self._on_astrotwin_granular_explanation_toggled
-                ),
-                set_perceived_accuracy_thumbs_visible=(
-                    self._on_perceived_accuracy_thumbs_visible_toggled
-                ),
-                set_astrotwin_perceived_accuracy_visible=(
-                    self._on_similarity_perceived_accuracy_controls_toggled
                 ),
             ),
         )
@@ -22741,17 +22674,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             on_manage_presets_clicked=self._show_settings_astro_twin_presets_manager,
             threshold_rows=SIMILARITY_THRESHOLD_EDITOR_ROWS,
         )
-        # The existing Astro Twin preference now lives under Display
-        # Preferences > User Feedback; retain this attribute for legacy sync.
-        self._similarity_perceived_accuracy_controls_checkbox = (
-            display_preference_checkboxes.get("astrotwin_perceived_accuracy_visible")
-        )
+        self._similarity_perceived_accuracy_controls_checkbox = similarity_controls[
+            "perceived_accuracy_checkbox"
+        ]
         self._similarity_algorithm_accuracy_label = similarity_controls[
             "algorithm_accuracy_label"
         ]
-        self._similarity_perceived_accuracy_controls_checkbox.toggled.connect(
-            self._similarity_algorithm_accuracy_label.setVisible
-        )
         self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
         self._similar_charts_algo_generic_astro_radio = similarity_controls["generic_astro_radio"]
         self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
@@ -23413,6 +23341,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "batch_relationship_section",
             "batch_personal_relevance_section",
             "batch_alignment_section",
+            "batch_cultural_contribution_section",
             "batch_predictability_section",
         ):
             widget = getattr(self, attr, None)
@@ -23625,12 +23554,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 int(self._similarity_perceived_accuracy_controls_enabled),
             )
             parent._sync_perceived_similarity_predictors_visibility()
-
-    def _on_perceived_accuracy_thumbs_visible_toggled(self, checked: bool) -> None:
-        """Persist and live-apply the shared Chart Editor feedback preference."""
-        visible = bool(checked)
-        self._settings.setValue(SETTINGS_KEY_PERCEIVED_ACCURACY_THUMBS_VISIBLE, int(visible))
-        set_perceived_accuracy_controls_visible(visible)
 
     def _clear_similar_charts_popout_cache(self) -> int:
         cache = getattr(self, "_similar_charts_popout_cache", None)
@@ -26103,6 +26026,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             col = idx // relationship_rows
             relationship_layout.addWidget(checkbox, row + 1, col)
         relationship_widget.setLayout(relationship_layout)
+        self.cultural_contribution_controller = CulturalContributionController(
+            slider_factory=AlignmentEmojiSlider,
+            on_user_change=self._on_sentiment_metric_changed,
+        )
         self._update_observations_relationship_subheaders()
         self.name_edit.textChanged.connect(self._update_observations_relationship_subheaders)
         self.gender_combo.currentIndexChanged.connect(
@@ -26141,7 +26068,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             title="💭Sentiment Types",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-            semantic_key="sentiment_types",
         )
         self.sentiment_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
@@ -26175,7 +26101,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             title="💭Relationship Types",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-            semantic_key="relationship_types",
         )
         self.relationship_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
@@ -26210,7 +26135,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             title="💭Predictability",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-            semantic_key="predictability",
         )
         predictability_box_layout.addWidget(self.predictability_panel_toggle)
         predictability_content_widget = QWidget()
@@ -26266,7 +26190,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             title="💭Reminds me of",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-            semantic_key="reminds_me_of",
         )
         reminds_me_of_box_layout.addWidget(self.reminds_me_of_panel_toggle)
 
@@ -26691,11 +26614,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self,
             scrollbar_style=RIGHT_PANEL_SCROLLBAR_STYLE,
             get_share_icon_path=_get_share_icon_path,
-        )
-        self._perceived_accuracy_module_controls = install_chart_editor_module_controls(
-            self,
-            chart_uid=self._current_chart_uid_for_navigation,
-            visible=load_perceived_accuracy_thumbs_visible(self._settings, fallback=False),
         )
         self._sync_demo_mode_visibility()
 
@@ -27586,7 +27504,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         popout_info_output = getattr(target_dialog, "_similar_chart_popout_info_output", None)
         if popout_info_output is None:
             self._prepare_chart_info_replacement()
-            self._retarget_chart_information({})
         if match is None:
             if popout_info_output is not None and hasattr(popout_info_output, "setText"):
                 popout_info_output.setText("Could not locate similarity details for this chart.")
@@ -31292,31 +31209,27 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
-        if set_chart_information_panel_mode(
-            stack=getattr(self, "chart_info_content_stack", None),
-            control=getattr(self, "chart_information_accuracy_control", None),
-            mode=mode,
-            preference_visible=load_perceived_accuracy_thumbs_visible(
-                self._settings, fallback=False
-            ),
-            refresh_toggle_buttons=self._refresh_chart_info_panel_toggle_buttons,
-            update_bio_button_visibility=self._update_get_bio_button_visibility,
-        ):
-            self._chart_info_panel_mode = mode
+        if mode not in {"chart_info", "comments", "quotes", "tags", "rectification", "biography", "source"}:
+            return
+        self._chart_info_panel_mode = mode
+        if hasattr(self, "chart_info_content_stack"):
+            mode_to_index = {
+                "chart_info": 0,
+                "comments": 1,
+                "quotes": 2,
+                "tags": 3,
+                "rectification": 4,
+                "biography": 5,
+                "source": 6,
+            }
+            self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
+        self._refresh_chart_info_panel_toggle_buttons()
+        self._update_get_bio_button_visibility()
 
     def _prepare_chart_info_replacement(self) -> None:
         """Show Chart Info and restore its default surface before new content."""
         self._set_chart_info_panel_mode("chart_info")
         set_chart_info_contrast_background(self.chart_info_output)
-
-    def _retarget_chart_information(self, entry: Mapping[str, object]) -> None:
-        """Retarget feedback only when rendering into Chart Editor's main info tab."""
-        stack = getattr(self, "chart_info_content_stack", None)
-        if stack is None or stack.widget(0) is not self.chart_info_output:
-            return
-        control = getattr(self, "chart_information_accuracy_control", None)
-        if control is not None:
-            control.retarget(property_target_from_entry(entry))
 
     def _update_get_bio_button_visibility(self) -> None:
         button = getattr(self, "get_bio_button", None)
@@ -31400,8 +31313,79 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
 
-    _summary_info_cursor_is_on_link = staticmethod(summary_info_cursor_is_on_link)
-    _update_summary_info_hover_cursor = staticmethod(update_summary_info_hover_cursor)
+    def _summary_info_cursor_is_on_link(
+        self,
+        cursor,
+        position_info_map: dict[int, list[dict[str, object]]],
+        aspect_info_map: dict[int, dict[str, object]],
+        species_info_map: dict[int, list[dict[str, object]]],
+        block_offset: int = 0,
+    ) -> bool:
+        """Return True when the text cursor is over a Chart Info click target."""
+        block = cursor.block()
+        block_number = block.blockNumber() + block_offset
+        block_text = block.text()
+        cursor_pos = cursor.positionInBlock()
+
+        for entries in (
+            species_info_map.get(block_number, []),
+            position_info_map.get(block_number, []),
+        ):
+            for entry in entries:
+                span_start = entry.get("span_start")
+                span_end = entry.get("span_end")
+                if (
+                    isinstance(span_start, int)
+                    and isinstance(span_end, int)
+                    and span_start <= cursor_pos < span_end
+                ):
+                    return True
+            icon_indices = [
+                int(entry["icon_index"])
+                for entry in entries
+                if isinstance(entry.get("icon_index"), int)
+                and int(entry.get("icon_index", -1)) >= 0
+            ]
+            if any(cursor_pos >= icon_index for icon_index in icon_indices):
+                return True
+
+        aspect_info = aspect_info_map.get(block_number)
+        if aspect_info:
+            info_index = block_text.rfind("ⓘ")
+            if info_index != -1 and cursor_pos >= info_index:
+                return True
+            span_start = aspect_info.get("span_start")
+            span_end = aspect_info.get("span_end")
+            if (
+                isinstance(span_start, int)
+                and isinstance(span_end, int)
+                and span_start <= cursor_pos < span_end
+            ):
+                return True
+        return False
+
+    def _update_summary_info_hover_cursor(
+        self,
+        output_widget: QPlainTextEdit,
+        viewport: QWidget,
+        position,
+        position_info_map: dict[int, list[dict[str, object]]],
+        aspect_info_map: dict[int, dict[str, object]],
+        species_info_map: dict[int, list[dict[str, object]]],
+        block_offset: int = 0,
+    ) -> None:
+        """Set the question cursor when hovering Chart Info links in output text."""
+        cursor = output_widget.cursorForPosition(position.toPoint())
+        if self._summary_info_cursor_is_on_link(
+            cursor,
+            position_info_map,
+            aspect_info_map,
+            species_info_map,
+            block_offset,
+        ):
+            apply_chart_info_link_cursor(viewport)
+        else:
+            viewport.unsetCursor()
 
     def _handle_summary_info_click(
         self,
@@ -31420,12 +31404,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # info_index = block_text.rfind("ⓘ")        
         targets_main_chart_info = target_info_widget is self.chart_info_output
 
-        def retarget(entry: Mapping[str, object]) -> None:
-            if not targets_main_chart_info:
-                return
-            self._prepare_chart_info_replacement()
-            self._retarget_chart_information(entry)
-
 
         # cursor_pos = cursor.positionInBlock()
         # original_chart_info_output = self.chart_info_output
@@ -31439,6 +31417,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             info_index = block_text.rfind("ⓘ")
 
             cursor_pos = cursor.positionInBlock()
+            if targets_main_chart_info:
+                self._prepare_chart_info_replacement()
             species_entries = species_info_map.get(block_number, [])
             if species_entries:
                 selected_species = None
@@ -31466,7 +31446,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         if cursor_pos >= int(entry["icon_index"]):
                             selected_species = entry
                 if selected_species:
-                    retarget(selected_species)
                     if selected_species.get("kind") == "class":
                         self._show_dnd_class_info(
                             str(selected_species.get("name", "Unknown Class")),
@@ -31497,7 +31476,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         and isinstance(span_end, int)
                         and span_start <= cursor_pos < span_end
                     ):
-                        retarget(entry)
                         if entry.get("kind") == "planet_keyword":
                             position_entry = next(
                                 (
@@ -31591,7 +31569,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     if cursor_pos >= int(entry["icon_index"]):
                         selected_entry = entry
                 if selected_entry:
-                    retarget(selected_entry)
                     if selected_entry.get("kind") == "nakshatra":
                         self._show_nakshatra_info(selected_entry["nakshatra"])
                         return True
@@ -31643,7 +31620,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if info_index != -1 and cursor.positionInBlock() >= info_index:
                 aspect_info = aspect_info_map.get(block_number)
                 if aspect_info:
-                    retarget({"kind": "aspect", **aspect_info})
                     self._show_aspect_info(
                         aspect_info["p1"],
                         aspect_info["p2"],
@@ -31665,7 +31641,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 and isinstance(span_end, int)
                 and span_start <= cursor_pos < span_end
             ):
-                retarget({"kind": "aspect_keyword", **aspect_info})
                 self._show_aspect_keyword_info(str(aspect_info.get("type", "")))
                 return True
             return False
@@ -31798,7 +31773,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
-        self._retarget_chart_information({"kind": "position", "body": body, "sign": sign, "house": house_num})
         sign_key = sign.title()
         sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
         adverbs = sign_keywords.get("best_adverbs", []) + sign_keywords.get(
@@ -31907,9 +31881,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         degree_in_sign = lon_value % 30.0
         decan_number = min(3, max(1, int(degree_in_sign // 10.0) + 1))
-        self._retarget_chart_information(
-            {"kind": "decan_keyword", "body": body, "sign": sign, "decan": decan_number}
-        )
         suffix = "th"
         if decan_number == 1:
             suffix = "st"
@@ -31977,7 +31948,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(cursor)
 
     def _show_nakshatra_info(self, nakshatra: str) -> None:
-        self._retarget_chart_information({"kind": "nakshatra", "nakshatra": nakshatra})
         formatted_text = _format_nakshatra_description_text(nakshatra)
         lines = formatted_text.splitlines()
         if len(lines) <= 1:
@@ -32000,6 +31970,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         display_body = str(display_body_label or "").strip() or _display_body_name(body_name)
         verbs = PLANET_KEYWORDS.get(body_name, {}).get("verbs", [])
         clean_verbs = [str(item).strip() for item in verbs if str(item).strip()]
+        if not clean_verbs:
+            self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
+            return
         status_line = ""
         resolved_sign_name = str(sign_name or "").strip().title()
         resolved_house_num = house_num if isinstance(house_num, int) else None
@@ -32013,17 +31986,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             resolved_house_num = chart_house if isinstance(chart_house, int) else None
         if resolved_uses_houses is None and chart is not None:
             resolved_uses_houses = _chart_uses_houses(chart)
-        self._retarget_chart_information(
-            {
-                "kind": "planet_keyword",
-                "body": body_name,
-                "sign": resolved_sign_name,
-                "house": resolved_house_num if resolved_uses_houses else None,
-            }
-        )
-        if not clean_verbs:
-            self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
-            return
 
         rulership_signs = PLANET_RULERSHIP.get(body_name, set())
         exaltation = PLANET_EXALTATION.get(body_name, {})
@@ -32058,7 +32020,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         longitude: object | None = None,
         display_body_label: str = "",
     ) -> None:
-        self._retarget_chart_information({"kind": "sign_keyword", "sign": sign_name, "body": body_name})
         sign_key = str(sign_name or "").strip().title()
         body_key = str(body_name or "").strip()
         body_color = PLANET_COLORS.get(body_key) if body_key else None
@@ -32195,11 +32156,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_element_keyword_info(self, element: str) -> None:
-        self._retarget_chart_information({"kind": "element_keyword", "property_value": element})
         self.chart_info_output.setPlainText("\n".join(self._element_definition_lines(element)))
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
-        self._retarget_chart_information({"kind": "aspect_keyword", "type": atype})
         aspect_label = str(atype or "").strip()
         aspect_key = aspect_label.replace(" ", "_").lower()
         aspect_keywords = ASPECT_KEYWORDS.get(aspect_key, [])
@@ -32213,7 +32172,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
 
     def _show_mode_keyword_info(self, mode: str) -> None:
-        self._retarget_chart_information({"kind": "mode_keyword", "property_value": mode})
         mode_key = str(mode or "").strip().lower()
         mode_label = mode_key.title() if mode_key else "Mode"
         keywords = sorted(
@@ -32265,7 +32223,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return f"{format_ordinal(house_num)} House"
 
     def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
-        self._retarget_chart_information({"kind": "house_keyword", "house": house_num})
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
         header = self._ordinal_house_header(house_num)
@@ -32327,7 +32284,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         chart_context: Chart | None = None,
         placement_contexts: list[tuple[str, Chart]] | None = None,
     ) -> None:
-        self._retarget_chart_information({"kind": "hd_gate_line", "gate": gate, "line": line})
         line_number = int(line) if isinstance(line, int) else None
         gate_number = int(gate)
         gate_info = GATE_REFERENCE.get(
@@ -32464,7 +32420,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_human_design_property_info(self, property_key: str, property_value: str = "") -> None:
-        self._retarget_chart_information({"kind": "hd_property", "property_key": property_key, "property_value": property_value})
         key = str(property_key or "").strip().lower()
         raw_value = str(property_value or "").strip()
 
@@ -32776,7 +32731,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_human_design_center_info(self, center_name: str) -> None:
-        self._retarget_chart_information({"kind": "hd_center", "property_value": center_name})
         requested = str(center_name or "").strip()
         center_key = next(
             (
@@ -32801,7 +32755,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_human_design_info_text(f"Center: {center_key}", lines)
 
     def _show_human_design_channel_info(self, gate_a: int, gate_b: int, center: str) -> None:
-        self._retarget_chart_information({"kind": "hd_channel", "gate_a": gate_a, "gate_b": gate_b})
         sorted_gates = (min(gate_a, gate_b), max(gate_a, gate_b))
         channel_key = f"{sorted_gates[0]}-{sorted_gates[1]}"
         channel_info = HD_CHANNELS.get(channel_key)
@@ -32831,7 +32784,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_human_design_info_text(header, lines[2:])
 
     def _show_human_design_color_info(self, color_value: int) -> None:
-        self._retarget_chart_information({"kind": "hd_color", "color": color_value})
         if isinstance(HD_COLORS, dict):
             color_entry = HD_COLORS.get(int(color_value))
         else:
@@ -32862,7 +32814,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_human_design_tone_info(self, tone_value: int) -> None:
-        self._retarget_chart_information({"kind": "hd_tone", "tone": tone_value})
         if isinstance(HD_TONES, dict):
             tone_entry = HD_TONES.get(int(tone_value))
         else:
@@ -32909,7 +32860,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
 
     def _show_human_design_base_info(self, base_value: int) -> None:
-        self._retarget_chart_information({"kind": "hd_base", "base": base_value})
         base_entry = next(
             (
                 entry
@@ -32928,7 +32878,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_human_design_line_info(self, line_value: int, *, accent_color: str | None = None) -> None:
-        self._retarget_chart_information({"kind": "hd_line", "line": line_value})
         line_nickname = str(LINE_NICKNAMES.get(int(line_value), {}).get("name", "Unknown"))
         line_archetype = str(LINE_ARCHETYPES.get(int(line_value), "No line archetype available."))
         raw_line_color = str(accent_color or HD_LINE_COLORS.get(int(line_value), CHART_DATA_HIGHLIGHT_COLOR))
@@ -32953,7 +32902,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
-        self._retarget_chart_information({"kind": "species", "family": family, "subtype": subtype})
         set_chart_info_text(
             self.chart_info_output,
             _format_dnd_species_info_text(family, subtype, score, evidence)
@@ -32966,14 +32914,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         _score: float,
         axis_scores: dict[str, float],
     ) -> None:
-        self._retarget_chart_information({"kind": "class", "class_key": class_key})
         set_chart_info_text(
             self.chart_info_output,
             _format_dnd_class_info_text(class_name, class_key, axis_scores)
         )
 
     def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
-        self._retarget_chart_information({"kind": "statblock"})
         set_chart_info_text(self.chart_info_output, _format_dnd_statblock_info_text(profile_lines))
 
     def _show_aspect_info(
@@ -32989,18 +32935,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         house1: int | None = None,
         house2: int | None = None,
     ) -> None:
-        self._retarget_chart_information(
-            {
-                "kind": "aspect",
-                "p1": p1,
-                "p2": p2,
-                "type": atype,
-                "sign1": sign1,
-                "sign2": sign2,
-                "house1": house1,
-                "house2": house2,
-            }
-        )
         aspect_keywords = ASPECT_KEYWORDS.get(str(atype).replace(" ", "_").lower(), [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
         p2_nouns = PLANET_KEYWORDS.get(p2, {}).get("nouns", [])
@@ -33388,6 +33322,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.familiarity_spin.setValue(1)
         self.matched_expectations_slider.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
+        self.cultural_contribution_controller.clear()
         self._set_sexiness_score_state(0)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
@@ -33583,6 +33518,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "batch_relationship_section",
             "batch_personal_relevance_section",
             "batch_alignment_section",
+            "batch_cultural_contribution_section",
             "batch_predictability_section",
         ):
             widget = getattr(self, attr, None)
@@ -34140,6 +34076,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         placeholder.familiarity = self.familiarity_spin.value()
         placeholder.matched_expectations = self.matched_expectations_slider.value()
         placeholder.alignment_score = self.alignment_slider.value()
+        self.cultural_contribution_controller.apply_to_chart(
+            placeholder, is_event_chart=False
+        )
         placeholder.sexiness_score = self.sexiness_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
@@ -34314,6 +34253,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if hasattr(chart, "familiarity"):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
+        self.cultural_contribution_controller.apply_to_chart(
+            chart, is_event_chart=is_event_chart
+        )
         if hasattr(chart, "sexiness_score"):
             chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
         if hasattr(chart, "matched_expectations"):
@@ -35045,6 +34987,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         else None
                     )
                 )
+                self.cultural_contribution_controller.apply_to_chart(
+                    chart, is_event_chart=is_event_chart
+                )
                 if hasattr(chart, "sexiness_score"):
                     chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
@@ -35396,6 +35341,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.familiarity_spin.setValue(1)
         self.matched_expectations_slider.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
+        self.cultural_contribution_controller.clear()
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -35623,21 +35569,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         normalized_uid = self._normalized_chart_uid_key(chart_uid)
         if normalized_uid is None:
             raise ValueError("A persisted chart must have a non-empty chart UID")
-        previous_uid = self._normalized_chart_uid_key(self.current_chart_uid)
-        if normalized_uid == previous_uid:
-            self._chart_edit_session.active_chart_uid = normalized_uid
-            return
         self.current_chart_uid = normalized_uid
         self._chart_edit_session.active_chart_uid = normalized_uid
-        refresh_perceived_accuracy_controls(
-            self,
-            clear_property=previous_uid is not None,
-        )
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
         self.current_chart_uid = None
-        refresh_perceived_accuracy_controls(self, clear_property=True)
         self._chart_edit_session.active_chart_uid = None
 
     def _current_chart_uid_for_navigation(self) -> str | None:
@@ -35901,6 +35838,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             int(loaded_alignment or 0),
             assigned=isinstance(loaded_alignment, int),
         )
+        self.cultural_contribution_controller.load(chart)
         self._set_sexiness_score_state(0)
         self._set_sexiness_score_state(getattr(chart, "sexiness_score", 0) or 0)
         self._chart_familiarity_factors = list(
@@ -37597,9 +37535,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         kind, raw_value = parts[1], parts[2]
         self._prepare_chart_info_replacement()
-        self._retarget_chart_information(
-            {"kind": f"chart_analysis_{kind}", "property_value": raw_value}
-        )
         if kind == "sign":
             self.chart_info_output.setHtml(self._build_sign_popout_info(self._latest_chart, raw_value))
         elif kind == "body":
@@ -38585,9 +38520,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         value = urllib.parse.unquote(parts[2])
 
         self._prepare_chart_info_replacement()
-        self._retarget_chart_information(
-            {"kind": f"distinguishing_factor_{kind}", "property_value": value}
-        )
         if kind == "planet":
             self._show_planet_keyword_info(value)
             return
@@ -39228,17 +39160,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             lambda _checked=False: self._export_popout_chart_data_output(summary_output, hd_file_stem)
         )
 
-        hd_popout_chart_uid = self._current_chart_uid_for_navigation()
         right_panel = build_human_design_analytics_panel(
             hd_result=hd_result,
             chart_theme_colors=CHART_THEME_COLORS,
             subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
             on_metric_selected=_on_hd_metric_selected,
             header_action_widget=summary_share_button,
-            chart_uid=lambda uid=hd_popout_chart_uid: uid,
-            show_perceived_accuracy=load_perceived_accuracy_thumbs_visible(
-                self._settings, fallback=False
-            ),
         )
 
         middle_right_splitter = QSplitter(Qt.Horizontal)
