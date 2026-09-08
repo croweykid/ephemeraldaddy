@@ -1557,13 +1557,21 @@ def get_chart_view_emoji_portrait(owner: QWidget) -> str:
     return normalize_emoji_portrait_text(edit.text())
 
 def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayout) -> None:
-    """Build Subjective Notes Alignment and Sexiness collapsible sections."""
+    """Build Subjective Notes signed-metric collapsible sections."""
     alignment_box = _build_subjective_notes_metric_section(
         owner,
         title="💭Perceived alignment",
         content_builder=lambda content_layout: _populate_alignment_section(owner, content_layout),
     )
     layout.addWidget(alignment_box)
+
+    cultural_contribution_box = _build_subjective_notes_metric_section(
+        owner,
+        title="Cultural Contribution",
+        module_key="cultural_contribution",
+        content_builder=owner.cultural_contribution_controller.populate_section,
+    )
+    layout.addWidget(cultural_contribution_box)
 
     sexiness_box = _build_subjective_notes_metric_section(
         owner,
@@ -2829,6 +2837,7 @@ def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
         label = getattr(self, attribute_name, None)
         if label is not None:
             label.setText(copy)
+    self.cultural_contribution_controller.update_caption(person_name)
 
 def _decrease_chart_view_label_font_sizes(self) -> None:
     for label in self.findChildren(QLabel):

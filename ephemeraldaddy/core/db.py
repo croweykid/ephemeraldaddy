@@ -125,6 +125,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "negative_sentiment_intensity": 0,
     "familiarity": 0,
     "alignment_score": None,
+    "cultural_contribution_score": None,
     "sexiness_score": 0,
     "matched_expectations": 0,
     "familiarity_factors": "",
@@ -542,6 +543,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             negative_sentiment_intensity INTEGER,
             familiarity INTEGER,
             alignment_score INTEGER,
+            cultural_contribution_score INTEGER,
             sexiness_score INTEGER NOT NULL DEFAULT 0,
             weirdness_score REAL,
             weirdness_formula_version INTEGER,
@@ -1516,6 +1518,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN alignment_score INTEGER
+            """
+        )
+    if "cultural_contribution_score" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN cultural_contribution_score INTEGER
             """
         )
     if "sexiness_score" not in columns:
@@ -3819,7 +3828,7 @@ def append_database(
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, emoji_portrait, enneagram_type, tritype, mbti, quotes, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
-                         alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, current_relationship, last_encounter, data_rating,
+                         alignment_score, cultural_contribution_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, current_relationship, last_encounter, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
                          rectification_range_used, rectification_range_start_minute, rectification_range_end_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
@@ -3832,7 +3841,7 @@ def append_database(
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -3865,6 +3874,7 @@ def append_database(
                         neg_intensity,
                         familiarity,
                         _normalize_alignment_score(_row_value("alignment_score")),
+                        _normalize_alignment_score(_row_value("cultural_contribution_score")),
                         _normalize_sexiness_score(_row_value("sexiness_score")),
                         _normalize_matched_expectations(_row_value("matched_expectations")),
                         _row_value("familiarity_factors"),
@@ -4096,7 +4106,7 @@ def save_chart(
                  chart_data_source,
                  alternate_chart_uid,
                  positive_sentiment_intensity, negative_sentiment_intensity,
-                 familiarity, alignment_score, sexiness_score, weirdness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, current_relationship, last_encounter, data_rating, social_score,
+                 familiarity, alignment_score, cultural_contribution_score, sexiness_score, weirdness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, current_relationship, last_encounter, data_rating, social_score,
                  birthtime_unknown,
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
@@ -4122,7 +4132,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -4168,6 +4178,9 @@ def save_chart(
                 ),
                 _normalize_alignment_score(
                     getattr(chart, "alignment_score", None)
+                ),
+                _normalize_alignment_score(
+                    getattr(chart, "cultural_contribution_score", None)
                 ),
                 _normalize_sexiness_score(
                     getattr(chart, "sexiness_score", None)
@@ -4436,6 +4449,7 @@ def update_chart(
                 negative_sentiment_intensity = ?,
                 familiarity = ?,
                 alignment_score = ?,
+                cultural_contribution_score = ?,
                 sexiness_score = ?,
                 weirdness_score = ?,
                 matched_expectations = ?,
@@ -4539,6 +4553,9 @@ def update_chart(
                 ),
                 _normalize_alignment_score(
                     getattr(chart, "alignment_score", None)
+                ),
+                _normalize_alignment_score(
+                    getattr(chart, "cultural_contribution_score", None)
                 ),
                 _normalize_sexiness_score(
                     getattr(chart, "sexiness_score", None)
@@ -4686,6 +4703,7 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 negative_sentiment_intensity = ?,
                 familiarity = ?,
                 alignment_score = ?,
+                cultural_contribution_score = ?,
                 sexiness_score = ?,
                 weirdness_score = ?,
                 matched_expectations = ?,
@@ -4731,6 +4749,7 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 _normalize_optional_sentiment_metric(getattr(chart, "negative_sentiment_intensity", None)),
                 _normalize_optional_sentiment_metric(getattr(chart, "familiarity", None)),
                 _normalize_alignment_score(getattr(chart, "alignment_score", None)),
+                _normalize_alignment_score(getattr(chart, "cultural_contribution_score", None)),
                 _normalize_sexiness_score(getattr(chart, "sexiness_score", None)),
                 _normalize_weirdness_score(getattr(chart, "weirdness_score", None)),
                 _normalize_matched_expectations(getattr(chart, "matched_expectations", None)),
@@ -5942,6 +5961,7 @@ def _new_chart_shell(
     chart.negative_sentiment_intensity = 1
     chart.familiarity = 1
     chart.alignment_score = None
+    chart.cultural_contribution_score = None
     chart.sexiness_score = 0
     chart.matched_expectations = 0
     chart.familiarity_factors = []
@@ -6071,7 +6091,7 @@ def _chart_row_projection(columns: set[str]) -> str:
                used_utc_fallback, sentiments, relationship_types,
                tags, reminds_me_of, comments, {emoji_portrait_projection}, {enneagram_type_projection}, {tritype_projection}, {mbti_projection}, {quotes_projection}, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, alignment_score, sexiness_score, {"weirdness_score" if "weirdness_score" in columns else "NULL AS weirdness_score"}, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, {current_relationship_projection}, {last_encounter_projection}, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
+               familiarity, alignment_score, {"cultural_contribution_score" if "cultural_contribution_score" in columns else "NULL AS cultural_contribution_score"}, sexiness_score, {"weirdness_score" if "weirdness_score" in columns else "NULL AS weirdness_score"}, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, {current_relationship_projection}, {last_encounter_projection}, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
                rectification_range_used, rectification_range_start_minute, rectification_range_end_minute,
                {derived_birth_data_signature_projection}, {derived_positions_projection}, {derived_retrogrades_projection},
@@ -6121,6 +6141,7 @@ def _chart_from_row(chart_id: int, row):
         negative_sentiment_intensity,
         familiarity,
         alignment_score,
+        cultural_contribution_score,
         sexiness_score,
         weirdness_score,
         matched_expectations,
@@ -6222,6 +6243,7 @@ def _chart_from_row(chart_id: int, row):
         normalized_familiarity = _normalize_optional_sentiment_metric(familiarity)
         placeholder.familiarity = normalized_familiarity
         placeholder.alignment_score = _normalize_alignment_score(alignment_score)
+        placeholder.cultural_contribution_score = _normalize_alignment_score(cultural_contribution_score)
         placeholder.sexiness_score = _normalize_sexiness_score(sexiness_score)
         placeholder.weirdness_score = _normalize_weirdness_score(weirdness_score)
         placeholder.matched_expectations = _normalize_matched_expectations(matched_expectations)
@@ -6392,6 +6414,7 @@ def _chart_from_row(chart_id: int, row):
     )
     chart.familiarity = _normalize_optional_sentiment_metric(familiarity)
     chart.alignment_score = _normalize_alignment_score(alignment_score)
+    chart.cultural_contribution_score = _normalize_alignment_score(cultural_contribution_score)
     chart.sexiness_score = _normalize_sexiness_score(sexiness_score)
     chart.weirdness_score = _normalize_weirdness_score(weirdness_score)
     chart.matched_expectations = _normalize_matched_expectations(matched_expectations)

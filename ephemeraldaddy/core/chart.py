@@ -205,6 +205,7 @@ class Chart:
         self.negative_sentiment_intensity = 1
         self.familiarity = 1
         self.alignment_score = None
+        self.cultural_contribution_score = None
         self.sexiness_score = 0
         self.matched_expectations = 0
         self.familiarity_factors = []
@@ -323,6 +324,7 @@ class Chart:
             "negative_sentiment_intensity": self.negative_sentiment_intensity,
             "familiarity": self.familiarity,
             "alignment_score": self.alignment_score,
+            "cultural_contribution_score": self.cultural_contribution_score,
             "sexiness_score": self.sexiness_score,
             "matched_expectations": self.matched_expectations,
             "familiarity_factors": self.familiarity_factors,
