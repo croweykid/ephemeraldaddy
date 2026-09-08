@@ -53,14 +53,24 @@ def test_cultural_contribution_batch_patch_persists_by_uid(monkeypatch, tmp_path
     assert db.load_chart(chart_id).cultural_contribution_score == 9
 
 
-def test_chart_editor_and_batch_editor_expose_cultural_contribution_controls():
+def test_cultural_contribution_controls_live_in_workflow_modules():
     app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
-    panel_source = (
+    chart_editor_source = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/chart_editor/cultural_contribution.py"
+    ).read_text()
+    batch_editor_source = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/database_view/batch_editor/cultural_contribution.py"
+    ).read_text()
+    chart_panel_source = (
         REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py"
     ).read_text()
 
-    assert 'title="Cultural Contribution"' in panel_source
-    assert "Regardless of morality or caveats" in panel_source
-    assert "Is/was this a 'useful' entity, in your opinion?" in panel_source
+    assert 'title="Cultural Contribution"' in chart_panel_source
     assert '"Perceived Cultural Contributions"' in app_source
-    assert '{"cultural_contribution_score": value}' in app_source
+    assert "Regardless of morality or caveats" in chart_editor_source
+    assert "Is/was this a 'useful' entity, in your opinion?" in chart_editor_source
+    assert '{"cultural_contribution_score": value}' in batch_editor_source
+    assert "def _on_batch_cultural_contribution_apply" not in app_source
+    assert "def _on_cultural_contribution_changed" not in app_source

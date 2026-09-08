@@ -382,9 +382,7 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QStyle,
-    QStyleOptionSlider,
     QAbstractButton,
-    QSlider,
     QToolTip,
     QTabWidget,
 )
@@ -1062,6 +1060,10 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     snapshot_human_design_search_selections,
     weight_is_at_least_triple_next_highest,
 )
+from ephemeraldaddy.gui.widgets.signed_emoji_slider import AlignmentEmojiSlider
+from ephemeraldaddy.gui.features.chart_editor.cultural_contribution import (
+    CulturalContributionController,
+)
 from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     add_chart_editor_personal_relevance_rows,
     apply_chart_editor_last_encounter_metadata,
@@ -1069,6 +1071,10 @@ from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     load_chart_editor_last_encounter_controls,
     parse_last_encounter_text,
     reset_chart_editor_last_encounter_controls,
+)
+from ephemeraldaddy.gui.features.database_view.batch_editor.cultural_contribution import (
+    CulturalContributionBatchCallbacks,
+    CulturalContributionBatchEditor,
 )
 from ephemeraldaddy.gui.features.database_view.batch_editor.personal_relevance import (
     build_batch_last_encounter_controls,
@@ -1853,72 +1859,6 @@ def _find_children_for_types(container: QObject, *widget_types: type[QObject]) -
 
 def _sentiment_label_color(label: str) -> str | None:
     return SENTIMENT_COLORS.get((label or "").strip().lower())
-
-
-class AlignmentEmojiSlider(QSlider):
-    """Horizontal alignment slider with an emoji marker that tracks thresholds."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(Qt.Horizontal, parent)
-        self.setRange(-10, 10)
-        self.setSingleStep(1)
-        self.setPageStep(1)
-        self.setTickInterval(5)
-        self.setValue(0)
-        self.setMinimumHeight(34)
-        self.setStyleSheet(
-            "QSlider::groove:horizontal {"
-            "height: 12px;"
-            "border-radius: 6px;"
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-            "stop:0 #c62828, stop:0.5 #7f7f7f, stop:1 #1565c0);"
-            "}"
-            "QSlider::handle:horizontal {"
-            "background: transparent;"
-            "border: none;"
-            "width: 20px;"
-            "margin: -8px 0px;"
-            "}"
-        )
-        self._emoji_marker = QLabel(self)
-        self._emoji_marker.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self._emoji_marker.setAlignment(Qt.AlignCenter)
-        self._emoji_marker.setFixedSize(24, 24)
-        self._refresh_emoji()
-        self.valueChanged.connect(self._refresh_emoji)
-
-    @staticmethod
-    def _emoji_for_value(value: int) -> str:
-        if value <= -10:
-            return "😈"
-        if value <= -5:
-            return "😠"
-        if value < 5:
-            return "⚖️"
-        if value < 10:
-            return "🙂"
-        return "😇"
-
-    def _refresh_emoji(self) -> None:
-        self._emoji_marker.setText(self._emoji_for_value(self.value()))
-        self._position_emoji_marker()
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        self._position_emoji_marker()
-
-    def _position_emoji_marker(self) -> None:
-        opt = QStyleOptionSlider()
-        self.initStyleOption(opt)
-        handle_rect = self.style().subControlRect(
-            QStyle.CC_Slider,
-            opt,
-            QStyle.SC_SliderHandle,
-            self,
-        )
-        x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
-        y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
-        self._emoji_marker.move(x, y)
 
 
 SEARCH_GENDER_BLANK_ALIASES = {"", "none", "unknown", "blank", "undefined", "__blank__"}
@@ -14011,24 +13951,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "Perceived Cultural Contributions"
         )
         self.batch_cultural_contribution_section = cultural_section
-        self.batch_cultural_contribution_slider = AlignmentEmojiSlider()
-        self.batch_cultural_contribution_slider.valueChanged.connect(
-            self._on_batch_cultural_contribution_changed
+        self.batch_cultural_contribution_editor = CulturalContributionBatchEditor(
+            CulturalContributionBatchCallbacks(
+                selected_chart_uids=self._selected_chart_uids,
+                chart_for_uid=self._get_chart_for_filter_by_uid,
+                apply_patch=self._apply_batch_nonastral_patch,
+                confirm=self._confirm_batch_edit,
+                refresh_selection=self._update_batch_edit_state,
+                refresh_filters=self._refresh_filters_after_batch_edit,
+            ),
+            parent=self,
+            slider_factory=AlignmentEmojiSlider,
+            layout=cultural_section_layout,
         )
-        self.batch_cultural_contribution_score_label = QLabel()
-        self._update_batch_cultural_contribution_score_label(
-            self.batch_cultural_contribution_slider.value()
-        )
-        self.batch_cultural_contribution_apply_button = QPushButton("Apply cultural contribution")
-        self.batch_cultural_contribution_apply_button.clicked.connect(
-            self._on_batch_cultural_contribution_apply
-        )
-        cultural_section_layout.addWidget(
-            QLabel("actively detrimental   ⟷   exceptionally useful")
-        )
-        cultural_section_layout.addWidget(self.batch_cultural_contribution_slider)
-        cultural_section_layout.addWidget(self.batch_cultural_contribution_score_label)
-        cultural_section_layout.addWidget(self.batch_cultural_contribution_apply_button)
         layout.addWidget(cultural_section)
 
 
@@ -14478,7 +14413,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._batch_last_typology_selection_uids = set(chart_uid_set)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
-        self._set_batch_cultural_contribution_state(resolved_items)
+        self.batch_cultural_contribution_editor.refresh()
         self._batch_last_selection_uids = chart_uid_set
 
     def _update_batch_tag_state(self) -> None:
@@ -14685,30 +14620,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
         else:
             self.batch_alignment_slider.setToolTip("")
-
-    def _set_batch_cultural_contribution_state(self, items: list[tuple[int, Chart]]) -> None:
-        values = [
-            self._normalized_optional_signed_score(
-                getattr(chart, "cultural_contribution_score", None)
-            )
-            for _chart_id, chart in items
-        ]
-        selected_value = values[0] if values else 0
-        self.batch_cultural_contribution_slider.blockSignals(True)
-        self.batch_cultural_contribution_slider.setValue(selected_value)
-        self.batch_cultural_contribution_slider.blockSignals(False)
-        self._update_batch_cultural_contribution_score_label(selected_value)
-        self.batch_cultural_contribution_slider.setToolTip(
-            "Selected charts have mixed cultural contribution scores. Applying will overwrite all selected charts."
-            if len(set(values)) > 1 else ""
-        )
-
-    @staticmethod
-    def _normalized_optional_signed_score(raw_value: Any) -> int:
-        try:
-            return int(raw_value) if raw_value is not None else 0
-        except (TypeError, ValueError):
-            return 0
 
     def _set_batch_predictability_state(
         self,
@@ -15831,46 +15742,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _on_batch_alignment_changed(self, value: int) -> None:
         self._update_batch_alignment_score_label(value)
-
-    def _update_batch_cultural_contribution_score_label(self, value: int) -> None:
-        self.batch_cultural_contribution_score_label.setText(
-            f"Cultural contribution score: {int(value)}"
-        )
-
-    def _on_batch_cultural_contribution_changed(self, value: int) -> None:
-        self._update_batch_cultural_contribution_score_label(value)
-
-    def _on_batch_cultural_contribution_apply(self) -> None:
-        chart_uids = self._selected_chart_uids()
-        chart_ids = self._local_row_ids_for_uids(chart_uids)
-        if not chart_ids:
-            QMessageBox.information(
-                self,
-                "No charts selected",
-                "Psst...Select one or more charts before applying batch edits.",
-            )
-            self._update_batch_edit_state()
-            return
-        value = int(self.batch_cultural_contribution_slider.value())
-        if not self._confirm_batch_edit(
-            f"Set cultural contribution score to {value} for", len(chart_ids)
-        ):
-            self._update_batch_edit_state()
-            return
-        try:
-            self._apply_batch_nonastral_patch(
-                chart_uids, {"cultural_contribution_score": value}
-            )
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                "Batch edit error",
-                f"*sepukkus* Couldn't update the selected charts:\n{exc}",
-            )
-            return
-        changed_ids = set(chart_ids)
-        self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
 
     def _update_batch_predictability_score_label(self, value: int) -> None:
         self.batch_matched_expectations_score_label.setText(f"Predictability score: {int(value):+d}")
@@ -17304,11 +17175,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.batch_alignment_slider.blockSignals(False)
         self._update_batch_alignment_score_label(0)
         self.batch_alignment_slider.setToolTip("")
-        self.batch_cultural_contribution_slider.blockSignals(True)
-        self.batch_cultural_contribution_slider.setValue(0)
-        self.batch_cultural_contribution_slider.blockSignals(False)
-        self._update_batch_cultural_contribution_score_label(0)
-        self.batch_cultural_contribution_slider.setToolTip("")
+        self.batch_cultural_contribution_editor.clear()
         if hasattr(self, "_batch_metric_lucygoosey"):
             for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered", "last_encounter", "matched_expectations"):
                 self._set_batch_metric_lucygoosey_state(metric_key, False)
@@ -25592,8 +25459,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._retcon_time_user_overridden = False
         self._alignment_score_assigned = False
         self._alignment_programmatic_update = False
-        self._cultural_contribution_score_assigned = False
-        self._cultural_contribution_programmatic_update = False
         self._lucygoosey = False
         self._chart_editor_controller = ChartEditorController(
             is_change_tracking_suppressed=lambda: self._suppress_lucygoosey,
@@ -26576,10 +26441,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.alignment_slider.valueChanged.connect(self._on_alignment_changed)
         self.alignment_score_label = QLabel()
         self._update_alignment_score_label(self.alignment_slider.value())
-        self.cultural_contribution_slider = AlignmentEmojiSlider()
-        self.cultural_contribution_slider.valueChanged.connect(self._on_cultural_contribution_changed)
-        self.cultural_contribution_score_label = QLabel()
-        self._update_cultural_contribution_score_label(self.cultural_contribution_slider.value())
+        self.cultural_contribution_controller = CulturalContributionController(
+            slider_factory=AlignmentEmojiSlider,
+            on_user_change=self._on_sentiment_metric_changed,
+        )
         self.sexiness_slider = AlignmentEmojiSlider()
         self.sexiness_slider.valueChanged.connect(self._on_sexiness_changed)
         self.sexiness_score_label = QLabel()
@@ -33427,25 +33292,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._update_alignment_score_label(value)
         self._on_sentiment_metric_changed(value)
 
-    def _update_cultural_contribution_score_label(self, value: int) -> None:
-        if getattr(self, "_cultural_contribution_score_assigned", False):
-            self.cultural_contribution_score_label.setText(f"Cultural contribution score: {int(value)}")
-        else:
-            self.cultural_contribution_score_label.setText("Cultural contribution score: blank")
-
-    def _on_cultural_contribution_changed(self, value: int) -> None:
-        if not getattr(self, "_cultural_contribution_programmatic_update", False):
-            self._cultural_contribution_score_assigned = True
-        self._update_cultural_contribution_score_label(value)
-        self._on_sentiment_metric_changed(value)
-
-    def _set_cultural_contribution_score_state(self, value: int, *, assigned: bool) -> None:
-        self._cultural_contribution_programmatic_update = True
-        self._cultural_contribution_score_assigned = bool(assigned)
-        self.cultural_contribution_slider.setValue(int(value))
-        self._cultural_contribution_programmatic_update = False
-        self._update_cultural_contribution_score_label(self.cultural_contribution_slider.value())
-
     def _update_predictability_score_label(self, value: int) -> None:
         self.matched_expectations_score_label.setText(f"Predictability score: {int(value):+d}")
 
@@ -34261,10 +34107,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         placeholder.familiarity = self.familiarity_spin.value()
         placeholder.matched_expectations = self.matched_expectations_slider.value()
         placeholder.alignment_score = self.alignment_slider.value()
-        placeholder.cultural_contribution_score = (
-            self.cultural_contribution_slider.value()
-            if self._cultural_contribution_score_assigned
-            else None
+        self.cultural_contribution_controller.apply_to_chart(
+            placeholder, is_event_chart=False
         )
         placeholder.sexiness_score = self.sexiness_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
@@ -34440,13 +34284,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if hasattr(chart, "familiarity"):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
-        if hasattr(chart, "cultural_contribution_score"):
-            chart.cultural_contribution_score = (
-                0 if is_event_chart else (
-                    self.cultural_contribution_slider.value()
-                    if self._cultural_contribution_score_assigned else None
-                )
-            )
+        self.cultural_contribution_controller.apply_to_chart(
+            chart, is_event_chart=is_event_chart
+        )
         if hasattr(chart, "sexiness_score"):
             chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
         if hasattr(chart, "matched_expectations"):
@@ -35178,14 +35018,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         else None
                     )
                 )
-                chart.cultural_contribution_score = (
-                    0
-                    if is_event_chart
-                    else (
-                        self.cultural_contribution_slider.value()
-                        if self._cultural_contribution_score_assigned
-                        else None
-                    )
+                self.cultural_contribution_controller.apply_to_chart(
+                    chart, is_event_chart=is_event_chart
                 )
                 if hasattr(chart, "sexiness_score"):
                     chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
@@ -35538,7 +35372,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.familiarity_spin.setValue(1)
         self.matched_expectations_slider.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
-        self._set_cultural_contribution_score_state(0, assigned=False)
+        self.cultural_contribution_controller.clear()
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -36044,11 +35878,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             int(loaded_alignment or 0),
             assigned=isinstance(loaded_alignment, int),
         )
-        loaded_cultural_contribution = getattr(chart, "cultural_contribution_score", None)
-        self._set_cultural_contribution_score_state(
-            int(loaded_cultural_contribution or 0),
-            assigned=isinstance(loaded_cultural_contribution, int),
-        )
+        self.cultural_contribution_controller.load(chart)
         self._set_sexiness_score_state(0)
         self._set_sexiness_score_state(getattr(chart, "sexiness_score", 0) or 0)
         self._chart_familiarity_factors = list(

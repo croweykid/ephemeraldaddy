@@ -1575,7 +1575,7 @@ def get_chart_view_emoji_portrait(owner: QWidget) -> str:
     return normalize_emoji_portrait_text(edit.text())
 
 def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayout) -> None:
-    """Build Subjective Notes Alignment and Sexiness collapsible sections."""
+    """Build Subjective Notes signed-metric collapsible sections."""
     alignment_box = _build_subjective_notes_metric_section(
         owner,
         title="💭Perceived alignment",
@@ -1588,7 +1588,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
         owner,
         title="Cultural Contribution",
         module_key="cultural_contribution",
-        content_builder=lambda content_layout: _populate_cultural_contribution_section(owner, content_layout),
+        content_builder=owner.cultural_contribution_controller.populate_section,
     )
     layout.addWidget(cultural_contribution_box)
 
@@ -1663,16 +1663,6 @@ def _populate_alignment_section(owner: QWidget, content_layout: QVBoxLayout) -> 
     content_layout.addWidget(QLabel("😈 Most evil   ⟷   Most altruistic 😇"))
     content_layout.addWidget(owner.alignment_slider)
     content_layout.addWidget(owner.alignment_score_label)
-
-
-def _populate_cultural_contribution_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
-    owner.cultural_contribution_subheader = QLabel()
-    owner.cultural_contribution_subheader.setWordWrap(True)
-    owner.cultural_contribution_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
-    content_layout.addWidget(owner.cultural_contribution_subheader)
-    content_layout.addWidget(QLabel("actively detrimental   ⟷   exceptionally useful"))
-    content_layout.addWidget(owner.cultural_contribution_slider)
-    content_layout.addWidget(owner.cultural_contribution_score_label)
 
 
 def _populate_sexiness_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
@@ -2867,11 +2857,6 @@ def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
             "How ruthlessly self-interested vs genuinely considerate you've observed "
             f"(or suspect) {person_name} to be."
         ),
-        "cultural_contribution_subheader": (
-            "Regardless of morality or caveats, how much do you think "
-            f"{person_name} has usefully contributed to society & human progress, at large? "
-            "Is/was this a 'useful' entity, in your opinion?"
-        ),
         "reminds_me_of_subheader": (
             f"If {person_name} reminds you of someone else in the database, you can make "
             "note of that here. May or may not be relevant. But in future app updates, "
@@ -2882,6 +2867,7 @@ def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
         label = getattr(self, attribute_name, None)
         if label is not None:
             label.setText(copy)
+    self.cultural_contribution_controller.update_caption(person_name)
 
 def _decrease_chart_view_label_font_sizes(self) -> None:
     for label in self.findChildren(QLabel):
