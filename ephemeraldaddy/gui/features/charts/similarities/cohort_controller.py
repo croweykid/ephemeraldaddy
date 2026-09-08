@@ -1,0 +1,236 @@
+"""Cohort provenance extension for the Similarities Analysis controller.
+
+The legacy calculation/export entry points still live on ManageChartsDialog.
+This controller keeps new cohort policy out of ``app.py`` by wrapping those
+entry points at the feature boundary until the remaining legacy methods are
+migrated into the Similarities package.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any
+
+from ephemeraldaddy.core import db
+from ephemeraldaddy.gui.features.charts import similarities_export
+from ephemeraldaddy.gui.features.charts.statistical_significance import (
+    SIGNIFICANCE_CORRECTION_DEFAULT,
+    load_significance_correction,
+)
+
+from .cohort_metadata import (
+    build_gender_distribution,
+    chart_uids_from_mapping,
+    inject_trait_cohort_metadata,
+)
+from .controller import SimilaritiesController as _BaseSimilaritiesController
+
+
+class SimilaritiesController(_BaseSimilaritiesController):
+    """Similarities controller with trait-cohort provenance and gender analysis."""
+
+    def __init__(self, host: Any, **kwargs: Any) -> None:
+        self._legacy_export_similarities_analysis_json = getattr(
+            host, "_export_similarities_analysis_json", None
+        )
+        self._cohort_chart_uids: list[str] = []
+        self._cohort_gender_distribution: Mapping[str, Any] | None = None
+        self.gender_distribution_toggle: Any | None = None
+        self.gender_distribution_list: Any | None = None
+        if callable(self._legacy_export_similarities_analysis_json):
+            host._export_similarities_analysis_json = self._export_json_with_cohort_metadata
+        super().__init__(host, **kwargs)
+
+    def build_panel(self):
+        panel = super().build_panel()
+        layout = panel.layout()
+        if layout is None:
+            return panel
+
+        trailing_item = layout.takeAt(layout.count() - 1) if layout.count() else None
+        toggle, section_list = self.add_collapsible_section(
+            layout,
+            "Gender Distribution",
+            min_height=100,
+            list_style=(
+                "QListWidget {"
+                "  background-color: #151515;"
+                "  border: 1px solid #333333;"
+                "}"
+                "QListWidget::item { padding: 4px 6px; }"
+            ),
+        )
+        self.gender_distribution_toggle = toggle
+        self.gender_distribution_list = section_list
+        self.host.similarities_gender_distribution_toggle = toggle
+        self.host.similarities_gender_distribution_list = section_list
+        toggle.setVisible(False)
+        section_list.setVisible(False)
+        if trailing_item is not None:
+            layout.addItem(trailing_item)
+        return panel
+
+    def _guarded_update_analysis(self, chart_ids: list[int]) -> None:
+        if not self.autocalculate_enabled and not self._force_calculation:
+            super()._guarded_update_analysis(chart_ids)
+            return
+        super()._guarded_update_analysis(chart_ids)
+        self.capture_legacy_attributes()
+        self._refresh_cohort_metadata(chart_ids)
+
+    def calculate_pair_similarity(self) -> None:
+        super().calculate_pair_similarity()
+        self._refresh_cohort_metadata(self.host._selected_local_row_ids())
+
+    def _selected_cohort_ids(self, chart_ids: list[int]) -> list[int]:
+        exclude_placeholders = getattr(
+            self.host, "_exclude_similarities_placeholder_local_row_ids", None
+        )
+        if callable(exclude_placeholders):
+            return list(exclude_placeholders(chart_ids))
+        return list(chart_ids)
+
+    def _selected_charts(self, chart_ids: list[int]) -> list[Any]:
+        chart_loader = getattr(self.host, "_get_chart_for_filter", None)
+        if not callable(chart_loader):
+            return []
+        return [
+            chart
+            for chart_id in chart_ids
+            if (chart := chart_loader(chart_id)) is not None
+        ]
+
+    @staticmethod
+    def _row_chart_uid(row: Any) -> str:
+        if isinstance(row, Mapping):
+            return str(row.get("chart_uid") or row.get("Chart UID") or "").strip().upper()
+        try:
+            return str(row[30] or "").strip().upper() if len(row) > 30 else ""
+        except (TypeError, IndexError):
+            return ""
+
+    def _database_charts(self) -> list[Any]:
+        try:
+            rows = list(db.list_charts())
+        except Exception:
+            return []
+        chart_uids = sorted(
+            {uid for row in rows if (uid := self._row_chart_uid(row))}
+        )
+        if not chart_uids:
+            return []
+        try:
+            charts_by_uid = db.load_charts_by_uids(chart_uids)
+        except Exception:
+            return []
+        is_placeholder = getattr(self.host, "_is_placeholder_chart", None)
+        charts: list[Any] = []
+        for chart_uid in chart_uids:
+            chart = charts_by_uid.get(chart_uid)
+            if chart is None:
+                chart = charts_by_uid.get(chart_uid.upper())
+            if chart is None:
+                continue
+            if callable(is_placeholder) and is_placeholder(chart):
+                continue
+            charts.append(chart)
+        return charts
+
+    def _significance_correction(self) -> str:
+        settings = getattr(self.host, "settings", None)
+        if settings is None:
+            settings = getattr(self.host, "_settings", None)
+        if settings is None or not hasattr(settings, "value"):
+            return SIGNIFICANCE_CORRECTION_DEFAULT
+        return load_significance_correction(settings)
+
+    def _refresh_cohort_metadata(self, chart_ids: list[int]) -> None:
+        selected_ids = self._selected_cohort_ids(chart_ids)
+        uid_map = self.host._chart_uids_by_local_row_id(selected_ids)
+        self._cohort_chart_uids = chart_uids_from_mapping(uid_map)
+        selected_charts = self._selected_charts(selected_ids)
+        self._cohort_gender_distribution = build_gender_distribution(
+            selected_charts,
+            self._database_charts(),
+            correction=self._significance_correction(),
+        )
+        self._render_gender_distribution()
+
+    def _render_gender_distribution(self) -> None:
+        toggle = self.gender_distribution_toggle
+        section_list = self.gender_distribution_list
+        if toggle is None or section_list is None:
+            return
+        distribution = self._cohort_gender_distribution
+        significant = bool(
+            isinstance(distribution, Mapping)
+            and distribution.get("statisticallySignificant")
+        )
+        toggle.setVisible(significant)
+        section_list.setVisible(significant and bool(toggle.isChecked()))
+        section_list.clear()
+        if not significant or not isinstance(distribution, Mapping):
+            return
+
+        counts = distribution.get("counts", {})
+        percentages = distribution.get("percentages", {})
+        database_percentages = distribution.get("databasePercentages", {})
+        significance = distribution.get("significance", {})
+        if not isinstance(counts, Mapping):
+            return
+        for label in counts:
+            selected_percent = float(percentages.get(label, 0.0)) if isinstance(percentages, Mapping) else 0.0
+            database_percent = (
+                float(database_percentages.get(label, 0.0))
+                if isinstance(database_percentages, Mapping)
+                else 0.0
+            )
+            result = significance.get(label, {}) if isinstance(significance, Mapping) else {}
+            marker = " *" if isinstance(result, Mapping) and result.get("significant") else ""
+            section_list.addItem(
+                f"{label}: {selected_percent:.1f}% (DB {database_percent:.1f}%, "
+                f"{selected_percent - database_percent:+.1f} pp){marker}"
+            )
+        section_list.setToolTip("* statistically significant after the configured multiple-testing correction")
+
+    def _export_json_with_cohort_metadata(self) -> None:
+        """Run the legacy file dialog/export path with an enriched pure builder.
+
+        This temporarily replaces only the builder reference used by the legacy
+        export method.  File selection, formatting, error handling, and all other
+        legacy behavior remain unchanged, while no source change is required in
+        ``app.py``.
+        """
+        legacy_export = self._legacy_export_similarities_analysis_json
+        if not callable(legacy_export):
+            return
+
+        legacy_function = getattr(legacy_export, "__func__", legacy_export)
+        legacy_globals = getattr(legacy_function, "__globals__", None)
+        global_builder = (
+            legacy_globals.get("build_similarities_json_export_payload")
+            if isinstance(legacy_globals, dict)
+            else None
+        )
+        module_builder = similarities_export.build_similarities_json_export_payload
+        base_builder = global_builder if callable(global_builder) else module_builder
+
+        def enriched_builder(selection_name: str, export_sections: Any, *args: Any, **kwargs: Any):
+            payload = base_builder(selection_name, export_sections, *args, **kwargs)
+            inject_trait_cohort_metadata(
+                payload,
+                selection_name,
+                chart_uids=self._cohort_chart_uids,
+                gender_distribution=self._cohort_gender_distribution,
+            )
+            return payload
+
+        if isinstance(legacy_globals, dict) and callable(global_builder):
+            legacy_globals["build_similarities_json_export_payload"] = enriched_builder
+        similarities_export.build_similarities_json_export_payload = enriched_builder
+        try:
+            legacy_export()
+        finally:
+            similarities_export.build_similarities_json_export_payload = module_builder
+            if isinstance(legacy_globals, dict) and callable(global_builder):
+                legacy_globals["build_similarities_json_export_payload"] = global_builder
