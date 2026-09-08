@@ -5,6 +5,6 @@ Similarities Analysis panel while preserving the existing calculation helpers
 in their original modules during the migration.
 """
 
-from .controller import SimilaritiesController
+from .cohort_controller import SimilaritiesController
 
 __all__ = ["SimilaritiesController"]
