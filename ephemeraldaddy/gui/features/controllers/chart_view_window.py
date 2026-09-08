@@ -1927,6 +1927,11 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         save_section_expanded(owner, "predictions", section_key, expanded)
         owner._set_chart_analysis_section_expanded(section_key, expanded)
 
+    def traits_toggled(expanded: bool) -> None:
+        """Persist only an actual toggle change, never cache hydration."""
+        save_section_expanded(owner, "predictions", "traits", expanded)
+        sync_traits_prediction_section_expansion(owner, expanded)
+
     owner.predictions_background_status_label = QLabel("Predictions render on demand in the background.")
     owner.predictions_background_status_label.setTextFormat(Qt.RichText)
     owner.predictions_background_status_label.setWordWrap(True)
@@ -1969,10 +1974,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Traits",
         expanded=prediction_expanded("traits"),
-        on_toggled=lambda expanded: (
-            save_section_expanded(owner, "predictions", "traits", expanded),
-            sync_traits_prediction_section_expansion(owner, expanded),
-        ),
+        on_toggled=traits_toggled,
         section_key="traits",
     )
     register_prediction_section("traits", traits_section_layout)

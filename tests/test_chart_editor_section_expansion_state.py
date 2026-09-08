@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from ephemeraldaddy.gui.features.charts.right_panel_state import (
     SECTION_EXPANSION_SETTINGS_PREFIX,
     save_section_expanded,
@@ -59,3 +61,17 @@ def test_qsettings_string_booleans_are_coerced_safely():
 
     assert saved_section_expanded(owner, "predictions", "ocean") is True
     assert saved_section_expanded(owner, "predictions", "enneagram") is False
+
+
+def test_cached_traits_hydration_does_not_force_open_the_user_collapsed_section():
+    source = (
+        Path(__file__).parents[1]
+        / "ephemeraldaddy/gui/features/charts/trait_predictions.py"
+    ).read_text()
+    render_source = source.split("def render_traits_predictions", 1)[1]
+    cached_branch = render_source.split("if isinstance(cached_metadata, dict):", 1)[1].split(
+        "was_expanded = _traits_prediction_section_expanded(owner)", 1
+    )[0]
+
+    assert "set_section_checked" not in cached_branch
+    assert "_set_traits_prediction_section_expanded" not in cached_branch
