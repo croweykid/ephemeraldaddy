@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import (
@@ -19,26 +20,29 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.core.composite import (
     BodyPosition,
+    COMPOSITE_ASPECT_TYPES,
+    PERSONAL_TRANSIT_MAX_ORB_DEG,
     PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
     angular_distance,
     personal_transit_rules_for_mode,
 )
+from ephemeraldaddy.core.db import get_current_chart_uid, load_chart_by_uid
 from ephemeraldaddy.core.ephemeris import planetary_longitude
 from ephemeraldaddy.core.interpretations import (
     ASTEROIDS,
     BLACK_MOON_LILITH,
     EPHEMERIS_MAX_DATE,
+    MAJOR_ASPECTS,
     NODES,
     OUTER_PLANETS,
+    PERSONAL,
 )
-
 
 DEFAULT_TIMELINE_YEARS = 120
 DEFAULT_SCAN_STEP_DAYS = 2
 _BOUNDARY_REFINEMENT_STEPS = 14
+_SUPPLEMENTAL_MAJOR_BODIES = frozenset({"Jupiter", "Saturn", "Chiron"})
 
-# Stable display order. The membership filters below remain authoritative, so
-# changes to the app's existing transit categories automatically flow through.
 _BODY_DISPLAY_ORDER = (
     "Jupiter",
     "Saturn",
@@ -108,10 +112,29 @@ class PersonalTimelineWindow:
 
 
 def _timeline_transiting_bodies() -> tuple[str, ...]:
-    allowed = set(OUTER_PLANETS) | set(NODES) | set(ASTEROIDS) | set(BLACK_MOON_LILITH)
+    existing_life_forecast = (
+        set(OUTER_PLANETS) | set(NODES) | set(ASTEROIDS) | set(BLACK_MOON_LILITH)
+    )
+    allowed = existing_life_forecast | set(_SUPPLEMENTAL_MAJOR_BODIES)
     ordered = [body for body in _BODY_DISPLAY_ORDER if body in allowed]
     ordered.extend(sorted(allowed.difference(ordered)))
     return tuple(ordered)
+
+
+def _supplemental_definition_allowed(
+    transit_name: str,
+    natal_name: str,
+    aspect_angle: int,
+) -> bool:
+    if transit_name not in _SUPPLEMENTAL_MAJOR_BODIES:
+        return False
+    if aspect_angle not in MAJOR_ASPECTS:
+        return False
+    if transit_name in {"Jupiter", "Saturn"}:
+        return natal_name in PERSONAL or natal_name in OUTER_PLANETS
+    if transit_name == "Chiron":
+        return natal_name in PERSONAL or natal_name == "Chiron"
+    return False
 
 
 def _build_transit_definitions(chart: Any) -> tuple[TimelineTransitDefinition, ...]:
@@ -119,8 +142,9 @@ def _build_transit_definitions(chart: Any) -> tuple[TimelineTransitDefinition, .
     if not positions:
         return ()
 
-    rules = personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
-    definitions: list[TimelineTransitDefinition] = []
+    life_rules = personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
+    definitions: dict[tuple[str, str, str], TimelineTransitDefinition] = {}
+
     for transit_name in _timeline_transiting_bodies():
         transit_probe = BodyPosition(name=transit_name, lon_deg=0.0, layer="transit")
         for natal_name, raw_natal_lon in positions.items():
@@ -130,32 +154,47 @@ def _build_transit_definitions(chart: Any) -> tuple[TimelineTransitDefinition, .
                 natal_lon = float(raw_natal_lon) % 360.0
             except (TypeError, ValueError):
                 continue
-            natal_probe = BodyPosition(name=str(natal_name), lon_deg=natal_lon, layer="natal")
-            if rules.pair_filter and not rules.pair_filter(
-                transit_probe,
-                natal_probe,
-                rules.context,
-            ):
-                continue
-            for aspect in rules.aspect_types:
-                allowed_orb = (
-                    rules.orb_table(transit_probe, natal_probe, aspect, rules.context)
-                    if rules.orb_table
-                    else aspect.orb_deg
-                )
+            natal_name = str(natal_name)
+            natal_probe = BodyPosition(name=natal_name, lon_deg=natal_lon, layer="natal")
+
+            existing_pair_allowed = bool(
+                life_rules.pair_filter is None
+                or life_rules.pair_filter(transit_probe, natal_probe, life_rules.context)
+            )
+
+            for aspect in COMPOSITE_ASPECT_TYPES:
+                allowed_orb = 0.0
+                if existing_pair_allowed:
+                    allowed_orb = (
+                        life_rules.orb_table(
+                            transit_probe,
+                            natal_probe,
+                            aspect,
+                            life_rules.context,
+                        )
+                        if life_rules.orb_table
+                        else aspect.orb_deg
+                    )
+                if allowed_orb <= 0 and _supplemental_definition_allowed(
+                    transit_name,
+                    natal_name,
+                    int(aspect.angle_deg),
+                ):
+                    allowed_orb = min(float(aspect.orb_deg), PERSONAL_TRANSIT_MAX_ORB_DEG)
                 if allowed_orb <= 0:
                     continue
-                definitions.append(
-                    TimelineTransitDefinition(
-                        transiting_body=transit_name,
-                        natal_body=str(natal_name),
-                        natal_longitude=natal_lon,
-                        aspect_name=aspect.name,
-                        aspect_angle=float(aspect.angle_deg),
-                        orb_deg=float(allowed_orb),
-                    )
+
+                definition = TimelineTransitDefinition(
+                    transiting_body=transit_name,
+                    natal_body=natal_name,
+                    natal_longitude=natal_lon,
+                    aspect_name=aspect.name,
+                    aspect_angle=float(aspect.angle_deg),
+                    orb_deg=float(allowed_orb),
                 )
-    return tuple(definitions)
+                definitions[definition.key] = definition
+
+    return tuple(definitions.values())
 
 
 def _aspect_orb(transit_longitude: float, definition: TimelineTransitDefinition) -> float:
@@ -168,9 +207,10 @@ def _definition_is_active(
     definition: TimelineTransitDefinition,
 ) -> bool:
     longitude = planetary_longitude(when, definition.transiting_body)
-    if longitude is None:
-        return False
-    return _aspect_orb(longitude, definition) <= definition.orb_deg
+    return bool(
+        longitude is not None
+        and _aspect_orb(longitude, definition) <= definition.orb_deg
+    )
 
 
 def _refine_boundary(
@@ -200,7 +240,6 @@ def _add_years_clamped(value: datetime.datetime, years: int) -> datetime.datetim
     try:
         return value.replace(year=value.year + years)
     except ValueError:
-        # February 29 on a non-leap target year.
         return value.replace(month=2, day=28, year=value.year + years)
 
 
@@ -242,12 +281,11 @@ def generate_personal_timeline(
     progress: Callable[[int, int], None] | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> list[PersonalTimelineWindow]:
-    """Generate continuous Life Forecast transit ranges for one Chart UID.
+    """Generate continuous major-life transit ranges for one Chart UID.
 
-    The set of eligible body pairs, aspects, and orbs comes directly from
-    ``personal_transit_rules_for_mode('life_forecast')``. This module therefore
-    does not maintain a second definition of what counts as a major life
-    transit.
+    Existing Personal Transit Life Forecast eligibility/orbs are the base. The
+    Timeline additionally includes Jupiter, Saturn, and Chiron because those
+    bodies are not currently transiting bodies in the Life Forecast rule set.
     """
     normalized_uid = str(chart_uid or "").strip()
     if not normalized_uid:
@@ -256,14 +294,13 @@ def generate_personal_timeline(
     birth = getattr(chart, "dt", None)
     if not isinstance(birth, datetime.datetime) or birth.tzinfo is None:
         raise ValueError("The selected chart does not have a timezone-aware birth datetime.")
-    if years <= 0:
-        raise ValueError("Timeline years must be greater than zero.")
-    if step_days <= 0:
-        raise ValueError("Timeline scan step must be greater than zero.")
+    if years <= 0 or step_days <= 0:
+        raise ValueError("Timeline years and scan step must be greater than zero.")
 
     definitions = _build_transit_definitions(chart)
     if not definitions:
         return []
+    definition_lookup = {definition.key: definition for definition in definitions}
 
     end = _timeline_end(chart, birth, years)
     if end <= birth:
@@ -287,8 +324,6 @@ def generate_personal_timeline(
             return []
 
         current_active: set[tuple[str, str, str]] = set()
-        definition_by_key: dict[tuple[str, str, str], TimelineTransitDefinition] = {}
-
         for transit_body, body_definitions in definitions_by_body.items():
             longitude = planetary_longitude(current_dt, transit_body)
             if longitude is None:
@@ -296,30 +331,22 @@ def generate_personal_timeline(
             for definition in body_definitions:
                 if _aspect_orb(longitude, definition) <= definition.orb_deg:
                     current_active.add(definition.key)
-                    definition_by_key[definition.key] = definition
 
-        entered = current_active.difference(previous_active)
-        exited = previous_active.difference(current_active)
-
-        for key in entered:
-            definition = definition_by_key[key]
+        for key in current_active.difference(previous_active):
+            definition = definition_lookup[key]
             if current_dt == birth:
-                start = birth
-                truncated = True
+                active_starts[key] = (birth, True)
             else:
-                start = _refine_boundary(previous_dt, current_dt, definition)
-                truncated = False
-            active_starts[key] = (start, truncated)
+                active_starts[key] = (
+                    _refine_boundary(previous_dt, current_dt, definition),
+                    False,
+                )
 
-        for key in exited:
+        for key in previous_active.difference(current_active):
             start_info = active_starts.pop(key, None)
             if start_info is None:
                 continue
-            definition = next(
-                definition
-                for definition in definitions
-                if definition.key == key
-            )
+            definition = definition_lookup[key]
             boundary = _refine_boundary(current_dt, previous_dt, definition)
             start, start_truncated = start_info
             if boundary >= start:
@@ -335,20 +362,18 @@ def generate_personal_timeline(
 
         previous_active = current_active
         previous_dt = current_dt
+        if current_dt >= end:
+            break
         current_dt = min(end, current_dt + step)
         step_index += 1
         if progress is not None and (step_index % 64 == 0 or current_dt >= end):
             progress(min(step_index, total_steps), total_steps)
-        if previous_dt >= end:
-            break
 
-    definitions_lookup = {definition.key: definition for definition in definitions}
     for key, (start, start_truncated) in active_starts.items():
-        definition = definitions_lookup[key]
         results.append(
             PersonalTimelineWindow(
                 chart_uid=normalized_uid,
-                transit=definition,
+                transit=definition_lookup[key],
                 start=start,
                 end=end,
                 start_truncated=start_truncated,
@@ -386,7 +411,7 @@ class _PersonalTimelineWorker(QObject):
 
 
 class PersonalTimelineWindowWidget(QMainWindow):
-    """Non-modal window showing every Life Forecast transit range for one UID."""
+    """Non-modal window showing major life transit ranges for one UID."""
 
     def __init__(self, chart_uid: str, chart: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent, Qt.Window)
@@ -416,10 +441,7 @@ class PersonalTimelineWindowWidget(QMainWindow):
         uid_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(uid_label)
 
-        self.status_label = QLabel(
-            "Generating Life Forecast transit ranges from the chart's birth date…",
-            central,
-        )
+        self.status_label = QLabel("Generating major-life transit ranges…", central)
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
@@ -432,7 +454,6 @@ class PersonalTimelineWindowWidget(QMainWindow):
         self.tree.setHeaderLabels(("Age", "Transit", "Start", "End", "Duration"))
         self.tree.setAlternatingRowColors(True)
         self.tree.setRootIsDecorated(False)
-        self.tree.setSortingEnabled(False)
         header = self.tree.header()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -461,12 +482,11 @@ class PersonalTimelineWindowWidget(QMainWindow):
 
     def _on_progress(self, current: int, total: int) -> None:
         if total <= 0:
-            self.progress_bar.setRange(0, 0)
             return
         self.progress_bar.setRange(0, total)
         self.progress_bar.setValue(current)
         percent = int(round((current / total) * 100.0))
-        self.status_label.setText(f"Generating Life Forecast transit ranges… {percent}%")
+        self.status_label.setText(f"Generating major-life transit ranges… {percent}%")
 
     def _on_finished(self, windows: object) -> None:
         self.progress_bar.setRange(0, 1)
@@ -475,17 +495,15 @@ class PersonalTimelineWindowWidget(QMainWindow):
         self._populate(timeline_windows)
         self.status_label.setText(
             f"{len(timeline_windows):,} transit ranges. "
-            "Eligibility and orbs use the existing Personal Transit Life Forecast rules."
+            "Existing Life Forecast rules + Jupiter, Saturn, and Chiron."
         )
         self._worker = None
-        self._thread = None
 
     def _on_failed(self, message: str) -> None:
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(0)
         self.status_label.setText(f"Could not generate Personal Timeline: {message}")
         self._worker = None
-        self._thread = None
 
     def _populate(self, windows: Iterable[PersonalTimelineWindow]) -> None:
         self.tree.clear()
@@ -497,25 +515,25 @@ class PersonalTimelineWindowWidget(QMainWindow):
                 0.0,
                 (window.midpoint - birth).total_seconds() / (365.2425 * 86400.0),
             )
-            start_suffix = "*" if window.start_truncated else ""
-            end_suffix = "*" if window.end_truncated else ""
             duration = window.duration_days
-            if duration >= 365.0:
-                duration_text = f"{duration / 365.2425:.1f} y"
-            elif duration >= 60.0:
-                duration_text = f"{duration / 30.4375:.1f} mo"
-            else:
-                duration_text = f"{duration:.0f} d"
-            item = QTreeWidgetItem(
-                (
-                    f"{age_years:.1f}",
-                    window.transit.label,
-                    f"{window.start:%Y-%m-%d}{start_suffix}",
-                    f"{window.end:%Y-%m-%d}{end_suffix}",
-                    duration_text,
+            duration_text = (
+                f"{duration / 365.2425:.1f} y"
+                if duration >= 365.0
+                else f"{duration / 30.4375:.1f} mo"
+                if duration >= 60.0
+                else f"{duration:.0f} d"
+            )
+            self.tree.addTopLevelItem(
+                QTreeWidgetItem(
+                    (
+                        f"{age_years:.1f}",
+                        window.transit.label,
+                        f"{window.start:%Y-%m-%d}{'*' if window.start_truncated else ''}",
+                        f"{window.end:%Y-%m-%d}{'*' if window.end_truncated else ''}",
+                        duration_text,
+                    )
                 )
             )
-            self.tree.addTopLevelItem(item)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
         if self._thread is not None and self._thread.isRunning():
@@ -523,31 +541,10 @@ class PersonalTimelineWindowWidget(QMainWindow):
         super().closeEvent(event)
 
 
-def _current_chart_from_owner(owner: Any) -> Any | None:
-    candidates = [owner]
-    app_owner = getattr(owner, "_app_owner", None)
-    if app_owner is not None:
-        candidates.append(app_owner)
-    owner_method = getattr(owner, "_owner_window", None)
-    if callable(owner_method):
-        try:
-            resolved = owner_method()
-        except Exception:
-            resolved = None
-        if resolved is not None:
-            candidates.append(resolved)
-
-    for candidate in candidates:
-        chart = getattr(candidate, "_latest_chart", None)
-        if chart is not None:
-            return chart
-    return None
-
-
 def open_personal_timeline_for_window(owner: QWidget) -> PersonalTimelineWindowWidget | None:
-    """Open a timeline for the chart currently loaded in Chart View."""
-    chart = _current_chart_from_owner(owner)
-    if chart is None:
+    """Load the current chart by authoritative UID and open its timeline."""
+    chart_uid = get_current_chart_uid()
+    if not chart_uid:
         QMessageBox.information(
             owner,
             "Personal Timeline",
@@ -555,12 +552,13 @@ def open_personal_timeline_for_window(owner: QWidget) -> PersonalTimelineWindowW
         )
         return None
 
-    chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
-    if not chart_uid:
+    try:
+        chart = load_chart_by_uid(chart_uid)
+    except Exception as exc:
         QMessageBox.warning(
             owner,
             "Personal Timeline",
-            "The current chart does not have a Chart UID, so its timeline cannot be generated.",
+            f"Could not load Chart UID {chart_uid}: {exc}",
         )
         return None
 
