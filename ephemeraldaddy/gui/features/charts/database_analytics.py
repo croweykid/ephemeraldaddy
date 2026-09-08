@@ -5729,6 +5729,8 @@ class DatabaseAnalyticsChartsMixin:
         trait_items: list[dict[str, Any]] | None = None,
         trait_signature: tuple[tuple[str, str, str], ...] | None = None,
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
+        progress_callback: Callable[[float], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         """Expose shared trait analytics to Predictions through permanent UIDs only.
 
@@ -5756,6 +5758,8 @@ class DatabaseAnalyticsChartsMixin:
             trait_items=trait_items,
             trait_signature=trait_signature,
             time_budget_seconds=time_budget_seconds,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
         )
 
     def _schedule_traits_distribution_warm_refresh(self) -> None:

@@ -198,8 +198,11 @@ def test_rankings_panel_warms_only_the_selected_trait_on_a_worker_thread():
     assert "self._start_rankings_trait_worker(" in method
     assert "QTimer.singleShot(0, continue_ranking)" not in ranking_panel_source
     assert "time_budget_seconds=None" in worker
+    assert "_collect_traits_distribution_analytics_by_uids" in worker
     assert "worker.moveToThread(thread)" in ranking_panel_source
     assert "worker.progress.connect" in ranking_panel_source
+    assert "_rankings_traits_worker_jobs" in ranking_panel_source
+    assert "_rankings_traits_pending_job" in ranking_panel_source
     assert "parsed_percent=100.0" in ranking_panel_source
 
 

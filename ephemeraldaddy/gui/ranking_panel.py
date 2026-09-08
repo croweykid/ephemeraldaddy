@@ -59,22 +59,22 @@ class _RankingsTraitWorker(QObject):
         self,
         owner: Any,
         token: object,
-        chart_ids: list[int] | set[int],
+        chart_uids: tuple[str, ...],
         trait_items: list[dict[str, Any]],
         trait_signature: tuple[tuple[str, str, str], ...],
     ) -> None:
         super().__init__()
         self._owner = owner
         self._token = token
-        self._chart_ids = chart_ids
+        self._chart_uids = chart_uids
         self._trait_items = trait_items
         self._trait_signature = trait_signature
 
     @Slot()
     def run(self) -> None:
         try:
-            result = self._owner._collect_traits_distribution_analytics(
-                self._chart_ids,
+            result = self._owner._collect_traits_distribution_analytics_by_uids(
+                self._chart_uids,
                 trait_items=self._trait_items,
                 trait_signature=self._trait_signature,
                 time_budget_seconds=None,
@@ -526,32 +526,61 @@ class RankingsPanelMixin:
     def _start_rankings_trait_worker(
         self,
         selected_trait_name: str,
-        database_chart_ids: list[int] | set[int],
+        database_chart_uids: tuple[str, ...],
         trait_items: list[dict[str, Any]],
         trait_signature: tuple[tuple[str, str, str], ...],
         snapshot_database_values: dict[str, float],
     ) -> None:
         """Run the formerly timer-sliced scoring collector in one worker thread."""
-        active_thread = getattr(self, "_rankings_traits_thread", None)
-        active_token = getattr(self, "_rankings_traits_worker_token", None)
         token = (
             selected_trait_name,
             int(getattr(self, "_database_metrics_cache_revision", 0)),
+            database_chart_uids,
             trait_signature,
         )
-        if isinstance(active_thread, QThread) and active_thread.isRunning():
-            if active_token == token:
+        active_job = getattr(self, "_rankings_traits_active_job", None)
+        if active_job is not None:
+            active_thread, _active_worker, active_token = active_job
+            if isinstance(active_thread, QThread) and active_thread.isRunning():
+                if active_token == token:
+                    return
+                self._rankings_traits_worker_token = token
+                self._rankings_traits_pending_job = (
+                    token,
+                    database_chart_uids,
+                    trait_items,
+                    trait_signature,
+                    snapshot_database_values,
+                )
+                active_thread.requestInterruption()
                 return
-            active_thread.requestInterruption()
+            self._on_rankings_trait_thread_stopped()
+            if getattr(self, "_rankings_traits_active_job", None) is not None:
+                return
 
         self._rankings_traits_worker_token = token
         self._rankings_traits_worker_context = snapshot_database_values
+        self._launch_rankings_trait_worker(
+            token, database_chart_uids, trait_items, trait_signature
+        )
+
+    def _launch_rankings_trait_worker(
+        self,
+        token: object,
+        database_chart_uids: tuple[str, ...],
+        trait_items: list[dict[str, Any]],
+        trait_signature: tuple[tuple[str, str, str], ...],
+    ) -> None:
         thread = QThread(self if isinstance(self, QObject) else None)
         worker = _RankingsTraitWorker(
-            self, token, list(database_chart_ids), trait_items, trait_signature
+            self, token, database_chart_uids, trait_items, trait_signature
         )
-        self._rankings_traits_thread = thread
-        self._rankings_traits_worker = worker
+        self._rankings_traits_active_job = (thread, worker, token)
+        jobs = getattr(self, "_rankings_traits_worker_jobs", None)
+        if not isinstance(jobs, list):
+            jobs = []
+            self._rankings_traits_worker_jobs = jobs
+        jobs.append((thread, worker, token))
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.progress.connect(self._on_rankings_trait_progress, Qt.QueuedConnection)
@@ -561,21 +590,50 @@ class RankingsPanelMixin:
         worker.failed.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         worker.failed.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._on_rankings_trait_thread_stopped, Qt.QueuedConnection)
         thread.start()
+
+    @Slot()
+    def _on_rankings_trait_thread_stopped(self) -> None:
+        active_job = getattr(self, "_rankings_traits_active_job", None)
+        if active_job is None:
+            return
+        thread, _worker, _token = active_job
+        if thread.isRunning():
+            return
+        jobs = getattr(self, "_rankings_traits_worker_jobs", [])
+        if active_job in jobs:
+            jobs.remove(active_job)
+        self._rankings_traits_active_job = None
+        thread.deleteLater()
+        pending = getattr(self, "_rankings_traits_pending_job", None)
+        self._rankings_traits_pending_job = None
+        if pending is None:
+            return
+        token, chart_uids, trait_items, trait_signature, snapshot_values = pending
+        if token != getattr(self, "_rankings_traits_worker_token", None):
+            return
+        self._rankings_traits_worker_context = snapshot_values
+        self._launch_rankings_trait_worker(
+            token, chart_uids, trait_items, trait_signature
+        )
 
     def _stop_rankings_trait_worker(self, wait_msecs: int | None = None) -> None:
         """Stop cache population before the Database View owner is destroyed."""
         self._rankings_traits_worker_token = None
-        thread = getattr(self, "_rankings_traits_thread", None)
-        if not isinstance(thread, QThread) or not thread.isRunning():
-            return
-        thread.requestInterruption()
-        thread.quit()
-        if wait_msecs is None:
-            thread.wait()
-        else:
-            thread.wait(max(0, int(wait_msecs)))
+        self._rankings_traits_pending_job = None
+        jobs = list(getattr(self, "_rankings_traits_worker_jobs", []))
+        for thread, _worker, _token in jobs:
+            if isinstance(thread, QThread) and thread.isRunning():
+                thread.requestInterruption()
+                thread.quit()
+        for thread, _worker, _token in jobs:
+            if not isinstance(thread, QThread) or not thread.isRunning():
+                continue
+            if wait_msecs is None:
+                thread.wait()
+            else:
+                thread.wait(max(0, int(wait_msecs)))
 
     @Slot(object, float)
     def _on_rankings_trait_progress(self, token: object, parsed_percent: float) -> None:
@@ -594,7 +652,7 @@ class RankingsPanelMixin:
             return
         analytics = result if isinstance(result, dict) else {}
         trait_name = str(token[0])
-        trait_signature = token[2]
+        trait_signature = token[3]
         chart_count = max(0, int(analytics.get("chart_count", 0)))
         totals = analytics.get("totals", {})
         database_values = {
@@ -697,7 +755,7 @@ class RankingsPanelMixin:
             if not database_values:
                 self._start_rankings_trait_worker(
                     selected_trait_name,
-                    database_chart_ids,
+                    tuple(sorted(database_chart_uids)),
                     ranking_trait_items,
                     trait_signature,
                     snapshot_database_values,
