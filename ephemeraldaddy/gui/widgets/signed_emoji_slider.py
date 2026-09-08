@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QSlider, QStyle, QStyleOptionSlider, QWidget
 
 
 class SignedEmojiSlider(QSlider):
     """Horizontal -10…10 slider with an emoji marker tracking score thresholds."""
+
+    userActivated = Signal(int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(Qt.Horizontal, parent)
@@ -57,6 +59,15 @@ class SignedEmojiSlider(QSlider):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._position_emoji_marker()
+
+    def mouseReleaseEvent(self, event) -> None:
+        super().mouseReleaseEvent(event)
+        self.userActivated.emit(self.value())
+
+    def keyPressEvent(self, event) -> None:
+        super().keyPressEvent(event)
+        if event.key() in {Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space}:
+            self.userActivated.emit(self.value())
 
     def _position_emoji_marker(self) -> None:
         option = QStyleOptionSlider()

@@ -110,3 +110,24 @@ def test_batch_refresh_reuses_already_resolved_charts():
     assert "chart for _chart_id, chart in resolved_items" in app_source
     assert "def refresh(self, charts: Iterable[Any])" in batch_editor_source
     assert "chart_for_uid" not in batch_editor_source
+
+
+def test_blank_and_zero_states_have_distinct_interaction_paths():
+    chart_editor_source = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/chart_editor/cultural_contribution.py"
+    ).read_text()
+    batch_editor_source = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/database_view/batch_editor/cultural_contribution.py"
+    ).read_text()
+    slider_source = (
+        REPO_ROOT / "ephemeraldaddy/gui/widgets/signed_emoji_slider.py"
+    ).read_text()
+
+    assert "self.slider.userActivated.connect(self._on_user_activated)" in chart_editor_source
+    assert "self.userActivated.emit(self.value())" in slider_source
+    assert "selected_value = values[0] if values else None" in batch_editor_source
+    assert "Cultural contribution score: blank" in batch_editor_source
+    assert "Cultural contribution score: mixed" in batch_editor_source
+    assert "def _normalized_value(value: Any) -> int | None" in batch_editor_source

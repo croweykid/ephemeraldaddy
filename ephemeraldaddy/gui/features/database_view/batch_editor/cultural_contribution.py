@@ -50,15 +50,17 @@ class CulturalContributionBatchEditor:
             self._normalized_value(getattr(chart, "cultural_contribution_score", None))
             for chart in charts
         ]
-        value = values[0] if values else 0
+        selected_value = values[0] if values else None
+        value = selected_value if selected_value is not None else 0
+        mixed = len(set(values)) > 1
         self.slider.blockSignals(True)
         self.slider.setValue(value)
         self.slider.blockSignals(False)
-        self._update_score_label(value)
+        self._update_score_label(value, assigned=selected_value is not None, mixed=mixed)
         self.slider.setToolTip(
             "Selected charts have mixed cultural contribution scores. "
             "Applying will overwrite all selected charts."
-            if len(set(values)) > 1
+            if mixed
             else ""
         )
 
@@ -67,7 +69,7 @@ class CulturalContributionBatchEditor:
         self.slider.setValue(0)
         self.slider.blockSignals(False)
         self.slider.setToolTip("")
-        self._update_score_label(0)
+        self._update_score_label(0, assigned=False)
 
     def apply(self) -> None:
         chart_uids = self._callbacks.selected_chart_uids()
@@ -99,12 +101,22 @@ class CulturalContributionBatchEditor:
         self._callbacks.refresh_selection()
         self._callbacks.refresh_filters(changed_ids)
 
-    def _update_score_label(self, value: int) -> None:
-        self.score_label.setText(f"Cultural contribution score: {int(value)}")
+    def _update_score_label(
+        self, value: int, *, assigned: bool = True, mixed: bool = False
+    ) -> None:
+        if mixed:
+            text = "Cultural contribution score: mixed"
+        elif assigned:
+            text = f"Cultural contribution score: {int(value)}"
+        else:
+            text = "Cultural contribution score: blank"
+        self.score_label.setText(text)
 
     @staticmethod
-    def _normalized_value(value: Any) -> int:
+    def _normalized_value(value: Any) -> int | None:
+        if value is None:
+            return None
         try:
-            return max(-10, min(10, int(value))) if value is not None else 0
+            return max(-10, min(10, int(value)))
         except (TypeError, ValueError):
-            return 0
+            return None

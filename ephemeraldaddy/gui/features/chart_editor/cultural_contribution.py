@@ -26,9 +26,10 @@ class CulturalContributionController:
         self.subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
         self._assigned = False
         self._programmatic_update = False
-        self.slider.valueChanged.connect(self._on_value_changed)
-        self._update_score_label()
         self._on_user_change = on_user_change
+        self.slider.valueChanged.connect(self._on_value_changed)
+        self.slider.userActivated.connect(self._on_user_activated)
+        self._update_score_label()
 
     @property
     def assigned(self) -> bool:
@@ -74,6 +75,13 @@ class CulturalContributionController:
     def _on_value_changed(self, value: int) -> None:
         if not self._programmatic_update:
             self._assigned = True
+        self._update_score_label()
+        self._on_user_change(int(value))
+
+    def _on_user_activated(self, value: int) -> None:
+        if self._programmatic_update or self._assigned:
+            return
+        self._assigned = True
         self._update_score_label()
         self._on_user_change(int(value))
 
