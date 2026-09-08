@@ -6,6 +6,7 @@ from typing import Any
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"
+SETTINGS_KEY_PERCEIVED_ACCURACY_THUMBS_VISIBLE = "display/perceived_accuracy_thumbs_visible"
 
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("name", "Name"),
@@ -37,6 +38,13 @@ def settings_bool(value: object, fallback: bool) -> bool:
     if isinstance(value, (int, float)):
         return bool(value)
     return bool(fallback)
+
+
+def load_perceived_accuracy_thumbs_visible(settings: Any, *, fallback: bool = False) -> bool:
+    return settings_bool(
+        settings.value(SETTINGS_KEY_PERCEIVED_ACCURACY_THUMBS_VISIBLE, int(fallback)),
+        fallback,
+    )
 
 
 def load_database_view_row_info_visibility(settings: Any) -> dict[str, bool]:

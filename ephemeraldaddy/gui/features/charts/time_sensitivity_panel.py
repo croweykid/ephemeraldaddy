@@ -1403,6 +1403,7 @@ class TimeSensitivityPanel(QWidget):
             title="Fine Tune Hourly Scan",
             expanded=False,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+            semantic_key="time_sensitivity_fine_tune",
         )
         fine_tune_layout.addWidget(self.fine_tune_toggle)
 

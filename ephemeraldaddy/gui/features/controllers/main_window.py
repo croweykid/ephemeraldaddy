@@ -171,6 +171,7 @@ class ChartAnalysisSectionsController:
             title=title,
             expanded=expanded,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+            semantic_key=section_key,
         )
         # Keep collapsible headers reachable by keyboard tab navigation while
         # avoiding mouse-click focus, which can make the right-panel scroll area

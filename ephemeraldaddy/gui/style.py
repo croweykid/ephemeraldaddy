@@ -1193,6 +1193,23 @@ DATABASE_VIEW_CHART_LIST_STYLE = (
 COLLAPSIBLE_SECTION_BACKGROUND = COLOR_BG_APP
 COLLAPSIBLE_NESTED_SECTION_BACKGROUND = "#16071f"  # Subtle dark purple for sections containing nested collapsibles.
 COLLAPSIBLE_HEADER_BACKGROUND = COLOR_BG_SURFACE  # Dark charcoal for clickable collapsible headers.
+
+
+def perceived_accuracy_button_style(*, selected: bool) -> str:
+    """Return the shared neutral/recorded style for perceived-accuracy thumbs."""
+    border = "#46c36f" if selected else "transparent"
+    return (
+        "QToolButton { background: transparent; border-radius: 4px; "
+        f"border: 2px solid {border}; padding: 1px 3px; }}"
+        "QToolButton:hover { background: rgba(70, 195, 111, 0.12); }"
+    )
+
+
+CHART_INFORMATION_PANEL_STYLE = (
+    f"QFrame#chart_information_panel {{ background: {APPWIDE_TEXT_INPUT_BACKGROUND_COLOR}; "
+    f"border: 1px solid {APPWIDE_TEXT_INPUT_BORDER_COLOR}; }}"
+    "QFrame#chart_information_panel QTextEdit { border: none; }"
+)
 COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
 COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = (
     f"background-color: {COLLAPSIBLE_NESTED_SECTION_BACKGROUND};"
@@ -1593,6 +1610,7 @@ def configure_collapsible_header_toggle(
     title_alignment: Qt.AlignmentFlag | Qt.Alignment = Qt.AlignLeft,
     hierarchy_level: str = COLLAPSIBLE_HEADER_LEVEL_PARENT,
     title_color: str | None = None,
+    semantic_key: str | None = None,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
     toggle.setCheckable(True)
@@ -1606,6 +1624,8 @@ def configure_collapsible_header_toggle(
     }:
         raise ValueError(f"Unknown collapsible header hierarchy level: {hierarchy_level}")
     toggle.setProperty("collapsibleHeaderLevel", hierarchy_level)
+    if semantic_key:
+        toggle.setProperty("collapsibleSemanticKey", semantic_key)
     is_parent = hierarchy_level == COLLAPSIBLE_HEADER_LEVEL_PARENT
     font_size = (
         COLLAPSIBLE_PARENT_FONT_SIZE_PX if is_parent else COLLAPSIBLE_SUBSECTION_FONT_SIZE_PX

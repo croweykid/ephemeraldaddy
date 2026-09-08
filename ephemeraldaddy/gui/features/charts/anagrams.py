@@ -478,6 +478,7 @@ def build_anagrams_section(
         title="Anagrams",
         expanded=False,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        semantic_key="anagrams",
     )
     anagrams_box_layout.addWidget(toggle)
 
