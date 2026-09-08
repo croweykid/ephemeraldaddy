@@ -4972,6 +4972,11 @@ class DatabaseAnalyticsChartsMixin:
         except (TypeError, ValueError):
             parsed_value = 100.0 if cache_warmed else 0.0
         parsed_label = f"{parsed_value:.1f}".rstrip("0").rstrip(".")
+        if parsed_value >= 100.0:
+            status_text = "Ranking complete · 100% of database charts parsed."
+        else:
+            status_text = f"Current ranking based on {parsed_label}% of DB parsed."
+
         return (
             f"<div style='padding-bottom:3px;'>Top 10 <b>{safe_trait}</b> chart matches in {safe_scope}.</div>"
             "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
@@ -4984,7 +4989,7 @@ class DatabaseAnalyticsChartsMixin:
             f"{''.join(rows)}"
             "</table>"
             "<div style='color:#9a9a9a; padding-top:3px;'>"
-            f"Current ranking based on {parsed_label}% of DB parsed."
+            f"{status_text}"
             "</div>"
         )
 
