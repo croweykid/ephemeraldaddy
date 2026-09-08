@@ -5208,11 +5208,15 @@ class DatabaseAnalyticsChartsMixin:
     def _traits_distribution_chart_tokens(self) -> dict[str, str]:
         """Return stable per-chart birth-data fingerprints keyed by chart UID."""
         cached_tokens = getattr(self, "_traits_distribution_chart_token_cache", None)
-        if isinstance(cached_tokens, dict):
+        chart_rows = getattr(self, "_chart_rows", []) or []
+        rows_identity = id(chart_rows)
+        if isinstance(cached_tokens, dict) and getattr(
+            self, "_traits_distribution_chart_token_cache_rows_identity", None
+        ) == rows_identity:
             return dict(cached_tokens)
         normalize_row = getattr(self, "_normalize_chart_row", None)
         tokens: dict[str, str] = {}
-        for row in getattr(self, "_chart_rows", []) or []:
+        for row in chart_rows:
             normalized = normalize_row(row) if callable(normalize_row) else row
             if normalized is None:
                 continue
@@ -5222,6 +5226,7 @@ class DatabaseAnalyticsChartsMixin:
                 continue
             tokens[chart_uid] = self._stable_traits_metadata_hash(payload)
         self._traits_distribution_chart_token_cache = dict(tokens)
+        self._traits_distribution_chart_token_cache_rows_identity = rows_identity
         return tokens
 
     def _traits_distribution_chart_uid_by_id(self) -> dict[int, str]:
@@ -5477,6 +5482,8 @@ class DatabaseAnalyticsChartsMixin:
         trait_items: list[dict[str, Any]] | None = None,
         trait_signature: tuple[tuple[str, str, str], ...] | None = None,
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
+        progress_callback: Callable[[float], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         """Legacy Database View row-ID adapter for UID-keyed trait analytics.
 
@@ -5565,6 +5572,16 @@ class DatabaseAnalyticsChartsMixin:
         chart_likelihoods_for_metadata: dict[str, dict[str, float]] = {}
         uncached_started_at = time.monotonic()
         for chart_id in normalized_chart_ids:
+            if should_cancel is not None and should_cancel():
+                partial = True
+                break
+            if progress_callback is not None and normalized_chart_ids:
+                # Report only charts whose scoring is already complete.  In
+                # particular, never announce 100% before the last expensive
+                # score has returned.
+                progress_callback(
+                    (float(parsed_chart_count) / float(len(normalized_chart_ids))) * 100.0
+                )
             parsed_chart_count += 1
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
@@ -5636,6 +5653,13 @@ class DatabaseAnalyticsChartsMixin:
                             self._debug_chart_label(chart),
                         )
                         continue
+                    # Scoring a single chart can be expensive.  Authoritative
+                    # chart state may have changed while it was running, so do
+                    # not publish that now-obsolete result after interruption.
+                    if should_cancel is not None and should_cancel():
+                        parsed_chart_count -= 1
+                        partial = True
+                        break
                     likelihoods.update(missing_likelihoods)
                     for trait_key in trait_signature:
                         name = trait_key[0]
@@ -5658,6 +5682,12 @@ class DatabaseAnalyticsChartsMixin:
                     totals[name] += float(likelihoods.get(name, 0.0)) / 100.0
                 except (TypeError, ValueError):
                     continue
+            if progress_callback is not None:
+                progress_callback(
+                    (float(parsed_chart_count) / float(len(normalized_chart_ids))) * 100.0
+                    if normalized_chart_ids
+                    else 100.0
+                )
         result = {
             "trait_names": trait_names,
             "totals": totals,
@@ -5711,6 +5741,8 @@ class DatabaseAnalyticsChartsMixin:
         trait_items: list[dict[str, Any]] | None = None,
         trait_signature: tuple[tuple[str, str, str], ...] | None = None,
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
+        progress_callback: Callable[[float], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         """Expose shared trait analytics to Predictions through permanent UIDs only.
 
@@ -5738,6 +5770,8 @@ class DatabaseAnalyticsChartsMixin:
             trait_items=trait_items,
             trait_signature=trait_signature,
             time_budget_seconds=time_budget_seconds,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
         )
 
     def _schedule_traits_distribution_warm_refresh(self) -> None:
