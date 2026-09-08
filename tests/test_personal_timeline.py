@@ -68,7 +68,7 @@ def test_generate_personal_timeline_refines_continuous_window(monkeypatch) -> No
         ),
     )
 
-    # Linear longitude puts Saturn within 3 degrees of 0 from day 2 through day 6.
+    # Linear longitude puts Saturn within 3 degrees of 0 from day 2 through day 8.
     def fake_longitude(when: datetime.datetime, body_name: str) -> float | None:
         assert body_name == "Saturn"
         elapsed_days = (when - birth).total_seconds() / 86400.0
@@ -86,8 +86,10 @@ def test_generate_personal_timeline_refines_continuous_window(monkeypatch) -> No
     assert len(windows) == 1
     window = windows[0]
     assert window.chart_uid == "ABCDEF1234567890"
-    assert window.start == pytest.approx(birth + datetime.timedelta(days=2), abs=120)
-    assert window.end == pytest.approx(birth + datetime.timedelta(days=8), abs=120)
+    expected_start = birth + datetime.timedelta(days=2)
+    expected_end = birth + datetime.timedelta(days=8)
+    assert abs((window.start - expected_start).total_seconds()) <= 120
+    assert abs((window.end - expected_end).total_seconds()) <= 120
 
 
 def test_known_death_year_without_month_caps_at_year_end() -> None:
