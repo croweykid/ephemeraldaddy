@@ -1584,6 +1584,14 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     )
     layout.addWidget(alignment_box)
 
+    cultural_contribution_box = _build_subjective_notes_metric_section(
+        owner,
+        title="Cultural Contribution",
+        module_key="cultural_contribution",
+        content_builder=lambda content_layout: _populate_cultural_contribution_section(owner, content_layout),
+    )
+    layout.addWidget(cultural_contribution_box)
+
     sexiness_box = _build_subjective_notes_metric_section(
         owner,
         title="Sexiness",
@@ -1655,6 +1663,16 @@ def _populate_alignment_section(owner: QWidget, content_layout: QVBoxLayout) -> 
     content_layout.addWidget(QLabel("😈 Most evil   ⟷   Most altruistic 😇"))
     content_layout.addWidget(owner.alignment_slider)
     content_layout.addWidget(owner.alignment_score_label)
+
+
+def _populate_cultural_contribution_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
+    owner.cultural_contribution_subheader = QLabel()
+    owner.cultural_contribution_subheader.setWordWrap(True)
+    owner.cultural_contribution_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+    content_layout.addWidget(owner.cultural_contribution_subheader)
+    content_layout.addWidget(QLabel("actively detrimental   ⟷   exceptionally useful"))
+    content_layout.addWidget(owner.cultural_contribution_slider)
+    content_layout.addWidget(owner.cultural_contribution_score_label)
 
 
 def _populate_sexiness_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
@@ -2848,6 +2866,11 @@ def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
         "perceived_alignment_subheader": (
             "How ruthlessly self-interested vs genuinely considerate you've observed "
             f"(or suspect) {person_name} to be."
+        ),
+        "cultural_contribution_subheader": (
+            "Regardless of morality or caveats, how much do you think "
+            f"{person_name} has usefully contributed to society & human progress, at large? "
+            "Is/was this a 'useful' entity, in your opinion?"
         ),
         "reminds_me_of_subheader": (
             f"If {person_name} reminds you of someone else in the database, you can make "
