@@ -13954,7 +13954,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.batch_cultural_contribution_editor = CulturalContributionBatchEditor(
             CulturalContributionBatchCallbacks(
                 selected_chart_uids=self._selected_chart_uids,
-                chart_for_uid=self._get_chart_for_filter_by_uid,
                 apply_patch=self._apply_batch_nonastral_patch,
                 confirm=self._confirm_batch_edit,
                 refresh_selection=self._update_batch_edit_state,
@@ -14413,7 +14412,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._batch_last_typology_selection_uids = set(chart_uid_set)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
-        self.batch_cultural_contribution_editor.refresh()
+        self.batch_cultural_contribution_editor.refresh(
+            chart for _chart_id, chart in resolved_items
+        )
         self._batch_last_selection_uids = chart_uid_set
 
     def _update_batch_tag_state(self) -> None:
@@ -26065,6 +26066,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             col = idx // relationship_rows
             relationship_layout.addWidget(checkbox, row + 1, col)
         relationship_widget.setLayout(relationship_layout)
+        self.cultural_contribution_controller = CulturalContributionController(
+            slider_factory=AlignmentEmojiSlider,
+            on_user_change=self._on_sentiment_metric_changed,
+        )
         self._update_observations_relationship_subheaders()
         self.name_edit.textChanged.connect(self._update_observations_relationship_subheaders)
         self.gender_combo.currentIndexChanged.connect(
@@ -26441,10 +26446,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.alignment_slider.valueChanged.connect(self._on_alignment_changed)
         self.alignment_score_label = QLabel()
         self._update_alignment_score_label(self.alignment_slider.value())
-        self.cultural_contribution_controller = CulturalContributionController(
-            slider_factory=AlignmentEmojiSlider,
-            on_user_change=self._on_sentiment_metric_changed,
-        )
         self.sexiness_slider = AlignmentEmojiSlider()
         self.sexiness_slider.valueChanged.connect(self._on_sexiness_changed)
         self.sexiness_score_label = QLabel()
@@ -33354,6 +33355,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.familiarity_spin.setValue(1)
         self.matched_expectations_slider.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
+        self.cultural_contribution_controller.clear()
         self._set_sexiness_score_state(0)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []

@@ -14,7 +14,6 @@ from ephemeraldaddy.core.chart_data_fields import NonastralPatch
 @dataclass(frozen=True)
 class CulturalContributionBatchCallbacks:
     selected_chart_uids: Callable[[], list[str]]
-    chart_for_uid: Callable[[str], Any | None]
     apply_patch: Callable[[Iterable[str], NonastralPatch], set[int]]
     confirm: Callable[[str, int], bool]
     refresh_selection: Callable[[], None]
@@ -45,11 +44,11 @@ class CulturalContributionBatchEditor:
         layout.addWidget(self.apply_button)
         self.clear()
 
-    def refresh(self) -> None:
+    def refresh(self, charts: Iterable[Any]) -> None:
+        """Render state from charts already resolved by the selection refresh."""
         values = [
             self._normalized_value(getattr(chart, "cultural_contribution_score", None))
-            for uid in self._callbacks.selected_chart_uids()
-            if (chart := self._callbacks.chart_for_uid(uid)) is not None
+            for chart in charts
         ]
         value = values[0] if values else 0
         self.slider.blockSignals(True)
