@@ -632,7 +632,11 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     refresh_prediction_norms_snapshot,
     trait_snapshot_averages,
 )
-from ephemeraldaddy.gui.features.charts.right_panel_state import ChartRightPanelState
+from ephemeraldaddy.gui.features.charts.right_panel_state import (
+    ChartRightPanelState,
+    save_section_expanded,
+    saved_section_expanded,
+)
 from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     PersonalTransitLocationError,
     build_personal_transit_header_lines,
@@ -26063,10 +26067,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         sentiment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.sentiment_panel_toggle = QToolButton()
+        sentiment_expanded = saved_section_expanded(
+            self, "observations", "sentiment_types"
+        )
         configure_collapsible_header_toggle(
             self.sentiment_panel_toggle,
             title="💭Sentiment Types",
-            expanded=False,
+            expanded=sentiment_expanded,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         self.sentiment_panel_toggle.toggled.connect(
@@ -26076,8 +26083,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 expanded,
             )
         )
+        self.sentiment_panel_toggle.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "sentiment_types", expanded
+            )
+        )
         sentiment_box_layout.addWidget(self.sentiment_panel_toggle)
-        sentiment_widget.setVisible(False)
+        sentiment_widget.setVisible(sentiment_expanded)
         sentiment_box_layout.addWidget(sentiment_widget)
 
         # Relationship group box container.
@@ -26096,10 +26108,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         relationship_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.relationship_panel_toggle = QToolButton()
+        relationship_expanded = saved_section_expanded(
+            self, "observations", "relationship_types"
+        )
         configure_collapsible_header_toggle(
             self.relationship_panel_toggle,
             title="💭Relationship Types",
-            expanded=False,
+            expanded=relationship_expanded,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         self.relationship_panel_toggle.toggled.connect(
@@ -26109,8 +26124,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 expanded,
             )
         )
+        self.relationship_panel_toggle.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "relationship_types", expanded
+            )
+        )
         relationship_box_layout.addWidget(self.relationship_panel_toggle)
-        relationship_widget.setVisible(False)
+        relationship_widget.setVisible(relationship_expanded)
         relationship_box_layout.addWidget(relationship_widget)
 
         sentiment_relation_layout.addWidget(sentiment_box)
@@ -26130,10 +26150,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         predictability_box.setLayout(predictability_box_layout)
         predictability_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self.predictability_panel_toggle = QToolButton()
+        predictability_expanded = saved_section_expanded(
+            self, "observations", "predictability"
+        )
         configure_collapsible_header_toggle(
             self.predictability_panel_toggle,
             title="💭Predictability",
-            expanded=False,
+            expanded=predictability_expanded,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         predictability_box_layout.addWidget(self.predictability_panel_toggle)
@@ -26158,7 +26181,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 expanded,
             )
         )
-        predictability_content_widget.setVisible(False)
+        self.predictability_panel_toggle.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "predictability", expanded
+            )
+        )
+        predictability_content_widget.setVisible(predictability_expanded)
         predictability_box_layout.addWidget(predictability_content_widget)
         self.predictability_section_box = predictability_box
         predictability_box.setVisible(self._visibility.get("chart_view.predictability"))
@@ -26185,10 +26213,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         reminds_me_of_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.reminds_me_of_panel_toggle = QToolButton()
+        reminds_me_of_expanded = saved_section_expanded(
+            self, "observations", "reminds_me_of"
+        )
         configure_collapsible_header_toggle(
             self.reminds_me_of_panel_toggle,
             title="💭Reminds me of",
-            expanded=False,
+            expanded=reminds_me_of_expanded,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         reminds_me_of_box_layout.addWidget(self.reminds_me_of_panel_toggle)
@@ -26234,7 +26265,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 expanded,
             )
         )
-        reminds_me_of_content_widget.setVisible(False)
+        self.reminds_me_of_panel_toggle.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "reminds_me_of", expanded
+            )
+        )
+        reminds_me_of_content_widget.setVisible(reminds_me_of_expanded)
         reminds_me_of_box_layout.addWidget(reminds_me_of_content_widget)
         sentiment_relation_layout.addWidget(reminds_me_of_box)
         setup_chart_view_emoji_portrait_section(self, sentiment_relation_layout)
@@ -26357,12 +26393,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         relevance_box_layout.setSpacing(6)
         relevance_box.setLayout(relevance_box_layout)
 
-        relevance_header = QLabel("Personal Relevance")
-        relevance_header.setStyleSheet(
-            "QLabel {"
-            "font-weight: 600;"
-            "color: #cfcfcf;"
-            "}"
+        relevance_expanded = saved_section_expanded(
+            self, "observations", "personal_relevance"
+        )
+        relevance_header = QToolButton()
+        configure_collapsible_header_toggle(
+            relevance_header,
+            title="Personal Relevance",
+            expanded=relevance_expanded,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
 
         relevance_content_widget = QWidget()
@@ -26376,8 +26415,20 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.personal_relevance_subheader = QLabel()
         self.personal_relevance_subheader.setWordWrap(True)
         self.personal_relevance_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
-        relevance_box_layout.addWidget(self.personal_relevance_subheader)
-        relevance_content_widget.setVisible(True)
+        sentiment_metrics_layout.addWidget(
+            self.personal_relevance_subheader, 0, 0, 1, 2
+        )
+        relevance_header.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                relevance_header, relevance_content_widget, expanded
+            )
+        )
+        relevance_header.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "personal_relevance", expanded
+            )
+        )
+        relevance_content_widget.setVisible(relevance_expanded)
         relevance_box_layout.addWidget(relevance_content_widget)
         sentiment_metrics_container_layout.addWidget(relevance_box)
         self.positive_sentiment_intensity_spin = QSpinBox()
@@ -26415,22 +26466,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         
         sentiment_metrics_layout.addWidget(
             QLabel("💖 Positive Sentiment Intensity:"),
-            0,
+            1,
             0,
         )
         sentiment_metrics_layout.addWidget(
             self.positive_sentiment_intensity_spin,
-            0,
+            1,
             1,
         )
         sentiment_metrics_layout.addWidget(
             QLabel("💔 Negative Sentiment Intensity:"),
-            1,
+            2,
             0,
         )
         sentiment_metrics_layout.addWidget(
             self.negative_sentiment_intensity_spin,
-            1,
+            2,
             1,
         )
         familiarity_label_widget = QWidget()
@@ -26449,15 +26500,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         familiarity_label_widget.setLayout(familiarity_label_layout)
         sentiment_metrics_layout.addWidget(
             familiarity_label_widget,
-            2,
+            3,
             0,
         )
         sentiment_metrics_layout.addWidget(
             self.familiarity_spin,
-            2,
+            3,
             1,
         )
-        add_chart_editor_personal_relevance_rows(self, sentiment_metrics_layout, first_row=3)
+        add_chart_editor_personal_relevance_rows(
+            self, sentiment_metrics_layout, first_row=4
+        )
         build_subjective_notes_alignment_sections(
             self,
             sentiment_metrics_container_layout,
