@@ -143,6 +143,15 @@ def _bind_menu_callback(menu, label: str, callback: Callable[[], None]) -> None:
     menu.addAction(action)
 
 
+def _open_personal_timeline(owner: "QWidget") -> None:
+    """Open Personal Timeline lazily so window chrome stays cheap to import."""
+    from ephemeraldaddy.gui.features.transits.personal_timeline import (
+        open_personal_timeline_for_window,
+    )
+
+    open_personal_timeline_for_window(owner)
+
+
 def _configure_menu_bar_visibility(menu_bar) -> None:
     """Keep Terminal-launched macOS builds from hiding window_chrome menus.
 
@@ -246,7 +255,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
 
     layout = QVBoxLayout(dialog)
     intro = QLabel("This is not my beautiful house. This is not my beautiful wife. My god. How did I get here?")
-    intro.setStyleSheet(ABOUT_DIALOG_INTRO_STYLE)
+    intro.setStyleSheet(ABOUT_DIALOG_INTENT_STYLE if False else ABOUT_DIALOG_INTRO_STYLE)
     layout.addWidget(intro)
 
     content_view = QTextBrowser(dialog)
@@ -336,6 +345,7 @@ def configure_main_window_chrome(
     chart_menu.addSeparator()
     _bind_menu_action(chart_menu, "🐉 BaZi Chart", window, "on_open_bazi_window")
     _bind_menu_action(chart_menu, "🌎 Personal Transit", window, "on_get_current_transits")
+    _bind_menu_callback(chart_menu, "🗓 Personal Timeline", lambda: _open_personal_timeline(window))
     _bind_menu_action(chart_menu, "Synastry Chart", window, "on_get_synastry_chart")
     if _is_human_design_menu_enabled(window):
         human_design_menu = chart_menu.addMenu("🪷 Human Design Chart")
