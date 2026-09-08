@@ -203,6 +203,8 @@ def test_rankings_panel_warms_only_the_selected_trait_on_a_worker_thread():
     assert "worker.progress.connect" in ranking_panel_source
     assert "_rankings_traits_worker_jobs" in ranking_panel_source
     assert "_rankings_traits_pending_job" in ranking_panel_source
+    assert "authoritative_chart_state" in ranking_panel_source
+    assert "self._traits_distribution_chart_tokens()" in ranking_panel_source
     assert "parsed_percent=100.0" in ranking_panel_source
 
 

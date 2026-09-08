@@ -183,6 +183,20 @@ def test_database_chart_uids_reads_appended_list_charts_uid_slot(monkeypatch):
     assert trait_predictions._database_chart_uids(owner) == ("UIDTRAIT0001",)
 
 
+def test_chart_token_cache_refreshes_when_hydrated_rows_are_replaced():
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[_chart_row(101, "One", "UID101", datetime_iso="2000-01-01T00:00:00")],
+    )
+    original_token = owner._traits_distribution_chart_tokens()["UID101"]
+
+    owner._chart_rows = [
+        _chart_row(101, "One", "UID101", datetime_iso="2001-01-01T00:00:00")
+    ]
+
+    assert owner._traits_distribution_chart_tokens()["UID101"] != original_token
+
+
 def test_traits_distribution_likelihood_cache_persists_across_matching_sessions(tmp_path, monkeypatch):
     from ephemeraldaddy.core import db
 

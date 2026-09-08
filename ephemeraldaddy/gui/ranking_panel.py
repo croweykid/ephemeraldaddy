@@ -532,10 +532,16 @@ class RankingsPanelMixin:
         snapshot_database_values: dict[str, float],
     ) -> None:
         """Run the formerly timer-sliced scoring collector in one worker thread."""
+        chart_tokens = self._traits_distribution_chart_tokens()
+        authoritative_chart_state = tuple(
+            (chart_uid, str(chart_tokens.get(chart_uid, "") or ""))
+            for chart_uid in database_chart_uids
+        )
         token = (
             selected_trait_name,
             int(getattr(self, "_database_metrics_cache_revision", 0)),
             database_chart_uids,
+            authoritative_chart_state,
             trait_signature,
         )
         active_job = getattr(self, "_rankings_traits_active_job", None)
@@ -652,7 +658,7 @@ class RankingsPanelMixin:
             return
         analytics = result if isinstance(result, dict) else {}
         trait_name = str(token[0])
-        trait_signature = token[3]
+        trait_signature = token[4]
         chart_count = max(0, int(analytics.get("chart_count", 0)))
         totals = analytics.get("totals", {})
         database_values = {

@@ -5208,11 +5208,15 @@ class DatabaseAnalyticsChartsMixin:
     def _traits_distribution_chart_tokens(self) -> dict[str, str]:
         """Return stable per-chart birth-data fingerprints keyed by chart UID."""
         cached_tokens = getattr(self, "_traits_distribution_chart_token_cache", None)
-        if isinstance(cached_tokens, dict):
+        chart_rows = getattr(self, "_chart_rows", []) or []
+        rows_identity = id(chart_rows)
+        if isinstance(cached_tokens, dict) and getattr(
+            self, "_traits_distribution_chart_token_cache_rows_identity", None
+        ) == rows_identity:
             return dict(cached_tokens)
         normalize_row = getattr(self, "_normalize_chart_row", None)
         tokens: dict[str, str] = {}
-        for row in getattr(self, "_chart_rows", []) or []:
+        for row in chart_rows:
             normalized = normalize_row(row) if callable(normalize_row) else row
             if normalized is None:
                 continue
@@ -5222,6 +5226,7 @@ class DatabaseAnalyticsChartsMixin:
                 continue
             tokens[chart_uid] = self._stable_traits_metadata_hash(payload)
         self._traits_distribution_chart_token_cache = dict(tokens)
+        self._traits_distribution_chart_token_cache_rows_identity = rows_identity
         return tokens
 
     def _traits_distribution_chart_uid_by_id(self) -> dict[int, str]:
