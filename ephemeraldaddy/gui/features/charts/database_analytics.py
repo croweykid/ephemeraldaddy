@@ -5653,6 +5653,13 @@ class DatabaseAnalyticsChartsMixin:
                             self._debug_chart_label(chart),
                         )
                         continue
+                    # Scoring a single chart can be expensive.  Authoritative
+                    # chart state may have changed while it was running, so do
+                    # not publish that now-obsolete result after interruption.
+                    if should_cancel is not None and should_cancel():
+                        parsed_chart_count -= 1
+                        partial = True
+                        break
                     likelihoods.update(missing_likelihoods)
                     for trait_key in trait_signature:
                         name = trait_key[0]

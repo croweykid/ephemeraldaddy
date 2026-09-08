@@ -297,6 +297,41 @@ def test_traits_distribution_collection_stops_after_time_budget(monkeypatch):
     assert calls == [1]
 
 
+def test_traits_distribution_cancellation_discards_score_completed_after_interrupt(monkeypatch):
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),), chart_rows=[_chart_row(1, "One", "UID1")]
+    )
+    owner._traits_distribution_chart_likelihood_cache = {}
+    owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
+    owner._is_placeholder_chart = lambda _chart: False
+    owner._debug_chart_label = lambda chart: str(chart.get("id"))
+    scoring_finished = False
+
+    def fake_likelihoods(_chart, _trait_items, possible_scores=None):
+        nonlocal scoring_finished
+        scoring_finished = True
+        return {"Creative": 75.0}
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics.calculate_trait_likelihoods",
+        fake_likelihoods,
+    )
+
+    result = owner._collect_traits_distribution_analytics_by_uids(
+        ["UID1"],
+        trait_items=[{"name": "Creative", "profile": {}}],
+        trait_signature=(("Creative", "#ffffff", "{}"),),
+        time_budget_seconds=None,
+        should_cancel=lambda: scoring_finished,
+    )
+
+    assert result["partial"] is True
+    assert result["chart_count"] == 0
+    assert owner._traits_distribution_chart_likelihood_cache == {}
+    assert owner._traits_distribution_individual_likelihood_cache == {}
+    assert owner._traits_distribution_individual_profile_likelihood_cache == {}
+
+
 def test_traits_distribution_collection_uses_warm_cache_past_time_budget(monkeypatch):
     owner = _TraitsCacheOwner(
         (("uid:one", "row"),),

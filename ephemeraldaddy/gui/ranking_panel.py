@@ -537,7 +537,7 @@ class RankingsPanelMixin:
             (chart_uid, str(chart_tokens.get(chart_uid, "") or ""))
             for chart_uid in database_chart_uids
         )
-        token = (
+        job_key = (
             selected_trait_name,
             int(getattr(self, "_database_metrics_cache_revision", 0)),
             database_chart_uids,
@@ -548,8 +548,12 @@ class RankingsPanelMixin:
         if active_job is not None:
             active_thread, _active_worker, active_token = active_job
             if isinstance(active_thread, QThread) and active_thread.isRunning():
-                if active_token == token:
+                if active_token[:-1] == job_key and not active_thread.isInterruptionRequested():
+                    self._rankings_traits_worker_token = active_token
                     return
+                sequence = int(getattr(self, "_rankings_traits_worker_sequence", 0)) + 1
+                self._rankings_traits_worker_sequence = sequence
+                token = (*job_key, sequence)
                 self._rankings_traits_worker_token = token
                 self._rankings_traits_pending_job = (
                     token,
@@ -564,6 +568,9 @@ class RankingsPanelMixin:
             if getattr(self, "_rankings_traits_active_job", None) is not None:
                 return
 
+        sequence = int(getattr(self, "_rankings_traits_worker_sequence", 0)) + 1
+        self._rankings_traits_worker_sequence = sequence
+        token = (*job_key, sequence)
         self._rankings_traits_worker_token = token
         self._rankings_traits_worker_context = snapshot_database_values
         self._launch_rankings_trait_worker(
