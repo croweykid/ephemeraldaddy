@@ -183,6 +183,20 @@ def test_database_chart_uids_reads_appended_list_charts_uid_slot(monkeypatch):
     assert trait_predictions._database_chart_uids(owner) == ("UIDTRAIT0001",)
 
 
+def test_chart_token_cache_refreshes_when_hydrated_rows_are_replaced():
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[_chart_row(101, "One", "UID101", datetime_iso="2000-01-01T00:00:00")],
+    )
+    original_token = owner._traits_distribution_chart_tokens()["UID101"]
+
+    owner._chart_rows = [
+        _chart_row(101, "One", "UID101", datetime_iso="2001-01-01T00:00:00")
+    ]
+
+    assert owner._traits_distribution_chart_tokens()["UID101"] != original_token
+
+
 def test_traits_distribution_likelihood_cache_persists_across_matching_sessions(tmp_path, monkeypatch):
     from ephemeraldaddy.core import db
 
@@ -281,6 +295,41 @@ def test_traits_distribution_collection_stops_after_time_budget(monkeypatch):
     assert result["requested_chart_count"] == 3
     assert result["chart_count"] == 1
     assert calls == [1]
+
+
+def test_traits_distribution_cancellation_discards_score_completed_after_interrupt(monkeypatch):
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),), chart_rows=[_chart_row(1, "One", "UID1")]
+    )
+    owner._traits_distribution_chart_likelihood_cache = {}
+    owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
+    owner._is_placeholder_chart = lambda _chart: False
+    owner._debug_chart_label = lambda chart: str(chart.get("id"))
+    scoring_finished = False
+
+    def fake_likelihoods(_chart, _trait_items, possible_scores=None):
+        nonlocal scoring_finished
+        scoring_finished = True
+        return {"Creative": 75.0}
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics.calculate_trait_likelihoods",
+        fake_likelihoods,
+    )
+
+    result = owner._collect_traits_distribution_analytics_by_uids(
+        ["UID1"],
+        trait_items=[{"name": "Creative", "profile": {}}],
+        trait_signature=(("Creative", "#ffffff", "{}"),),
+        time_budget_seconds=None,
+        should_cancel=lambda: scoring_finished,
+    )
+
+    assert result["partial"] is True
+    assert result["chart_count"] == 0
+    assert owner._traits_distribution_chart_likelihood_cache == {}
+    assert owner._traits_distribution_individual_likelihood_cache == {}
+    assert owner._traits_distribution_individual_profile_likelihood_cache == {}
 
 
 def test_traits_distribution_collection_uses_warm_cache_past_time_budget(monkeypatch):
