@@ -784,10 +784,15 @@ def test_mode_specific_snapshots_describe_the_selected_scorer():
         "use_big_3": True,
         "weight_big_3": 1.0,
         "placement_weighting_mode": "not_applicable",
+        "demographic_match_mode": "none",
     }
     assert comprehensive["weight_placement"] == 0.33
     assert comprehensive["weight_human_design_gates"] == 0.18
+    assert comprehensive["demographic_match_mode"] == "none"
     assert generic["details_available"] is False
     assert "Generic Astro" in generic["details_unavailable_reason"]
+    assert generic["placement_weighting_mode"] == custom.normalized_placement_weighting_mode()
+    assert generic["demographic_match_mode"] == "none"
     assert distinction["details_available"] is False
     assert "Database Distinction" in distinction["details_unavailable_reason"]
+    assert distinction["demographic_match_mode"] == "none"
