@@ -8,11 +8,16 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QGridLayout,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QMainWindow,
     QMessageBox,
     QProgressBar,
+    QPushButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -20,12 +25,9 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.composite import (
-    BodyPosition,
     COMPOSITE_ASPECT_TYPES,
     PERSONAL_TRANSIT_MAX_ORB_DEG,
-    PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
     angular_distance,
-    personal_transit_rules_for_mode,
 )
 from ephemeraldaddy.core.db import get_current_chart_uid, load_chart_by_uid
 from ephemeraldaddy.core.ephemeris import planetary_longitude
@@ -34,16 +36,39 @@ from ephemeraldaddy.core.interpretations import (
     BLACK_MOON_LILITH,
     EPHEMERIS_MAX_DATE,
     EPHEMERIS_MIN_DATE,
-    MAJOR_ASPECTS,
     NODES,
     OUTER_PLANETS,
-    PERSONAL,
+)
+from ephemeraldaddy.gui.features.charts.dominance_relevance import (
+    ChartBodyRelevance,
+    calculate_chart_body_relevance,
+)
+from ephemeraldaddy.gui.features.transits.personal_timeline_filters import (
+    ALL_ASPECT_FAMILIES,
+    ALL_BODY_FAMILIES,
+    BODY_FAMILY_ORDER,
+    CYCLE_SCOPE_COHORT,
+    FILTER_PRESETS,
+    PRESET_ALL,
+    PersonalTimelineFilterState,
+    filter_timeline_windows,
+    metadata_for_window,
+    preset_filter_state,
 )
 
 DEFAULT_TIMELINE_YEARS = 120
 DEFAULT_SCAN_STEP_DAYS = 2
 _BOUNDARY_REFINEMENT_STEPS = 14
-_SUPPLEMENTAL_MAJOR_BODIES = frozenset({"Jupiter", "Saturn", "Chiron"})
+
+# Personal Timeline intentionally starts broad. These are slow/life-scale
+# transiting bodies; the view filters the resulting candidates after generation.
+_TIMELINE_TRANSITING_BODIES = frozenset(
+    set(OUTER_PLANETS)
+    | set(NODES)
+    | set(ASTEROIDS)
+    | set(BLACK_MOON_LILITH)
+    | {"Jupiter", "Saturn", "Chiron"}
+)
 
 _BODY_DISPLAY_ORDER = (
     "Jupiter",
@@ -118,42 +143,25 @@ class PersonalTimelineSelectionError(ValueError):
 
 
 def _timeline_transiting_bodies() -> tuple[str, ...]:
-    life_forecast_bodies = (
-        set(OUTER_PLANETS) | set(NODES) | set(ASTEROIDS) | set(BLACK_MOON_LILITH)
-    )
-    allowed = life_forecast_bodies | set(_SUPPLEMENTAL_MAJOR_BODIES)
-    ordered = [body for body in _BODY_DISPLAY_ORDER if body in allowed]
-    ordered.extend(sorted(allowed.difference(ordered)))
+    ordered = [body for body in _BODY_DISPLAY_ORDER if body in _TIMELINE_TRANSITING_BODIES]
+    ordered.extend(sorted(_TIMELINE_TRANSITING_BODIES.difference(ordered)))
     return tuple(ordered)
 
 
-def _supplemental_definition_allowed(
-    transit_name: str,
-    natal_name: str,
-    aspect_angle: int,
-) -> bool:
-    """Add classic slow-cycle transits omitted by the existing Life Forecast set."""
-    if transit_name not in _SUPPLEMENTAL_MAJOR_BODIES:
-        return False
-    if aspect_angle not in MAJOR_ASPECTS:
-        return False
-    if transit_name in {"Jupiter", "Saturn"}:
-        return natal_name in PERSONAL or natal_name in OUTER_PLANETS
-    if transit_name == "Chiron":
-        return natal_name in PERSONAL or natal_name == "Chiron"
-    return False
-
-
 def _build_transit_definitions(chart: Any) -> tuple[TimelineTransitDefinition, ...]:
+    """Build the broad research candidate set before any display filters apply.
+
+    Every configured aspect type is considered for every slow/life-scale transit
+    body against every natal position available on the chart. Orbs are clamped to
+    the existing Personal Transit maximum so broad coverage does not imply broad
+    orbs. Importance is evaluated later through filters and outcome analysis.
+    """
     positions = dict(getattr(chart, "positions", {}) or {})
     if not positions:
         return ()
 
-    life_rules = personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
     definitions: dict[tuple[str, str, str], TimelineTransitDefinition] = {}
-
     for transit_name in _timeline_transiting_bodies():
-        transit_probe = BodyPosition(name=transit_name, lon_deg=0.0, layer="TRANSIT")
         for natal_name_raw, natal_longitude_raw in positions.items():
             if natal_longitude_raw is None:
                 continue
@@ -163,50 +171,20 @@ def _build_transit_definitions(chart: Any) -> tuple[TimelineTransitDefinition, .
                 continue
 
             natal_name = str(natal_name_raw)
-            natal_probe = BodyPosition(
-                name=natal_name,
-                lon_deg=natal_longitude,
-                layer="NATAL",
-            )
-            existing_pair_allowed = bool(
-                life_rules.pair_filter is None
-                or life_rules.pair_filter(transit_probe, natal_probe, life_rules.context)
-            )
-
             for aspect in COMPOSITE_ASPECT_TYPES:
-                allowed_orb = 0.0
-                if existing_pair_allowed:
-                    allowed_orb = (
-                        life_rules.orb_table(
-                            transit_probe,
-                            natal_probe,
-                            aspect,
-                            life_rules.context,
-                        )
-                        if life_rules.orb_table
-                        else aspect.orb_deg
-                    )
-
-                if allowed_orb <= 0 and _supplemental_definition_allowed(
-                    transit_name,
-                    natal_name,
-                    int(aspect.angle_deg),
-                ):
-                    allowed_orb = min(
-                        float(aspect.orb_deg),
-                        PERSONAL_TRANSIT_MAX_ORB_DEG,
-                    )
-
+                allowed_orb = min(
+                    float(aspect.orb_deg),
+                    float(PERSONAL_TRANSIT_MAX_ORB_DEG),
+                )
                 if allowed_orb <= 0:
                     continue
-
                 definition = TimelineTransitDefinition(
                     transiting_body=transit_name,
                     natal_body=natal_name,
                     natal_longitude=natal_longitude,
                     aspect_name=aspect.name,
                     aspect_angle=float(aspect.angle_deg),
-                    orb_deg=float(allowed_orb),
+                    orb_deg=allowed_orb,
                 )
                 definitions[definition.key] = definition
 
@@ -339,12 +317,7 @@ def generate_personal_timeline(
     progress: Callable[[int, int], None] | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> list[PersonalTimelineWindow]:
-    """Generate continuous major-life transit date ranges for one Chart UID.
-
-    The existing Personal Transit Life Forecast rules are authoritative. Jupiter,
-    Saturn and Chiron major aspects are added because those classic long-cycle
-    transits are not in the current Life Forecast transiting-body set.
-    """
+    """Generate a broad set of continuous life-scale transit date ranges."""
     normalized_uid = str(chart_uid or "").strip().upper()
     if not normalized_uid:
         raise ValueError("Personal Timeline requires a Chart UID.")
@@ -537,7 +510,7 @@ class _PersonalTimelineWorker(QObject):
 
 
 class PersonalTimelineWindowWidget(QMainWindow):
-    """Non-modal window showing major life transit ranges for one Chart UID."""
+    """Filterable non-modal research timeline for one stable Chart UID."""
 
     def __init__(
         self,
@@ -550,10 +523,20 @@ class PersonalTimelineWindowWidget(QMainWindow):
         self.chart = chart
         self._thread: QThread | None = None
         self._worker: _PersonalTimelineWorker | None = None
+        self._all_windows: list[PersonalTimelineWindow] = []
+        self._visible_windows: list[PersonalTimelineWindow] = []
+        self._applying_filter_preset = False
+        self._cohort_only = False
+        try:
+            self._body_relevance: ChartBodyRelevance | None = calculate_chart_body_relevance(
+                chart
+            )
+        except Exception:
+            self._body_relevance = None
 
         chart_name = str(getattr(chart, "name", "Unnamed chart") or "Unnamed chart")
         self.setWindowTitle(f"Personal Timeline — {chart_name}")
-        self.resize(980, 720)
+        self.resize(1180, 760)
 
         central = QWidget(self)
         layout = QVBoxLayout(central)
@@ -561,18 +544,104 @@ class PersonalTimelineWindowWidget(QMainWindow):
         layout.setSpacing(8)
         self.setCentralWidget(central)
 
+        heading_row = QHBoxLayout()
         title = QLabel(f"Personal Timeline — {chart_name}", central)
         title_font = title.font()
         title_font.setPointSize(max(12, title_font.pointSize() + 3))
         title_font.setBold(True)
         title.setFont(title_font)
-        layout.addWidget(title)
+        heading_row.addWidget(title)
+        heading_row.addStretch(1)
+        self.results_button = QPushButton("Results", central)
+        self.results_button.setEnabled(False)
+        self.results_button.setToolTip(
+            "Compare the currently filtered transit set with imported life-event JSON"
+        )
+        self.results_button.clicked.connect(self._open_results)
+        heading_row.addWidget(self.results_button)
+        layout.addLayout(heading_row)
 
         uid_label = QLabel(f"Chart UID: {self.chart_uid}", central)
         uid_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(uid_label)
 
-        self.status_label = QLabel("Generating major-life transit ranges…", central)
+        filters = QWidget(central)
+        filter_grid = QGridLayout(filters)
+        filter_grid.setContentsMargins(0, 0, 0, 0)
+        filter_grid.setHorizontalSpacing(12)
+        filter_grid.setVerticalSpacing(5)
+
+        filter_grid.addWidget(QLabel("Preset:"), 0, 0)
+        self.preset_combo = QComboBox(filters)
+        self.preset_combo.addItem("Custom", None)
+        for label, value in FILTER_PRESETS:
+            self.preset_combo.addItem(label, value)
+        all_index = self.preset_combo.findData(PRESET_ALL)
+        self.preset_combo.setCurrentIndex(max(0, all_index))
+        self.preset_combo.currentIndexChanged.connect(self._preset_changed)
+        filter_grid.addWidget(self.preset_combo, 0, 1)
+
+        filter_grid.addWidget(QLabel("Transit body:"), 0, 2)
+        self.transiting_body_combo = QComboBox(filters)
+        self.transiting_body_combo.addItem("All bodies", None)
+        for body in _timeline_transiting_bodies():
+            self.transiting_body_combo.addItem(body, body)
+        self.transiting_body_combo.currentIndexChanged.connect(self._manual_filter_changed)
+        filter_grid.addWidget(self.transiting_body_combo, 0, 3)
+
+        filter_grid.addWidget(QLabel("Natal target:"), 0, 4)
+        self.natal_body_combo = QComboBox(filters)
+        self.natal_body_combo.addItem("All targets", None)
+        for body in sorted(
+            (str(name) for name, value in (getattr(chart, "positions", {}) or {}).items() if value is not None),
+            key=str.casefold,
+        ):
+            self.natal_body_combo.addItem(body, body)
+        self.natal_body_combo.currentIndexChanged.connect(self._manual_filter_changed)
+        filter_grid.addWidget(self.natal_body_combo, 0, 5)
+
+        filter_grid.addWidget(QLabel("Aspect:"), 0, 6)
+        self.aspect_combo = QComboBox(filters)
+        self.aspect_combo.addItem("All aspects", None)
+        for aspect in COMPOSITE_ASPECT_TYPES:
+            self.aspect_combo.addItem(aspect.name.replace("_", " ").title(), aspect.name)
+        self.aspect_combo.currentIndexChanged.connect(self._manual_filter_changed)
+        filter_grid.addWidget(self.aspect_combo, 0, 7)
+
+        self.body_family_boxes: dict[str, QCheckBox] = {}
+        for index, family in enumerate(BODY_FAMILY_ORDER):
+            checkbox = QCheckBox(family, filters)
+            checkbox.setChecked(True)
+            checkbox.toggled.connect(self._manual_filter_changed)
+            self.body_family_boxes[family] = checkbox
+            filter_grid.addWidget(checkbox, 1, index)
+
+        self.major_aspects_checkbox = QCheckBox("Major aspects", filters)
+        self.major_aspects_checkbox.setChecked(True)
+        self.major_aspects_checkbox.toggled.connect(self._manual_filter_changed)
+        filter_grid.addWidget(self.major_aspects_checkbox, 2, 0, 1, 2)
+
+        self.minor_aspects_checkbox = QCheckBox("Minor aspects", filters)
+        self.minor_aspects_checkbox.setChecked(True)
+        self.minor_aspects_checkbox.toggled.connect(self._manual_filter_changed)
+        filter_grid.addWidget(self.minor_aspects_checkbox, 2, 2, 1, 2)
+
+        self.include_cohort_checkbox = QCheckBox(
+            "Include cohort/generational cycles", filters
+        )
+        self.include_cohort_checkbox.setChecked(True)
+        self.include_cohort_checkbox.toggled.connect(self._manual_filter_changed)
+        filter_grid.addWidget(self.include_cohort_checkbox, 2, 4, 1, 2)
+
+        self.relevant_only_checkbox = QCheckBox("🌟 Relevant only", filters)
+        self.relevant_only_checkbox.setChecked(False)
+        self.relevant_only_checkbox.setEnabled(self._body_relevance is not None)
+        self.relevant_only_checkbox.toggled.connect(self._manual_filter_changed)
+        filter_grid.addWidget(self.relevant_only_checkbox, 2, 6, 1, 2)
+
+        layout.addWidget(filters)
+
+        self.status_label = QLabel("Generating broad transit candidate set…", central)
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
@@ -581,8 +650,10 @@ class PersonalTimelineWindowWidget(QMainWindow):
         layout.addWidget(self.progress_bar)
 
         self.tree = QTreeWidget(central)
-        self.tree.setColumnCount(5)
-        self.tree.setHeaderLabels(("Age", "Transit", "Start", "End", "Duration"))
+        self.tree.setColumnCount(7)
+        self.tree.setHeaderLabels(
+            ("Age", "Transit", "Scope", "Chart relevance", "Start", "End", "Duration")
+        )
         self.tree.setAlternatingRowColors(True)
         self.tree.setRootIsDecorated(False)
         header = self.tree.header()
@@ -591,6 +662,8 @@ class PersonalTimelineWindowWidget(QMainWindow):
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
         layout.addWidget(self.tree, 1)
 
         self._start_generation()
@@ -618,17 +691,14 @@ class PersonalTimelineWindowWidget(QMainWindow):
         self.progress_bar.setRange(0, total)
         self.progress_bar.setValue(current)
         percent = int(round((current / total) * 100.0))
-        self.status_label.setText(f"Generating major-life transit ranges… {percent}%")
+        self.status_label.setText(f"Generating broad transit candidate set… {percent}%")
 
     def _on_finished(self, windows: object) -> None:
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(1)
-        timeline_windows = list(windows) if isinstance(windows, Iterable) else []
-        self._populate(timeline_windows)
-        self.status_label.setText(
-            f"{len(timeline_windows):,} transit ranges. "
-            "Life Forecast rules + Jupiter, Saturn and Chiron major aspects."
-        )
+        self._all_windows = list(windows) if isinstance(windows, Iterable) else []
+        self.results_button.setEnabled(True)
+        self._rerender_filtered()
 
     def _on_failed(self, message: str) -> None:
         self.progress_bar.setRange(0, 1)
@@ -639,6 +709,83 @@ class PersonalTimelineWindowWidget(QMainWindow):
         self._worker = None
         self._thread = None
 
+    def _preset_changed(self, *_args: object) -> None:
+        preset = self.preset_combo.currentData()
+        if preset is None:
+            return
+        state = preset_filter_state(str(preset))
+        self._applying_filter_preset = True
+        try:
+            for family, checkbox in self.body_family_boxes.items():
+                checkbox.setChecked(family in state.body_families)
+            self.major_aspects_checkbox.setChecked("Major aspects" in state.aspect_families)
+            self.minor_aspects_checkbox.setChecked("Minor aspects" in state.aspect_families)
+            self.include_cohort_checkbox.setChecked(state.include_cohort_cycles)
+            self.relevant_only_checkbox.setChecked(
+                state.relevant_only and self._body_relevance is not None
+            )
+            self._cohort_only = state.cohort_only
+            self.transiting_body_combo.setCurrentIndex(0)
+            self.natal_body_combo.setCurrentIndex(0)
+            self.aspect_combo.setCurrentIndex(0)
+        finally:
+            self._applying_filter_preset = False
+        self._rerender_filtered()
+
+    def _manual_filter_changed(self, *_args: object) -> None:
+        if self._applying_filter_preset:
+            return
+        self._cohort_only = False
+        custom_index = self.preset_combo.findData(None)
+        if custom_index >= 0 and self.preset_combo.currentIndex() != custom_index:
+            self.preset_combo.blockSignals(True)
+            self.preset_combo.setCurrentIndex(custom_index)
+            self.preset_combo.blockSignals(False)
+        self._rerender_filtered()
+
+    def _filter_state(self) -> PersonalTimelineFilterState:
+        body_families = frozenset(
+            family for family, checkbox in self.body_family_boxes.items() if checkbox.isChecked()
+        )
+        aspect_families: set[str] = set()
+        if self.major_aspects_checkbox.isChecked():
+            aspect_families.add("Major aspects")
+        if self.minor_aspects_checkbox.isChecked():
+            aspect_families.add("Minor aspects")
+
+        aspect_name = self.aspect_combo.currentData()
+        transiting_body = self.transiting_body_combo.currentData()
+        natal_body = self.natal_body_combo.currentData()
+        return PersonalTimelineFilterState(
+            body_families=body_families,
+            aspect_families=frozenset(aspect_families),
+            aspect_names=frozenset({str(aspect_name)}) if aspect_name else None,
+            transiting_bodies=(frozenset({str(transiting_body)}) if transiting_body else None),
+            natal_bodies=frozenset({str(natal_body)}) if natal_body else None,
+            include_cohort_cycles=self.include_cohort_checkbox.isChecked(),
+            cohort_only=self._cohort_only,
+            relevant_only=self.relevant_only_checkbox.isChecked(),
+        )
+
+    def _rerender_filtered(self) -> None:
+        state = self._filter_state()
+        self._visible_windows = filter_timeline_windows(
+            self._all_windows,
+            state,
+            self._body_relevance,
+        )
+        self._populate(self._visible_windows)
+        cohort_count = sum(
+            1
+            for window in self._visible_windows
+            if metadata_for_window(window, self._body_relevance).cycle_scope == CYCLE_SCOPE_COHORT
+        )
+        self.status_label.setText(
+            f"{len(self._visible_windows):,} visible of {len(self._all_windows):,} candidate "
+            f"transit windows; {cohort_count:,} visible cohort/generational cycles. "
+            "Filters change the analysis set without regenerating the timeline."
+        )
+
     def _populate(self, windows: Iterable[PersonalTimelineWindow]) -> None:
         self.tree.clear()
         birth = getattr(self.chart, "dt", None)
@@ -646,6 +793,7 @@ class PersonalTimelineWindowWidget(QMainWindow):
             return
 
         for window in windows:
+            metadata = metadata_for_window(window, self._body_relevance)
             age_years = max(
                 0.0,
                 (window.midpoint - birth).total_seconds() / (365.2425 * 86400.0),
@@ -658,17 +806,53 @@ class PersonalTimelineWindowWidget(QMainWindow):
             else:
                 duration_text = f"{duration:.0f} d"
 
+            relevance_text = (
+                "🌟 " + ", ".join(metadata.relevant_bodies)
+                if metadata.relevant_bodies
+                else "—"
+            )
             self.tree.addTopLevelItem(
                 QTreeWidgetItem(
                     (
                         f"{age_years:.1f}",
-                        window.transit.label,
+                        f"{metadata.relevance_prefix}{window.transit.label}",
+                        metadata.cycle_scope,
+                        relevance_text,
                         f"{window.start:%Y-%m-%d}{'*' if window.start_truncated else ''}",
                         f"{window.end:%Y-%m-%d}{'*' if window.end_truncated else ''}",
                         duration_text,
                     )
                 )
             )
+
+    def _open_results(self) -> None:
+        try:
+            from ephemeraldaddy.gui.features.transits.personal_timeline_results import (
+                PersonalTimelineResultsWindow,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Personal Timeline Results", str(exc))
+            return
+        results = PersonalTimelineResultsWindow(
+            chart_uid=self.chart_uid,
+            chart=self.chart,
+            transit_windows=list(self._visible_windows),
+            parent=self,
+        )
+        open_windows = getattr(self, "_results_windows", None)
+        if not isinstance(open_windows, list):
+            open_windows = []
+            self._results_windows = open_windows
+        open_windows.append(results)
+
+        def _release(*_args: object) -> None:
+            if results in open_windows:
+                open_windows.remove(results)
+
+        results.destroyed.connect(_release)
+        results.show()
+        results.raise_()
+        results.activateWindow()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
         thread = self._thread
