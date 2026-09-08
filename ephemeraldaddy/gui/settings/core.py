@@ -6,6 +6,8 @@ from typing import Any
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"
+SETTINGS_KEY_PREDICTIONS_EXCLUDE_ASCRIBED_TRAIT_CHARTS = "predictions/exclude_ascribed_trait_charts"
+SETTINGS_KEY_PREDICTIONS_USE_TRAIT_GENDER_DISTRIBUTION = "predictions/use_trait_gender_distribution"
 SETTINGS_KEY_PERCEIVED_ACCURACY_THUMBS_VISIBLE = "display/perceived_accuracy_thumbs_visible"
 
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
@@ -72,3 +74,17 @@ def load_predictions_manual_recalculation_only(settings: Any, *, fallback: bool 
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on", "checked"}
     return bool(value)
+
+
+def load_predictions_exclude_ascribed_trait_charts(settings: Any, *, fallback: bool = False) -> bool:
+    return settings_bool(
+        settings.value(SETTINGS_KEY_PREDICTIONS_EXCLUDE_ASCRIBED_TRAIT_CHARTS, int(fallback)),
+        fallback,
+    )
+
+
+def load_predictions_use_trait_gender_distribution(settings: Any, *, fallback: bool = False) -> bool:
+    return settings_bool(
+        settings.value(SETTINGS_KEY_PREDICTIONS_USE_TRAIT_GENDER_DISTRIBUTION, int(fallback)),
+        fallback,
+    )
