@@ -124,6 +124,7 @@ from ephemeraldaddy.gui.style import (
     ABC_PANEL_SECTION_FRAME_MARGINS,
     ABC_PANEL_SECTION_FRAME_SPACING,
     ABC_PANEL_SECTION_FRAME_STYLE,
+    CHART_INFORMATION_PANEL_STYLE,
     COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     apply_button_cursor,
@@ -141,6 +142,10 @@ from ephemeraldaddy.gui.features.charts.tagging import (
     render_tag_chip_preview,
 )
 from ephemeraldaddy.gui.dbv_search_panel import refresh_tag_catalog_for_added_tags
+from ephemeraldaddy.gui.features.chart_information import (
+    PerceivedAccuracyThumbs,
+)
+from ephemeraldaddy.gui.settings.core import load_perceived_accuracy_thumbs_visible
 
 logger = logging.getLogger(__name__)
 
@@ -1104,7 +1109,13 @@ def build_chart_view_left_panel(
     chart_info_header_layout.addStretch(1)
     chart_panel_layout.addWidget(chart_info_header, 0)
 
-    owner.chart_info_output = QTextEdit()
+    chart_information_panel = QFrame()
+    chart_information_panel.setObjectName("chart_information_panel")
+    chart_information_panel.setStyleSheet(CHART_INFORMATION_PANEL_STYLE)
+    chart_information_layout = QHBoxLayout(chart_information_panel)
+    chart_information_layout.setContentsMargins(0, 0, 0, 0)
+    chart_information_layout.setSpacing(6)
+    owner.chart_info_output = QTextEdit(chart_information_panel)
     owner.chart_info_output.setReadOnly(True)
     owner.chart_info_output.setPlaceholderText(
         "Click the ⓘ next to a position or aspect to see details/interpretation."
@@ -1115,8 +1126,21 @@ def build_chart_view_left_panel(
         emphasize_dnd_class_headers=True,
         emphasize_species_info_headers=True,
     )
+    owner.chart_information_accuracy_control = PerceivedAccuracyThumbs(
+        lambda: getattr(owner, "current_chart_uid", None),
+        parent=chart_information_panel,
+    )
+    owner.chart_information_accuracy_control.setVisible(
+        load_perceived_accuracy_thumbs_visible(owner._settings, fallback=False)
+    )
+    chart_information_layout.addWidget(owner.chart_info_output, 1)
+    chart_information_layout.addWidget(
+        owner.chart_information_accuracy_control,
+        0,
+        Qt.AlignRight | Qt.AlignTop,
+    )
     owner.chart_info_content_stack = QStackedWidget()
-    owner.chart_info_content_stack.addWidget(owner.chart_info_output)
+    owner.chart_info_content_stack.addWidget(chart_information_panel)
     chart_panel_layout.addWidget(owner.chart_info_content_stack, 0)
     main_splitter.addWidget(chart_panel)
 
@@ -1411,6 +1435,7 @@ def setup_chart_view_emoji_portrait_section(owner: QWidget, layout: QVBoxLayout)
     portrait_box = _build_subjective_notes_metric_section(
         owner,
         title="💭Emoji Portrait",
+        module_key="emoji_portrait",
         content_builder=lambda content_layout: _populate_emoji_portrait_section(owner, content_layout),
     )
     layout.addWidget(portrait_box)
@@ -1421,6 +1446,7 @@ def setup_chart_view_typology_section(owner: QWidget, layout: QVBoxLayout) -> No
     section = _build_subjective_notes_metric_section(
         owner,
         title="Typology",
+        module_key="typology",
         content_builder=lambda content_layout: _populate_typology_section(owner, content_layout),
     )
     layout.addWidget(section)
@@ -1561,6 +1587,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     alignment_box = _build_subjective_notes_metric_section(
         owner,
         title="💭Perceived alignment",
+        module_key="perceived_alignment",
         content_builder=lambda content_layout: _populate_alignment_section(owner, content_layout),
     )
     layout.addWidget(alignment_box)
@@ -1568,6 +1595,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     sexiness_box = _build_subjective_notes_metric_section(
         owner,
         title="Sexiness",
+        module_key="sexiness",
         content_builder=lambda content_layout: _populate_sexiness_section(owner, content_layout),
     )
     owner.sexiness_section_box = sexiness_box
@@ -1581,6 +1609,7 @@ def _build_subjective_notes_metric_section(
     owner: QWidget,
     *,
     title: str,
+    module_key: str,
     content_builder: Callable[[QVBoxLayout], None],
 ) -> QFrame:
     section_box = QFrame()
@@ -1603,6 +1632,7 @@ def _build_subjective_notes_metric_section(
         title=title,
         expanded=True,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        semantic_key=module_key,
     )
 
     content_widget = QWidget()
@@ -1674,6 +1704,7 @@ def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout
         title="Euphonics",
         expanded=True,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        semantic_key="euphonics",
     )
     toggle.setFocusPolicy(Qt.TabFocus)
     euphonics_box_layout.addWidget(toggle)
@@ -1984,6 +2015,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="OCEAN Personality",
         expanded=True,
+        section_key="ocean",
     )
     register_prediction_section("ocean", ocean_section_layout)
     _install_prediction_header_action(owner, ocean_section_layout, "ocean")
@@ -2008,6 +2040,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Enneagram",
         expanded=True,
+        section_key="enneagram",
     )
     register_prediction_section("enneagram", enneagram_section_layout)
     _install_prediction_header_action(owner, enneagram_section_layout, "enneagram")
@@ -2030,6 +2063,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Fantasy RPG Statblock",
         expanded=True,
+        section_key="dnd_statblock",
     )
     register_prediction_section("dnd_statblock", dnd_statblock_section_layout)
     _install_prediction_header_action(owner, dnd_statblock_section_layout, "dnd_statblock")
@@ -2049,6 +2083,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Fantasy RPG Species",
         expanded=True,
+        section_key="dnd_species",
     )
     register_prediction_section("dnd_species", dnd_species_section_layout)
     _install_prediction_header_action(owner, dnd_species_section_layout, "dnd_species")
@@ -2069,6 +2104,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Fantasy RPG Class",
         expanded=True,
+        section_key="dnd_class",
     )
     register_prediction_section("dnd_class", dnd_class_section_layout)
     _install_prediction_header_action(owner, dnd_class_section_layout, "dnd_class")
@@ -2089,6 +2125,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Fantasy RPG Alignment",
         expanded=True,
+        section_key="dnd_alignment",
     )
     register_prediction_section("dnd_alignment", dnd_alignment_section_layout)
     _install_prediction_header_action(owner, dnd_alignment_section_layout, "dnd_alignment")
@@ -2131,6 +2168,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Predicted Synastry",
         expanded=True,
+        section_key="hd_electrochemistry",
     )
     register_prediction_section("hd_electrochemistry", hd_electrochemistry_section_layout)
     hd_electrochemistry_gender_row = QWidget()
