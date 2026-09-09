@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.core import db
 from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     ZODIAC_NAMES,
@@ -119,7 +120,7 @@ class RankingsPanelMixin:
         self._rankings_data_dirty = True
         self._rankings_trait_visible_limits: dict[str, int] = {}
         self._rankings_traits_sorted_order_cache: dict[
-            tuple[object, ...], tuple[dict[str, Any], ...]
+            tuple[object, ...], tuple[int, tuple[dict[str, Any], ...]]
         ] = {}
         self._rankings_traits_last_parsed_percent = 0.0
         traits_layout = self._add_left_panel_collapsible_section(
@@ -436,12 +437,40 @@ class RankingsPanelMixin:
         if not isinstance(sorted_cache, dict):
             sorted_cache = {}
             self._rankings_traits_sorted_order_cache = sorted_cache
+
+        cached_rows: tuple[dict[str, Any], ...] | None = None
+        changed_chart_uids: set[str] | None = None
         if cache_complete:
-            cached_rows = sorted_cache.get(cache_key)
-            if isinstance(cached_rows, tuple):
-                if limit is None:
-                    return list(cached_rows)
-                return list(cached_rows[: max(0, int(limit))])
+            cached_entry = sorted_cache.get(cache_key)
+            if (
+                isinstance(cached_entry, tuple)
+                and len(cached_entry) == 2
+                and isinstance(cached_entry[0], int)
+                and isinstance(cached_entry[1], tuple)
+            ):
+                cached_sequence = int(cached_entry[0])
+                cached_rows = cached_entry[1]
+                try:
+                    journal_changes = db.chart_changes_since(cached_sequence)
+                    latest_sequence = db.latest_chart_change_sequence()
+                except Exception:
+                    journal_changes = None
+                    latest_sequence = cached_sequence
+                if journal_changes is not None:
+                    normalized_scope_uids = set(normalized_chart_uids)
+                    changed_chart_uids = {
+                        self._normalize_rankings_chart_uid(change.get("chart_uid", ""))
+                        for change in journal_changes
+                        if bool(change.get("astro_data_changed", False))
+                        and self._normalize_rankings_chart_uid(change.get("chart_uid", ""))
+                        in normalized_scope_uids
+                    }
+                    if not changed_chart_uids:
+                        if latest_sequence != cached_sequence:
+                            sorted_cache[cache_key] = (latest_sequence, cached_rows)
+                        if limit is None:
+                            return list(cached_rows)
+                        return list(cached_rows[: max(0, int(limit))])
 
         chart_ids_by_uid = get_chart_ids_by_uid(normalized_chart_uids)
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
@@ -475,8 +504,22 @@ class RankingsPanelMixin:
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
-        rows: list[dict[str, Any]] = []
-        for chart_uid in normalized_chart_uids:
+        if cached_rows is not None and changed_chart_uids:
+            rows = [
+                dict(row)
+                for row in cached_rows
+                if self._normalize_rankings_chart_uid(row.get("chart_uid", ""))
+                not in changed_chart_uids
+            ]
+            ranking_chart_uids = tuple(
+                chart_uid
+                for chart_uid in normalized_chart_uids
+                if chart_uid in changed_chart_uids
+            )
+        else:
+            rows: list[dict[str, Any]] = []
+            ranking_chart_uids = normalized_chart_uids
+        for chart_uid in ranking_chart_uids:
             if chart_uid in hidden_chart_uids:
                 continue
             chart_id = chart_ids_by_uid.get(chart_uid)
@@ -534,7 +577,11 @@ class RankingsPanelMixin:
             )
         )
         if cache_complete:
-            sorted_cache[cache_key] = tuple(rows)
+            try:
+                cache_sequence = db.latest_chart_change_sequence()
+            except Exception:
+                cache_sequence = 0
+            sorted_cache[cache_key] = (cache_sequence, tuple(rows))
             while len(sorted_cache) > 16:
                 sorted_cache.pop(next(iter(sorted_cache)))
         if limit is None:
@@ -805,14 +852,6 @@ class RankingsPanelMixin:
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
-        journal_backed_cache = bool(
-            int(
-                getattr(
-                    self, "_traits_distribution_likelihood_cache_change_sequence", 0
-                )
-                or 0
-            )
-        )
         chart_tokens: dict[str, str] | None = None
         for chart_id, chart_uid in sorted(chart_uids_by_id.items()):
             chart_uid = self._normalize_rankings_chart_uid(chart_uid)
@@ -834,8 +873,6 @@ class RankingsPanelMixin:
                 profile_token_cache, dict
             ):
                 profile_cache_key = (selected_trait_key[2], chart_uid)
-                if journal_backed_cache and profile_cache_key in profile_cache:
-                    continue
                 cached_chart_token = str(
                     profile_token_cache.get(profile_cache_key, "") or ""
                 )
@@ -869,12 +906,14 @@ class RankingsPanelMixin:
             (chart_uid, str(chart_tokens.get(chart_uid, "") or ""))
             for chart_uid in database_chart_uids
         )
+        norm_state = tuple(sorted(snapshot_database_values.items()))
         job_key = (
             selected_trait_name,
             int(getattr(self, "_database_metrics_cache_revision", 0)),
             database_chart_uids,
             authoritative_chart_state,
             trait_signature,
+            norm_state,
         )
         active_job = getattr(self, "_rankings_traits_active_job", None)
         if active_job is not None:
@@ -882,6 +921,7 @@ class RankingsPanelMixin:
             if isinstance(active_thread, QThread) and active_thread.isRunning():
                 if active_token[:-1] == job_key and not active_thread.isInterruptionRequested():
                     self._rankings_traits_worker_token = active_token
+                    self._rankings_traits_worker_context = dict(snapshot_database_values)
                     return
                 sequence = int(getattr(self, "_rankings_traits_worker_sequence", 0)) + 1
                 self._rankings_traits_worker_sequence = sequence
@@ -904,7 +944,7 @@ class RankingsPanelMixin:
         self._rankings_traits_worker_sequence = sequence
         token = (*job_key, sequence)
         self._rankings_traits_worker_token = token
-        self._rankings_traits_worker_context = snapshot_database_values
+        self._rankings_traits_worker_context = dict(snapshot_database_values)
         self._rankings_traits_last_parsed_percent = 0.0
         self._launch_rankings_trait_worker(
             token, database_chart_uids, trait_items, trait_signature
@@ -959,7 +999,7 @@ class RankingsPanelMixin:
         token, chart_uids, trait_items, trait_signature, snapshot_values = pending
         if token != getattr(self, "_rankings_traits_worker_token", None):
             return
-        self._rankings_traits_worker_context = snapshot_values
+        self._rankings_traits_worker_context = dict(snapshot_values)
         self._rankings_traits_last_parsed_percent = 0.0
         self._launch_rankings_trait_worker(
             token, chart_uids, trait_items, trait_signature
@@ -982,45 +1022,19 @@ class RankingsPanelMixin:
             else:
                 thread.wait(max(0, int(wait_msecs)))
 
-    def _rankings_trait_live_database_values(
+    def _rankings_trait_snapshot_database_values(
         self,
         *,
-        chart_uids: tuple[str, ...],
-        trait_signature: tuple[tuple[str, str, str], ...],
         selected_trait_name: str,
     ) -> dict[str, float]:
-        """Return the best available DB average while a ranking scan is running."""
+        """Return the selected stored DB norm used by the active ranking worker."""
         snapshot_values = getattr(self, "_rankings_traits_worker_context", {})
         if isinstance(snapshot_values, dict) and selected_trait_name in snapshot_values:
             try:
                 return {selected_trait_name: float(snapshot_values[selected_trait_name])}
             except (TypeError, ValueError):
-                pass
-
-        likelihood_cache = getattr(
-            self, "_traits_distribution_chart_likelihood_cache", None
-        )
-        if not isinstance(likelihood_cache, dict):
-            return {}
-        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
-        warmed_values: list[float] = []
-        for chart_uid in chart_uids:
-            likelihoods = likelihood_cache.get(
-                (cache_revision, trait_signature, chart_uid)
-            )
-            if not isinstance(likelihoods, dict):
-                continue
-            try:
-                warmed_values.append(float(likelihoods[selected_trait_name]))
-            except (KeyError, TypeError, ValueError):
-                continue
-        if not warmed_values:
-            return {}
-        return {
-            selected_trait_name: (
-                sum(warmed_values) / float(len(warmed_values)) / 100.0
-            )
-        }
+                return {}
+        return {}
 
     @Slot(object, float)
     def _on_rankings_trait_progress(self, token: object, parsed_percent: float) -> None:
@@ -1042,11 +1056,17 @@ class RankingsPanelMixin:
         trait_name = str(token[0])
         chart_uids = tuple(token[2])
         trait_signature = token[4]
-        database_values = self._rankings_trait_live_database_values(
-            chart_uids=chart_uids,
-            trait_signature=trait_signature,
+        database_values = self._rankings_trait_snapshot_database_values(
             selected_trait_name=trait_name,
         )
+        if trait_name not in database_values:
+            safe_trait = html.escape(trait_name)
+            self._set_rankings_traits_html(
+                "<span style='color:#ffb3b3;'>Stored DB norm unavailable for "
+                f"<b>{safe_trait}</b>. Generate or refresh this trait's DB Norms in Settings before ranking.</span>",
+                has_more=False,
+            )
+            return
         rankings, has_more = self._rankings_traits_rows_for_display(
             chart_uids=chart_uids,
             trait_signature=trait_signature,
@@ -1078,19 +1098,19 @@ class RankingsPanelMixin:
     def _on_rankings_trait_finished(self, token: object, result: object) -> None:
         if token != getattr(self, "_rankings_traits_worker_token", None):
             return
-        analytics = result if isinstance(result, dict) else {}
         trait_name = str(token[0])
         trait_signature = token[4]
-        chart_count = max(0, int(analytics.get("chart_count", 0)))
-        totals = analytics.get("totals", {})
-        database_values = {
-            name: float(totals.get(name, 0.0)) / float(chart_count)
-            if chart_count else 0.0
-            for name in analytics.get("trait_names", [])
-        }
-        snapshot_values = getattr(self, "_rankings_traits_worker_context", {})
-        if snapshot_values:
-            database_values = dict(snapshot_values)
+        database_values = self._rankings_trait_snapshot_database_values(
+            selected_trait_name=trait_name,
+        )
+        if trait_name not in database_values:
+            safe_trait = html.escape(trait_name)
+            self._set_rankings_traits_html(
+                "<span style='color:#ffb3b3;'>Stored DB norm unavailable for "
+                f"<b>{safe_trait}</b>. Generate or refresh this trait's DB Norms in Settings before ranking.</span>",
+                has_more=False,
+            )
+            return
         chart_uids = self._rankings_database_chart_uids()
         rankings, has_more = self._rankings_traits_rows_for_display(
             chart_uids=chart_uids,
@@ -1142,8 +1162,8 @@ class RankingsPanelMixin:
         trait_items = list_traits(active_only=True)
         # Ranking one trait must not warm every active trait for every chart.
         # Besides doing unnecessary work, that made an 8-second partial pass
-        # advance only a few charts.  A one-trait signature is independently
-        # cacheable and is sufficient both for ranking and its DB comparison.
+        # advance only a few charts. A one-trait signature is independently
+        # cacheable; its comparison baseline always comes from stored DB Norms.
         ranking_trait_items = (
             [
                 trait
@@ -1155,44 +1175,45 @@ class RankingsPanelMixin:
         )
         trait_signature = self._traits_distribution_signature(ranking_trait_items)
         database_values: dict[str, float] = {}
-        snapshot_database_values: dict[str, float] = {}
         cache_warmed = False
         parsed_percent: float | None = 100.0
         if selected_trait_name:
-            requested_trait_names = {selected_trait_name}
             try:
                 snapshot_averages = trait_snapshot_averages(ranking_trait_items)
             except Exception:
                 snapshot_averages = {}
-            if requested_trait_names and requested_trait_names.issubset(
-                set(snapshot_averages)
+            if selected_trait_name not in snapshot_averages:
+                self._stop_rankings_trait_worker(wait_msecs=0)
+                safe_trait = html.escape(selected_trait_name)
+                self._set_rankings_traits_html(
+                    "<span style='color:#ffb3b3;'>Stored DB norm unavailable for "
+                    f"<b>{safe_trait}</b>. Generate or refresh this trait's DB Norms in Settings before ranking.</span>",
+                    has_more=False,
+                )
+                if "sign_dominance" in requested_sections:
+                    self._refresh_sign_dominance_rankings(database_chart_ids)
+                return
+            database_values = {
+                selected_trait_name: float(snapshot_averages[selected_trait_name]) / 100.0
+            }
+            if not isinstance(
+                getattr(self, "_traits_distribution_chart_likelihood_cache", None),
+                dict,
             ):
-                database_values = {
-                    name: float(snapshot_averages[name]) / 100.0
-                    for name in requested_trait_names
-                }
-                snapshot_database_values = dict(database_values)
-                cache_warmed = True
-                parsed_percent = 100.0
-                if not isinstance(
-                    getattr(self, "_traits_distribution_chart_likelihood_cache", None),
-                    dict,
-                ):
-                    self._load_traits_distribution_likelihood_cache()
-                if not self._rankings_trait_likelihood_cache_complete(
-                    chart_uids_by_id=self._traits_distribution_chart_uid_by_id(),
-                    trait_signature=trait_signature,
-                    selected_trait_name=selected_trait_name,
-                ):
-                    database_values = {}
-                    cache_warmed = False
-            if not database_values:
+                self._load_traits_distribution_likelihood_cache()
+            cache_warmed = self._rankings_trait_likelihood_cache_complete(
+                chart_uids_by_id=self._traits_distribution_chart_uid_by_id(),
+                trait_signature=trait_signature,
+                selected_trait_name=selected_trait_name,
+            )
+            if not cache_warmed:
+                parsed_percent = 0.0
                 self._start_rankings_trait_worker(
                     selected_trait_name,
                     tuple(sorted(database_chart_uids)),
                     ranking_trait_items,
                     trait_signature,
-                    snapshot_database_values,
+                    dict(database_values),
                 )
                 self._on_rankings_trait_progress(
                     getattr(self, "_rankings_traits_worker_token", None), 0.0
@@ -1200,8 +1221,7 @@ class RankingsPanelMixin:
                 if "sign_dominance" in requested_sections:
                     self._refresh_sign_dominance_rankings(database_chart_ids)
                 return
-            else:
-                self._stop_rankings_trait_worker(wait_msecs=0)
+            self._stop_rankings_trait_worker(wait_msecs=0)
         else:
             self._stop_rankings_trait_worker(wait_msecs=0)
         database_chart_uids = tuple(
