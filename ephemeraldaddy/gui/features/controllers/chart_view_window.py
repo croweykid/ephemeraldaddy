@@ -1568,7 +1568,6 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     cultural_contribution_box = _build_subjective_notes_metric_section(
         owner,
         title="Cultural Contribution",
-        module_key="cultural_contribution",
         content_builder=owner.cultural_contribution_controller.populate_section,
     )
     layout.addWidget(cultural_contribution_box)
