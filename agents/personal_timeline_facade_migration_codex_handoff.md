@@ -1,19 +1,43 @@
 # Personal Timeline Integration Cleanup — Codex Handoff
 
-**Status:** The original compatibility-facade problem has now been corrected in PR #2243. This document describes the **remaining bounded architectural cleanup** that should happen later as part of the ongoing `app.py` refactor.  
-**Primary prerequisite:** Start from updated `main` after PR #2243 (or its equivalent final changes) has merged. Re-read the current tree before editing; do not assume exact line numbers or filenames remain unchanged.  
-**Primary architectural goal:** Finish making Personal Timeline a normal, explicitly owned Transit workflow without moving feature logic into `ephemeraldaddy/gui/app.py`. `app.py` should remain application/window orchestration only.
+**Status:** Deferred architectural cleanup after PR #2243 lands.  
+**Primary owner:** `ephemeraldaddy/gui/features/transits/`  
+**Primary goal:** Finish decomposing the remaining `personal_timeline_core.py` implementation bucket into explicit generation/window owners without moving feature implementation into `app.py`, without reintroducing runtime class mutation, and without regressing cache/thread/timezone semantics.
 
 ---
 
-## 1. Read this first
+## 1. Why this handoff exists
 
-Before changing code, read:
+Personal Timeline was introduced quickly as an empirical transit-research workflow and then expanded with:
+
+- broad filterable transit generation;
+- Library of Ghosts event comparison;
+- permanent per-chart caching;
+- asynchronous cache I/O;
+- sortable table headers;
+- process-safe cache worker shutdown.
+
+PR #2243 removed the worst transitional mechanisms that existed during the first extraction:
+
+- no `sys.modules[__name__] = ...` module substitution;
+- no import-time mutation of `PersonalTimelineWindowWidget`;
+- no `install_personal_timeline_persistence(...)` method replacement;
+- no `install_personal_timeline_sorting(...)` method replacement.
+
+The remaining architectural debt is narrower: `personal_timeline_core.py` still combines generation/model logic and the base Qt window implementation. The next Codex task is to finish that ownership split safely.
+
+This is a good Codex task because `app.py` is large and undergoing a staged refactor. The work requires broad caller inventory and careful integration review, but it must remain a bounded Transit-workflow migration rather than becoming another general `app.py` rewrite.
+
+---
+
+## 2. Read before editing
+
+Read, in this order:
 
 1. `AGENTS.md`
 2. `agents/app_py_refactor_manifesto.md`
 3. this handoff
-4. the current versions of:
+4. current `main` versions of:
    - `ephemeraldaddy/gui/features/transits/personal_timeline.py`
    - `ephemeraldaddy/gui/features/transits/personal_timeline_core.py`
    - `ephemeraldaddy/gui/features/transits/personal_timeline_persistence.py`
@@ -23,300 +47,346 @@ Before changing code, read:
    - `ephemeraldaddy/gui/features/transits/personal_timeline_results.py`
    - `ephemeraldaddy/gui/features/transits/cache.py`
    - `ephemeraldaddy/gui/window_chrome.py`
-   - relevant Transit/app bootstrap code that exists at that time
    - `tests/test_personal_timeline*.py`
    - `.github/workflows/personal-timeline-tests.yml`
+5. inspect current `app.py` only for relevant Transit/window integration points; do not treat the whole file as migration scope.
 
-The `app.py` refactor manifesto is authoritative. Its relevant constraints are:
+The refactor manifesto is authoritative. In particular:
 
-- `app.py` should ultimately be roughly 5,000–8,000 lines and should primarily orchestrate application/window lifecycles;
-- workflow behavior belongs in explicit feature packages;
-- runtime method injection and compatibility facades are transitional patterns only;
-- shortening `app.py` is not itself success if ownership remains hidden;
-- new controllers should not use an entire window as an arbitrary service locator;
-- public chart identity should use stable `chart_uid`;
-- extraction work must preserve performance, behavior, and shutdown correctness.
-
-Do **not** use this task as permission to perform a broad unrelated `app.py` rewrite.
+- `app.py` should converge toward application/window orchestration only;
+- feature implementation belongs in workflow-first packages;
+- compatibility aliases and runtime callback injection are transitional patterns, not destinations;
+- line-count reduction by itself is not a successful refactor;
+- preserve performance, behavior, UID integrity, threading safety, and existing tests.
 
 ---
 
-## 2. Historical problem and what PR #2243 now fixes
+## 3. Current architecture after PR #2243
 
-Earlier in PR #2243, `personal_timeline.py` temporarily acted as a compatibility facade over `personal_timeline_core.py`:
+Verify this against current `main` before editing because filenames may have moved.
 
-```python
-install_personal_timeline_persistence(_core)
-install_personal_timeline_sorting(_core)
-sys.modules[__name__] = _core
-```
+### `personal_timeline.py`
 
-That temporary arrangement existed because tests were monkeypatching generator internals through the historical `personal_timeline` module path and because cache/sorting behavior had initially been added as post-definition method installers.
+This is now the real public integration module.
 
-Codex review correctly identified that this reintroduced two architectural problems:
+It owns:
 
-1. feature behavior depended on import order and global class mutation;
-2. the facade had an ambiguous lifetime/removal condition.
+- the public `PersonalTimelineWindowWidget` subclass;
+- composition of `PersonalTimelinePersistenceController`;
+- cache-hit/cache-miss lifecycle integration;
+- sortable-header wiring;
+- close guard preventing a late cache miss from launching generation;
+- `open_personal_timeline_for_window(...)` used by window chrome;
+- a small explicit public re-export surface for Timeline dataclasses/generation API.
 
-A later Codex review also identified a process-lifecycle problem with the async cache workers: parentless `QThread`s could still be running during application teardown.
+Important: this module must remain an explicit owner. Do not convert it back into a facade that mutates or replaces another module at import time.
 
-### PR #2243 now changes this architecture
+### `personal_timeline_core.py`
 
-After the follow-up fixes, the intended state of #2243 is:
+This is the remaining transitional implementation bucket.
 
-- `personal_timeline.py` is a **real public integration module**, not a `sys.modules` facade;
-- there is no `sys.modules[__name__] = ...` substitution;
-- persistence is not installed by assigning methods onto `PersonalTimelineWindowWidget`;
-- sorting is not installed by assigning methods onto `PersonalTimelineWindowWidget`;
-- the public `PersonalTimelineWindowWidget` explicitly subclasses the current core/base widget and directly owns cache/sort lifecycle integration;
-- generator-internal tests import `personal_timeline_core` directly when they need to monkeypatch generator internals;
-- `personal_timeline_persistence.py` exposes an explicit `PersonalTimelinePersistenceController` instead of an `install_*` function;
-- cache read/reconstruction and write/serialization/flush/`fsync` remain off the GUI thread;
-- cache QThreads are process-owned and coordinated with `QCoreApplication.aboutToQuit`;
-- application shutdown waits for in-flight cache jobs to finish before Qt teardown can destroy a running thread;
-- a late cache miss after the window closes still cannot launch a fresh ephemeris generation.
+It currently owns both:
 
-**Do not reintroduce the removed facade or installer architecture during later refactoring.**
+1. generation/model behavior, including Timeline transit/window dataclasses, timeline bounds, broad candidate generation, boundary refinement, etc.; and
+2. base Qt window behavior, including selection resolution, generation worker, filtering UI, population, results opening, and base close behavior.
 
----
+This mixed ownership is the principal cleanup target.
 
-## 3. Current ownership map after #2243
+### `personal_timeline_persistence.py`
 
-Verify this map against `main` before editing.
+Owns persistence infrastructure:
 
-### `personal_timeline.py` — public integration owner
+- `PersonalTimelinePersistenceController`;
+- permanent-cache read/write workers;
+- off-GUI-thread JSON parsing/reconstruction;
+- off-GUI-thread serialization/write/flush/`fsync`/atomic replace;
+- cache-window reconstruction;
+- application-shutdown coordination for active cache jobs;
+- restoration of cached window endpoints into the chart's timezone rule set.
 
-Expected responsibilities:
+It must not mutate the Timeline widget class globally.
 
-- public `PersonalTimelineWindowWidget`;
-- explicit subclass/composition point for persistence and sorting;
-- canonical `open_personal_timeline_for_window(...)` used by `window_chrome.py`;
-- explicit exports of public Timeline model/generation names required by callers.
+### `personal_timeline_sorting.py`
 
-This is now a real module. It must not become another hidden facade later.
+Owns typed sorting logic only:
 
-### `personal_timeline_core.py` — remaining transitional implementation bucket
+- sort keys;
+- sort ordering;
+- header-click state transitions.
 
-Expected responsibilities still include too many things:
-
-- timeline data classes;
-- ephemeris generation;
-- candidate transit construction;
-- boundary refinement;
-- date/death/timeline limits;
-- selected-chart UID resolution;
-- generation QThread worker;
-- the current base `PersonalTimelineWindowWidget` implementation;
-- filters/presentation glue;
-- a legacy/core-level `open_personal_timeline_for_window(...)` that may now be redundant.
-
-This file is the main remaining architectural cleanup target. The `_core` name is deliberately not the desired permanent owner.
-
-### `personal_timeline_persistence.py` — cache lifecycle collaborator
-
-Expected responsibilities:
-
-- cache fingerprint configuration;
-- cached-window reconstruction;
-- asynchronous read/write worker types;
-- process-owned cache job tracking;
-- explicit application-shutdown draining;
-- `PersonalTimelinePersistenceController`.
-
-It must **not** mutate widget classes or depend on importing `personal_timeline.py` first.
-
-### `personal_timeline_sorting.py` — pure-ish sorting policy/helper owner
-
-Expected responsibilities:
-
-- typed sort keys;
-- ascending/descending toggle logic;
-- sorting helper functions.
-
-It must **not** install or replace widget methods at runtime.
+It must not install methods onto a widget class.
 
 ### `cache.py`
 
-Expected responsibilities:
+Owns the permanent Timeline disk format and cache fingerprint.
 
-- permanent Personal Timeline disk-cache schema/path;
-- SHA-256 fingerprinting;
-- JSON serialization/deserialization;
-- atomic file replacement;
-- `flush`/`fsync` behavior.
+The fingerprint includes transit-relevant chart data and **timezone identity**, not merely the birth instant's numeric UTC offset.
 
 ### `window_chrome.py`
 
-Expected responsibility:
+Owns the lazy UI hook for opening Personal Timeline from the appropriate top-level window context.
 
-- a small lazy menu callback that imports the canonical Timeline opener;
-- no Timeline calculation/cache/sorting logic.
-
-### `app.py`
-
-Expected responsibility for this workflow:
-
-- ideally none beyond existing application-level orchestration;
-- if a Transit bootstrap is eventually necessary, `app.py` may invoke it explicitly, but must not own its implementation.
+It should call a canonical Timeline open function; it should not own Timeline implementation.
 
 ---
 
-## 4. Remaining end goal
+## 4. End-state architecture
 
-The next Codex migration is **not** “remove the facade”—that should already be done by #2243.
-
-The remaining goal is to eliminate the ambiguous `personal_timeline_core.py` bucket and leave clear workflow ownership.
-
-A reasonable target structure is:
+The preferred bounded destination is:
 
 ```text
 ephemeraldaddy/gui/features/transits/
-    personal_timeline.py                 # optional canonical public API/re-exports
-    personal_timeline_generation.py      # models + ephemeris generation
-    personal_timeline_window.py          # concrete Qt window + opener
-    personal_timeline_persistence.py     # cache controller/workers/shutdown integration
-    personal_timeline_sorting.py         # typed row sort policy
+    personal_timeline.py                # small public integration/export surface, if still useful
+    personal_timeline_generation.py     # pure/non-Qt generation + data models
+    personal_timeline_window.py         # Qt window + opener + generation worker orchestration
+    personal_timeline_persistence.py    # explicit persistence collaborator/workers
+    personal_timeline_sorting.py        # typed sorting helpers/state
     personal_timeline_filters.py
     personal_timeline_analysis.py
     personal_timeline_results.py
     cache.py
 ```
 
-Exact names may change if the Transit workflow has been reorganized by then. Preserve these ownership boundaries even if names differ.
+Exact filenames may differ if the Transit package has gained a stronger convention by then. Preserve these ownership boundaries regardless of spelling.
 
 ### Generation owner
 
-Should contain non-window logic such as:
+Move non-widget logic out of `personal_timeline_core.py`, including where appropriate:
 
 - `TimelineTransitDefinition`;
 - `PersonalTimelineWindow`;
-- `_timeline_transiting_bodies` or its public replacement;
-- candidate-definition construction;
-- aspect-orb math;
-- boundary refinement;
+- Timeline-generation constants;
+- broad candidate construction;
+- aspect/orb calculations;
+- ephemeris boundary helpers;
 - death/timeline bounds;
-- `generate_personal_timeline(...)`;
-- generation constants.
+- continuous-window detection;
+- boundary refinement;
+- `generate_personal_timeline(...)`.
 
-It may depend on ephemeris/astrology code but should not construct `QMainWindow`s or inspect arbitrary GUI owners.
+This module should not import Qt widgets.
 
 ### Window owner
 
-Should contain:
+Own explicitly:
 
-- `PersonalTimelineWindowWidget`;
-- generation-worker orchestration if still Qt-specific;
-- explicit persistence collaborator construction;
-- explicit sorting/header wiring;
-- filtering controls/presentation orchestration;
-- `open_personal_timeline_for_window(...)`;
-- selected-chart resolution if that remains a UI/window concern.
+- authoritative Chart UID selection/open behavior;
+- Timeline generation `QThread` worker if still needed;
+- Timeline window construction;
+- filter controls and filter-state orchestration;
+- rendering/population;
+- results-window opening;
+- cache lifecycle coordination via an explicit persistence collaborator;
+- sorting lifecycle via direct instance wiring or a small explicit sort-state collaborator;
+- close behavior.
 
-### Persistence owner
+### `app.py`
 
-Keep cache I/O and shutdown semantics explicit. Do not move them into the window just to reduce module count.
+The desired outcome is **not** to move Timeline code into `app.py`.
+
+At most, `app.py` may contain a very small explicit startup/window-integration call if the current architecture genuinely requires it. Prefer zero `app.py` changes if `window_chrome.py` and the Transit package can own the integration cleanly.
+
+Do not add:
+
+- Timeline calculations;
+- cache workers;
+- Timeline widget methods;
+- filter logic;
+- sorting logic;
+- Library of Ghosts analysis;
+- Timeline persistent state
+
+to `app.py`.
 
 ---
 
-## 5. Critical invariants that must survive the migration
+## 5. Non-negotiable behavioral invariants
 
-These are not optional cleanup details. Any refactor that breaks one of these is incomplete.
+The migration is not successful if any of these regress.
 
-### 5.1 Cache reads and writes stay off the GUI thread
+### 5.1 Broad empirical generation remains broad
 
-The following work must never be moved back into a QWidget completion handler:
+Personal Timeline is a research tool, not a fixed doctrinal “major transits” report.
 
-- reading the cache file;
-- parsing potentially large JSON;
-- reconstructing thousands of cached windows;
-- serializing thousands of generated windows;
-- writing the file;
-- flushing;
-- `fsync`;
-- atomic replacement.
+Preserve:
 
-Only final decoded data/status and widget mutations should return to the GUI thread.
+- broad candidate generation before display filtering;
+- asteroids and Lilith unless explicitly filtered by the user;
+- minor aspects unless explicitly filtered;
+- outer-to-outer/cohort cycles, labeled rather than silently discarded;
+- existing dominance relevance integration;
+- filter rerenders without regenerating ephemerides.
 
-### 5.2 Application shutdown drains cache jobs
+Do not introduce a new hidden “traditional importance” filter during architectural cleanup.
 
-The #2243 fix adds process-level lifecycle coordination for active cache jobs.
+### 5.2 Stable Chart UID remains authoritative
 
-Preserve these semantics:
+Use `chart_uid` for:
 
-1. every cache worker QThread is tracked independently of an individual Timeline window;
-2. `QCoreApplication.aboutToQuit` has an explicit shutdown hook;
-3. shutdown waits until active reads/writes finish;
-4. no `QThread` may still be running when Qt/application teardown destroys it;
-5. do not use `QThread.terminate()` or kill a thread during a cache write;
-6. an atomic write must either finish normally or leave the previous cache intact.
+- public Timeline identity;
+- cache identity;
+- window routing;
+- analysis linkage.
 
-If the app later gains a central appwide background-job coordinator, Personal Timeline cache jobs may migrate to it, but the above semantics must remain intact.
+Do not introduce numeric SQLite row IDs into new Timeline public APIs.
 
-### 5.3 Closing a Timeline is not application shutdown
+### 5.3 Cache reads and writes remain off the GUI thread
 
-When an individual Timeline window closes:
+For potentially large Timeline caches:
 
-- cancel/request interruption of the expensive ephemeris generation worker as currently appropriate;
-- do not start generation after a late cache miss;
-- a cache read/write already in flight may finish safely at process scope;
-- closing one Timeline must not block or shut down unrelated cache jobs for another Timeline.
+- file read occurs off GUI thread;
+- JSON parse occurs off GUI thread;
+- cached-window reconstruction occurs off GUI thread;
+- serialization occurs off GUI thread;
+- file write/flush/`fsync` occurs off GUI thread;
+- atomic replacement occurs off GUI thread;
+- only decoded results/status and UI mutation return to GUI thread.
 
-### 5.4 Cache fingerprint behavior remains stable
+Do not simplify the architecture by making cache I/O synchronous again.
 
-A cache hit is valid only when transit-relevant chart/generation inputs match.
+### 5.4 Application shutdown drains cache workers
 
-Preserve invalidation for changes such as:
+Cache jobs are process-lifetime work, not child-window-lifetime work.
+
+Preserve all of these:
+
+1. active cache worker threads remain strongly referenced until completion;
+2. application shutdown waits for active cache jobs before Qt teardown returns;
+3. do not allow `QThread: Destroyed while thread is still running`;
+4. do not use `QThread.terminate()` during cache writes;
+5. allow an atomic write to finish normally or leave the prior cache intact;
+6. closing an individual Timeline window must not shut down unrelated cache jobs.
+
+If EphemeralDaddy later gains an appwide background-job coordinator, Timeline cache workers may migrate to it only if these semantics remain intact.
+
+### 5.5 Close-during-lookup behavior remains safe
+
+If the user closes Personal Timeline while a cache lookup is in flight:
+
+- the read may finish safely in the background;
+- a late cache miss must **not** start a new ephemeris-generation worker;
+- a late cache hit must not mutate a destroyed/closing window;
+- closing one Timeline must not block unrelated Timeline windows.
+
+### 5.6 Cache fingerprinting must include timezone rules
+
+This is calculation correctness, not presentation metadata.
+
+A named timezone is more than its UTC offset at birth. For example, two IANA zones may both be `-05:00` on the birth date while following different DST rules later. Those zones can generate different local Timeline endpoints over a lifetime.
+
+Therefore preserve this invariant:
+
+> Cache identity must distinguish named timezone rule sets, not merely the ISO birth datetime and its current numeric offset.
+
+The current cache fingerprint records timezone identity (e.g. the IANA `ZoneInfo.key`) in addition to the ISO birth datetime.
+
+A future refactor must not collapse this back to `birth_datetime.isoformat()` alone.
+
+### 5.7 Cached endpoints must be restored into the chart timezone
+
+Cache window `start`/`end` strings contain numeric offsets, but ISO 8601 does not preserve an IANA timezone rule set.
+
+`datetime.fromisoformat(...)` therefore reconstructs fixed-offset `tzinfo` objects. If those are used directly, a window spanning a DST transition can have different arithmetic after cache reload than it had immediately after generation.
+
+Example invariant:
+
+```text
+America/New_York
+2026-03-07 12:00 -05:00
+through
+2026-03-09 12:00 -04:00
+```
+
+A freshly generated window using the shared `ZoneInfo("America/New_York")` has two local calendar days of Timeline duration semantics. Restoring the two ISO endpoints as independent fixed offsets changes subtraction to 47 elapsed hours.
+
+Therefore:
+
+1. parse cached endpoints as aware datetimes;
+2. treat the persisted offset as the instant-disambiguation data;
+3. convert each endpoint back into the selected chart's `dt.tzinfo` before constructing `PersonalTimelineWindow`;
+4. reject offset-free cached endpoints as malformed;
+5. keep both endpoints under the same chart timezone rule object for midpoint/duration semantics.
+
+This matters to:
+
+- `duration_days`;
+- midpoint-based Age sorting;
+- overlap/exposure calculations;
+- randomized/background analysis;
+- any future exact-hit/event alignment using Timeline window bounds.
+
+Do not “normalize everything to fixed UTC offsets” unless the entire Timeline generation/analysis model is deliberately redesigned and all semantics/tests are updated together.
+
+### 5.8 Existing caches may miss after timezone-fingerprint changes
+
+That is acceptable and intentional.
+
+Correct regeneration is preferable to reusing a cache whose timezone-rule identity was never represented in the fingerprint.
+
+Do not add backward-compatibility code that guesses a named timezone from a numeric offset.
+
+### 5.9 Cache invalidation remains selective
+
+Transit-relevant changes must miss/regenerate, including:
 
 - birth datetime;
-- location;
+- named timezone identity/rules;
+- birth location where relevant;
 - natal positions;
-- birth-time/rectification state that affects astronomy;
+- birth-time/rectification state affecting astronomy;
 - death bounds;
 - candidate bodies;
-- aspect configuration/orbs;
+- aspect/orb configuration;
 - scan/boundary refinement configuration;
 - explicit Timeline algorithm version.
 
-Do not invalidate solely for unrelated metadata such as comments unless that metadata becomes calculation-relevant in the future.
+Do not invalidate solely for unrelated metadata such as comments.
 
-### 5.5 UID is authoritative
+### 5.10 Sorting remains typed
 
-Use stable `chart_uid` throughout Timeline public APIs and cache identity.
-
-Do not introduce new Timeline APIs keyed by numeric SQLite IDs.
-
-### 5.6 Sorting semantics remain typed
-
-All seven visible columns remain sortable:
+All seven columns remain sortable:
 
 - Age — numeric;
 - Transit — text;
 - Scope — text;
-- Chart relevance — text/semantic relevance representation;
+- Chart relevance — semantic/text representation;
 - Start — datetime;
 - End — datetime;
 - Duration — numeric.
 
-Repeated click on the same column reverses direction. Clicking another column starts ascending. Active sorting must continue to apply after filter rerenders.
+Repeated click on the same column reverses direction. Clicking a different column begins ascending. Sorting remains active after filter rerender.
+
+### 5.11 Library of Ghosts analysis semantics remain intact
+
+Preserve:
+
+- schema validation;
+- partial/fuzzy dates without false precision;
+- peak → begin → end anchor preference;
+- observed overlap vs background exposure;
+- exact-hit proximity analysis;
+- randomized expectation;
+- current event-place metadata even when not yet consumed by location-sensitive transit calculations.
+
+If event time is unknown, do not manufacture a clock time for exact short-duration matching.
 
 ---
 
-## 6. Recommended Codex procedure
+## 6. Required Codex procedure
 
-Perform this in a dedicated PR from current `main` after #2243 merges.
+Perform this as a dedicated architectural PR from current `main` after #2243 is merged.
 
 ### Phase 0 — baseline
 
-1. Confirm #2243 is merged.
-2. Pull/re-read current `main`.
-3. Read the manifesto and this handoff.
-4. Run the current focused Personal Timeline test suite before editing.
-5. Record the baseline count/results.
-6. Confirm there are no existing unrelated failures.
+1. Confirm #2243 (or equivalent final implementation) is merged.
+2. Re-read current `main`; do not work from this handoff's historical assumptions alone.
+3. Run the focused Personal Timeline suite.
+4. Record baseline pass count and runtime.
+5. Confirm no unrelated failures before moving code.
 
-### Phase 1 — inventory all Timeline imports and ownership
+### Phase 1 — inventory every caller
 
-Search the whole repository for:
+Search the repository for:
 
 ```text
 personal_timeline
@@ -325,12 +395,14 @@ PersonalTimelineWindowWidget
 PersonalTimelinePersistenceController
 open_personal_timeline_for_window
 generate_personal_timeline
+TimelineTransitDefinition
+PersonalTimelineWindow
 _ACTIVE_CACHE_JOBS
 shutdown_personal_timeline_cache_jobs
 personal_timeline_sorting
 ```
 
-Classify every match as:
+Classify each occurrence as:
 
 - production caller;
 - test caller;
@@ -342,285 +414,159 @@ Pay particular attention to:
 
 - `window_chrome.py`;
 - `app.py`;
-- Chart Editor and Database View window owners;
+- Chart Editor and Database View window routing;
 - `tests/test_personal_timeline*.py`;
-- packaging/import-time initialization;
-- any new Transit bootstrap code added since this document was written.
+- packaging/startup imports;
+- any Transit bootstrap code added after this document.
 
-### Phase 2 — add characterization tests before moving code
+### Phase 2 — strengthen characterization before moving code
 
-At minimum characterize:
+Before extraction, retain/add tests for at least:
 
 1. Database View requires exactly one selected Chart UID.
 2. Chart Editor resolves the current Chart UID correctly.
-3. public `PersonalTimelineWindowWidget` is an explicit class, not a mutated alias.
-4. importing Timeline modules in a different order does not change behavior.
-5. cache lookup begins automatically when an integrated Timeline window opens.
-6. cache hit renders without starting ephemeris generation.
+3. public Timeline window is an explicit class, not an alias/mutated base.
+4. import order does not determine whether persistence/sorting exists.
+5. cache lookup begins on integrated window startup.
+6. cache hit renders without launching generation.
 7. cache miss starts generation exactly once.
-8. successful generation schedules exactly one cache write.
-9. failed/interrupted generation does not replace the last good cache.
-10. read/parse/reconstruction runs off GUI thread.
-11. write/serialize/flush/`fsync` runs off GUI thread.
-12. close-during-cache-read does not launch generation afterward.
-13. application shutdown waits for an in-flight cache read/write.
-14. no running cache `QThread` remains after the shutdown coordinator returns.
-15. sorting remains active through filter rerenders.
+8. successful generation schedules one cache write.
+9. failed/interrupted generation does not replace a good cache.
+10. read/parse/reconstruction executes off GUI thread.
+11. write/serialize/flush/`fsync` executes off GUI thread.
+12. close during cache read does not later launch generation.
+13. application shutdown drains an in-flight cache worker.
+14. no active cache QThread remains after shutdown coordination.
+15. all seven sorting columns preserve typed behavior.
+16. sort direction survives filter rerenders.
+17. cached DST-crossing windows retain the chart's named timezone and same `duration_days`/midpoint semantics as freshly generated windows.
+18. fingerprint differs for two named zones that share the same offset at birth but have different rule identities.
 
-Characterization tests should describe behavior, not preserve obsolete implementation details.
+Tests should describe required behavior rather than preserve obsolete internal names.
 
 ### Phase 3 — extract generation/model logic
 
-Create the generation owner first because it has the cleanest dependency direction.
+Create `personal_timeline_generation.py` (or repository-equivalent name) first.
 
-Move, with minimal semantic changes:
+Move generation/data logic with minimal semantic edits.
 
-- Timeline dataclasses;
-- generation constants;
-- candidate construction;
-- ephemeris/aspect helper calculations;
-- time/death bounds;
-- `generate_personal_timeline(...)`.
+Update generator-focused tests to import the generation owner directly.
 
-Then update generator-focused tests to import that module directly.
-
-Avoid changing astrology calculations in the same commit. Structural extraction should be behavior-preserving.
+Do not combine this structural move with astrology-formula changes.
 
 Suggested commit:
-
-`Extract Personal Timeline generation model`
-
-### Phase 4 — establish the canonical concrete window owner
-
-Move the actual integrated window behavior into a clearly named window module.
-
-The concrete class should explicitly show its dependencies, e.g. conceptually:
-
-```python
-class PersonalTimelineWindowWidget(...):
-    def __init__(...):
-        ...
-        self._persistence = PersonalTimelinePersistenceController(...)
-        self._configure_sorting()
-        self._begin_cache_lookup_or_generation()
-```
-
-Do not replace that with:
-
-```python
-install_timeline_window_behaviors(SomeClass)
-```
-
-or with `MethodType`, `setattr`, `sys.modules`, import side effects, or a hidden registry whose only purpose is method injection.
-
-Suggested commit:
-
-`Make Personal Timeline window ownership explicit`
-
-### Phase 5 — remove redundant core-level opener/window ownership
-
-Once the canonical window owner works:
-
-- move `open_personal_timeline_for_window(...)` to the window owner;
-- update `window_chrome.py` to import only that canonical opener;
-- migrate selected-chart UID resolution to the most appropriate explicit owner;
-- remove any duplicate legacy opener from `personal_timeline_core.py`;
-- delete the obsolete base/window implementation from `_core` once no caller uses it.
-
-Do not retain two openers that instantiate different Timeline window classes.
-
-### Phase 6 — delete `personal_timeline_core.py`
-
-Only after all production/test imports have migrated:
-
-1. search the repository again for `personal_timeline_core`;
-2. require zero production/test imports;
-3. remove the file;
-4. update documentation/workflow path filters if needed;
-5. run the focused suite and relevant broader GUI tests.
-
-Do not rename `_core` to another vague bucket such as `personal_timeline_impl.py` and call the migration complete.
-
----
-
-## 7. Specific guidance for `app.py`
-
-The user expects this stage may be better suited to Codex because `app.py` is still large. That does **not** mean the Timeline implementation should be moved into `app.py`.
-
-### What to inspect in `app.py`
-
-Search for:
-
-- Transit/Timeline startup hooks;
-- window coordinator construction;
-- `aboutToQuit` connections;
-- Chart Editor/Database View window registration;
-- any generic feature-bootstrap mechanism that has appeared since this handoff;
-- any existing appwide background-worker/shutdown coordinator.
-
-### Preferred outcome: no Timeline-specific feature blob in `app.py`
-
-If `window_chrome.py` can lazily import the canonical opener and the persistence module can register its process-lifecycle requirement through an established explicit application service, `app.py` may need no Timeline-specific change.
-
-### If `app.py` must participate
-
-Keep its role narrow and obvious. Acceptable examples:
-
-```python
-transit_features = TransitFeatureCoordinator(...)
-```
-
-or:
-
-```python
-background_jobs.register_shutdown_participant(timeline_cache_jobs)
-```
-
-provided those objects live in feature/coordination modules and `app.py` merely wires dependencies.
-
-Unacceptable outcomes include placing any of the following in `app.py`:
-
-- Personal Timeline cache serialization;
-- timeline ephemeris generation;
-- Timeline table sorting;
-- filter state logic;
-- row construction;
-- cache worker classes;
-- direct global thread dictionaries;
-- runtime replacement of Timeline widget methods.
-
-### Do not duplicate shutdown ownership
-
-PR #2243 currently gives Timeline cache jobs their own explicit `aboutToQuit` handling. If a later `app.py` refactor establishes a canonical appwide shutdown/background-job coordinator, migration to that owner should be **one-for-one**, not additive.
-
-There must be one clear authority that guarantees all Timeline cache jobs are finished before Qt teardown. Do not leave both an old feature hook and a new appwide hook competing to wait/cleanup the same threads without a deliberate idempotent design.
-
----
-
-## 8. Threading/shutdown acceptance criteria
-
-Before completing the future refactor, test these cases explicitly:
-
-### Quit during cache read
-
-1. open a chart whose Timeline cache exists and is large enough that read/parse is in flight;
-2. immediately quit the application;
-3. application waits cleanly;
-4. no `QThread: Destroyed while thread is still running` warning/crash;
-5. no late GUI callback mutates a destroyed window.
-
-### Quit during cache write
-
-1. generate a Timeline;
-2. trigger application exit while serialization/write/`fsync` is in flight;
-3. application waits until the job ends;
-4. no running QThread remains;
-5. cache file is either the fully written new atomic version or the prior intact version—never a partially replaced file.
-
-### Close Timeline but keep application running
-
-1. open Timeline;
-2. close it during cache read;
-3. cache worker may finish;
-4. no generation begins after close;
-5. application remains responsive;
-6. another Timeline can still operate normally.
-
-### Multiple Timeline windows
-
-1. open two Timeline windows for different UIDs;
-2. allow concurrent read/write jobs;
-3. close one window;
-4. the other remains unaffected;
-5. application shutdown drains all active process-owned jobs.
-
----
-
-## 9. Tests and CI that must remain authoritative
-
-At the time of #2243, focused CI includes:
 
 ```text
-tests/test_personal_timeline.py
-tests/test_personal_timeline_filters.py
-tests/test_personal_timeline_analysis.py
-tests/test_personal_timeline_cache.py
-tests/test_personal_timeline_persistence.py
-tests/test_personal_timeline_sorting.py
+Extract Personal Timeline generation model
 ```
 
-Keep `.github/workflows/personal-timeline-tests.yml` path triggers synchronized with any renamed/split modules.
+### Phase 4 — establish explicit window owner
 
-If generation moves to `personal_timeline_generation.py`, the workflow must trigger on that path.
+Move base Qt window behavior out of `personal_timeline_core.py` into `personal_timeline_window.py` or equivalent.
 
-If the window owner becomes `personal_timeline_window.py`, it must trigger on that path.
+The window owner should import generation APIs explicitly rather than importing a generic `_core` module.
 
-Do not accidentally make the focused workflow stop running because `personal_timeline*.py` patterns no longer cover a new directory/package layout.
+Keep the persistence controller as an explicit collaborator.
 
-Run relevant broader GUI/window tests after the focused suite. Structural refactors often pass unit tests while breaking lazy menu imports, Qt ownership, or shutdown order.
+Keep sorting as direct instance behavior/helper calls.
+
+Suggested commit:
+
+```text
+Move Personal Timeline window orchestration to explicit owner
+```
+
+### Phase 5 — retire `personal_timeline_core.py`
+
+Only delete/retire the old core module after:
+
+- every production import has moved;
+- every test import has moved;
+- no hidden circular-import workaround depends on it;
+- public Timeline entry points remain stable or are intentionally migrated in the same PR.
+
+Do not leave a permanent `personal_timeline_core.py` forwarding facade unless there is a genuine external/public compatibility requirement. Internal callers should migrate completely.
+
+Suggested commit:
+
+```text
+Remove transitional Personal Timeline core module
+```
+
+### Phase 6 — inspect `app.py` integration
+
+After the Transit package owns itself cleanly, inspect `app.py` for any remaining Timeline-specific behavior.
+
+If there is none: make no `app.py` change.
+
+If a tiny orchestration hook remains necessary:
+
+- keep it narrow;
+- use explicit function/class imports;
+- do not make the whole window an implicit service locator;
+- do not add runtime callback installation;
+- do not move feature state into `app.py`.
+
+### Phase 7 — CI and final review
+
+Run the focused Timeline suite and inspect the final PR diff manually.
+
+Also verify:
+
+- branch is current with `main`;
+- no duplicate classes/functions remain;
+- no runtime class mutation was reintroduced;
+- no synchronous cache I/O slipped into GUI callbacks;
+- no cache-worker shutdown gap was introduced;
+- timezone identity is still part of the fingerprint;
+- cached endpoints are still converted to chart `tzinfo` before `PersonalTimelineWindow` construction;
+- workflow path filters include any renamed/moved Timeline files.
 
 ---
 
-## 10. Non-goals
+## 7. Explicit non-goals for this migration
 
-Do not combine this future Codex cleanup with:
+Do **not** combine the architecture cleanup with:
 
-- new transit bodies;
-- new astrology scoring rules;
-- LoG importer feature expansion;
-- row flagging/color UI;
-- dominance Top-N settings;
-- Results-statistics redesign;
-- angle-axis canonicalization;
-- birth-time confidence redesign;
-- cache format redesign unless required by an actual bug;
-- broad Database View refactoring;
-- wholesale `app.py` decomposition.
+- new astrology scoring systems;
+- new aspect taxonomies;
+- dropping asteroids/minor aspects/cohort cycles;
+- redesigning Library of Ghosts statistics;
+- changing randomization methodology;
+- changing the default Timeline lifespan;
+- unrelated Settings refactors;
+- broad Database View refactors;
+- general `app.py` cleanup outside the exact integration boundary;
+- replacing PySide6/Qt;
+- redesigning cache file format unless required by a demonstrated bug.
 
-Those are separate changes and make ownership regressions much harder to diagnose.
-
----
-
-## 11. Suggested commit sequence
-
-Prefer small reviewable commits such as:
-
-1. `Add Personal Timeline ownership characterization tests`
-2. `Extract Personal Timeline generation model`
-3. `Move integrated Personal Timeline window to canonical owner`
-4. `Route window chrome to canonical Timeline opener`
-5. `Remove obsolete Personal Timeline core module`
-6. `Update Timeline CI paths and architecture docs`
-
-If appwide shutdown coordination has matured enough to absorb Timeline jobs, keep that as its own commit:
-
-7. `Register Timeline cache jobs with appwide shutdown coordinator`
-
-Do not mix calculation changes into these structural commits.
+If such work is discovered, document it separately.
 
 ---
 
-## 12. Definition of done
+## 8. Definition of done
 
-This deferred migration is complete when all of the following are true:
+The future Codex migration is complete when all are true:
 
-1. `personal_timeline_core.py` no longer exists, or has been reduced to a genuinely named/owned module rather than a generic implementation bucket.
-2. There is one canonical concrete Personal Timeline window class.
-3. There is one canonical opener used by `window_chrome.py`.
-4. No Personal Timeline code uses `sys.modules` aliasing.
-5. No Personal Timeline code installs/replaces widget methods at runtime.
-6. Persistence is an explicit collaborator with a narrow API.
-7. Sorting is explicit instance behavior/policy, not injected behavior.
-8. Cache I/O/reconstruction/serialization remains off the GUI thread.
-9. Cache jobs are guaranteed to finish before application/Qt teardown.
-10. Closing a Timeline during cache lookup cannot trigger late generation.
-11. Chart identity remains UID-based.
-12. All focused Timeline tests pass.
-13. Relevant broader GUI/window tests pass.
-14. CI path triggers still cover every moved Timeline implementation file.
-15. `app.py` has gained no new Timeline feature implementation; at most it contains narrow application-level wiring.
-16. A future developer can determine Timeline ownership by reading imports/classes, without knowing historical facade or monkeypatch behavior.
+- `personal_timeline_core.py` no longer acts as a mixed generation/window owner;
+- generation logic has an explicit non-widget owner;
+- Timeline Qt orchestration has an explicit window owner;
+- the public Timeline import path is simple and understandable;
+- no `sys.modules` tricks exist;
+- no Timeline runtime class monkeypatch installers exist;
+- persistence remains explicit composition;
+- sorting remains explicit instance behavior/helper logic;
+- `app.py` contains at most narrow orchestration, preferably none for this feature;
+- stable Chart UID remains authoritative;
+- broad research-candidate behavior is unchanged;
+- cache read/write remains asynchronous;
+- application exit safely drains active cache workers;
+- cache fingerprint distinguishes named timezone rules;
+- cached endpoints restore into chart timezone before duration/midpoint/analysis use;
+- DST-crossing cache hit results are semantically equivalent to freshly generated windows;
+- existing filtering, results, and Library of Ghosts analysis continue to work;
+- focused CI passes;
+- final branch is reconciled with `main`;
+- the PR contains no unrelated architectural churn.
 
-### End-state principle
-
-**Personal Timeline should be an ordinary Transit workflow with explicit generation, window, persistence, sorting, and lifecycle owners. `app.py` may coordinate the workflow, but must not be the workflow.**
+The end goal is straightforward: **Personal Timeline should be a normal, explicitly owned Transit workflow with transparent module boundaries, safe background persistence, stable timezone semantics, and minimal top-level application coupling.**
