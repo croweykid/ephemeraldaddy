@@ -13939,7 +13939,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.addWidget(alignment_section)
 
         cultural_section, cultural_section_layout = add_collapsible_section(
-            "Perceived Cultural Contributions"
+            "💭Perceived Cultural Contributions"
         )
         self.batch_cultural_contribution_section = cultural_section
         self.batch_cultural_contribution_editor = CulturalContributionBatchEditor(

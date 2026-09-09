@@ -1424,7 +1424,7 @@ def setup_chart_view_typology_section(owner: QWidget, layout: QVBoxLayout) -> No
     """Build the user-assigned Enneagram and MBTI metadata controls."""
     section = _build_subjective_notes_metric_section(
         owner,
-        title="Typology",
+        title="💭Typology",
         content_builder=lambda content_layout: _populate_typology_section(owner, content_layout),
     )
     layout.addWidget(section)
@@ -1572,7 +1572,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
 
     cultural_contribution_box = _build_subjective_notes_metric_section(
         owner,
-        title="Cultural Contribution",
+        title="💭Cultural Contribution",
         #section_key="cultural_contribution",
         content_builder=owner.cultural_contribution_controller.populate_section,
     )
@@ -1580,7 +1580,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
 
     sexiness_box = _build_subjective_notes_metric_section(
         owner,
-        title="Sexiness",
+        title="💭Perceived Sexiness",
         section_key="sexiness",
         content_builder=lambda content_layout: _populate_sexiness_section(owner, content_layout),
     )
