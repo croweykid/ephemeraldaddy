@@ -3,7 +3,12 @@ from __future__ import annotations
 import threading
 from types import SimpleNamespace
 
+from PySide6.QtCore import QCoreApplication
+
 from ephemeraldaddy.gui.features.transits import personal_timeline_persistence as persistence
+
+
+_QT_APP = QCoreApplication.instance() or QCoreApplication([])
 
 
 def test_cache_read_runs_get_off_calling_thread() -> None:
