@@ -262,7 +262,7 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_help_overlay_toggle": "Help",
     "manage_database_manager_button": "Database Manager",
     "manage_toggle_collections_panel_button": "Collections",
-    "manage_toggle_database_metrics_panel_button": "Database Metrics",
+    "manage_toggle_database_metrics_panel_button": "Database Analytics", #why does it say 'database_metrics_panel'? It's the Database Analytics panel! I should change this appwide so there's no future confusion.
     "manage_toggle_gen_pop_norms_panel_button": "General Population Norms",
     "manage_toggle_similarities_panel_button": "Similarities Analysis",
     "manage_toggle_perceived_similarity_predictors_panel_button": "Predictor Feedback",

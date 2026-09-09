@@ -364,7 +364,7 @@ def configure_main_window_chrome(
         )
 
     tools_menu = menu_bar.addMenu("Tools")
-    _bind_menu_callback(tools_menu, "Compare-Contrast Collections", commands.open_compare_collections)
+    _bind_menu_callback(tools_menu, "🆚 Compare-Contrast Collections", commands.open_compare_collections)
     _bind_menu_action(
         tools_menu,
         "👯 Astro Twin",
@@ -445,7 +445,7 @@ def configure_manage_dialog_chrome(
         )
 
     tools_menu = menu_bar.addMenu("Tools")
-    _bind_menu_callback(tools_menu, "Compare-Contrast Collections", commands.open_compare_collections)
+    _bind_menu_callback(tools_menu, "🆚 Compare-Contrast Collections", commands.open_compare_collections)
     _bind_menu_action(
         tools_menu,
         "👯 Astro Twin",

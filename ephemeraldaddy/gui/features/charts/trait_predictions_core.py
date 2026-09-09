@@ -1485,7 +1485,7 @@ def _set_traits_updated_label(owner: Any, updated_at: str | None) -> None:
 
 
 def _traits_calculate_prompt_html() -> str:
-    return "No prior data. Calculate (can take awhile)?"
+    return "No prior data. Calculate?"
 
 
 def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
