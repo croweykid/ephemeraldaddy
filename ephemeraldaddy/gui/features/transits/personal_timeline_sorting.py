@@ -1,4 +1,8 @@
-"""Clickable row sorting for the Personal Timeline table."""
+"""Typed clickable row sorting helpers for the Personal Timeline table.
+
+The public Personal Timeline window owns header wiring explicitly. This module
+contains only sort policy/helpers and never mutates widget classes at runtime.
+"""
 
 from __future__ import annotations
 
@@ -68,6 +72,7 @@ def _sorted_timeline_windows(
 
 
 def _header_clicked(core: ModuleType, widget: Any, column: int) -> None:
+    """Apply the next sort state for a user-clicked header and rerender rows."""
     if not 0 <= int(column) < PERSONAL_TIMELINE_SORTABLE_COLUMNS:
         return
 
@@ -89,31 +94,3 @@ def _header_clicked(core: ModuleType, widget: Any, column: int) -> None:
     header.setSortIndicatorShown(True)
     header.setSortIndicator(int(column), order)
     widget._populate(widget._visible_windows)
-
-
-def install_personal_timeline_sorting(core: ModuleType) -> None:
-    """Make each Personal Timeline column header toggle ascending/descending sort."""
-    widget_type = core.PersonalTimelineWindowWidget
-    if bool(getattr(widget_type, "_ephemeraldaddy_sorting_installed", False)):
-        return
-
-    original_init = widget_type.__init__
-    original_populate = widget_type._populate
-
-    def _init_with_sorting(self: Any, *args: object, **kwargs: object) -> None:
-        original_init(self, *args, **kwargs)
-        self._personal_timeline_sort_column = None
-        self._personal_timeline_sort_order = Qt.AscendingOrder
-        header = self.tree.header()
-        header.setSectionsClickable(True)
-        header.setSortIndicatorShown(False)
-        header.sectionClicked.connect(
-            lambda column: _header_clicked(core, self, int(column))
-        )
-
-    def _populate_with_sorting(self: Any, windows: Iterable[Any]) -> None:
-        original_populate(self, _sorted_timeline_windows(core, self, windows))
-
-    widget_type.__init__ = _init_with_sorting
-    widget_type._populate = _populate_with_sorting
-    widget_type._ephemeraldaddy_sorting_installed = True
