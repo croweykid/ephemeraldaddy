@@ -63,15 +63,22 @@ def test_qsettings_string_booleans_are_coerced_safely():
     assert saved_section_expanded(owner, "predictions", "enneagram") is False
 
 
-def test_cached_traits_hydration_does_not_force_open_the_user_collapsed_section():
+def test_traits_render_does_not_rewrite_the_user_expansion_preference():
     source = (
         Path(__file__).parents[1]
-        / "ephemeraldaddy/gui/features/charts/trait_predictions.py"
+        / "ephemeraldaddy/gui/features/charts/trait_predictions_core.py"
     ).read_text()
+
+    assert "def _set_traits_prediction_section_expanded" not in source
+
     render_source = source.split("def render_traits_predictions", 1)[1]
     cached_branch = render_source.split("if isinstance(cached_metadata, dict):", 1)[1].split(
         "was_expanded = _traits_prediction_section_expanded(owner)", 1
     )[0]
+    uncached_preamble = render_source.split(
+        "was_expanded = _traits_prediction_section_expanded(owner)", 1
+    )[1].split("_set_traits_header_action(owner, \"calculate\")", 1)[0]
 
     assert "set_section_checked" not in cached_branch
     assert "_set_traits_prediction_section_expanded" not in cached_branch
+    assert "_set_traits_prediction_section_expanded" not in uncached_preamble
