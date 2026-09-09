@@ -194,8 +194,11 @@ def _start_background_worker(
     if receiver is not None:
         # Explicit queued delivery keeps all widget mutations in the GUI thread.
         finished_signal.connect(receiver, Qt.QueuedConnection)
-    finished_signal.connect(worker.deleteLater)
-    finished_signal.connect(thread.quit)
+
+    # Cache workers own no GUI state. Request deletion/quit directly from the
+    # worker thread so completion never depends on the GUI event loop being free.
+    finished_signal.connect(worker.deleteLater, Qt.DirectConnection)
+    finished_signal.connect(thread.quit, Qt.DirectConnection)
 
     def _release() -> None:
         _ACTIVE_CACHE_JOBS.pop(job_id, None)
