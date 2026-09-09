@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import json
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 from ephemeraldaddy.gui.features.transits.cache import (
     PERSONAL_TIMELINE_CACHE_SCHEMA_VERSION,
@@ -98,6 +99,27 @@ def test_fingerprint_ignores_cosmetic_metadata_but_tracks_transit_inputs() -> No
     assert personal_timeline_fingerprint(
         "ABCDEF1234567890", chart, _config()
     ) != baseline
+
+
+def test_fingerprint_tracks_named_timezone_rules_not_only_birth_offset() -> None:
+    new_york = ZoneInfo("America/New_York")
+    lima = ZoneInfo("America/Lima")
+    chart = _chart()
+
+    chart.dt = datetime.datetime(2000, 1, 1, 12, tzinfo=new_york)
+    new_york_offset = chart.dt.utcoffset()
+    new_york_fingerprint = personal_timeline_fingerprint(
+        "ABCDEF1234567890", chart, _config()
+    )
+
+    chart.dt = datetime.datetime(2000, 1, 1, 12, tzinfo=lima)
+    lima_offset = chart.dt.utcoffset()
+    lima_fingerprint = personal_timeline_fingerprint(
+        "ABCDEF1234567890", chart, _config()
+    )
+
+    assert new_york_offset == lima_offset == datetime.timedelta(hours=-5)
+    assert new_york_fingerprint != lima_fingerprint
 
 
 def test_fingerprint_tracks_death_bounds_and_generation_config() -> None:
