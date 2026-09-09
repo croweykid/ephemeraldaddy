@@ -44,11 +44,13 @@ class _CacheReadWorker(QObject):
         cache: PersonalTimelineDiskCache,
         chart_uid: str,
         fingerprint: str,
+        timeline_tzinfo: datetime.tzinfo,
     ) -> None:
         super().__init__()
         self.cache = cache
         self.chart_uid = str(chart_uid)
         self.fingerprint = str(fingerprint)
+        self.timeline_tzinfo = timeline_tzinfo
 
     @Slot()
     def run(self) -> None:
@@ -58,7 +60,11 @@ class _CacheReadWorker(QObject):
                 result = CacheReadResult(hit=False)
             else:
                 windows = tuple(
-                    _cached_window(payload, self.chart_uid)
+                    _cached_window(
+                        payload,
+                        self.chart_uid,
+                        self.timeline_tzinfo,
+                    )
                     for payload in payloads
                 )
                 result = CacheReadResult(hit=True, windows=windows)
@@ -129,7 +135,29 @@ def _generation_config() -> dict[str, object]:
     }
 
 
-def _cached_window(payload: dict[str, object], chart_uid: str) -> Any:
+def _restore_cached_datetime(
+    raw_value: object,
+    timeline_tzinfo: datetime.tzinfo,
+) -> datetime.datetime:
+    """Restore one cached endpoint using the chart's timezone rule set.
+
+    ISO strings preserve the endpoint's UTC offset but not an IANA timezone
+    identity. ``fromisoformat`` therefore yields a fixed-offset timezone. Convert
+    that instant back into the chart's original tzinfo so DST-aware arithmetic,
+    midpoint calculations, and duration semantics match freshly generated
+    Personal Timeline windows.
+    """
+    restored = datetime.datetime.fromisoformat(str(raw_value))
+    if restored.tzinfo is None:
+        raise ValueError("Cached Personal Timeline bounds must include an offset.")
+    return restored.astimezone(timeline_tzinfo)
+
+
+def _cached_window(
+    payload: dict[str, object],
+    chart_uid: str,
+    timeline_tzinfo: datetime.tzinfo,
+) -> Any:
     transit_payload = payload.get("transit")
     if not isinstance(transit_payload, dict):
         raise ValueError("Cached Personal Timeline transit payload is malformed.")
@@ -139,9 +167,9 @@ def _cached_window(payload: dict[str, object], chart_uid: str) -> Any:
     if cached_uid != expected_uid:
         raise ValueError("Cached Personal Timeline window belongs to another chart.")
 
-    start = datetime.datetime.fromisoformat(str(payload["start"]))
-    end = datetime.datetime.fromisoformat(str(payload["end"]))
-    if start.tzinfo is None or end.tzinfo is None or end < start:
+    start = _restore_cached_datetime(payload["start"], timeline_tzinfo)
+    end = _restore_cached_datetime(payload["end"], timeline_tzinfo)
+    if end < start:
         raise ValueError("Cached Personal Timeline bounds are invalid.")
 
     transit = core.TimelineTransitDefinition(
@@ -258,6 +286,15 @@ class PersonalTimelinePersistenceController:
         self.chart_uid = str(chart_uid or "").strip().upper()
         self.chart = chart
         self.cache = cache or PersonalTimelineDiskCache()
+
+        birth_datetime = getattr(chart, "dt", None)
+        self.timeline_tzinfo: datetime.tzinfo | None = (
+            birth_datetime.tzinfo
+            if isinstance(birth_datetime, datetime.datetime)
+            and birth_datetime.tzinfo is not None
+            else None
+        )
+
         self.fingerprint: str | None
         try:
             self.fingerprint = personal_timeline_fingerprint(
@@ -270,15 +307,20 @@ class PersonalTimelinePersistenceController:
 
     @property
     def available(self) -> bool:
-        return bool(self.chart_uid and self.fingerprint)
+        return bool(self.chart_uid and self.fingerprint and self.timeline_tzinfo)
 
     def start_read(self, receiver: Callable[[object], None]) -> bool:
-        if not self.available or self.fingerprint is None:
+        if (
+            not self.available
+            or self.fingerprint is None
+            or self.timeline_tzinfo is None
+        ):
             return False
         worker = _CacheReadWorker(
             self.cache,
             self.chart_uid,
             self.fingerprint,
+            self.timeline_tzinfo,
         )
         _start_background_worker(worker, receiver=receiver)
         return True
