@@ -82,6 +82,10 @@ from ephemeraldaddy.gui.features.charts.euphonics import (
     render_euphonics_html,
 )
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
+from ephemeraldaddy.gui.features.charts.right_panel_state import (
+    save_section_expanded,
+    saved_section_expanded,
+)
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
     start_prediction_loading_blink,
     start_prediction_loading_ellipsis,
@@ -1561,6 +1565,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     alignment_box = _build_subjective_notes_metric_section(
         owner,
         title="💭Perceived alignment",
+        section_key="perceived_alignment",
         content_builder=lambda content_layout: _populate_alignment_section(owner, content_layout),
     )
     layout.addWidget(alignment_box)
@@ -1568,7 +1573,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     cultural_contribution_box = _build_subjective_notes_metric_section(
         owner,
         title="Cultural Contribution",
-        module_key="cultural_contribution",
+        section_key="cultural_contribution",
         content_builder=owner.cultural_contribution_controller.populate_section,
     )
     layout.addWidget(cultural_contribution_box)
@@ -1576,6 +1581,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     sexiness_box = _build_subjective_notes_metric_section(
         owner,
         title="Sexiness",
+        section_key="sexiness",
         content_builder=lambda content_layout: _populate_sexiness_section(owner, content_layout),
     )
     owner.sexiness_section_box = sexiness_box
@@ -1590,6 +1596,7 @@ def _build_subjective_notes_metric_section(
     *,
     title: str,
     content_builder: Callable[[QVBoxLayout], None],
+    section_key: str | None = None,
 ) -> QFrame:
     section_box = QFrame()
     section_box.setStyleSheet(
@@ -1605,11 +1612,15 @@ def _build_subjective_notes_metric_section(
     section_layout.setSpacing(6)
     section_box.setLayout(section_layout)
 
+    persistence_key = section_key or (
+        title.casefold().replace("💭", "").strip().replace(" ", "_")
+    )
+    expanded = saved_section_expanded(owner, "observations", persistence_key)
     section_toggle = QToolButton()
     configure_collapsible_header_toggle(
         section_toggle,
         title=title,
-        expanded=True,
+        expanded=expanded,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
 
@@ -1626,10 +1637,15 @@ def _build_subjective_notes_metric_section(
             expanded,
         )
     )
+    section_toggle.toggled.connect(
+        lambda checked: save_section_expanded(
+            owner, "observations", persistence_key, checked
+        )
+    )
     section_layout.addWidget(section_toggle)
-    content_widget.setVisible(True)
+    content_widget.setVisible(expanded)
     section_layout.addWidget(content_widget)
-    owner._toggle_chart_panel_content(section_toggle, content_widget, True)
+    owner._toggle_chart_panel_content(section_toggle, content_widget, expanded)
     return section_box
 
 
@@ -1902,6 +1918,20 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     panel.setLayout(layout)
 
+    def prediction_expanded(section_key: str) -> bool:
+        expanded = saved_section_expanded(owner, "predictions", section_key)
+        owner._chart_analysis_section_expanded[section_key] = expanded
+        return expanded
+
+    def prediction_toggled(section_key: str, expanded: bool) -> None:
+        save_section_expanded(owner, "predictions", section_key, expanded)
+        owner._set_chart_analysis_section_expanded(section_key, expanded)
+
+    def traits_toggled(expanded: bool) -> None:
+        """Persist only an actual toggle change, never cache hydration."""
+        save_section_expanded(owner, "predictions", "traits", expanded)
+        sync_traits_prediction_section_expansion(owner, expanded)
+
     owner.predictions_background_status_label = QLabel("Predictions render on demand in the background.")
     owner.predictions_background_status_label.setTextFormat(Qt.RichText)
     owner.predictions_background_status_label.setWordWrap(True)
@@ -1943,8 +1973,8 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         panel=panel,
         layout=layout,
         title="Traits",
-        expanded=False,
-        on_toggled=lambda expanded: sync_traits_prediction_section_expansion(owner, expanded),
+        expanded=prediction_expanded("traits"),
+        on_toggled=traits_toggled,
         section_key="traits",
     )
     register_prediction_section("traits", traits_section_layout)
@@ -1991,7 +2021,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         panel=panel,
         layout=layout,
         title="OCEAN Personality",
-        expanded=True,
+        expanded=prediction_expanded("ocean"),
+        on_toggled=lambda expanded: prediction_toggled("ocean", expanded),
+        section_key="ocean",
     )
     register_prediction_section("ocean", ocean_section_layout)
     _install_prediction_header_action(owner, ocean_section_layout, "ocean")
@@ -2015,7 +2047,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         panel=panel,
         layout=layout,
         title="Enneagram",
-        expanded=True,
+        expanded=prediction_expanded("enneagram"),
+        on_toggled=lambda expanded: prediction_toggled("enneagram", expanded),
+        section_key="enneagram",
     )
     register_prediction_section("enneagram", enneagram_section_layout)
     _install_prediction_header_action(owner, enneagram_section_layout, "enneagram")
@@ -2037,7 +2071,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         panel=panel,
         layout=layout,
         title="Fantasy RPG Statblock",
-        expanded=True,
+        expanded=prediction_expanded("dnd_statblock"),
+        on_toggled=lambda expanded: prediction_toggled("dnd_statblock", expanded),
+        section_key="dnd_statblock",
     )
     register_prediction_section("dnd_statblock", dnd_statblock_section_layout)
     _install_prediction_header_action(owner, dnd_statblock_section_layout, "dnd_statblock")
@@ -2056,7 +2092,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         panel=panel,
         layout=layout,
         title="Fantasy RPG Species",
-        expanded=True,
+        expanded=prediction_expanded("dnd_species"),
+        on_toggled=lambda expanded: prediction_toggled("dnd_species", expanded),
+        section_key="dnd_species",
     )
     register_prediction_section("dnd_species", dnd_species_section_layout)
     _install_prediction_header_action(owner, dnd_species_section_layout, "dnd_species")
@@ -2076,7 +2114,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         panel=panel,
         layout=layout,
         title="Fantasy RPG Class",
-        expanded=True,
+        expanded=prediction_expanded("dnd_class"),
+        on_toggled=lambda expanded: prediction_toggled("dnd_class", expanded),
+        section_key="dnd_class",
     )
     register_prediction_section("dnd_class", dnd_class_section_layout)
     _install_prediction_header_action(owner, dnd_class_section_layout, "dnd_class")
@@ -2096,7 +2136,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         panel=panel,
         layout=layout,
         title="Fantasy RPG Alignment",
-        expanded=True,
+        expanded=prediction_expanded("dnd_alignment"),
+        on_toggled=lambda expanded: prediction_toggled("dnd_alignment", expanded),
+        section_key="dnd_alignment",
     )
     register_prediction_section("dnd_alignment", dnd_alignment_section_layout)
     _install_prediction_header_action(owner, dnd_alignment_section_layout, "dnd_alignment")
@@ -2131,14 +2173,16 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         default_filename="ephemeraldaddy_chart_gender_guesser",
         chart_container_attr="gender_guesser_container",
         chart_layout_attr="gender_guesser_container_layout",
-        expanded=True,
+        expanded=prediction_expanded("gender_guesser"),
         parent_layout=layout,
     )
     hd_electrochemistry_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
         title="Predicted Synastry",
-        expanded=True,
+        expanded=prediction_expanded("hd_electrochemistry"),
+        on_toggled=lambda expanded: prediction_toggled("hd_electrochemistry", expanded),
+        section_key="hd_electrochemistry",
     )
     register_prediction_section("hd_electrochemistry", hd_electrochemistry_section_layout)
     hd_electrochemistry_gender_row = QWidget()
@@ -2874,6 +2918,8 @@ def _update_chart_analysis_subtitle(self, chart_key: str) -> None:
 
 def _set_chart_analysis_section_expanded(self, section_key: str, expanded: bool) -> None:
     self._chart_analysis_sections_controller.set_section_expanded(section_key, expanded)
+    if section_key == "gender_guesser":
+        save_section_expanded(self, "predictions", section_key, expanded)
     if section_key == "traits":
         sync_traits_prediction_section_expansion(self, expanded)
     if not expanded or self._latest_chart is None:
