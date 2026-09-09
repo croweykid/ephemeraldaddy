@@ -648,15 +648,93 @@ class RankingsPanelMixin:
             else:
                 thread.wait(max(0, int(wait_msecs)))
 
+    def _rankings_trait_live_database_values(
+        self,
+        *,
+        chart_uids: tuple[str, ...],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        selected_trait_name: str,
+    ) -> dict[str, float]:
+        """Return the best available DB average while a ranking scan is running."""
+        snapshot_values = getattr(self, "_rankings_traits_worker_context", {})
+        if isinstance(snapshot_values, dict) and selected_trait_name in snapshot_values:
+            try:
+                return {selected_trait_name: float(snapshot_values[selected_trait_name])}
+            except (TypeError, ValueError):
+                pass
+
+        likelihood_cache = getattr(
+            self, "_traits_distribution_chart_likelihood_cache", None
+        )
+        if not isinstance(likelihood_cache, dict):
+            return {}
+        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        warmed_values: list[float] = []
+        for chart_uid in chart_uids:
+            likelihoods = likelihood_cache.get(
+                (cache_revision, trait_signature, chart_uid)
+            )
+            if not isinstance(likelihoods, dict):
+                continue
+            try:
+                warmed_values.append(float(likelihoods[selected_trait_name]))
+            except (KeyError, TypeError, ValueError):
+                continue
+        if not warmed_values:
+            return {}
+        return {
+            selected_trait_name: (
+                sum(warmed_values) / float(len(warmed_values)) / 100.0
+            )
+        }
+
     @Slot(object, float)
     def _on_rankings_trait_progress(self, token: object, parsed_percent: float) -> None:
         if token != getattr(self, "_rankings_traits_worker_token", None):
             return
+        try:
+            parsed_value = max(0.0, min(100.0, float(parsed_percent)))
+        except (TypeError, ValueError):
+            parsed_value = 0.0
+        progress_key = (token, int(parsed_value))
+        if (
+            progress_key
+            == getattr(self, "_rankings_traits_last_live_progress_key", None)
+            and parsed_value < 100.0
+        ):
+            return
+
         trait_name = str(token[0])
+        chart_uids = tuple(token[2])
+        trait_signature = token[4]
+        database_values = self._rankings_trait_live_database_values(
+            chart_uids=chart_uids,
+            trait_signature=trait_signature,
+            selected_trait_name=trait_name,
+        )
+        rankings = self._traits_distribution_chart_rankings(
+            chart_uids=chart_uids,
+            trait_signature=trait_signature,
+            selected_trait_name=trait_name,
+            database_values=database_values,
+        )
+        if rankings:
+            self._rankings_traits_last_live_progress_key = progress_key
+            self.rankings_traits_label.setText(
+                self._render_traits_distribution_rankings_html(
+                    trait_name,
+                    rankings,
+                    scope_label="the database",
+                    cache_warmed=False,
+                    parsed_percent=parsed_value,
+                )
+            )
+            return
+
         safe_trait = html.escape(trait_name)
         self.rankings_traits_label.setText(
             f"<span style='color:#9a9a9a;'>Calculating top chart matches for "
-            f"<b>{safe_trait}</b>… {parsed_percent:.0f}% of DB parsed.</span>"
+            f"<b>{safe_trait}</b>… {parsed_value:.0f}% of DB parsed.</span>"
         )
 
     @Slot(object, object)
