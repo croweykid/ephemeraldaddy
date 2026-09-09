@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import datetime
 import threading
 import time
+from zoneinfo import ZoneInfo
 
 from PySide6.QtCore import QCoreApplication
 
@@ -11,6 +13,7 @@ from ephemeraldaddy.gui.features.transits import personal_timeline_persistence a
 
 
 _QT_APP = QCoreApplication.instance() or QCoreApplication([])
+UTC = datetime.timezone.utc
 
 
 def test_public_timeline_uses_explicit_subclass_without_core_mutation() -> None:
@@ -48,6 +51,7 @@ def test_cache_read_runs_get_off_calling_thread() -> None:
         _Cache(),  # type: ignore[arg-type]
         "ABCDEF1234567890",
         "fingerprint",
+        UTC,
     )
     worker.finished.connect(results.append)
 
@@ -110,6 +114,7 @@ def test_cache_read_corruption_invalidates_in_worker_thread() -> None:
         _Cache(),  # type: ignore[arg-type]
         "ABCDEF1234567890",
         "fingerprint",
+        UTC,
     )
     worker.finished.connect(results.append)
 
@@ -122,6 +127,46 @@ def test_cache_read_corruption_invalidates_in_worker_thread() -> None:
     result = results[0]
     assert isinstance(result, persistence.CacheReadResult)
     assert result.hit is False
+
+
+def test_cached_window_reapplies_named_timezone_across_dst() -> None:
+    eastern = ZoneInfo("America/New_York")
+    generated_start = datetime.datetime(2026, 3, 7, 12, tzinfo=eastern)
+    generated_end = datetime.datetime(2026, 3, 9, 12, tzinfo=eastern)
+
+    # ISO persistence retains -05:00/-04:00 offsets but loses the IANA rule set.
+    fixed_start = datetime.datetime.fromisoformat(generated_start.isoformat())
+    fixed_end = datetime.datetime.fromisoformat(generated_end.isoformat())
+    assert (fixed_end - fixed_start).total_seconds() == 47 * 3600
+
+    payload = {
+        "chart_uid": "ABCDEF1234567890",
+        "transit": {
+            "transiting_body": "Saturn",
+            "natal_body": "Sun",
+            "natal_longitude": 280.5,
+            "aspect_name": "square",
+            "aspect_angle": 90.0,
+            "orb_deg": 3.0,
+        },
+        "start": generated_start.isoformat(),
+        "end": generated_end.isoformat(),
+        "start_truncated": False,
+        "end_truncated": False,
+    }
+
+    restored = persistence._cached_window(
+        payload,
+        "ABCDEF1234567890",
+        eastern,
+    )
+
+    assert getattr(restored.start.tzinfo, "key", None) == "America/New_York"
+    assert getattr(restored.end.tzinfo, "key", None) == "America/New_York"
+    assert restored.start == generated_start
+    assert restored.end == generated_end
+    assert restored.duration_days == 2.0
+    assert restored.midpoint == datetime.datetime(2026, 3, 8, 12, tzinfo=eastern)
 
 
 def test_shutdown_waits_for_inflight_cache_job() -> None:
