@@ -1595,17 +1595,6 @@ def sync_traits_prediction_section_expansion(owner: Any, expanded: bool) -> None
         QTimer.singleShot(0, lambda owner=owner: start_traits_prediction_calculation(owner))
 
 
-def _set_traits_prediction_section_expanded(owner: Any, expanded: bool) -> None:
-    controller = getattr(owner, "_chart_analysis_sections_controller", None)
-    set_checked = getattr(controller, "set_section_checked", None)
-    if callable(set_checked):
-        set_checked("traits", expanded)
-        return
-    expanded_by_key = getattr(owner, "_chart_analysis_section_expanded", None)
-    if isinstance(expanded_by_key, dict):
-        expanded_by_key["traits"] = expanded
-
-
 def _traits_prediction_section_expanded(owner: Any) -> bool:
     expanded_by_key = getattr(owner, "_chart_analysis_section_expanded", None)
     if isinstance(expanded_by_key, dict):
@@ -2089,7 +2078,10 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         owner._traits_prediction_pending_signatures = signatures
         owner._traits_prediction_pending_metadata = cached_metadata
         owner._traits_prediction_pending_metadata_cache_key = cache_key or ""
-        _set_traits_prediction_section_expanded(owner, True)
+        # Cache hydration updates the section body but must not open it. Expansion
+        # is a user preference, restored by the Chart Editor when the toggle is
+        # constructed, and programmatically checking it would overwrite a saved
+        # collapsed preference through the toggle's persistence handler.
         if bool(cached_metadata.get("stale")):
             _set_traits_header_action(owner, "recalculate")
             if _predictions_manual_recalculation_only(owner):
@@ -2117,8 +2109,6 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    if not was_expanded:
-        _set_traits_prediction_section_expanded(owner, False)
     _set_traits_header_action(owner, "calculate")
     if _predictions_manual_recalculation_only(owner):
         _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for expansion/header calculate cache_key=%s", (cache_key or "")[:12])
