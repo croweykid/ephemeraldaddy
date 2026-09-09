@@ -36,4 +36,5 @@ jobs:
           tests/test_personal_timeline_filters.py
           tests/test_personal_timeline_analysis.py
           tests/test_personal_timeline_cache.py
+          tests/test_personal_timeline_persistence.py
           tests/test_personal_timeline_sorting.py
