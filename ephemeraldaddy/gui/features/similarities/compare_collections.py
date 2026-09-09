@@ -78,7 +78,7 @@ class CompareCollectionsDialog(QDialog):
                 self._custom_collections.values(), key=lambda item: item.name.casefold()
             )
         ]
-        self.setWindowTitle("Compare-Contrast Collections")
+        self.setWindowTitle("🆚Compare-Contrast Collections") #🆚 or ⇄ icon
         self.resize(1050, 650)
         layout = QVBoxLayout(self)
         intro = QLabel(

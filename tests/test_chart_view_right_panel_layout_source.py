@@ -298,7 +298,7 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     loading_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/prediction_loading_labels.py").read_text()
     app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
-    assert 'PREDICTION_CALCULATE_PROMPT = "No prior data. Calculate (can take awhile)?"' in loading_source
+    assert 'PREDICTION_CALCULATE_PROMPT = "No prior data. Calculate?"' in loading_source
     assert "add_prediction_calculate_prompt(layout)" in enneagram_source
     assert "add_prediction_calculate_prompt(target_layout)" in dnd_source
     assert '_set_header_action("calculate")' in enneagram_source
@@ -345,7 +345,7 @@ def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():
 
 def test_traits_predictions_default_to_manual_recalculation_with_cached_stale_display():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
-    assert "No prior data. Calculate (can take awhile)?" in source
+    assert "No prior data. Calculate?" in source
     assert "trait-predictions:calculate" in source
     assert "cached_only: bool = False" in source
     assert "trait_metadata_for_chart(owner, chart, cached_only=True)" in source
@@ -397,7 +397,7 @@ def test_prediction_calculate_prompts_expand_and_center_contents():
     assert "label.setWordWrap(True)" in source
     assert "layout.addWidget(label)" in source
     traits_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
-    assert "No prior data. Calculate (can take awhile)?" in traits_source
+    assert "No prior data. Calculate?" in traits_source
 
 
 def test_right_panel_expand_autoscroll_ignores_plain_checkboxes():
