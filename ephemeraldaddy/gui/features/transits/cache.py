@@ -105,6 +105,36 @@ def _datetime_payload(value: object) -> str | None:
     return value.isoformat()
 
 
+def _timezone_payload(value: object) -> dict[str, object] | None:
+    """Return stable timezone identity for Personal Timeline cache invalidation.
+
+    ``datetime.isoformat()`` records only the offset at that instant. Two named
+    zones can share that offset at birth while following different DST rules
+    later in life, which would make their generated Timeline windows differ.
+    """
+    if not isinstance(value, _dt.datetime) or value.tzinfo is None:
+        return None
+
+    tzinfo = value.tzinfo
+    key = getattr(tzinfo, "key", None)
+    if key:
+        return {"kind": "iana", "key": str(key)}
+
+    zone = getattr(tzinfo, "zone", None)
+    if zone:
+        return {"kind": "named", "key": str(zone)}
+
+    offset = value.utcoffset()
+    offset_seconds = offset.total_seconds() if offset is not None else None
+    return {
+        "kind": "other",
+        "type": f"{type(tzinfo).__module__}.{type(tzinfo).__qualname__}",
+        "name": value.tzname(),
+        "offset_seconds": offset_seconds,
+        "display": str(tzinfo),
+    }
+
+
 def _json_safe(value: object) -> object:
     if value is None or isinstance(value, (str, bool, int)):
         return value
@@ -132,8 +162,8 @@ def personal_timeline_fingerprint(
     """Hash only inputs that can change Personal Timeline generation.
 
     Non-astral chart metadata is intentionally absent. A saved change to birth
-    data, natal positions, death bounds, or generation configuration produces a
-    different fingerprint and therefore a cache miss.
+    data, timezone rules, natal positions, death bounds, or generation
+    configuration produces a different fingerprint and therefore a cache miss.
     """
     positions: dict[str, float | None] = {}
     for body, longitude in sorted(
@@ -142,9 +172,11 @@ def personal_timeline_fingerprint(
     ):
         positions[str(body)] = _safe_float(longitude)
 
+    birth_datetime = getattr(chart, "dt", None)
     payload = {
         "chart_uid": _normalized_chart_uid(chart_uid),
-        "birth_datetime": _datetime_payload(getattr(chart, "dt", None)),
+        "birth_datetime": _datetime_payload(birth_datetime),
+        "birth_timezone": _timezone_payload(birth_datetime),
         "lat": _safe_float(getattr(chart, "lat", None)),
         "lon": _safe_float(getattr(chart, "lon", None)),
         "positions": positions,
