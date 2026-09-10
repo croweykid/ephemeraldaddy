@@ -1,9 +1,8 @@
 """Cohort provenance extension for the Similarities Analysis controller.
 
-The legacy calculation/export entry points still live on ManageChartsDialog.
-This controller keeps new cohort policy out of ``app.py`` by wrapping those
-entry points at the feature boundary until the remaining legacy methods are
-migrated into the Similarities package.
+The legacy calculation entry points still live on ManageChartsDialog.  This
+controller keeps cohort policy out of ``app.py`` and passes export metadata
+explicitly into the reusable Trait export path.
 """
 
 from __future__ import annotations
@@ -11,8 +10,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from PySide6.QtWidgets import QPushButton
+
 from ephemeraldaddy.core import db
-from ephemeraldaddy.gui.features.charts import similarities_export
+from ephemeraldaddy.gui.features.charts.exporters import (
+    export_similarities_analysis_json_dialog,
+)
 from ephemeraldaddy.gui.features.charts.statistical_significance import (
     SIGNIFICANCE_CORRECTION_DEFAULT,
     load_significance_correction,
@@ -21,28 +24,26 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 from .cohort_metadata import (
     build_gender_distribution,
     chart_uids_from_mapping,
-    inject_trait_cohort_metadata,
 )
 from .controller import SimilaritiesController as _BaseSimilaritiesController
+
+
+_PYTHON_EXPORT_TOOLTIP = "Export Similarities Analysis data as Python"
 
 
 class SimilaritiesController(_BaseSimilaritiesController):
     """Similarities controller with trait-cohort provenance and gender analysis."""
 
     def __init__(self, host: Any, **kwargs: Any) -> None:
-        self._legacy_export_similarities_analysis_json = getattr(
-            host, "_export_similarities_analysis_json", None
-        )
         self._cohort_chart_uids: list[str] = []
         self._cohort_gender_distribution: Mapping[str, Any] | None = None
         self.gender_distribution_toggle: Any | None = None
         self.gender_distribution_list: Any | None = None
-        if callable(self._legacy_export_similarities_analysis_json):
-            host._export_similarities_analysis_json = self._export_json_with_cohort_metadata
         super().__init__(host, **kwargs)
 
     def build_panel(self):
         panel = super().build_panel()
+        self._wire_python_export_button(panel)
         layout = panel.layout()
         if layout is None:
             return panel
@@ -70,6 +71,15 @@ class SimilaritiesController(_BaseSimilaritiesController):
             layout.addItem(trailing_item)
         return panel
 
+    def _wire_python_export_button(self, panel: Any) -> None:
+        """Route the Python data button to the cohort-aware export entry point."""
+        for button in panel.findChildren(QPushButton):
+            if button.toolTip() != _PYTHON_EXPORT_TOOLTIP:
+                continue
+            button.clicked.disconnect()
+            button.clicked.connect(self.export_json)
+            return
+
     def _guarded_update_analysis(self, chart_ids: list[int]) -> None:
         if not self.autocalculate_enabled and not self._force_calculation:
             super()._guarded_update_analysis(chart_ids)
@@ -81,6 +91,17 @@ class SimilaritiesController(_BaseSimilaritiesController):
     def calculate_pair_similarity(self) -> None:
         super().calculate_pair_similarity()
         self._refresh_cohort_metadata(self.host._selected_local_row_ids())
+
+    def export_json(self) -> None:
+        """Export reusable Trait data with its source cohort metadata."""
+        self.capture_legacy_attributes()
+        export_similarities_analysis_json_dialog(
+            self.host,
+            self.export_sections,
+            sample_uids=self._cohort_chart_uids,
+            gender_distribution=self._cohort_gender_distribution,
+            reactivate_callback=getattr(self.host, "_reactivate_database_view", None),
+        )
 
     def _selected_cohort_ids(self, chart_ids: list[int]) -> list[int]:
         exclude_placeholders = getattr(
@@ -192,45 +213,3 @@ class SimilaritiesController(_BaseSimilaritiesController):
                 f"{selected_percent - database_percent:+.1f} pp){marker}"
             )
         section_list.setToolTip("* statistically significant after the configured multiple-testing correction")
-
-    def _export_json_with_cohort_metadata(self) -> None:
-        """Run the legacy file dialog/export path with an enriched pure builder.
-
-        This temporarily replaces only the builder reference used by the legacy
-        export method.  File selection, formatting, error handling, and all other
-        legacy behavior remain unchanged, while no source change is required in
-        ``app.py``.
-        """
-        legacy_export = self._legacy_export_similarities_analysis_json
-        if not callable(legacy_export):
-            return
-
-        legacy_function = getattr(legacy_export, "__func__", legacy_export)
-        legacy_globals = getattr(legacy_function, "__globals__", None)
-        global_builder = (
-            legacy_globals.get("build_similarities_json_export_payload")
-            if isinstance(legacy_globals, dict)
-            else None
-        )
-        module_builder = similarities_export.build_similarities_json_export_payload
-        base_builder = global_builder if callable(global_builder) else module_builder
-
-        def enriched_builder(selection_name: str, export_sections: Any, *args: Any, **kwargs: Any):
-            payload = base_builder(selection_name, export_sections, *args, **kwargs)
-            inject_trait_cohort_metadata(
-                payload,
-                selection_name,
-                chart_uids=self._cohort_chart_uids,
-                gender_distribution=self._cohort_gender_distribution,
-            )
-            return payload
-
-        if isinstance(legacy_globals, dict) and callable(global_builder):
-            legacy_globals["build_similarities_json_export_payload"] = enriched_builder
-        similarities_export.build_similarities_json_export_payload = enriched_builder
-        try:
-            legacy_export()
-        finally:
-            similarities_export.build_similarities_json_export_payload = module_builder
-            if isinstance(legacy_globals, dict) and callable(global_builder):
-                legacy_globals["build_similarities_json_export_payload"] = global_builder

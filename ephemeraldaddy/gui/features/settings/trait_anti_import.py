@@ -8,7 +8,7 @@ from types import ModuleType
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QPushButton
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QPushButton
 
 from ephemeraldaddy.analysis import traits as trait_store
 
@@ -127,35 +127,30 @@ def _find_layout_containing_widget(layout: Any, widget: Any) -> Any | None:
 
 
 def _confirm_selected_file(parent: Any, *, file_name: str, trait_name: str) -> bool:
-    prompt = QMessageBox(parent)
-    prompt.setIcon(QMessageBox.Icon.Warning)
-    prompt.setWindowTitle("Append anti-trait file?")
-    prompt.setText(f"Add {file_name} as antithetical to {trait_name}?")
-    nope_button = prompt.addButton("nope!", QMessageBox.ButtonRole.RejectRole)
-    yeah_button = prompt.addButton("yeah", QMessageBox.ButtonRole.AcceptRole)
-    prompt.setDefaultButton(nope_button)
-    prompt.setEscapeButton(nope_button)
-    prompt.exec()
-    return prompt.clickedButton() is yeah_button
+    """Confirm an anti-trait import without retaining custom Qt button wrappers."""
+    result = QMessageBox.question(
+        parent,
+        "Append anti-trait file?",
+        f"Add {file_name} as antithetical to {trait_name}?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes
 
 
 def _existing_anti_properties_choice(parent: Any, *, trait_name: str) -> str | None:
-    prompt = QMessageBox(parent)
-    prompt.setIcon(QMessageBox.Icon.Warning)
-    prompt.setWindowTitle("Existing anti-properties")
-    prompt.setText(f"{trait_name} already has anti- properties...")
-    append_button = prompt.addButton("Append to existing", QMessageBox.ButtonRole.AcceptRole)
-    replace_button = prompt.addButton("Replace", QMessageBox.ButtonRole.DestructiveRole)
-    cancel_button = prompt.addButton("Agh! Never mind", QMessageBox.ButtonRole.RejectRole)
-    prompt.setDefaultButton(cancel_button)
-    prompt.setEscapeButton(cancel_button)
-    prompt.exec()
-    clicked = prompt.clickedButton()
-    if clicked is append_button:
-        return "append"
-    if clicked is replace_button:
-        return "replace"
-    return None
+    """Choose append/replace without relying on QMessageBox-owned QPushButton objects."""
+    label, accepted = QInputDialog.getItem(
+        parent,
+        "Existing anti-properties",
+        f"{trait_name} already has anti-properties. What should happen to the existing data?",
+        ["Append to existing", "Replace"],
+        0,
+        False,
+    )
+    if not accepted:
+        return None
+    return "replace" if label == "Replace" else "append"
 
 
 def _sync_anti_trait_button(owner: Any) -> None:
@@ -265,6 +260,13 @@ def on_trait_append_anti_clicked(core: ModuleType, owner: Any) -> None:
     core._warm_trait_definitions(owner, {trait_name})
     core.refresh_traits_settings_list(owner)
     core._refresh_trait_predictions(owner)
+
+    action_text = "replaced anti-properties for" if replace else "appended anti-properties to"
+    QMessageBox.information(
+        dialog_parent,
+        "Anti-properties updated",
+        f"Successfully {action_text} {trait_name}!",
+    )
 
 
 def install_trait_anti_import(core: ModuleType) -> None:
