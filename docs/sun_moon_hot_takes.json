@@ -1,0 +1,746 @@
+{
+  "aries": {
+    "aries": {
+      "best_case": "Adam Scott is not the poster boy for the God of War. Celine Dion is, though…Gary Oldman, Sam Harris, Rooney Mara, Taylor Joy, Nathan Fillion, Win Butler, Marlon Brando, hell - even Jenny Slate - all different castings, but I buy it.",
+      "average": "Mostly really funny. Mean, but hilarious. 4 comedians. 4 dead serious. Gary Oldman seems serious but is hilarious. \n\nThey're all \"dustier\" and more sober than you expect based on \"Aries\" descriptions. You expect the \"genki\" hyperactive plucky protagonist, but you get old tired war machine instead. Most of these men give the image of being serious, reserved, laconic & stately; dignified & potently serious. Most of the women give the impression of being \"fresh\", eternally youthful, childlike but grounded. There is at least the illusion of pragmatism around all of these people, like \"There are no gods in foxholes - just you & me, let's play to win\".\n\nOn the surface, they all \"feel\" more earthy than fiery.",
+      "worst_case": "Haughty, condescending but not very good at critical thinking, assumes they're the king/queen of the room but feigns humility. Taylor Joy has the most punchable face ever.\n\nCeline Dion has MC in Aries, as well, making whatever she does \"the most Aries career a person can have\""
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "Cocaine as a person.",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "They make a really good first impression - they're good at playing roles, making people laugh, laughing at themselves, being the butt of the joke while still looking really skillful/hot. They can play the heel, they can play the fool, but they get the last laugh - because they can (behind the scenes) be completely evil & abusive to the people closest to them while the world continues to adore the funnyman or kooky woman. They are emotionally inaccessible; the feelings they portray are larger than life onscreen but all a ruse; their souls are empty. LOL Okay, I don't know any of them personally, but I have read the memoirs :P Because at some point I've had a peculiar fascination for most of these people. They are radiant. They sparkle.\n\nNot emotionally healthy...most of them have a reputation for domestic violence of some sort, including many of the women - and most have alcoholism as a factor\n\nBut Helmut Kohl - with the 2nd longest tenure of any German chancellor - was integral to the reunification of Germany.",
+      "worst_case": "Ewan, Jennifer & Jessica aren't awful - they just take loads of roles without substance or emotional depth but maybe their agents are just bad."
+    },
+    "cancer": {
+      "best_case": "The funny Aries are earlier (Ut. Bhad). Those tragic with transcendental pathos are Revati.  Emma Thompson is the only Ashwini on the list. They're all Punarvasu moon except the dark little Ardras: Heath Ledger, Leonard Nimoy, Goya, Martin Short & Dennis Quaid.",
+      "average": "a little bit of a crybaby, sensitive & fragile; emotive & talented with channeling it into art, comedy & beauty. Can laugh at self, humble, but also prone to self pity at times. Sense of self but also empathy for others, though the feelings can be overwhelming. A little avant gard but still basically in keeping with civilization's frameworks. Fundamentally decent.",
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": "Don't all seem like insufferable narcissists...? Yes, def Sean Bean too.",
+      "average": "senseless, shallow, basic, generic, duplicitous, social climbers, kiss up kick down, full of themselves. E3w4 & 6w7 (except Campbell & Khruschev who might be 6w5)\n\nWeirdly not a lot of them. You'd expect a lot more. \nEmil M Cioran (with a Taurus stellium) is one, he wrote \"The Trouble with Being Born\" and \"A Short History of Decay\" and \"On the Heights of Despair\"",
+      "worst_case": null
+    },
+    "virgo": {
+      "best_case": "But I love Emmylou; she's soulful",
+      "average": "Notoriously bad, selfish, sadistic people but some of them are really charismatic & charming about it. Absolutely ruthless. Several of them avoid criminal persecution just by being hot, wealthy and/or connected. Esp awful/abusive in romantic contexts. And if they're not irl, they're playing it in movies. But these are the winners. How many aren't famous? How many had charm that failed & lacked the wealth & looks to bail them out of jail?",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "Quite a mix - Claire Danes &  Hitchens all seem quite cool. The rest seem awful except for Steven Tyler & Alec Baldwin, but I just don't know about htem at all.\n\nI haven't yet tried to get to the bottom of what might set those two apart.",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": "GPT says: \"passionate and driven; intense emotions; determined & resilient; transformative experiences, dynamic and magnetic, private and complex, driven by challenges...explosive temper, manipulative tendencies, jealous & possessive, unforgiving grudge-holders, self-destructive impulses, secrets & deception\"",
+      "average": "Silly, taken way too seriously for someone so silly & trivial. Not very intellectually deep. Probably mass appeal just for being relatably shallow? But there's a performative charisma about them that yearns to make other people laugh & smile & feel. A lot of them are quite cruel & abusive behind the scenes. They seem to live for the audience. Like Tinkerbelle. Don't call on them for anything serious, too meaningful, too important. It's always a mistake when they get involved in some kind of \"message\" - they have no business trying to be reverent or sanctimonious. It's a bad look.",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "One gets the feeling that there's not a lot going on between their ears -- however well they perform academically or how \"well spoken\" they are, but they're quite radiant when performing, they come alive before an audience. They exist for the stage alone.\n\nThey are basically bad people. lol But fiercely courageous.",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": "fun-loving, irreverent, casual, a little temperamental, peevish, \"high spirited\", sassy but together",
+      "average": "not overly complicated, not very original, mostly a skilled conversationalist, a sharp talker, impressive to most for their witty banter, likely to laugh at fail videos",
+      "worst_case": "crass, scatelogical, overly blunt, tasteless, smart but tactless & inconsiderate, witty & sharp but needlessly cruel"
+    },
+    "aquarius": {
+      "best_case": "outwardly boring with rich inner life, boozy apple pie, relatable but quirky, not quite as normal as you thought, lowkey aggressive energy - subtle",
+      "average": "They aren't iconoclasts. They don't reinvent the wheel. They don't break out of cages. They do the same things everyone else does in their own unique way, they put a funky little spin on imitation, but their imitation is usually existential more than performative satire in short-form. They work out the rules of the game & play it well, within the terms as defined. This includes if the game is crime -- they won't buy into pollyanna talk about the rules; they'll observe them firsthand & respond accordingly. They are very observational.",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": "wishywashy noodleperson with unexpected edginess\n\nThe ones I like on this list have a Pis stellium & significant Virgo influence (or at least some virgo).",
+      "average": "Don't expect too much. They're just like everyone else. They're not iconoclasts, they won't rock the boat. They'll take refuge among the ranks of their peers & adhere to what fellow professionals/respected peers expect - and they may do it better than any of the rest. Even if that means going against the larger wall of society - it's a real teacher's pet meets gang mentality. Are they true believers or just polishing apples? Hard to tell. Surprised there aren't more nazis in the mix here. But for the most part, they seem conspicuously nonviolent, they do it with talk. They do it in a way that begs the rest of society to get onboard, or shames them for not being in line.",
+      "worst_case": "enneagram 6w7 or 7w6 seems to dominate."
+    }
+  },
+  "taurus": {
+    "aries": {
+      "best_case": null,
+      "average": "They take their time with their work. They're not in a rush. Pacing is slow & serious.",
+      "worst_case": null
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "Don't expect a lot of spiritual or intellectual depth - don't expect deep conversations or complex motives; these are people of action. They act...quickly and frequently, dynamically. They are incredibly dynamic, forceful people - they dazzle with every movement. It's hard to stop watching. To tell a story about their feelings & experiences, to reach you viscerally with their visual or auditory storytelling, they're in their bodies & making something uniquely their own. The best of them will always be through their art, not through their relationships. Their work will always come first, that's where the magic will be. Work is easier than people. The people in their lives are fodder for the work, they inform the performances, ritual sacrifices on the bonfire of creation.",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "Polished, fly, debonair, charming as hell, a little arrogant - but \"we love it\", multitalented Renaissance people, the life of the party...but this is dangerous; these people can be a little amoral, their charm wins them too much airtime & they're not reliable stewards of the conscience of mankind; they're a moth drawn to spotlights, they live for the applause, they'll dance & be a puppet to anyone who throws them roses - intellectual integrity be damned. In the mind, it's not their beautiful mind that propels them - that mind is enthralled in service of their insatiable egos.",
+      "worst_case": null
+    },
+    "cancer": {
+      "best_case": null,
+      "average": "Superficially dull but actually with hidden depths of personality & vivaciousness - it gets hidden because of a slow, careful way of thinking and some level of shyness; but they are very deliberate & thoughtful, even if they seem just like a pretty face on the surface. They're way less basic than they seem.  They are full of mystic reverence for the unseen, the subtle. They may perceive the Web in some ways, but their response to it is mostly surrender to its music, to live in harmony, neither wildly reactive nor aggressively proactive - achieving a state of zen with the cosmos. The human essence of balance.",
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": null,
+      "average": "Entitled, haughty, puffed up with their own regality, a legend in their own minds but what have they actually done besides pull the wool over the minds of simpletons with their excess of confidence? The only worthwhile does are so because they've tried to make something novel - to actually innovate & expand their genres rather than smugly languishing around with a sense of inevitability.",
+      "worst_case": "Brian Eno's a dick, I've heard, and James Brown creeps me out, but I don't know enough about either to confirm or deny."
+    },
+    "virgo": {
+      "best_case": "\"Well my wife knows me by now / So there's no need to let the neighbors run my life\"",
+      "average": "Thousand yard stare like an ancient evil. They mostly all creep me out; real rapey creepster vibes. Seducy but spooky, like an incubus/succubus kind of thing. And people are super into that, but it's like a honey pot, come on guys, don't fall for that! God knows what happens to you if you do! Their whole lives are about seduction, one way or another - no matter how old they get. They do it often by being kind of rough & flagrantly/irreverently seedy. Though a few are too scared to own up to it publicly, so put on their church clothes for a time, depending on whether there are grandparents around. They'd like nothing more than to tear their church clothes off & yours too, right in front of the grandmas, if they thought they could get away with it & still get paid.",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "All style no substance, all on the surface, bankrupt of conscience but glittering",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": null,
+      "average": "A practical sort of shrewdness/sharpness, surreal, brilliant, creative visionaries, pioneers, fearless & evangelical in their causes while remaining detached and almost clinical in their approach as an artist\n\nSwati = great! (up to 13'51) -- which means Bono is one of the good ones...lol\n\nVishaka = mostly awful\nAnurada = nonexistent - who?",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "Not a lot of recognizeable names here; they don't often make it very big, apparently. And when they do, they often struggle with weight. These are all the names I even recognized from the list.",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": null,
+      "average": "Capable of great good & great evil as leaders & public figures of influence, it seems",
+      "worst_case": "Polemic & unreasonable...love to kick the hornet's nest? Agent provocateurs?"
+    },
+    "aquarius": {
+      "best_case": null,
+      "average": "Made a career off of portraying the adult in the room, the sensible one who just takes care of business in a pragmatic way while the world around is utterly crazy.",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": null,
+      "average": "\"What's your friggin problem? They're just my naked kids\"\n\n\"What's the matter? Have you never seen death before?!\"",
+      "worst_case": null
+    }
+  },
+  "gemini": {
+    "aries": {
+      "best_case": null,
+      "average": "Good at presenting a certain public persona, bad at real life; if they can channel their personal failings into works of art authentically without sparing themselves the embarassment then they can make great works",
+      "worst_case": null
+    },
+    "taurus": {
+      "best_case": "Bobby D's surprisingly more misogynistic than you'd think - womanizing/objectifying - then got religious at the end; Justin Roiland got cancelled by #MeToo…?",
+      "average": "A little lecherous, unexpectedly more conservative than most people in the arts, headstrong, determined, tenacious, charmingly distinct & quirky, unexpectedly sharp edges when you expected politeness & the basic social contract of civility; some small rebellious flame of irreverence for the expectations of others - a little bit of a troll",
+      "worst_case": "uber chauvanist misogynist douchebro, and Roiland's definitely a sleazy sexual predator (not unfairly cancelled; I looked into it - quite damning evidence)"
+    },
+    "gemini": {
+      "best_case": "deeply soulful, passionately & resonatingly emotive, transforming & transgressing, outlaws, rebuking the rules of the orthodoxy, refusing to be chained to public expectation",
+      "average": "Bold! Manic pixie dream girls. Exceptionally charismatic & flirtatious, fun, they get away with a lot by being playful & childlike. A tease, promises they have no intention of keeping. Snarky like a cruel child, as well. \"I'm just a silly girl tee hee\" schtick. The women are always described as \"pretty\" and \"charming\".\n\nThey're mostly lacking in a soul, unless they have earth or water rising, it seems. With libra rising, they can fake it well - but I'm not convinced.\n\n\"Sex has sold since the dawn of time,\" [even before I was aware of it being an issue] / Lolita / the madonna & the whore in one",
+      "worst_case": "trivial, shallow, pointless but full of chatter anyway, prone to embody the shiniest worst of pop culture"
+    },
+    "cancer": {
+      "best_case": null,
+      "average": "Pretty bad boys boys who play tough guys -- the more redeemable among them can clown on themselves for this, the worse seem to buy their own act. But more than being great brawlers, they're accomplished seducers. They tend to party hard. They have a dry, sardonic wit - a caustic sense of humor if their overblown masculine posturing doesn't get in the way. As for the laaadies - no idea what they're even about. \n\n3 of the men are bisexual & crossdress regularly for their line of work, for what it's worth, that stands out a bit. 7 of the 14 names on the list are voice actors, and 2 didn't live in a time when voice acting was a thing.  8 out of 14 are or have been comedians at one point in their career.",
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": null,
+      "average": "All the ones that seem respectable have either Virgo, Gemini or Libra rising or unknown ascendant.\n\nThe Leo rising ones are the worst.",
+      "worst_case": null
+    },
+    "virgo": {
+      "best_case": null,
+      "average": "kitty face\n\nThey don't get super famous, but they seem quite awesome & well balanced for the most part.\nThough they can really get tweaked out & enraged over quirky little self-righteous obsessions. Grumpier than other Geminis, except Gem/Leo & Gem/Ari.",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "Supremely cunning, outrageously beautiful, rarely famous for anything but beauty or sneakiness. Not sure where that leaves Bush Sr. lol",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": null,
+      "average": "Only the Swati, pretty much, get famous. On the whole list, there are only 2 non-Swati moons.",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": "???",
+      "average": "Electric personalities; manic & shocking - a testament to their profound professionalism when they manage to smooth it down & look cool/aloof. A lot of redheads too for whatever reason; people known for being \"spicy\"/zesty…maybe even acidic.",
+      "worst_case": "Blowhards without consideraton for others at all, no sense of when it's appropriate not to be a troll."
+    },
+    "capricorn": {
+      "best_case": null,
+      "average": "Some have a soul, others - like Daniel Tosh - do not. Why is that?",
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": null,
+      "average": null,
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": "\"If you want to make something, you have to want it so bad you feel like you'll die if you don't make it, because it's really, really hard to make something good.\"",
+      "average": "There seem to be no generalizations. They can be anything. They are the most multivariate of any sun/moon combo I've seen. Laura & Hans were unusually shifty/secretive & creative at getting not *their* way but service to others (for better or worse - an adopted orphan son or Hitler). Demetri is exceptionally clever & creative. I didn't know he was my astro twin but long thought he's who I'd like to be. 😂",
+      "worst_case": null
+    }
+  },
+  "cancer": {
+    "aries": {
+      "best_case": "simpleminded good nature, drive, ambition, slightly gruff benevolence, spirit of fun & drama",
+      "average": "Almost all performers: musicians & actors. With a few writers.\n\nI didn't know a lot of these people, but they were very captivating & charismatic at a glance, so I included them anyway. Big personalities. Surprisingly no one known to be awful (I don't like Li'l Kim, but also don't know her).\n\nOne thing that stood out is how everything I think I knew about them shows up in their Rising sign. This is distinctly different from most celebrities, where the other aspects of them tend to shine through in their public image -- every single one of them I did know had a persona pretty much defined by their rising sign alone.\n\nmostly they’re innocuous unless put in charge; don’t give them authority, they’ll be fine",
+      "worst_case": "selfishness, narcissism, tearing like an emotional fire through everyone, consuming & yielding nothing in return, entitled bellowing, being a know-it-all blowhard with no empathy or sense of moderation"
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "Relentless tenacity, toughness, iron will, grit, physical emotionality, connection with the corporeal, lack of self-pity, awareness of others\n\nThey seem very in touch with the physical & the physicality of emotion. ",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": "seedy but charming, gritty & relentless, gleefully defiant, rhetorically gifted, clever with manipulating an audience, courageous",
+      "average": "weirdly rich, weirdly well known all things considered, divisive & polarizing figures\n\nNot a lot of well known actors. Mostly political leaders (of mixed effectiveness & morality), and a few notorious fighters/criminals.\n\nNot relatable, but pretty badass.",
+      "worst_case": "full of themselves, amoral, smug, entitled, condescending but not really bringing anything special, so much attitude, unintellectual but arrogant, absurdly wealthy for no apparent reason, captivating of bizarre mass appeal"
+    },
+    "cancer": {
+      "best_case": null,
+      "average": "unreasonable irrational emotional narcissists, egomaniacal megalomaniacs at worst simple and basic at best, prone to gaslighting their partners, emotional blackmail -- but Harrison Ford doesn't seem like any of these things, he seems together. And Orwell and Neruda seem a little more wellbalanced. Codependent - yes. Needy - yes. But with a sense of self & purpose outside of emotional hysteria.",
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": null,
+      "average": "Insufferably emotional egotists. They are almost all musicians, but surprisingly few of them are very well known. The ones I like best put their melodramatic emotions to good use through their work, in a way that is somewhat self-effacing.",
+      "worst_case": null
+    },
+    "virgo": {
+      "best_case": null,
+      "average": "A lot of great & talented weirdos here, and only 1-3 notably awful people.\n\nA lot of musicians, again, including ones I didn't know.\n\nBut again, I'm realizing most of what we know about them is their Rising Sign, which shows up in the roles they take, the persona they play in interviews. ",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": "Super romantic homewrecker XD",
+      "average": "Also weirdly futuristic, maybe coincidental - but a lot of sci fi / fantasy names on this list, including some I wasn't familiar with.",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": null,
+      "average": "A lot of sci fi here, though ofc not exclusively. This seems to produce a sort of surreal combination of visionaries living in the future, dreamers. If they're mad, it's because they can envision a better/alternate/more interesting world, but mostly they just try to show it thorough their work.",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "Reckless people, with big emotions. Full of themselves.\n\nA lot of professional fake fighters & action men.\n\nThen there were a few nerdy bookish ones, like Joss Whedon & Dan Brown, who write stories that would star those pro fake fighters.\n\nGerald Ford is probably the only legit action man in the mix.\n\nBut Fred Savage, Hunter S Thompson & Schartzman are outliers. Within their work (The Wonder Years, Fear & Loathing, Rushmore), it has at least been commented on once -- occasionally central to the plot -- how aggressive they are and yet how bad at actually fighting. It was also commented on that they are bad with women & kind of misogynistic (including Joss Whedon, by those close to him, despite making \"feminist media\").\n\nBut all that said, they are kind of cavemen, but I wouldn't say \"crass\" was a defining trait, as far as I'm aware - not like a bunch of Adam Sandlers.\n\nAlso noteworthy: only 3 women on the list were recognizeable, and one died a few hundred years ago - she seduced Napoleon.\n\nThere aren't a lot - but I went 2 pages deep & added ones I didn't know because they were interesting.",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": "a deeply caring grounding presence that may have excessive romantic idealism at moments, but also a wry sardonic self-awareness & pragmatism about the world of real politik",
+      "average": "Salt of the earth at first glance, but look again and they get CRAAAZY. Still water's running deep as hell. Plus, quirkiness - they're just kind of (almost) secretly a little weird.",
+      "worst_case": "Kind of a Grandpa creep"
+    },
+    "aquarius": {
+      "best_case": null,
+      "average": "Full of themselves, self-righteous and callous",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": null,
+      "average": "They seem a little obsessive. A little intense.",
+      "worst_case": null
+    }
+  },
+  "leo": {
+    "aries": {
+      "best_case": null,
+      "average": "Ardent, passionate. Absolutely a force of nature. Placewise - violent but full of feeling. Really damned intense.",
+      "worst_case": null
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "A lot of 15 Minutes of Fame folks on this list. And a lot of the people on this list -- not all, but many -- you wonder how they ever got famous. It seems incongruous somehow. And there are many I didn't know - but they didn't really do anything, either, they just became famous. There were many doing what they do, but somehow we came to know them, and they don't seem necessarily BETTER - or their personalities seem really at odds with fame. They really do seem like \"boy/girl next door\", not like someone you would have heard of - nor do they look esp beautiful - yet we know them somehow.\n\nOn the flipside, James Marsters is an immense talent who vanished into near total obscurity after a hit role in Buffy. He was such a good actor - but one role of a lifetime and that was pretty much it for him.\n\nAnna Kendrick should be MORE famous, but she's woefully under appreciated. Aldous Huxley was a great writer many Zoomers have never even heard of, not that that's necessarily a metric of a person's renown.\n\nMy point is that these people seem to spend a lot of time on the fringe of success, on the periphery of renown.",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "Where are they all? You'd think they'd be mad famous!! Where are they hiding? Leo sun? Chatty gem moon?! Wtf?\n\nI'm worried that I DON'T see them. What the hell are they up to?!\n\n(Even just statistically, there should be way more than this -- completely disregarding lore, it's actually significant how few there are, given this is a very common time to be born)",
+      "worst_case": null
+    },
+    "cancer": {
+      "best_case": null,
+      "average": "Almost exclusively awful, full of themselves, insufferable egotists, heaving bosoms & ultimate melodrama",
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": "\"The air is 85% bullets…\"",
+      "average": null,
+      "worst_case": null
+    },
+    "virgo": {
+      "best_case": null,
+      "average": "\"I'm giving - they're not taking - what a WASTE.\" Unfaltering confidence in their own value.\n\nWhatever you think you're into about them, it's probably just their rising sign. ",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "Them's some strong emotions ya got thar\n\nBased on places, they're...secretly racist? lol",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": null,
+      "average": "This is where all the sexy ones are. But they're also a little scary, and probably want to hurt you. / The pretty \"popular\" ones. They know how to work a room. They give \"cheerleader\" but the hecklers won't win.",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "fiery, in your face relentless energy to maintain poise in a way that tries to come off as \"casual, toootally a normal person; def not obsessing over my appearance & whole meticulously curated persona or anything…\" / robust, vital, vivacious, kinda sporty & hands-on; one assumes there must be more but hard to get a read. Are they the center of their universe and everyone else's too?",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": null,
+      "average": "A lot of political leaders, including ones I didn't know, and several athletes I didn't know, and some models, and several porn actresses",
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": null,
+      "average": "The successful ones are powerhouses of ambition & accomplishment (except for AH, lol). They mastermind whole new ways of running a production. \nBut the ones I know are kind of fuck ups, who let other people run them around while they pose at being a tough guy.\n\nMost of the women are insufferably smug under a facade of \"down to earth, every-woman-ness\"; there's an untouchable self-reverence to most of them. The men may be the same, but it's less overt or maybe we're just more used to men being naturally smug.\n\nBB Thorton & PSH seem pretty cool. Beatrix Potter & Kate Bush are definitely awesome talents, though I know nothing of their personal lives or how they'd be to be around.",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": null,
+      "average": "piller",
+      "worst_case": null
+    }
+  },
+  "virgo": {
+    "aries": {
+      "best_case": null,
+      "average": "they’re just obnoxiously (childishly) opinionated when bad but thankfully most famous ones seem more often to be good & well informed. they suffer no lack of self confidence, no matter their qualifications. but when that segues with actual talent, intelligence & education, it’s incredibly useful. they are stubborn & won’t change their mind according to reason or fairness.",
+      "worst_case": null
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "The vast majority of people/things on this list have some dark secret and/or major scandal. Often sexual. They've largely got a pretty bad rap, and the ones that don't yet, I feel like it's just a matter of time...they're all up to something. Surely not my precious Colin Firth, though?! Surely not! Also they've got Julian Casablancas (The Strokes' frontman & songwriter)\n\ntheir “i’m a good person” sanctimony is a dangerous lie - but many are still very likeable if not taken too seriously",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "Who? These guys either aren't making it big or they're staying super hidden. Mercurial anxiety? lol Total OCD? All locked up like Howard Hughes? Statistically, there should be loads of em.",
+      "worst_case": null
+    },
+    "cancer": {
+      "best_case": null,
+      "average": "Nakshatras change a lot here. The early/mid Virgo (Magha, Purva Phalguni), late/mid Cancer (Punarvasu, Pushya) is best.  Virgo with early Cancer (Ardra) moon is insufferable.",
+      "worst_case": "They seem irreverent with their humor, but then they often back down when they get pressed & fall in line. Though, that said, a lot of them remain hardasses. Always aware of their bottom line, putting money/career before ethics/idealism. Their comedy is often hurtful & kicks down. "
+    },
+    "leo": {
+      "best_case": null,
+      "average": "Who? If heretics aren't getting burned, we don't know about it.\n\nthey’re totally monstrous but lots of fun",
+      "worst_case": null
+    },
+    "virgo": {
+      "best_case": null,
+      "average": "So prickly & persnickety. Untouchable, unreachable, difficult to love - but strong enough to weather anything...alone. One gets the feelng they'd rather weather it all alone. If there's any softness in them, it isn't apparent - if it appears, I suspect it's a mirage or illusion, a Venus fly trap.\n\nSoooo mean. Holy fuck. So mean, I almost want to like them because you know they'll never get fucked with. Any of these people would cut a mofo.\n\nlots of amoral sociopaths but when they’re ahem “good”-ish they’re really cool antiheroes",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "Only the pretty ones seem to make a showing. Mostly they're all pretty. But there aren't a lot of them in the public eye.",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": null,
+      "average": "They mostly just rub me the wrong way, for no apparent reason. They seem very authoritarian. Control freaks.\n\nTerrifying.",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "They really love to stir the pot, don't they?\n\nKinky/edgy. Pretty damned hardcore.",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": "You don't expect \"Cap Virgo\" to be the bastion of strangeness and beautiful suffering, but that's what these people bring. They all make some manner of suffering into a cathartic connection through art, and invite you to connect through pain and darkness, and it's beautiful. \n\nSome of them play it for laughs, though. And a lot of them get really surreal about it, like pain has twisted and demented them into an interdimensional clown from Court of the Crimson King.",
+      "average": "\"BLUUUU-OOH OOH OOHOOHOHOOOO Oh so lonesome...for you\"\n\nProfessional pain pimps.",
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": "Absolute weirdos. Weirdly including a lot of uber conservatives. So many fascinating people I'd never previously heard of, however.",
+      "average": "Above it all, aloft, elevate, elitist, aristocratic - condescending, manipulative, toying with the simple masses. Playing chess with the simpletons, even if they aren't half as bright as they think they are. Scoffing at pathos. Beyond caring. Godlike.\n\nnot maniacally evil but just a confused mess of paranoid neurosis",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": "Many if not most are known because they were born into wealthy/famous families, even if they succeeded very well. A lot of these guys are super prickly & trend real incel rage, so many feelings manifested in such a neurotic, controlling OCD way - but the women seem really awesome, and some of the men learn to channel their obsession into work -- ideally into art.",
+      "average": "Potent but gentle forces for change in the world - on a peaceful mission. But prone to incel rages? \"Nice guy\" syndrome meets romantic delusions. Lots of opposite sex friends because of their \"harmless gentleness\". The women are the same, but it fits their gender role to be servile & self-sacrificing. If they were men, it would be called a complex. Maybe that's what made Richelieu so nuts. 😂 They totally do get friendzoned, but could get all the babes if they mustered a spine & whined less. \"A man never got a woman back not by begging on his knees…\" - cohen … if it's not a lover, it's a parent, a nation - these are born sacrificial virgins & they go willingly to the dragon's lair for the good of the village.",
+      "worst_case": null
+    }
+  },
+  "libra": {
+    "aries": {
+      "best_case": "they are going to bridge the gap; they are going to fix the world with whatever soapbox they can snag. They wrote Don Quixote.\n\nBut half on this list are deep misanthropists who seem to have forsaken the life of being \"people people\": Dance, Yorke, de Cervantes & Rice. Their cynicism is relentless. They satirize idealism. What happened there?",
+      "average": "\n\nthere are some real badasses on that list. It seems like, in most cases (aside from Sco rising), Libra & Aries balance each other out and make a pretty balanced & fascinating character full of the warring complex impulses of Venus & Mars. I mean, in terms of performers - musicians, actors - you see a huge depth and range of feeling, charismatically conveyed. They can really engage with anyone. They can reach your heart.\n\n\nThe battle between love & war rages within them. Sometimes war wins.",
+      "worst_case": "the worst self-appointed diplomats ever\n\nWhen they try to reach the heart of fellow man and totally fail, case and point: Kamala Harris - wtf happened there? Hemler happened, I guess? No one likes her. She's an anomaly. She's got a Virgo Venus + stellium. She's also got a minor Scorpio stellium, and Saturn in Aquarius. Maybe that's her problem. Those things can be the opposite of \"reaching people\"."
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "Average looks. Most of the ones I've heard of, I've barely heard of & just feel like I \"should\" know but don't really. A lot of athletes & non-actors. The performers herein (musicians, dancers) are next level. \n\nThere aren't a lot of *cough* intellectuals in the mix, but they are very damned talented artists.",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "Maybe watching interviews & reading biographies would get to the heart of the matter, but what if no one really knows them? Are they knowable? What if every single person comes away with a different impression of who they are? Perhaps their whole art is \"becoming\", \"reflecting\"?\n\nMaybe they are human crystal, existing only to refract light & changing color with the scenery.\n",
+      "worst_case": null
+    },
+    "cancer": {
+      "best_case": null,
+      "average": null,
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": null,
+      "average": "Loads of politicians & activists I've never heard of, a fair few athletes.\nVery bold, courageous, capable of surviving immense adversity & coming out on top -- even if they created the adversity for themselves by overreaching.\nVery low trust score.",
+      "worst_case": null
+    },
+    "virgo": {
+      "best_case": null,
+      "average": "they really think they’ve got it all figured out & that they’re “just more civilized“ than regular people\n\nwho on this list isn't definitely pretty evil? Doja Cat? Nah, I think she's pretty evil, but really talented.\nPJ Harvey - pretty evil, but quite talented.\nLenny Bruce - evil but talented.\nFrank Herbert - evil but kind of talented.\n\nNo idea about Deepak Chopra or Serena Williams, but I always sort of expected they were pretty evil. Deborah Kerr throws a vibe.\n\nHannah Arendt is pretty slick, right? But she was in love with Heidegger, a nazi.\n\nYou know that child actress is definitely sinister. XD\n\nIdk about Dino Buzzati.",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "It's hard to know what to make of this very diverse group, except that many (esp gem asc) give the impression of being very \"genuine, relatable, just normal people\", except for the Sag rising, who uniformly go hard and take no effin prisoners.\n\nThe Sag rising are seemingly at the completely opposite end of the spectrum. They thrive on controversy.\n\nTwo other exceptions include Jerry Lee Lewis (aqu asc) & Natalie Maines (can asc), who are notoriously scandalous, renowned for being controversial & aggressive.",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": null,
+      "average": "A fair few porn stars & \"groundbreaking\" artists who use mundanity to portray \"deep emotional truths\", even though it's pretty basic as an outcome - to them it possibly means more & the rest of us can't really see it?",
+      "worst_case": "a bunch of fakes"
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "Pretty hardcore. Though the fact that Hilary Duff is in the mix makes me laugh - I don't think it's an exception.\n\nThere are a lot of politicians & athletes in this set.\n\nThis is not a romantically faithful person. lol But it is a romantic person.\n\nYou might be proud of this person as offspring, but probably don't want them as a lover.",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": null,
+      "average": "Very romantic. Very badass. Generally too classy to be very well known. Somewhat more committed & reliable than the standard Libra. \n\nAgain, a lot of abstract/surrealist artists in the mix.\n\nAnd then there's Jon Favreau & John Melanamp, who only made terrible pop trash. How do THEY feel? Rich? Just enjoying being rich? Did they struggle with selling out, or did they give in immediately? Or were their tastes already so low that it never occured to them that they'd surrendered any integrity? Perhaps they didn't have anything deeper within them to protect.",
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": null,
+      "average": "Nothing is sacred. No moment too intimate to be shared, turned into art/product/work.\n\nAre they real? Or are they poseurs?\nDo they only play \"tough guy\" in the movies?\n\nA few of them - Leary, Chevy Chase - don't even bother with the pretense.\n\nSome artists suffer for their work. In the case of many of these people, other people suffer for their work. \n\nA lot of porn stars in the mix here.",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": null,
+      "average": "A fair few porn stars here.\n\ncreepy, exploitative (themselves AND others) - the baddies never met a soul they wouldn’t sell…the goodies seem to have retained theirs & rejected faustian contracts",
+      "worst_case": null
+    }
+  },
+  "scorpio": {
+    "aries": {
+      "best_case": "pure evil 😂 if they can admit that to themselves & others, they become way more likable. the best ones embrace their shadow & turn it into art.",
+      "average": "They're all murderers. lol\n",
+      "worst_case": "“God only sends us evil to do us good.” \n― Benvenuto Cellini\n"
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "They seemingly schmooze & seduce their way to success. But that doesn't mean always they aren't good.\n\nExcept Tonya. She busted out the competition's knee. ",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "lost & searching",
+      "worst_case": null
+    },
+    "cancer": {
+      "best_case": null,
+      "average": "They are nuts, but even the ones I don't know seem pretty intense & badass. Idk, gotta embrace the intensity.",
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": "They really get it & they tell a great story",
+      "average": "They're going to have lots of affairs. But they'll possibly also care.",
+      "worst_case": null
+    },
+    "virgo": {
+      "best_case": null,
+      "average": null,
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "If they don't have Sco rising, they're mostly evil, it seems. Or maybe if they have sco rising, they just hide it better.\n\nawful pundits for The Message who live on a self-righteous soapbox the second anyone gives them a mic but they aren’t well informed or original; they’re the charismatic spokespeople of Team Normie when normie positions itself as “the fringe” or “the resistance”. On either side of the political spectrum. They’re intellectually dishonest & spread confusion while claiming victim status. That said, there are some really amazing ones, deeply flawed & unreliable but unbearably loveable in all their twisted complexities.",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": null,
+      "average": "There's no reason to be that mean, but...",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "They're in it for themselves & don't care who it hurts.",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": null,
+      "average": "Does anyone really know who any of these people are? Does anyone have any idea what they're actually like? They've got to be the most private and elusive public figures.",
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": null,
+      "average": "mostly good but when they go bad they go hard",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": null,
+      "average": "Liars who present a polished socially acceptable front but are actually hiding a very sinister side, they do their best to appear wholesome but people who scratch the surface at all sense there is a dark, consuming abyss beneath - a power wielded with white opera gloves & pretended naivette",
+      "worst_case": null
+    }
+  },
+  "sagittarius": {
+    "aries": {
+      "best_case": null,
+      "average": "A real troll, a real cheeky bastard. Sometimes they're just dickish - they really don't have a conscience or much of a soul, they push the mean jokes too far. Otherwise, they're friggin' badasses. Maybe they're always some complicated balance of the two.\n\n This actually forms a hilarious alternate biography of Ada Lovelace, the inventor of computers, in my mind. And Marie Tussaud.\n\nI think the women herein are amazing; I love them. Also Nicholas Hault seems like a real bastard now, and I knew the others were -- also no wonder someone shot Franz Ferdinand. Fully contextualized! :P\n\nBut that said, they're mostly pretty awesome, actually; I kind of love how awful they are.\n\nHowever, most of the famous ones DO have a mitigating water sign or libra rising that likely makes them more palatable to the masses (not Ada Lovelace, though! hahaha)",
+      "worst_case": null
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "Kind of a nightmare, but very charismatic & creative anyway.\n\nThey don't seem very big on processing consequences ahead of time. Barbarian class.",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "Absolute trolls, all of them. Class clown. Can barely contain the urge to fuck with people for the pure ecstasy of doing so.\n\nWorst case is when they actually take themselves seriously.",
+      "worst_case": null
+    },
+    "cancer": {
+      "best_case": null,
+      "average": "Brilliantly potent at crafting works of powerful emotion. Generally savvy & disciplined at business or able to collaborate & delegate well to manage their brand. However, most famous ones represent the zeitgeist of lowbrow pop americana - garrish, crass, childish. The face of mainstream pop culture, accessible to nearly everyone, uncomplicated. The ones I deem most commendable are \"fringey\" outsiders, rebels against the norm. Their work is still emotively childish but potent & powerful. They tend to be prolific.",
+      "worst_case": "ughhhh so crass…just most popular ones are garrish tasteless simpletons. the face of mainstream pop culture. "
+    },
+    "leo": {
+      "best_case": null,
+      "average": "For someone with so little personality, it's amazing how much of a scandal they manage to stir up by being avant garde / countercultural. They all seem like airheads, but maybe they're more shy than ditzy. Nonetheless, everone in this category -- except Churchill (a BIG exception? why so high functioning?) gives off the impression of not being all there. However, not that offensive because they barely seem present. They mostly have the personality of cardboard.\n\nShockingly short list for \"double fire\". You'd think they'd be in the public eye a lot. But seemingly no -- I didn't recognize many of the names, but they were mostly politicians & athletes.",
+      "worst_case": null
+    },
+    "virgo": {
+      "best_case": null,
+      "average": "crude rude needlessly petty, childish & caustic. \n\nthey spend ages putting together a manicured aesthetic just to show up & be a total bitch.",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": "“Facts that are inconvenient to the doctrinal system are summarily disregarded as if they do not exist. They are just suppressed.”",
+      "average": "Secretive. Powerful. Very different than their public image suggests. Notably, the ones I dislike are due to culture clash, not a personality issue necessarily. I know them as the embodiment of an era, of a cultural context, not as individuals. Within their niche, they're all apex predators, very high functioning. They are a classic case of \"Don't hate the player, hate the game\".\nWhatever the rules are, they may be the first to learn them, and the first to win. Even if that means cheating. It takes a good understanding of the protocol in order to subvert it so well. Respect.\n\nReal mixed bag of good & evil, but there were some pretty epic characters in the melange.\n\nThey're all pretty inscrutable to me. I don't get them at all.",
+      "worst_case": "Seems like a case of enneagram 8 in the tritype."
+    },
+    "scorpio": {
+      "best_case": "Getting stuff done. Fearing no one.",
+      "average": "Just fireballs. Relentless, unstoppable. Will not be run down by the machine, will assert themselves & their individuality forcefully, will spit in the eye of the orthodoxy. They do what they want, and it's not that it doesn't cause them suffering & it's not that they don't feel deeply, but they are courageous nonconformists who do what they feel must be done. They are loyal in a gangster sort of way, maybe not in a marital fidelity kind of way.\n\nA serious troll who plays for keeps.",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "they’re total monsters. it takes a monster to fight a monster, though, so if they choose to become paladins, they are formidable allies - but they will probably always be chaotic neutral if not chaotic evil\n\nunbelievable courage in the face of social pressure - possibly sociopathic? The most dickish people ever, but also some real badass journalists & activists: Jon Stewart, Joan Didion. Who have admitted in their work to having no souls. lol\n\nI'm also pretty keen on Marisa Tomei from what I know of her, which isn't much\n\nSeveral well known drag queens.\n\nAnd some bad, hamfisted clumsy artists made famous for their grotesque works of great ugliness. Also, there are only 4 women on this list, and 3/4 are notoriously incendiary.\n",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": null,
+      "average": null,
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": null,
+      "average": "They're people people - they basically get along with everyone, despite being kind of weird & edgy themselves, despite being prickly. Is Britney prickly? Idk, we never see that side of her. But the others, yes. As far as I'm aware, also, they're all highly neurotic.\n\nIf they don't have Scorpio or Virgo rising, you probably haven't heard of them.",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": null,
+      "average": "Not very functional, under most circumstances. Frank Sinatra = Jason Stackhouse? Hilarious character arc…gives new meaning to “My Way”.",
+      "worst_case": null
+    }
+  },
+  "capricorn": {
+    "aries": {
+      "best_case": null,
+      "average": "God complexes, cult leaders, father knows best\n\"The sweet nurturing type, eh?\"\n\nSo many politicians, too. Business people I've never heard of. Producers, behind-the-scenes movers & shakers. Scientists & mathematicians.\n\nWhat are Miyazaki & Dido doing in the mix? They're pacifists, aren't they?",
+      "worst_case": null
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "the banality of evil; some of the most annoying human cardboard ever known to man.\n\nSo many parasocial archnemesis of mine, all in one place! Who knew!\n\nExceptions: Gaspar Noe & Isaac Asimov - what happened there? We got 2 great futurists in the mix?\n\nAt least we know who was responsible for breaking up the Judds.",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "You could be a deeply dark comic genius with a haunted saturnine fractal mind, or you could be just a little twerp trynna climb yer daddy's ladder with book learnin'.\n\nThere's potential here.\n\nAll of this makes me feel like I don't know Robert E Lee at all.",
+      "worst_case": null
+    },
+    "cancer": {
+      "best_case": null,
+      "average": null,
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": null,
+      "average": null,
+      "worst_case": "Extremists, the ends justifies the means"
+    },
+    "virgo": {
+      "best_case": null,
+      "average": "It seems like, as a rule, these guys only peer out into the light of day to do something meaningful. If you know about them, it's because it felt important to them to do work that they'd be known for - the work itself.\n\nBut there are comedians, and that's interesting: Danny Kaye, Betty White, Psy, Oliver Hardy -- and there's Donald Trump Jr, who you start to suspect is maybe just here to support his dad with that Cancer rising. Speculation based on astrology lore, but you wonder.\n\nI looked up some interviews about Psy, as far as why he does what he does, and indeed, he says he enjoys seeing people laugh & be happy, that's what gives him meaning. So before he became an overnight pop sensation, he spent 12 years of his life trying different ways to master that art. He dropped out of Boston University -- secretly -- to work on music, his parents found out, he got drafted into the Korean military, served 2 years, then went back to music. He feels a sense of duty, it's his mission to be himself, not to put on a front, not to pose for foreign audiences, he wants to be real but make people laugh, he says. His natural tendency is to make fun of people & do parodies, and that's what he does.\n\nno baddies. only magic bastards.",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "Charming, despite it all. wild, unpredictable, primal under a poised, classic, laconic, reticent, polished exterior. Except Kid Rock & Korn boy.\n\nSome are evil under the charm & others’ evil is part of the charm - an integrated shadow",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": "what's interesting is how they aren't cold at all, but deeply feeling & connected, full of pathos & meaning. They may not wear all their feelings on their sleeve, but they aren't esp ruthless & cutthroat at a glance - they're deeply feeling & passionate just under the surface; maybe it's hard for them to emote; there is a tightness to them, a constriction/restriction/suppression - but the presence of that constriction indicates a deeper sentiment. The lack of repression, a lightness of being, any airy effortlessness, is far colder, far less human & humane. Within these people, there is a war, a struggle, a storm at the heart of the ocean. For better or worse, maybe it's a toxic sludge ocean in the case of Gerard Depardieu, but a deep wild ocean nonetheless.\n\nNo idea what to make of Kate Moss. She's got some kind of rich secret inner life? She really reminds me of Vanessa Paradis, visually. Oh damn, they both dated Johnny Depp. (Watched an interview, she's actually amazing & hilariously weird)",
+      "average": "dashing, classy, poised, refined, discreet, classic, suave (except for Pat Benatar & KISS guy). They're usually good, when they're bad it's famous - but soon everyone forgives & forgets because they're \"just so good…\" all is fair in love & war…",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "career climber, exploitative, opportunistic, mercenary, predatory, obsessive, monomaniacal, a little sleazy, top of their class\n\nBad boys. But all their tattoos are completely concealable under a 3 piece suit.\n\n(I say \"boys\" because there's only one AFAB on the whooole list)",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": null,
+      "average": null,
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": null,
+      "average": "Polished, refined, sensible - dependable? Nothing up my sleeve, see? Crooks! Lol\n\nIt's a rolecall for \"Who Not to Trust\".\n\nDoesn't help that most of the actually famous ones have Libra rising, probably.\n\nEven the ones I don't know seem super sketchy.",
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": null,
+      "average": "Those are some serious little dreamers.\nFor better or worse, their skycastles are skyscrapers.\n\nAnd also: holy f*ck - is Michelle Obama actually sincere???",
+      "worst_case": null
+    }
+  },
+  "aquarius": {
+    "aries": {
+      "best_case": null,
+      "average": "Selfish evil \"purely for the good of others ofc\", a really sneaky kind of sinister; concerned with the bigger picture, maybe there will be some collateral damage but does that matter we're visionaries",
+      "worst_case": null
+    },
+    "taurus": {
+      "best_case": null,
+      "average": "Just a mess of weird, complicated semi-repressed emotions; a monolithic Jungian shadow dancing behind their every move, a hero to some, a villain to many. If they fall short of being so larger than life, then just a polarizing figure in their own lives. Ascerbic, noncommittal, amoral in an effort toward extremes of objectivity; full of tortured feelings under a mask of snarky wit\n\nReally not very ethical ",
+      "worst_case": null
+    },
+    "gemini": {
+      "best_case": null,
+      "average": "surreal & cruel, amorally visceral, delicious & dangerously chaotic, cuts to the quick, luridly analytical emotional experiences visited on others, detached pursuit of ultimate existential truth, hunger for raw experience, no conscience, no connection to the consequences of experimentation\n\nThere are few, but the ones there are are pretty damned good, albeit amoral.",
+      "worst_case": null
+    },
+    "cancer": {
+      "best_case": null,
+      "average": "I don't know hardly anything about any of these people.",
+      "worst_case": null
+    },
+    "leo": {
+      "best_case": null,
+      "average": "A bunch of old money, a bunch of regal lordly types; I don't know much about any of them beyond that, except that a lot of them are pretty funny.",
+      "worst_case": "unflappable"
+    },
+    "virgo": {
+      "best_case": "\"When I give food to the poor, they call me a saint. When I ask why they are poor, they call me a communist.\"",
+      "average": "Not all bad; they just got in with a bad crowd",
+      "worst_case": null
+    },
+    "libra": {
+      "best_case": null,
+      "average": "The Joker, dogs chasing tires. Real gadflies. Really love to stir up drama just for the hell of it & watch the world burn. Nowadays they call it a public service. They are \"The Upright Citizen's Brigade: Chaos is Our Mission\".",
+      "worst_case": null
+    },
+    "scorpio": {
+      "best_case": null,
+      "average": "Troublemakers with a capacity for depth & meaningful exchange; self-deprecating about the intensity of their feelings while having the spiritual fortitude to admit to life's highs & lows nonetheless. Braver than most, but jocular about it. Not taking themselves too seriously, but able to lean into the schmaltz of pathos.",
+      "worst_case": null
+    },
+    "sagittarius": {
+      "best_case": null,
+      "average": "So fake - what are they hiding under that sickly sweet candy coating of pollyanna self-righteousness? How actually mean they are? They're all more likeable when they're openly bastards, but they spend most of their time pretending to be philanthropical & upbeat and it's so obviously a ruse that it's deeply disconcerting.",
+      "worst_case": null
+    },
+    "capricorn": {
+      "best_case": null,
+      "average": null,
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": "Weirdly action packed, professional, corporate, highly produced but still with a soul? Still with deeply relatable thoughts & emo feelings?",
+      "average": "\"Strummin my pain with his fingers...singin my life with his words...killing me softly with his song...\"\n\n\"No matter where you are, I'll find you...\"\n\n\"I'm not crazy, I'm just a little unwell. I know right now you can't tell.\"\n\n\"Can you help me I'm bent? I'm so scared that I'll never get put back together.\"",
+      "worst_case": "just a soulless corporate douchebro who doesn't think through consequences"
+    },
+    "pisces": {
+      "best_case": "quirky, odd, bright, sharp witted, rhetorically gifted, erudite but accessible, comedic in a deadpan way, aloof, unreachable, unknowable, low trust score based on first impressions",
+      "average": "they’re too crazy to do much good or harm most of the time, but god forbid they acquire power — or even too much airtime",
+      "worst_case": "scheming, kind of dumb & childish, grotesque in their self-expression, sneakily criminal"
+    }
+  },
+  "pisces": {
+    "aries": {
+      "best_case": "Two of these women are really sexual in an over the top way",
+      "average": "tempestuous, instinctual, visionary & emotive in an accessible way to the masses, rebellious but mainstream, iconoclastic but still pop (Except Eva Longoria, Daniel Craig, Sophie Turner, Isabel Huppert, Jean Harlowe, William Hurt). Except for Steve Jobs & Priscilla Chan, not terribly bright/academic.",
+      "worst_case": null
+    },
+    "taurus": {
+      "best_case": "Futuristic, heretical, unafraid to confront the unknown, a little woo woo",
+      "average": null,
+      "worst_case": "Obnoxious, regressive, basic, obstinately devolved"
+    },
+    "gemini": {
+      "best_case": "Irreverent, challenging but amiable, quirky & inaccessible to the general public, uncompromising in their bizarreness without being evil aliens",
+      "average": null,
+      "worst_case": "patronizing, sugarcoated, seems smug"
+    },
+    "cancer": {
+      "best_case": "Great action sequences, cares deeply & soooo angry about it",
+      "average": "They're not all awful, but they are just an unreasonable bucket of feelings",
+      "worst_case": "Ragey, derelict, fatalistic, destructive, anhedonic, blames others, pity party, self indulgently childish, needs to be babied, public cries for help, can't handle life & takes it out on others, over-the-top outrageous talented performer who melts down onstage"
+    },
+    "leo": {
+      "best_case": "Subtly weird, outlandish, subtle feelings discreetly conveyed with dignity, haunting, they touch your heart with a pure winter beauty",
+      "average": "There is a stern hardness to them that creeps me out. A dominant wall of iron, dusted with hairspray & sprinkled with traces of subtle glitter, but underneath, an Iron Curtain. A sense that you could never reach the core of this person, and perhaps if you could, you'd find it rotten & hollow. That's the worst case. The best case is, the core is just very protected - not necessarily rotten. Exception - Queen Latifah. Very accessible & friendly. Like Jigglypuff.",
+      "worst_case": "Unreal aristocratic diva, utterly fake, looks down their plastic robot nose at others & sneers at the petty organic life forms"
+    },
+    "virgo": {
+      "best_case": "absolute heroes, doing senseless things for the greater good; making up surreal silly worlds, making it easier to have dumb conversations that cost nothing, making druggie music about derelicts, performing crazy stunts to showcase the majesty of animals",
+      "average": "they're always pulling stunts. How the hell is this Virgo moon? These guys are like Evel Kinevil (li sun, le moon). They do random whimsical nonsense for no good reason\n\n lots of good ones but some real jerks, too - they’re mostly not evil, they’re just the very definition of jerks. why they gotta start stuff? no need to be so petty, to always try to start a fight no one wanted. but when they’re good, they are fanciful & fantastical & whimsical; they can build worlds — it’s the basic ones stuck in the muck who go nowhere but slum it their whole lives in quarrelsome pettiness & stupid feuds",
+      "worst_case": "I just don't see the point of these people - what are they even about? What are they accomplishing? They just cause a bunch of senseless suffering, mostly for their own entertainment (except Jon Hamm - no idea what his deal is, he just weirds me out; good actor but slightly disturbing)"
+    },
+    "libra": {
+      "best_case": "Pushed too far. Not to be taken for granted, stands up for herself, not gonna take it anymore, unafraid to do it their own way",
+      "average": "\"Keep calm & carry on\". Really, no matter what happens. Don't let it penetrate your spirit. Don't let the feelings get you. Oh, there's an apartheid? Don't take a side. Oh, I'm surrounded by racists - eh, just sing for em & keep it chill. God help the world if these guys ever get pushed past perpetual Switzerland -- then you get an Aileen Wuornos.\n\nThey don't seem to exist as well known celebrities at all. A lot of musicians & maybe political sideliners of whom I'd never heard. So I researched a few of them & added them. Before I did that, this was the shortest list of \"known celebrities\".",
+      "worst_case": "they stand for nothing, they fall for anything, they just don’t want a piece no matter the stakes"
+    },
+    "scorpio": {
+      "best_case": "Fiery, smoldering, exotic, diva, spicy",
+      "average": "They see themselves as philanthropists, bringing charity to the masses, or at least that's what they're trying to do - but a lot of it probably to make up for their own foibles, their sense of guilt over their human failings, their crimes of passion, their complex emotional turmoil, the squalid compulsion to profit from art without selling out, without being inauthentic; they don't like to fake it, they want to be real; they want to live deeply & bring good things to the ones they love and those less fortunate\n\nThey have a religious devotion that needs to find purchase in some idea or ideal, be it work, or love or music or a more literal religion. They are born zealots with ascetic virtue, self sacrifice & relentless devotion to a cause. But they may not be insufferable about it - they won't mock their cause, they will die for it, but they will likely mock themselves & their own frailty & humanity. They may be cruel in service to their mission, but only out of a sense of absolute duty & moral purity.",
+      "worst_case": "Fake, just 2 pillows under the covers - the real person snuck out the window long ago & is painting the town; so desperate to prove they're \"good\" they've buried themselves entirely in false layers of makeup, falsies & polo shirts"
+    },
+    "sagittarius": {
+      "best_case": "Unkempt, casual, disheveled, surly, aloof, memorably groundbreaking, causing a stir",
+      "average": "Revolutionary minds, heretics, pioneers, surly, misanthropic, flagrant disregard for convention, scattered. Not a lot of women on this list - does society not deem these sorts of women fit for public display? The AFAB on this list have all created scandals\n\nThe list was short but impressive. Fewer musicians. They were there, but mostly the people seemed to be famous for something nonartistic, like politics or -- surprisingly -- research.",
+      "worst_case": "Causing a stir but then being adored by all the lame normies for it, dangerously polemic"
+    },
+    "capricorn": {
+      "best_case": "Ghostly, chill. Ethereal. Otherworldly, classic, soothing & smooth",
+      "average": "Mostly a calming presence. A rock in the stormy rapids of life. Yeah, there are some nymphomaniacal escapades & abuses of power to sexual ends, but they're so damned reassuring…\n\nActors who play \"struggling with their conscience to find a backbone, but also do what needs to be done\", and what's \"for the greater good\" is a question that always comes up. Writers who write about the struggle. \n\nComedians who joke about other people lacking a spine, social shame.\nDirectors who make films about it.\n\nAnd Weinstein. Wtf is up with Weinstein. He's a real outlier. (Also Dunblane!)",
+      "worst_case": null
+    },
+    "aquarius": {
+      "best_case": "Down to earth but regal, grounded, real but elevated, classic but caveman",
+      "average": null,
+      "worst_case": null
+    },
+    "pisces": {
+      "best_case": "Visionary futurist, idealized forms, reaching for the highest art",
+      "average": "Dramatically expressive people, strong emotions, fierce empathy, the ability to become the essence of their performative context, to fully embody an emotional narrative. When they're bad, they're very bad. Like if their relationship with their fathers is fraught...then they seek escapism through performance, they play act as something they need to feel safe or powerful again. When they're good, they're very good. \n\nBut if their daddies don't hug them enough, the serial killing starts.\n\nThe less well known they are, the better they are; the ones with sag asc are horrendous, but the ones with sco & vi asc are incredible.",
+      "worst_case": "Fake, sinister, defers responsibility for evil actions, justifies how they should be pitied, mean but sappy"
+    }
+  }
+}
