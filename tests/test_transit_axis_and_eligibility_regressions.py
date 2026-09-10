@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import datetime
 
-from ephemeraldaddy.core.aspect_display import iter_displayable_aspects
+from ephemeraldaddy.core.aspect_display import (
+    aspect_axis_display_label,
+    iter_displayable_aspects,
+)
 from ephemeraldaddy.core.composite import (
     PERSONAL_TRANSIT_MODE_DAILY_VIBE,
     PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
@@ -11,6 +14,10 @@ from ephemeraldaddy.core.composite import (
     personal_transit_rules_for_mode,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_transit_range
+from ephemeraldaddy.gui.features.charts.text_summary import (
+    _aspect_body_with_sign,
+    _format_popout_aspect_endpoint,
+)
 
 
 def _position(name: str, longitude: float, *, layer: str) -> BodyPosition:
@@ -173,6 +180,21 @@ def test_shared_display_policy_collapses_complementary_axis_rows() -> None:
     )
 
     assert visible == [aspects[0], aspects[2], aspects[4], aspects[6]]
+
+
+def test_axis_event_labels_are_shared_and_do_not_replace_raw_endpoints() -> None:
+    assert aspect_axis_display_label("AS") == "AS–DS axis"
+    assert aspect_axis_display_label("DS") == "AS–DS axis"
+    assert aspect_axis_display_label("MC") == "MC–IC axis"
+    assert aspect_axis_display_label("IC") == "MC–IC axis"
+    assert aspect_axis_display_label("Rahu") == "Rahu–Ketu axis"
+    assert aspect_axis_display_label("Ketu") == "Rahu–Ketu axis"
+    assert aspect_axis_display_label("Saturn") is None
+
+    representative = _position("AS", 0.0, layer="TRANSIT")
+    assert representative.name == "AS"
+    assert _format_popout_aspect_endpoint(representative, include_house=False) == "AS–DS axis"
+    assert _aspect_body_with_sign("AS", {"AS": 0.0}) == "AS–DS axis"
 
 
 def test_timed_transit_range_converts_utc_to_requested_display_timezone() -> None:
