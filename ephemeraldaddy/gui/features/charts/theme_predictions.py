@@ -11,9 +11,16 @@ from __future__ import annotations
 
 import math
 from types import MethodType
-from typing import Any, Callable
+from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QSortFilterProxyModel, Qt
+from PySide6.QtCore import (
+    QAbstractTableModel,
+    QModelIndex,
+    QObject,
+    QSortFilterProxyModel,
+    QTimer,
+    Qt,
+)
 try:
     from PySide6.QtGui import QColor, QFont, QPalette
 except Exception:  # pragma: no cover - headless test environments may omit QtGui libs
@@ -40,10 +47,8 @@ except Exception:  # pragma: no cover - headless test environments may omit Qt w
 
 from ephemeraldaddy.analysis.theme_prominence import (
     THEME_DEVIATION_ASSIGNMENT_THRESHOLD,
-    calculate_database_theme_family_averages,
     calculate_theme_family_scores,
     calculate_theme_subtheme_scores,
-    theme_definition_signature,
     theme_family_snapshot_averages,
     theme_snapshot_unavailability_reason,
 )
@@ -159,7 +164,7 @@ class _ThemePredictionFilterModel(QSortFilterProxyModel):
             return False
         left_deviation = float(source.data(source.index(left.row(), 0), THEME_ROW_DEVIATION_ROLE) or 0.0)
         right_deviation = float(source.data(source.index(right.row(), 0), THEME_ROW_DEVIATION_ROLE) or 0.0)
-        return abs(left_deviation) < abs(right_deviation)
+        return left_deviation < right_deviation
 
 
 class _ThemePredictionColorDelegate(QStyledItemDelegate):
@@ -340,7 +345,7 @@ def _register_theme_section(owner: Any, section_layout: Any) -> None:
 
 
 def _ensure_theme_predictions_section(owner: Any, traits_table: QTableView) -> None:
-    """Insert Themes immediately after Traits while the Predictions panel is built."""
+    """Insert Themes immediately after Traits once the Traits table is parented."""
     if hasattr(owner, "themes_prediction_table"):
         return
     traits_content = traits_table.parentWidget()
@@ -408,49 +413,6 @@ def _ensure_theme_predictions_section(owner: Any, traits_table: QTableView) -> N
         lambda self, chart: render_theme_predictions(self, chart),
         owner,
     )
-
-
-def _extend_norm_snapshot_refresh() -> None:
-    """Add Theme family means to explicit DB Norms recalculation."""
-    from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot as norms
-
-    if getattr(norms, "_ephemeraldaddy_theme_norms_installed", False):
-        return
-    original_refresh = norms.refresh_prediction_norms_snapshot
-
-    def refresh_prediction_norms_snapshot(owner: Any, *, user_initiated: bool = False) -> dict[str, Any]:
-        resolved = original_refresh(owner, user_initiated=user_initiated)
-        charts = norms._core._load_norm_charts(owner)
-        averages = calculate_database_theme_family_averages(charts)
-        if charts and set(averages) != set(THEME_FAMILIES):
-            raise RuntimeError("Could not calculate complete Theme family baselines for DB Norms.")
-        raw_snapshot = norms.load_prediction_norms_snapshot(
-            path=norms.PREDICTION_NORMS_SNAPSHOT_PATH
-        )
-        if not raw_snapshot:
-            return resolved
-        raw_snapshot["theme_family_raw_averages"] = {
-            key: float(value) for key, value in averages.items()
-        }
-        raw_snapshot["theme_family_definition_signature"] = theme_definition_signature()
-        raw_snapshot["snapshot_id"] = norms._core._stable_hash(
-            {
-                "previous": raw_snapshot.get("snapshot_id", ""),
-                "theme_family_definition_signature": raw_snapshot["theme_family_definition_signature"],
-                "theme_family_raw_averages": raw_snapshot["theme_family_raw_averages"],
-            }
-        )
-        norms.save_prediction_norms_snapshot(raw_snapshot, norms.PREDICTION_NORMS_SNAPSHOT_PATH)
-        resolved = norms.load_prediction_norms_snapshot(source=norms.PREDICTION_NORMS_SOURCE_MY_DATABASE)
-        try:
-            setattr(owner, "_prediction_norms_snapshot_cache", resolved)
-        except Exception:
-            pass
-        return resolved
-
-    norms.refresh_prediction_norms_snapshot = refresh_prediction_norms_snapshot
-    norms._core.refresh_prediction_norms_snapshot = refresh_prediction_norms_snapshot
-    norms._ephemeraldaddy_theme_norms_installed = True
 
 
 def _extend_right_panel_stack() -> None:
@@ -524,9 +486,14 @@ def install_theme_predictions(trait_core: Any) -> None:
 
     def configure_traits_prediction_table(owner: Any, table: QTableView) -> None:
         original_configure(owner, table)
-        _ensure_theme_predictions_section(owner, table)
+        # Chart View adds the Traits table to its section immediately after this
+        # configurator returns. Defer one event-loop turn so parent/layout lookup
+        # is valid before inserting the sibling Themes section.
+        QTimer.singleShot(
+            0,
+            lambda owner=owner, table=table: _ensure_theme_predictions_section(owner, table),
+        )
 
     trait_core.configure_traits_prediction_table = configure_traits_prediction_table
     trait_core._ephemeraldaddy_theme_predictions_installed = True
-    _extend_norm_snapshot_refresh()
     _extend_right_panel_stack()
