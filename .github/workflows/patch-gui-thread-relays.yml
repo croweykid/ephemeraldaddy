@@ -22,6 +22,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import textwrap
 
           app_path = Path("ephemeraldaddy/gui/app.py")
           traits_path = Path("ephemeraldaddy/gui/features/settings/traits_manager.py")
@@ -46,7 +47,7 @@ jobs:
               *,
               worker_anchor: str,
               expected_handler: str,
-              replacement: str,
+              replacement_template: str,
           ) -> str:
               if source.count(worker_anchor) != 1:
                   raise SystemExit(
@@ -55,6 +56,7 @@ jobs:
               worker_pos = source.index(worker_anchor)
               first_connect = source.index("worker.finished.connect(", worker_pos)
               start = source.rfind("\n", 0, first_connect) + 1
+              indent = source[start:first_connect]
               terminal_connect = source.index("worker.finished.connect(thread.quit)", first_connect)
               end = source.rfind("\n", 0, terminal_connect) + 1
               old_block = source[start:end]
@@ -62,9 +64,14 @@ jobs:
                   raise SystemExit(
                       f"Refusing to replace unexpected terminal connection block for {worker_anchor}"
                   )
+              replacement = textwrap.indent(
+                  textwrap.dedent(replacement_template).strip() + "\n",
+                  indent,
+              )
               return source[:start] + replacement + source[end:]
 
-          similar_block = """        similar_ui_relay = SimilarChartsUiRelay(
+          similar_template = """
+          similar_ui_relay = SimilarChartsUiRelay(
               self,
               on_finished=lambda completed_request_id, payload, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_finished(
                   completed_request_id,
@@ -89,10 +96,11 @@ jobs:
               app,
               worker_anchor="worker = SimilarChartsWorker(",
               expected_handler="_on_similar_charts_worker_finished",
-              replacement=similar_block,
+              replacement_template=similar_template,
           )
 
-          planet_block = """        planet_dynamics_ui_relay = PlanetDynamicsUiRelay(
+          planet_template = """
+          planet_dynamics_ui_relay = PlanetDynamicsUiRelay(
               self,
               on_finished=lambda completed_request_id, completed_signature, scores, chart_ref=chart: self._on_planet_dynamics_worker_finished(
                   completed_request_id,
@@ -113,7 +121,7 @@ jobs:
               app,
               worker_anchor="worker = _PlanetDynamicsWorker(",
               expected_handler="_on_planet_dynamics_worker_finished",
-              replacement=planet_block,
+              replacement_template=planet_template,
           )
 
           trait_import = "from ephemeraldaddy.gui.worker_ui_relays import TraitReassessmentUiRelay\n"
