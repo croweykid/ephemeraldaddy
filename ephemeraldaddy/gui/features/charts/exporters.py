@@ -5,14 +5,14 @@ import datetime
 import re
 from pathlib import Path
 from collections import OrderedDict
-from typing import Callable
+from collections.abc import Iterable, Mapping
+from typing import Any, Callable
 
 from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QWidget
 
 
 from ephemeraldaddy.gui.features.charts.similarities_export import (
-    build_similarities_json_export_payload,
     format_similarities_json_export_payload,
     similarities_json_payload_has_factors,
 )
@@ -145,6 +145,8 @@ def export_similarities_analysis_json_dialog(
     parent: QWidget,
     export_sections,
     *,
+    sample_uids: Iterable[object] = (),
+    gender_distribution: Mapping[str, Any] | None = None,
     reactivate_callback: Callable[[], None] | None = None,
 ) -> None:
     """Prompt for a name/path and export Similarities Analysis data as Python."""
@@ -166,7 +168,18 @@ def export_similarities_analysis_json_dialog(
         return
     selection_name = selection_name.strip() or "Selection"
 
-    payload = build_similarities_json_export_payload(selection_name, export_sections)
+    # Imported lazily to avoid importing the Similarities controller package while
+    # the shared exporters module itself is still being initialized.
+    from ephemeraldaddy.gui.features.charts.similarities.trait_export import (
+        build_similarities_trait_export_payload,
+    )
+
+    payload = build_similarities_trait_export_payload(
+        selection_name,
+        export_sections,
+        sample_uids=sample_uids,
+        gender_distribution=gender_distribution,
+    )
     if not similarities_json_payload_has_factors(payload, selection_name):
         QMessageBox.information(
             parent,

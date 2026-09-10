@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from ephemeraldaddy.gui.features.charts.trait_prediction_policy import (
+    ascribed_trait_names_for_chart,
     filter_ascribed_prediction_metadata,
     gender_evidence_points,
     likelihood_from_evidence,
@@ -61,11 +62,22 @@ def test_gender_evidence_participates_in_both_score_and_possible_evidence() -> N
     assert likelihood_from_evidence(0.0, 20.0, gender_delta=-20.0) == 25.0
 
 
+def test_ascribed_lookup_uses_sample_uids_and_is_trait_specific() -> None:
+    chart = SimpleNamespace(chart_uid=" abc-123 ", name="Mutable Name")
+    traits = [
+        {"name": "Ascribed", "profile": {"sample_uids": ["ABC-123"]}},
+        {"name": "Predicted", "profile": {"sample_uids": ["OTHER-999"]}},
+        {"name": "Legacy", "profile": {}},
+    ]
+
+    assert ascribed_trait_names_for_chart(chart, traits) == {"Ascribed"}
+
+
 def test_ascribed_exclusion_is_trait_specific_uid_only_and_non_destructive() -> None:
     chart = SimpleNamespace(chart_uid=" abc-123 ", name="Mutable Name")
     traits = [
-        {"name": "Ascribed", "profile": {"chartUIDs": ["ABC-123"]}},
-        {"name": "Predicted", "profile": {"chartUIDs": ["OTHER-999"]}},
+        {"name": "Ascribed", "profile": {"sample_uids": ["ABC-123"]}},
+        {"name": "Predicted", "profile": {"sample_uids": ["OTHER-999"]}},
         {"name": "Legacy", "profile": {}},
     ]
     metadata = {
@@ -86,7 +98,7 @@ def test_ascribed_exclusion_is_trait_specific_uid_only_and_non_destructive() -> 
 
 def test_ascribed_exclusion_never_falls_back_to_name() -> None:
     chart = SimpleNamespace(chart_uid="", name="Ascribed")
-    traits = [{"name": "Ascribed", "profile": {"chartUIDs": ["ABC-123"]}}]
+    traits = [{"name": "Ascribed", "profile": {"sample_uids": ["ABC-123"]}}]
     metadata = {
         "likelihoods": {"Ascribed": 90.0},
         "database_averages": {"Ascribed": 50.0},

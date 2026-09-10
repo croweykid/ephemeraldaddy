@@ -160,6 +160,44 @@ def test_load_anti_properties_accepts_bare_similarities_python_export_with_nativ
     assert "antiaspects" not in imported
 
 
+def test_confirmation_uses_standard_messagebox_result(monkeypatch):
+    class FakeMessageBox:
+        class StandardButton:
+            Yes = 1
+            No = 2
+
+        @staticmethod
+        def question(parent, title, text, buttons, default_button):
+            assert title == "Append anti-trait file?"
+            assert "sample.py" in text
+            assert "Target" in text
+            assert buttons == 3
+            assert default_button == FakeMessageBox.StandardButton.No
+            return FakeMessageBox.StandardButton.Yes
+
+    monkeypatch.setattr(trait_anti_import, "QMessageBox", FakeMessageBox)
+
+    assert trait_anti_import._confirm_selected_file(
+        None,
+        file_name="sample.py",
+        trait_name="Target",
+    ) is True
+
+
+def test_existing_anti_choice_uses_input_dialog_not_qpushbutton_wrappers(monkeypatch):
+    class FakeInputDialog:
+        @staticmethod
+        def getItem(parent, title, text, items, current, editable):
+            assert items == ["Append to existing", "Replace"]
+            assert current == 0
+            assert editable is False
+            return "Replace", True
+
+    monkeypatch.setattr(trait_anti_import, "QInputDialog", FakeInputDialog)
+
+    assert trait_anti_import._existing_anti_properties_choice(None, trait_name="Target") == "replace"
+
+
 def test_traits_facade_installs_anti_trait_extension_and_ui_copy_is_exact():
     facade_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py"
@@ -172,13 +210,11 @@ def test_traits_facade_installs_anti_trait_extension_and_ui_copy_is_exact():
     assert "_install_trait_anti_import(_core)" in facade_source
     assert 'QPushButton("Append anti-trait file")' in anti_source
     assert '"append a JSON file that represents the antithesis of this trait"' in anti_source
-    assert 'prompt.setText(f"Add {file_name} as antithetical to {trait_name}?")' in anti_source
-    assert 'prompt.addButton("nope!"' in anti_source
-    assert 'prompt.addButton("yeah"' in anti_source
-    assert 'prompt.setText(f"{trait_name} already has anti- properties...")' in anti_source
-    assert 'prompt.addButton("Append to existing"' in anti_source
-    assert 'prompt.addButton("Replace"' in anti_source
-    assert 'prompt.addButton("Agh! Never mind"' in anti_source
+    assert 'QMessageBox.question(' in anti_source
+    assert 'QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No' in anti_source
+    assert 'QInputDialog.getItem(' in anti_source
+    assert '["Append to existing", "Replace"]' in anti_source
+    assert 'f"Successfully {action_text} {trait_name}!"' in anti_source
     assert '"Trait files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)"' in anti_source
     assert "button_row.insertWidget(upload_index + 1, owner._traits_append_anti_button)" in anti_source
 
@@ -195,6 +231,7 @@ def test_import_handler_confirms_before_parsing_and_writes_only_after_existing_c
     parse_import = handler.index("load_anti_properties_from_file(file_path)")
     existing_choice = handler.index("_existing_anti_properties_choice(")
     write_change = handler.index("apply_anti_properties_to_trait(")
+    success_dialog = handler.index('"Anti-properties updated"')
 
-    assert first_confirmation < parse_import < existing_choice < write_change
+    assert first_confirmation < parse_import < existing_choice < write_change < success_dialog
     assert "if choice is None:\n            return" in handler[existing_choice:write_change]

@@ -54,7 +54,7 @@ def test_gender_distribution_omits_missing_gender_from_denominator() -> None:
     assert distribution["statisticallySignificant"] is False
 
 
-def test_trait_export_receives_original_ascribed_cohort_metadata() -> None:
+def test_trait_export_receives_original_source_sample_metadata() -> None:
     payload = OrderedDict(
         [
             (
@@ -81,12 +81,13 @@ def test_trait_export_receives_original_ascribed_cohort_metadata() -> None:
     inject_trait_cohort_metadata(
         payload,
         "sample trait",
-        chart_uids=["uid-b", "UID-A", "uid-a"],
+        sample_uids=["uid-b", "UID-A", "uid-a"],
         gender_distribution=gender_distribution,
     )
 
     profile = payload["sample trait"]
-    assert profile["chartUIDs"] == ["UID-A", "UID-B"]
+    assert profile["sample_uids"] == ["UID-A", "UID-B"]
+    assert "chartUIDs" not in profile
     assert profile["genderDistribution"] == gender_distribution
 
 
@@ -110,19 +111,35 @@ def test_dissimilarity_bundle_is_not_misidentified_as_trait_profile() -> None:
     inject_trait_cohort_metadata(
         payload,
         "pair",
-        chart_uids=["UID-A", "UID-B"],
+        sample_uids=["UID-A", "UID-B"],
         gender_distribution={"counts": {"Female": 1, "Male": 1}},
     )
 
+    assert "sample_uids" not in payload["pair"]
     assert "chartUIDs" not in payload["pair"]
     assert "genderDistribution" not in payload["pair"]
 
 
-def test_ascribed_lookup_uses_uid_only() -> None:
+def test_ascribed_lookup_prefers_sample_uids() -> None:
     profile = {
-        "chartUIDs": ["ABC-123", "DEF-456"],
+        "sample_uids": ["ABC-123", "DEF-456"],
         "name": "mutable display name",
     }
 
     assert chart_uid_is_ascribed(profile, " abc-123 ") is True
     assert chart_uid_is_ascribed(profile, "XYZ-999") is False
+
+
+def test_ascribed_lookup_accepts_legacy_chart_uids() -> None:
+    profile = {"chartUIDs": ["ABC-123", "DEF-456"]}
+
+    assert chart_uid_is_ascribed(profile, "def-456") is True
+
+
+def test_sample_uids_take_precedence_when_both_keys_exist() -> None:
+    profile = {
+        "sample_uids": [],
+        "chartUIDs": ["LEGACY-UID"],
+    }
+
+    assert chart_uid_is_ascribed(profile, "LEGACY-UID") is False
