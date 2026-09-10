@@ -500,17 +500,23 @@ class RankingsPanelMixin:
                         in normalized_scope_uids
                     }
                     if not changed_chart_uids:
-                        if latest_sequence != cached_sequence:
-                            sorted_cache[cache_key] = (latest_sequence, cached_rows)
-                        if limit is None:
-                            cached_result = list(cached_rows)
-                        else:
-                            cached_result = list(
-                                cached_rows[: max(0, int(limit))]
-                            )
-                        return self._rehydrate_rankings_traits_cached_names(
-                            cached_result
+                        hydrated_rows = self._rehydrate_rankings_traits_cached_names(
+                            list(cached_rows)
                         )
+                        hydrated_rows.sort(
+                            key=lambda row: (
+                                -float(row["likelihood"]),
+                                -float(row["deviation"]),
+                                str(row["name"]).casefold(),
+                            )
+                        )
+                        sorted_cache[cache_key] = (
+                            latest_sequence,
+                            tuple(hydrated_rows),
+                        )
+                        if limit is None:
+                            return hydrated_rows
+                        return hydrated_rows[: max(0, int(limit))]
 
         chart_ids_by_uid = get_chart_ids_by_uid(normalized_chart_uids)
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
@@ -545,12 +551,14 @@ class RankingsPanelMixin:
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
         if cached_rows is not None and changed_chart_uids:
-            rows = [
-                dict(row)
-                for row in cached_rows
-                if self._normalize_rankings_chart_uid(row.get("chart_uid", ""))
-                not in changed_chart_uids
-            ]
+            rows = self._rehydrate_rankings_traits_cached_names(
+                [
+                    dict(row)
+                    for row in cached_rows
+                    if self._normalize_rankings_chart_uid(row.get("chart_uid", ""))
+                    not in changed_chart_uids
+                ]
+            )
             ranking_chart_uids = tuple(
                 chart_uid
                 for chart_uid in normalized_chart_uids
