@@ -11,6 +11,7 @@ import argparse
 from collections import defaultdict
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 from typing import Any, Mapping
@@ -20,11 +21,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from ephemeraldaddy.analysis.theme_prominence import theme_definition_signature  # noqa: E402
 from ephemeraldaddy.analysis.traits import (  # noqa: E402
     DEFAULT_TRAITS_PATH,
     parse_trait_file,
     trait_uid_for_profile,
 )
+from ephemeraldaddy.core.theme_reference import THEME_FAMILIES  # noqa: E402
 
 
 DEFAULT_SOURCE = Path.home() / ".ephemeraldaddy" / ".prediction_norms_snapshot.json"
@@ -132,6 +135,34 @@ def validate_default_trait_coverage(
     }
 
 
+def validate_theme_family_coverage(payload: Mapping[str, Any]) -> dict[str, float]:
+    """Require a complete Theme macrofamily baseline for current definitions."""
+    stored_signature = str(payload.get("theme_family_definition_signature", "") or "")
+    current_signature = theme_definition_signature()
+    if stored_signature != current_signature:
+        raise ValueError(
+            "Official prediction norms require Theme baselines calculated from the "
+            "current Theme definitions. Recalculate DB Norms before bundling."
+        )
+    rows = payload.get("theme_family_raw_averages", {})
+    if not isinstance(rows, Mapping):
+        raise ValueError("Official prediction norms require a theme_family_raw_averages mapping.")
+    averages: dict[str, float] = {}
+    for family_key in THEME_FAMILIES:
+        try:
+            value = float(rows[family_key])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError(
+                f"Official prediction norms are missing Theme baseline {family_key!r}."
+            ) from None
+        if not math.isfinite(value):
+            raise ValueError(
+                f"Official prediction norms contain a non-finite Theme baseline for {family_key!r}."
+            )
+        averages[family_key] = value
+    return averages
+
+
 def prepare_local_source(path: Path = DEFAULT_SOURCE_SELECTION) -> Path:
     """One-time developer bootstrap: explicitly select My Database."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -164,12 +195,14 @@ def bundle_snapshot(source: Path, destination: Path) -> dict:
         )
 
     coverage = validate_default_trait_coverage(payload)
+    theme_averages = validate_theme_family_coverage(payload)
 
     bundled = dict(payload)
     bundled["source"] = "bundled_official"
     bundled["read_only"] = True
     bundled["complete"] = True
     bundled["validated_default_trait_count"] = coverage["active_default_trait_count"]
+    bundled["validated_theme_family_count"] = len(theme_averages)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(bundled, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return bundled
@@ -202,7 +235,8 @@ def main() -> None:
     )
     print(
         f"Validated complete coverage for "
-        f"{int(payload.get('validated_default_trait_count', 0))} active bundled default Traits."
+        f"{int(payload.get('validated_default_trait_count', 0))} active bundled default Traits "
+        f"and {int(payload.get('validated_theme_family_count', 0))} Theme macrofamilies."
     )
 
 
