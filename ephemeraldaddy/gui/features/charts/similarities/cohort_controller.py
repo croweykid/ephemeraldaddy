@@ -183,22 +183,17 @@ class SimilaritiesController(_BaseSimilaritiesController):
         if toggle is None or section_list is None:
             return
         distribution = self._cohort_gender_distribution
-        significant = bool(
-            isinstance(distribution, Mapping)
-            and distribution.get("statisticallySignificant")
-        )
-        toggle.setVisible(significant)
-        section_list.setVisible(significant and bool(toggle.isChecked()))
+        counts = distribution.get("counts", {}) if isinstance(distribution, Mapping) else {}
+        available = isinstance(counts, Mapping) and bool(counts)
+        toggle.setVisible(available)
+        section_list.setVisible(available and bool(toggle.isChecked()))
         section_list.clear()
-        if not significant or not isinstance(distribution, Mapping):
+        if not available or not isinstance(distribution, Mapping):
             return
 
-        counts = distribution.get("counts", {})
         percentages = distribution.get("percentages", {})
         database_percentages = distribution.get("databasePercentages", {})
         significance = distribution.get("significance", {})
-        if not isinstance(counts, Mapping):
-            return
         for label in counts:
             selected_percent = float(percentages.get(label, 0.0)) if isinstance(percentages, Mapping) else 0.0
             database_percent = (
