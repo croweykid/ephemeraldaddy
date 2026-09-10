@@ -120,6 +120,46 @@ def test_load_anti_properties_accepts_similarities_json_and_uses_only_normal_buc
     }
 
 
+def test_load_anti_properties_accepts_bare_similarities_python_export_with_native_keys(tmp_path):
+    source = tmp_path / "fav_writers_all_types_similarities_analysis.py"
+    source.write_text(
+        '''{
+    "fav writers (all types)": {
+        "name": "fav writers (all types)",
+        "samples": [130, 0],
+        "bodies": {"Venus": -11},
+        "antibodies": {"Mars": 99},
+        "positions": {
+            "Moon in Virgo": 7,
+            "Jupiter in H2": 8,
+            "Neptune in Sagittarius": -9,
+        },
+        "gates": {31: 10, 40: 8, 9: -9},
+        "gate_lines": {"31.4": 10, "28.6": -5},
+        "channels": {(37, 40): 6},
+        "centers": {"Spleen": -11},
+        "antiaspects": {"source anti bucket must be ignored": 99},
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    imported = trait_anti_import.load_anti_properties_from_file(source)
+
+    assert imported["antibodies"] == {"Venus": -11}
+    assert imported["antipositions"] == {
+        "Moon in Virgo": 7,
+        "Jupiter in H2": 8,
+        "Neptune in Sagittarius": -9,
+    }
+    assert imported["antigates"] == {31: 10, 40: 8, 9: -9}
+    assert imported["antigate_lines"] == {"31.4": 10, "28.6": -5}
+    assert imported["antichannels"] == {(37, 40): 6}
+    assert imported["anticenters"] == {"Spleen": -11}
+    assert "antiaspects" not in imported
+
+
 def test_traits_facade_installs_anti_trait_extension_and_ui_copy_is_exact():
     facade_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py"
@@ -139,7 +179,7 @@ def test_traits_facade_installs_anti_trait_extension_and_ui_copy_is_exact():
     assert 'prompt.addButton("Append to existing"' in anti_source
     assert 'prompt.addButton("Replace"' in anti_source
     assert 'prompt.addButton("Agh! Never mind"' in anti_source
-    assert '"JSON files (*.json)"' in anti_source
+    assert '"Trait files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)"' in anti_source
     assert "button_row.insertWidget(upload_index + 1, owner._traits_append_anti_button)" in anti_source
 
 
