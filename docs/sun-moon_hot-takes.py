@@ -60,8 +60,12 @@ def chart_info(context: Mapping[str, Any]) -> list[list[dict[str, Any]]]:
     chart_signs = context.get("chart_signs")
     if not isinstance(chart_signs, Mapping):
         return []
-    sun_sign = str(chart_signs.get("Sun", "")).strip()
-    moon_sign = str(chart_signs.get("Moon", "")).strip()
+    normalized_chart_signs = {
+        _sign_key(body): str(sign).strip()
+        for body, sign in chart_signs.items()
+    }
+    sun_sign = normalized_chart_signs.get("sun", "")
+    moon_sign = normalized_chart_signs.get("moon", "")
     if not sun_sign or not moon_sign:
         return []
 

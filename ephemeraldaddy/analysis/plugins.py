@@ -251,7 +251,9 @@ def _loaded_python_plugins(revision: int) -> tuple[tuple[dict[str, Any], ModuleT
         try:
             manifest = python_plugin_manifest(path)
             module = _load_python_module(path, revision)
-        except (OSError, ImportError, ValueError, RuntimeError, SyntaxError):
+        except Exception:
+            # Loading local executable code is an optional extension point. A
+            # broken plugin must be isolated just like a broken hook call.
             continue
         loaded.append((manifest, module))
     return tuple(loaded)
@@ -304,7 +306,5 @@ def chart_info_plugin_paragraphs(context: Mapping[str, Any]) -> list[list[dict[s
         paragraphs = _normalize_chart_info_paragraphs(result)
         if not paragraphs:
             continue
-        if collected:
-            collected.append([{"text": ""}])
         collected.extend(paragraphs)
     return collected
