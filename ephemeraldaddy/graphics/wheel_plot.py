@@ -5,6 +5,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
 from ephemeraldaddy.core.aspect_display import iter_displayable_aspects
+from ephemeraldaddy.core.body_identity import CANONICAL_LILITH_BODIES
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.style import DARK_THEME
 
@@ -110,13 +111,11 @@ def _monochrome_sign_slice_color(base_color, sign_index):
 def _overlay_sign_slice_color(base_color, sign_index):
     """Use matching alternating red tones for the transit overlay ring."""
     return TRANSIT_OUTER_WHEEL_SLICES[sign_index % len(TRANSIT_OUTER_WHEEL_SLICES)]
-
 def _glyph_color_for_sign(sign_name):
     base = SIGN_COLORS.get(sign_name, DARK_THEME["foreground"])
     luminance = _relative_luminance(mcolors.to_rgb(base))
     lighten_amount = 0.25 if luminance > 0.7 else 0.45
     return _lighten_color(base, lighten_amount)
-
 def _format_degree_minutes(value):
     magnitude = abs(float(value))
     deg = int(magnitude)
@@ -125,7 +124,6 @@ def _format_degree_minutes(value):
         deg += 1
         minutes = 0
     return f"{deg:02d}°{minutes:02d}'"
-
 def _format_aspect_type_label(aspect_type):
     return str(aspect_type or "Aspect").replace("_", " ").title()
 
@@ -375,7 +373,7 @@ def _draw_chart_wheel(
         "Vesta",
         "Rahu",
         "Ketu",
-        "Lilith",
+        *CANONICAL_LILITH_BODIES,
         "Part of Fortune",
     }
 
