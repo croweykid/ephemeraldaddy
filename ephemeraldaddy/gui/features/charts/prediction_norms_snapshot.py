@@ -11,6 +11,11 @@ import math
 import time
 from typing import Any, Mapping
 
+from ephemeraldaddy.analysis.theme_prominence import (
+    calculate_database_theme_family_averages,
+    theme_definition_signature,
+)
+from ephemeraldaddy.core.theme_reference import THEME_FAMILIES
 from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot_core as _core
 
 for _name in dir(_core):
@@ -74,10 +79,10 @@ def refresh_prediction_norms_snapshot(
 ) -> dict[str, Any]:
     """Rebuild all snapshot-backed Predictions population norms on explicit request.
 
-    Deliberately included here: custom Traits, Fantasy RPG alignment traits,
-    Fantasy RPG Stat Block raw averages, and Enneagram type averages.
-    Sign Dominance, Fantasy RPG Species/Class, and OCEAN are intentionally not
-    part of this snapshot.
+    Deliberately included here: custom Traits, semantic Theme macro-families,
+    Fantasy RPG alignment traits, Fantasy RPG Stat Block raw averages, and
+    Enneagram type averages. Sign Dominance, Fantasy RPG Species/Class, and
+    OCEAN are intentionally not part of this snapshot.
     """
     if not user_initiated:
         raise _core.ExplicitNormRecalculationRequired(
@@ -142,6 +147,13 @@ def refresh_prediction_norms_snapshot(
         _calculate_enneagram_snapshot_section(charts)
     )
 
+    theme_family_raw_averages = calculate_database_theme_family_averages(charts)
+    if charts and set(theme_family_raw_averages) != set(THEME_FAMILIES):
+        raise RuntimeError(
+            "Could not calculate complete Theme family baselines for the Predictions norms snapshot."
+        )
+    theme_family_definition_signature = theme_definition_signature()
+
     chart_uids = tuple(
         sorted(_core._chart_uid(chart) for chart in charts if _core._chart_uid(chart))
     )
@@ -154,6 +166,7 @@ def refresh_prediction_norms_snapshot(
                 "chart_uids": chart_uids,
                 "traits": sorted(trait_baselines),
                 "enneagram_definition_signature": enneagram_definition_signature,
+                "theme_family_definition_signature": theme_family_definition_signature,
                 "created_seed": time.time(),
             }
         ),
@@ -171,6 +184,11 @@ def refresh_prediction_norms_snapshot(
             for enneagram_type, value in enneagram_type_raw_averages.items()
         },
         "enneagram_definition_signature": enneagram_definition_signature,
+        "theme_family_raw_averages": {
+            family_key: float(value)
+            for family_key, value in theme_family_raw_averages.items()
+        },
+        "theme_family_definition_signature": theme_family_definition_signature,
     }
 
     # A manual rebuild creates/replaces My Database only. The bundled Official
@@ -193,5 +211,9 @@ def refresh_prediction_norms_snapshot(
 
 _core.enneagram_type_snapshot_averages = enneagram_type_snapshot_averages
 _core.refresh_prediction_norms_snapshot = refresh_prediction_norms_snapshot
+
+# The Themes UI extension checks this marker so it does not wrap the now-native
+# Theme snapshot implementation a second time.
+_ephemeraldaddy_theme_norms_installed = True
 
 del _name
