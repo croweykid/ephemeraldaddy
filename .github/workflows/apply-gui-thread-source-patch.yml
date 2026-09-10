@@ -1,0 +1,57 @@
+name: Apply GUI thread source patch
+
+on:
+  push:
+    branches:
+      - fix/gui-thread-dialogs-current-main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/gui-thread-dialogs-current-main
+          fetch-depth: 0
+
+      - name: Apply verified source patch
+        shell: bash
+        run: |
+          if grep -q 'worker.finished.connect(similar_ui_relay.handle_finished, Qt.QueuedConnection)' ephemeraldaddy/gui/app.py \
+             && grep -q 'TraitReassessmentUiRelay' ephemeraldaddy/gui/features/settings/traits_manager.py; then
+            echo 'Source patch already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git cherry-pick 5018c984910b7477f28ed091db817cda6b3e3199
+
+      - name: Verify syntax and regression assertions
+        shell: bash
+        run: |
+          python -m py_compile \
+            ephemeraldaddy/gui/app.py \
+            ephemeraldaddy/gui/worker_ui_relays.py \
+            ephemeraldaddy/gui/features/settings/traits_manager.py \
+            tests/test_worker_gui_thread_delivery_source.py
+          python - <<'PY'
+          import runpy
+          namespace = runpy.run_path('tests/test_worker_gui_thread_delivery_source.py')
+          for name, value in sorted(namespace.items()):
+              if name.startswith('test_') and callable(value):
+                  value()
+                  print(f'PASS {name}')
+          PY
+          git diff --check HEAD^ HEAD || true
+
+      - name: Push source patch when applied
+        shell: bash
+        run: |
+          if [ "$(git rev-list --count origin/fix/gui-thread-dialogs-current-main..HEAD)" -gt 0 ]; then
+            git push origin HEAD:fix/gui-thread-dialogs-current-main
+          else
+            echo 'Nothing new to push.'
+          fi
