@@ -5,14 +5,14 @@ import threading
 import time
 from zoneinfo import ZoneInfo
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
 from ephemeraldaddy.gui.features.transits import personal_timeline
 from ephemeraldaddy.gui.features.transits import personal_timeline_window
 from ephemeraldaddy.gui.features.transits import personal_timeline_persistence as persistence
 
 
-_QT_APP = QCoreApplication.instance() or QCoreApplication([])
+_QT_APP = QApplication.instance() or QApplication([])
 UTC = datetime.timezone.utc
 
 
