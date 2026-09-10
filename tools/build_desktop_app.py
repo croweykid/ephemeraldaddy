@@ -154,10 +154,11 @@ block_cipher = None
 
 pyside_datas, pyside_binaries, pyside_hidden = collect_all("PySide6")
 shiboken_datas, shiboken_binaries, shiboken_hidden = collect_all("shiboken6")
+tzdata_datas, tzdata_binaries, tzdata_hidden = collect_all("tzdata")
 
-datas = {pprint.pformat(datas, width=120)} + pyside_datas + shiboken_datas
-binaries = pyside_binaries + shiboken_binaries
-hiddenimports = {pprint.pformat(hiddenimports, width=120)} + pyside_hidden + shiboken_hidden
+datas = {pprint.pformat(datas, width=120)} + pyside_datas + shiboken_datas + tzdata_datas
+binaries = pyside_binaries + shiboken_binaries + tzdata_binaries
+hiddenimports = {pprint.pformat(hiddenimports, width=120)} + pyside_hidden + shiboken_hidden + tzdata_hidden
 excludes = {pprint.pformat(excludes, width=120)}
 
 a = Analysis(

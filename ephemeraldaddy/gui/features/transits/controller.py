@@ -60,6 +60,7 @@ from ephemeraldaddy.gui.features.transits.cache import TransitWindowCache
 from ephemeraldaddy.gui.features.transits.diagnostics import (
     log_natal_derived_cache_diagnostic,
 )
+from ephemeraldaddy.gui.features.transits.timezone import local_transit_timezone
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,8 @@ class TransitPanelController:
     ) -> None:
         self.host = host
         self._get_popout_window_icon_path = get_popout_window_icon_path
+        # One rule-aware timezone owns transit input interpretation and display.
+        self.display_timezone = local_transit_timezone()
         self._install_legacy_state()
 
     def _install_legacy_state(self) -> None:
@@ -432,8 +435,7 @@ class TransitPanelController:
         )
         h.todays_transits_output.setPlainText(summary)
         h.todays_transits_output.set_tooltip_spans(tooltip_spans)
-        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
-        local_now = selected_utc.astimezone(local_tz)
+        local_now = selected_utc.astimezone(self.display_timezone)
         source_hint = (
             " [GPS]"
             if h._transit_location_source == "gps"
@@ -479,7 +481,6 @@ class TransitPanelController:
 
     def selected_datetime_utc(self) -> tuple[datetime.datetime, bool]:
         h = self.host
-        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
         include_time = h.transit_use_time_checkbox.isChecked()
         selected_date = h.transit_date_input.date()
         selected_time = h.transit_time_input.time() if include_time else QTime(12, 0)
@@ -489,7 +490,7 @@ class TransitPanelController:
             selected_date.day(),
             selected_time.hour(),
             selected_time.minute(),
-            tzinfo=local_tz,
+            tzinfo=self.display_timezone,
         )
         return selected_local.astimezone(datetime.timezone.utc), include_time
 
