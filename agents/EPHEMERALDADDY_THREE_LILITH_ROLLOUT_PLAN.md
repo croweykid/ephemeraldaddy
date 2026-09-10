@@ -30,6 +30,31 @@ Legacy **semantic references** to `"Lilith"` and `"True Lilith"` must continue t
 
 Legacy **stored coordinates** named `"Lilith"` must **not** be trusted as Osculating coordinates. They must be discarded as ambiguous and recalculated from the chart's astronomical inputs, generating all three canonical Lilith positions.
 
+### Non-negotiable database migration execution policy
+
+The database-wide conversion of existing charts is a **one-time, explicitly user-triggered migration**, designed for databases containing thousands of charts. It is **not** a new standing recalculation policy.
+
+The full-database migration must **never** run automatically from:
+
+- application startup or bootstrap
+- opening the database
+- opening Settings
+- opening Chart View
+- refreshing the chart list
+- loading an ordinary chart
+- saving an ordinary chart
+- Similarities Analysis
+- Database Analytics
+- Personal or Global Transits
+- Personal Timeline
+- Database Norms Snapshot generation
+- a generic schema/version check
+- any other normal feature invocation
+
+Normal creation/editing/import of an **individual chart** may calculate that chart into the current three-Lilith schema as part of that chart's ordinary calculation lifecycle. If an individually opened legacy chart must be refreshed for correctness, that refresh must be limited to that chart and must never fan out into a database-wide migration.
+
+The database-wide conversion belongs behind an explicit **Settings > Developer Tools** action, with a persistent completion marker and an accurate determinate progress UI. Merely detecting that a migration is pending may update a status label; detection must never silently start the work.
+
 ---
 
 ## 2. Canonical identity contract — immutable
@@ -192,6 +217,14 @@ rg -n \
 ```
 
 Do not stop after updating every literal `"Lilith"` occurrence. Audit generic loops that may silently filter through a fixed body allowlist.
+
+For the one-time database migration UI, also locate and reuse EphemeralDaddy's existing progress boilerplate rather than inventing a second implementation:
+
+```bash
+rg -n 'QProgress|ProgressDialog|progress_bar|progress bar|setRange\(|setMaximum\(|setValue\(|progress.*signal|cancel.*progress' ephemeraldaddy tests
+```
+
+If several progress helpers exist, use the one already employed for long-running database/batch work when possible.
 
 ---
 
@@ -731,7 +764,7 @@ No coordinate should be nudged in the underlying chart model to solve a display 
 
 ## 17. Persistence and backward compatibility — highest-risk section
 
-This migration must distinguish **old derived data** from **old semantic references**.
+This migration must distinguish **old derived data** from **old semantic references** and must be implemented as a **one-time manual database migration**, not as recurring maintenance.
 
 ### 17.1 New derived-data schema version
 
@@ -745,6 +778,21 @@ or fold it into an existing derived-data/calculation signature.
 
 The marker must make a one-Lilith chart/cache distinguishable from a three-Lilith chart/cache without inspecting arbitrary values.
 
+Keep **two levels of state** conceptually distinct:
+
+1. **Per-chart derived schema state** — allows safe resumability, idempotence, and individual-chart freshness checks.
+2. **Database migration completion state** — records that the one-time database-wide migration has finished for the current migration version.
+
+Use the repository's existing migration/metadata infrastructure if one already exists rather than inventing a parallel database version table.
+
+A suitable persistent database-level marker would be conceptually equivalent to:
+
+```text
+three_lilith_db_migration_version = 1
+```
+
+The exact key/storage mechanism should follow existing repository conventions.
+
 ### 17.2 Loading a current chart
 
 If a stored chart has:
@@ -756,6 +804,8 @@ Natural Lilith
 ```
 
 and its derived-data signature/schema is current, load normally.
+
+Loading it must not trigger a recalculation merely because the application started a new session.
 
 ### 17.3 Loading a legacy chart with plain `"Lilith"`
 
@@ -771,7 +821,7 @@ body-dynamics roles derived from the old body set
 
 do **not** rename those values.
 
-Instead:
+During the explicit migration, or when a single chart is otherwise legitimately recalculated through its normal edit/import lifecycle:
 
 1. preserve the chart's source/birth metadata
 2. reconstruct the effective calculation datetime using the same retcon/rectification policy as normal chart calculation
@@ -783,17 +833,19 @@ Instead:
 8. refresh derived signatures
 9. persist canonical data only after successful recalculation
 
+A normal chart load must not scan or recalculate unrelated database rows.
+
 ### 17.4 Old `lilith_calculation_mode` metadata
 
 If an old chart says the old mode was `mean` or `true`, that is useful diagnostic provenance but does not change the migration action.
 
-Still regenerate **all three**.
+Still regenerate **all three** when that chart is migrated/recalculated.
 
 This avoids maintaining two classes of migrated chart.
 
 ### 17.5 Old `"True Lilith"` coordinate keys
 
-If any stored derived-coordinate format used `"True Lilith"` explicitly, the label provides stronger provenance, but the preferred migration remains to regenerate all three from source astronomical inputs so every chart enters the same current schema.
+If any stored derived-coordinate format used `"True Lilith"` explicitly, the label provides stronger provenance, but the preferred migration remains to regenerate all three from source astronomical inputs so every migrated chart enters the same current schema.
 
 ### 17.6 Missing astronomical inputs
 
@@ -803,28 +855,187 @@ Do not invent three Liliths.
 
 Define an explicit failure state:
 
-- mark derived astronomy stale / migration incomplete
+- mark derived astronomy stale / migration incomplete for that chart
 - exclude that chart's ambiguous Lilith value from three-Lilith research/norm generation
 - preserve source record
-- surface a count/diagnostic in the migration or Norm Snapshot result
+- surface it in the migration's skipped/failed count and final report
 - provide a route for manual chart-data repair if the UI has one
 
 Do not publish a norm snapshot that silently mixes migrated and ambiguous one-Lilith data.
 
-### 17.7 Idempotence
+### 17.7 One-time migration only — never normal startup behavior
 
-Running migration twice must not alter already-canonical charts or produce duplicate work beyond ordinary safe recalculation.
+This is a hard performance requirement.
 
-### 17.8 Transactionality / backup
+The application must **not** iterate across all charts and recompute three-Lilith data:
+
+- on startup
+- once per session
+- when the database connection opens
+- when a window opens
+- when Settings opens
+- when the global migration marker is merely checked
+- before each research operation
+- before each Database Norms Snapshot
+- after an unrelated schema change
+
+A startup check, if needed, must be **O(1) or otherwise cheap**: read the persistent database migration/version marker and continue. Do not count, hydrate, deserialize, or recalculate thousands of chart rows merely to decide whether the migration is pending.
+
+If the marker is absent/incomplete, the app may display a non-blocking status in Developer Tools such as `Three-Lilith database migration: Not run` or `Incomplete`. It must not start the migration.
+
+Once the migration completes successfully, normal future launches should perform no three-Lilith database-wide work.
+
+### 17.8 Manual Developer Tools action
+
+Add a dedicated action in:
+
+```text
+Settings > Developer Tools
+```
+
+Suggested labels:
+
+```text
+Three-Lilith database migration: Not run
+[Migrate Database to Three-Lilith Schema…]
+```
+
+If interrupted:
+
+```text
+Three-Lilith database migration: Incomplete
+[Resume Three-Lilith Migration…]
+```
+
+After successful completion:
+
+```text
+Three-Lilith database migration: Complete
+```
+
+The completed state should not present an easy accidental "run everything again" button. If a developer-only explicit rerun option is retained, it must be clearly labeled as a rerun, require confirmation, and still skip charts whose per-chart derived schema is already current unless a separate **force** operation is deliberately selected.
+
+Before beginning the one-time batch migration:
+
+1. show a confirmation dialog explaining that the operation recalculates existing chart-derived astrology data
+2. create/verify the application's normal database backup
+3. acquire whatever application-level guard is needed to prevent conflicting bulk database writes
+4. determine the current chart count and migration work set
+5. open the existing EphemeralDaddy boilerplate progress dialog/bar
+6. only then begin chart recalculation
+
+Do not place this action in a general-use menu where an ordinary user can trigger it accidentally.
+
+### 17.9 Accurate determinate progress bar — mandatory
+
+The database-wide migration **must** use EphemeralDaddy's existing boilerplate progress-bar/progress-dialog pattern. Locate that component/helper in-tree and reuse it. Do not introduce a second visual progress framework just for this migration.
+
+This is not optional polish. A multi-thousand-chart recalculation without accurate visible progress is a release blocker.
+
+The progress UI must be **determinate whenever the number of chart records is knowable**. Do not substitute an endless spinner.
+
+Use real database counts and real terminal chart outcomes. A recommended two-phase model:
+
+#### Phase 1 — Preflight
+
+Obtain the total chart-row count cheaply first (for example with the repository's normal `COUNT(*)` path), then inspect each chart's migration/schema state.
+
+Display a determinate preflight bar such as:
+
+```text
+Checking charts for migration…
+1,842 / 2,973
+```
+
+At the end of preflight, freeze the migration work set and its denominator.
+
+#### Phase 2 — Recalculate and persist
+
+Reset/reconfigure the determinate bar to the exact number of charts that require migration.
+
+Display useful live counts, for example:
+
+```text
+Migrating charts…
+731 / 2,614
+Already current: 359
+Skipped: 4
+Failed: 1
+```
+
+The primary progress counter must advance **only when a chart reaches a terminal outcome for this run**—successfully recalculated and persisted, explicitly skipped for a known reason, or failed and recorded. Do not increment merely because work was queued or calculation started.
+
+Do not change the denominator opportunistically in the middle of Phase 2. If the work set changes because of a serious concurrency condition, stop/reconcile rather than showing mathematically misleading progress.
+
+The bar measures completed chart records, not a fabricated time estimate. No ETA is required unless the existing boilerplate already derives one honestly.
+
+The progress dialog must remain responsive. Use the application's established worker/progress architecture where safe. Do not freeze the Qt event loop for thousands of calculations. If the ephemeris or DB access path has thread-affinity constraints, use the repository's safe batching/event-loop mechanism rather than moving unsafe objects across threads.
+
+### 17.10 Cancellation, interruption, and resume
+
+If the existing progress boilerplate supports cancellation, wire it up.
+
+Cancellation semantics:
+
+- finish or roll back the current chart at a safe transaction boundary
+- stop scheduling/processing further charts
+- preserve charts that were already successfully migrated
+- do **not** set the database-level completion marker
+- leave the migration status `Incomplete`
+- on the next explicit **Resume** action, preflight again and skip every chart already at the current per-chart schema version
+
+A crash or forced quit must have equivalent recoverability. The migration must not depend on one giant all-or-nothing transaction covering thousands of charts.
+
+### 17.11 Completion semantics
+
+Set the database-level migration-complete marker **only after**:
+
+1. every intended chart has reached an allowed terminal state
+2. successful chart recalculations are durably persisted
+3. required dependent caches/signatures have been invalidated/version-bumped
+4. post-migration validation has completed
+5. the migration bookkeeping itself has committed successfully
+
+The progress UI may show `100%` for chart processing when all chart records have reached terminal outcomes, but the final dialog must not say the migration is **Complete** until final validation/bookkeeping succeeds.
+
+If failures are considered blocking, leave the migration `Incomplete`. If specifically documented unrecoverable charts are allowed to be skipped, record their IDs/reasons and make that policy explicit. Never silently convert a failed batch into a successful completion marker.
+
+### 17.12 Final migration report
+
+At the end of the manual run, show a summary using actual counters:
+
+```text
+Charts scanned:          N
+Already current:         N
+Successfully migrated:   N
+Skipped / unrecoverable: N
+Failed:                  N
+```
+
+If cancelled, say so explicitly and report how many remain.
+
+Make the report copyable or log it through the existing diagnostic mechanism if convenient. It should be possible to distinguish "migration finished with 0 failures" from "the window disappeared."
+
+### 17.13 Idempotence
+
+Running the explicit migration command twice must not alter already-canonical charts or repeat expensive recalculation for them.
+
+The second run should be dominated by cheap version/schema checks and should report charts as already current.
+
+Idempotence is a safety property; it does **not** mean the migration should run automatically.
+
+### 17.14 Transactionality / backup
 
 For batch DB migration:
 
 - create/verify a backup first
-- migrate in a transaction or recoverable batches
-- do not delete legacy derived data until canonical replacement has calculated successfully
+- use recoverable per-chart or bounded-batch transactions
+- do not delete legacy derived data until canonical replacement for that chart has calculated successfully
+- persist per-chart schema/version state with the migrated data
+- never hold one giant transaction open for the whole multi-thousand-chart operation
 - log counts: scanned / already current / migrated / skipped / failed
 
-### 17.9 Cache invalidation
+### 17.15 Cache invalidation
 
 Invalidate or version-bump every cache whose value can depend on body identity:
 
@@ -840,6 +1051,8 @@ Invalidate or version-bump every cache whose value can depend on body identity:
 - export-derived cache if any
 
 Do not let a cache entry calculated under the one-Lilith body universe satisfy a request under the three-Lilith universe.
+
+Cache invalidation belongs to the one-time migration and ordinary per-chart recalculation paths as appropriate. It must not be implemented as "recalculate the entire database on every launch."
 
 ---
 
@@ -878,20 +1091,36 @@ Legacy source metadata may retain an old settings/provenance field if intentiona
 
 This is part of the feature, not a later cleanup.
 
-The manual **Database Norms Snapshot** action in Settings must guarantee that its reference population is using the three-Lilith calculation schema before it computes/publishes norms.
+The manual **Database Norms Snapshot** action must guarantee that its reference population is using the current three-Lilith body schema **without becoming a second migration entry point**.
+
+**Database Norms Snapshot must never trigger the database-wide Lilith migration itself.**
 
 ### Required snapshot sequence
 
-1. Resolve the eligible source-chart population.
-2. Check each chart's derived-data/body-schema version.
-3. Recalculate/migrate any eligible legacy chart with ambiguous one-Lilith derived data.
-4. Explicitly identify charts that cannot be regenerated because required source astronomical inputs are missing.
-5. Build all norm/research source values only from charts that satisfy the current body schema.
-6. Calculate Mean, Osculating, and Natural Lilith as distinct factors wherever the norm system consumes body/position/aspect evidence.
-7. Build the new snapshot in temporary memory/file/table space.
-8. Validate snapshot structure, chart counts, schema signature, and section signatures.
-9. Only then atomically publish/swap it as the active snapshot.
-10. Report migrated / already-current / skipped / failed counts to the user.
+1. Read the persistent three-Lilith database migration/body-schema status through the cheapest available metadata path.
+2. If the one-time database migration is incomplete or has never been run, **stop before norm scoring begins**.
+3. Show a clear message directing the user to:
+   `Settings > Developer Tools > Migrate Database to Three-Lilith Schema…`
+4. Do **not** silently start, resume, or inline the bulk migration from the Norm Snapshot action.
+5. Once migration status is current, resolve the eligible reference population.
+6. Validate that the population does not contain stale/ambiguous one-Lilith derived rows. Prefer a schema/version query over hydrating/recalculating every chart merely for this check.
+7. If stale rows are unexpectedly found despite a complete migration marker, fail safely and report the inconsistency. Do not repair the whole database inside Norm Snapshot.
+8. Build all norm/research source values only from charts satisfying the current body schema.
+9. Treat Mean, Osculating, and Natural Lilith as distinct factors wherever the norm system consumes body/position/aspect evidence.
+10. Build the new snapshot in temporary memory/file/table space.
+11. Validate snapshot structure, chart counts, body-schema signature, and section signatures.
+12. Only then atomically publish/swap it as the active snapshot.
+
+### Why this boundary matters
+
+The Norm Snapshot is a legitimate recurring/manual analytical operation. The three-Lilith database conversion is not.
+
+If norm generation automatically "makes the DB current" by recalculating stale charts, every future norm rebuild risks becoming an accidental multi-thousand-chart migration. Keep those responsibilities separate:
+
+```text
+Developer Tools migration = one-time database transformation
+Database Norms Snapshot   = analytical snapshot of an already-current database
+```
 
 ### Snapshot provenance
 
@@ -916,7 +1145,9 @@ Snapshot publication must fail validation if the source population contains a mi
 - current three-Lilith derived data
 - ambiguous one-Lilith derived data being treated as current
 
-Skipping explicitly invalid/unrecoverable charts with a reported reason is preferable to silently mixing them.
+Do not repair this condition by automatically launching bulk recalculation. Report it and direct the user back to the explicit Developer Tools migration/repair path.
+
+Skipping specifically documented, unrecoverable charts may be acceptable if the migration policy records them explicitly and Norm Snapshot applies the same exclusion policy. Silent inclusion is not acceptable.
 
 ### Norm versioning
 
@@ -928,7 +1159,7 @@ Audit:
 
 The current catalog is already versioned and carries provenance. Use that machinery rather than creating a parallel Lilith-only version system.
 
-If Trait norms can change because legacy `"Lilith"` / `"True Lilith"` criteria now explicitly bind to Osculating while the chart also contains Mean/Natural, regenerate the affected norms.
+If Trait norms can change because legacy `"Lilith"` / `"True Lilith"` criteria now explicitly bind to Osculating while the chart also contains Mean/Natural, regenerate the affected norms **after the one-time DB migration has completed**, not as part of the migration detector.
 
 ---
 
@@ -1301,12 +1532,43 @@ Assert selectors/features/stats can distinguish all three.
 ### 28.17 Norm Snapshot tests
 
 Assert:
-- old one-Lilith source charts are migrated before scoring
-- unrecoverable charts are reported/skipped
+- Norm Snapshot does **not** invoke or resume the database-wide migration
+- when the migration marker is absent/incomplete, Norm Snapshot stops before scoring and directs the user to Developer Tools
+- when the migration marker is complete, Norm Snapshot uses current canonical chart data without bulk recalculation
+- an unexpected stale/mixed-schema row causes safe rejection rather than an inline migration
 - snapshot provenance carries current body schema
 - all relevant features use canonical identities
 - publication rejects a mixed-schema source
 - rebuilding twice is stable
+
+### 28.17A One-time migration trigger tests
+
+Assert:
+- normal application startup does not invoke the DB-wide migration
+- opening the database does not invoke it
+- opening Settings does not invoke it
+- opening Chart View does not invoke it
+- Similarities Analysis does not invoke it
+- Database Analytics does not invoke it
+- transit generation does not invoke it
+- a generic migration-version/status check does not invoke it
+- only the explicit `Settings > Developer Tools` migration action starts the DB-wide migration
+- a completed migration marker prevents accidental automatic reruns on future launches
+- a normal new-chart calculation writes current three-Lilith schema directly and does not require DB migration
+
+### 28.17B Migration progress tests
+
+Assert:
+- preflight uses a real chart-count denominator
+- the migration phase uses the frozen number of charts requiring work
+- progress advances only when a chart reaches a terminal outcome
+- successfully queued-but-not-finished work does not advance the bar
+- displayed migrated/skipped/failed counters match actual outcomes
+- cancellation leaves the database-level migration state incomplete
+- resume skips charts already migrated successfully
+- failures cannot falsely set the global completion marker
+- the progress UI reaches its terminal state without leaving the user at a false 99%
+- final summary counts reconcile to the preflight work set
 
 ### 28.18 Export tests
 
@@ -1422,6 +1684,13 @@ Do **not**:
 15. silently drop Natural Lilith because one binding constant name differs; resolve supported aliases and test
 16. make display collision fixes by modifying astronomical longitudes
 17. merge a partial state where chart calculation emits three bodies but scoring/research still treats only one
+18. run the three-Lilith database-wide migration automatically at application startup or database open
+19. make Database Norms Snapshot silently perform or resume the database migration
+20. scan/recalculate thousands of charts merely because a migration status/version marker was checked
+21. use an indeterminate spinner for the multi-thousand-chart migration when chart counts are knowable
+22. advance migration progress when work is merely queued rather than actually completed/skipped/failed
+23. mark the global migration complete after cancellation, uncommitted work, or blocking failures
+24. recalculate already-current charts on an ordinary migration resume/rerun
 
 ---
 
@@ -1469,14 +1738,22 @@ At the end of this phase, the core engine should understand the three identities
 
 ### Phase E — Persistence migration
 
-- loader/hydration
-- DB recalculation
+- per-chart body/derived schema versioning
+- persistent database-level one-time migration completion marker
+- **manual-only** `Settings > Developer Tools` migration action
+- preflight that identifies already-current vs stale charts without recalculating
+- DB recalculation only for the explicit migration work set
+- reuse the existing boilerplate **determinate progress bar**
+- accurate scanned / migrated / skipped / failed counters
+- cancellation + resumable/idempotent behavior
 - stale-data detection
 - cache invalidation
-- backup/transaction behavior
-- migration tests
+- backup/recoverable transaction behavior
+- migration tests proving no startup/Norm Snapshot auto-run path exists
 
 Do this before research/norm code is allowed to consume the new schema.
+
+The presence of migration code must not alter normal startup behavior. After successful completion, future launches should pay only the negligible cost of reading the database migration/version marker if that check is needed at all.
 
 ### Phase F — Traits / research / norms
 
@@ -1526,7 +1803,7 @@ A reviewable sequence could be:
 1. `Integrate canonical Lilith identities and compute all three apogees`
 2. `Split Lilith body registries, weights, and interpretations`
 3. `Remove runtime Lilith mode from chart calculation and settings`
-4. `Migrate legacy Lilith derived chart data to three-body schema`
+4. `Add one-time Developer Tools Lilith migration with progress and resume`
 5. `Update Trait aliases, Similarities, Analytics, and Database Norms`
 6. `Update imports and exports for three canonical Lilith bodies`
 7. `Update chart UI, wheel, selectors, and tooltips`
@@ -1596,6 +1873,21 @@ Before opening the final PR, verify all of the following on a clean new chart an
 - [ ] old retrogrades/aspects are regenerated
 - [ ] derived dominance/body-dynamics data is regenerated where stale
 - [ ] old chart migration is idempotent
+- [ ] the DB-wide migration is available only as an explicit Settings > Developer Tools action
+- [ ] app startup never launches or resumes the DB-wide migration
+- [ ] opening the database/Settings/Chart View never launches it
+- [ ] Similarities/Analytics/Transits never launch it
+- [ ] migration status checks read metadata cheaply and never scan/recalculate the whole DB
+- [ ] completed migration state persists across app launches
+- [ ] incomplete/cancelled migration resumes only when explicitly requested
+- [ ] resume skips charts already at the current per-chart schema
+- [ ] the migration uses the existing boilerplate determinate progress UI
+- [ ] preflight progress uses a real chart-count denominator
+- [ ] migration progress uses the frozen count of charts requiring work
+- [ ] progress increments only after real terminal per-chart outcomes
+- [ ] migrated/skipped/failed counters reconcile with actual DB results
+- [ ] cancellation never sets the global completion marker
+- [ ] final completion is shown only after persistence/validation/bookkeeping succeeds
 - [ ] unrecoverable old charts are reported, not fabricated
 - [ ] Settings no longer selects which Lilith calculation exists
 - [ ] old settings files still load safely
@@ -1611,9 +1903,11 @@ Before opening the final PR, verify all of the following on a clean new chart an
 - [ ] Similarities export treats all three separately
 - [ ] Database Analytics treats all three separately
 - [ ] Database Analytics exports use canonical names
-- [ ] Database Norms Snapshot migrates/recalculates source charts first
+- [ ] Database Norms Snapshot never performs or resumes the DB-wide migration
+- [ ] Database Norms Snapshot blocks with a clear Developer Tools instruction when migration is incomplete
 - [ ] Database Norms Snapshot records body-schema provenance
 - [ ] Database Norms Snapshot cannot publish mixed-schema data
+- [ ] an unexpected stale Norm source is reported rather than auto-recalculated database-wide
 - [ ] Trait `"Lilith"` criteria still work and now bind Osculating
 - [ ] Trait `"True Lilith"` criteria still work and now bind Osculating
 - [ ] new Traits can explicitly target Mean/Osculating/Natural
