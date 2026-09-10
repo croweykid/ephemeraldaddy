@@ -377,6 +377,16 @@ def _ensure_theme_predictions_section(owner: Any, traits_table: QTableView) -> N
     )
     _register_theme_section(owner, themes_layout)
 
+    # Deferred construction happens after the rest of Predictions has already
+    # populated the parent layout. Move the newly created section back to the
+    # intended sibling position directly beneath Traits.
+    themes_content = themes_layout.parentWidget()
+    themes_section = themes_content.parentWidget() if themes_content is not None else None
+    traits_index = layout.indexOf(traits_section)
+    if themes_section is not None and traits_index >= 0:
+        layout.removeWidget(themes_section)
+        layout.insertWidget(traits_index + 1, themes_section)
+
     header_row = QWidget()
     header_layout = QHBoxLayout(header_row)
     header_layout.setContentsMargins(0, 0, 0, 0)
@@ -486,13 +496,18 @@ def install_theme_predictions(trait_core: Any) -> None:
 
     def configure_traits_prediction_table(owner: Any, table: QTableView) -> None:
         original_configure(owner, table)
+
+        def ensure_after_parenting() -> None:
+            try:
+                _ensure_theme_predictions_section(owner, table)
+            except RuntimeError:
+                # The owning Chart View may have closed before the queued call.
+                return
+
         # Chart View adds the Traits table to its section immediately after this
         # configurator returns. Defer one event-loop turn so parent/layout lookup
         # is valid before inserting the sibling Themes section.
-        QTimer.singleShot(
-            0,
-            lambda owner=owner, table=table: _ensure_theme_predictions_section(owner, table),
-        )
+        QTimer.singleShot(0, ensure_after_parenting)
 
     trait_core.configure_traits_prediction_table = configure_traits_prediction_table
     trait_core._ephemeraldaddy_theme_predictions_installed = True
