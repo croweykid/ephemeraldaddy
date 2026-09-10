@@ -158,6 +158,7 @@ jobs:
       - name: Verify source regression and syntax
         shell: bash
         run: |
+          nl -ba ephemeraldaddy/gui/app.py | sed -n '27790,27815p'
           python -m py_compile \
             ephemeraldaddy/gui/app.py \
             ephemeraldaddy/gui/worker_ui_relays.py \
