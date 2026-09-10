@@ -338,16 +338,18 @@ def _overlay_aspect_segments(aspect_hits: list[Any]) -> list[dict[str, float | s
         lon2 = getattr(hit.b, "lon_deg", None)
         if lon1 is None or lon2 is None:
             continue
-        raw_p1 = getattr(hit.a, "name", "Endpoint 1")
-        raw_p2 = getattr(hit.b, "name", "Endpoint 2")
+        raw_p1 = str(getattr(hit.a, "name", "Endpoint 1"))
+        raw_p2 = str(getattr(hit.b, "name", "Endpoint 2"))
         segments.append(
             {
                 "lon1_deg": float(lon1),
                 "lon2_deg": float(lon2),
                 "type": str(hit.aspect),
                 "score": float(getattr(hit, "exactness", 0.0)) * float(getattr(hit, "weight", 1.0)),
-                "p1": aspect_axis_display_label(raw_p1) or _display_body_name(raw_p1),
-                "p2": aspect_axis_display_label(raw_p2) or _display_body_name(raw_p2),
+                "p1": raw_p1,
+                "p2": raw_p2,
+                "p1_display_label": aspect_axis_display_label(raw_p1) or _display_body_name(raw_p1),
+                "p2_display_label": aspect_axis_display_label(raw_p2) or _display_body_name(raw_p2),
             }
         )
     return segments
