@@ -2996,7 +2996,11 @@ class DatabaseAnalyticsChartsMixin:
             selection_total=selection_total,
             database_total=database_total,
         )
-        sigma = typical_standard_error(results)
+        z_scored_results = [result for result in results if result.z_score is not None]
+        signal_results = [result for result in z_scored_results if abs(float(result.z_score)) >= 1.0]
+        if z_scored_results and not signal_results:
+            return
+        sigma = typical_standard_error(signal_results if signal_results else results)
         if sigma is None:
             sigma = self._typical_single_selection_standard_error(
                 selection_counts=selection_count_values,
@@ -6011,6 +6015,9 @@ class DatabaseAnalyticsChartsMixin:
                 label_colors={name: color_lookup.get(name, DEFAULT_TRAIT_COLOR) for name in ordered_labels},
                 include_count_prefixes=False,
                 auto_height=True,
+                # Trait likelihoods are per-chart prediction scores; they need their own
+                # distribution model rather than the categorical proportion guide path.
+                include_significance_guides=False,
             )
             self.traits_distribution_chart_layout.addWidget(canvas, 0)
         else:
