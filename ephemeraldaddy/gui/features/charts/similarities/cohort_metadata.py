@@ -21,6 +21,7 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 
 SAMPLE_UIDS_KEY = "sample_uids"
 LEGACY_SAMPLE_UIDS_KEY = "chartUIDs"
+UNSPECIFIED_GENDER_LABEL = "Unspecified"
 
 
 def normalize_chart_uid(value: object) -> str:
@@ -45,19 +46,19 @@ def chart_uids_from_mapping(uid_map: Mapping[object, object]) -> list[str]:
 
 
 def gender_counts(charts: Iterable[Any]) -> OrderedDict[str, int]:
-    """Count known gender labels with the same one-chart/one-observation model.
+    """Count gender labels with the same one-chart/one-observation model.
 
     Similarities Analysis factor prevalence is chart-count based.  Gender uses
-    the same denominator policy: each chart with a populated gender contributes
-    one observation; missing gender is omitted rather than guessed.
+    the same denominator policy: every loaded chart contributes one observation.
+    Populated labels are preserved, while blank or missing gender is represented
+    explicitly as ``Unspecified`` rather than removed from the cohort.
     """
     counts: Counter[str] = Counter()
     for chart in charts:
         if chart is None:
             continue
         label = normalize_gender_label(getattr(chart, "gender", None))
-        if label:
-            counts[label] += 1
+        counts[label or UNSPECIFIED_GENDER_LABEL] += 1
     return OrderedDict(sorted(counts.items(), key=lambda item: item[0].casefold()))
 
 
@@ -79,7 +80,8 @@ def build_gender_distribution(
 ) -> OrderedDict[str, Any] | None:
     """Build structured selected-vs-database gender metadata.
 
-    Returns ``None`` when the selected cohort has no known gender data.  The
+    Returns ``None`` only when the selected cohort has no loaded charts.  Blank
+    or missing gender remains part of the cohort as ``Unspecified``.  The
     exported structure includes the raw counts needed to re-evaluate a different
     significance policy later rather than freezing only a rendered percentage.
     """
