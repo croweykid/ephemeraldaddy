@@ -13,7 +13,7 @@ from typing import Any, Callable, Iterable
 
 from PySide6.QtCore import QCoreApplication, QObject, QThread, Qt, Signal, Slot
 
-from ephemeraldaddy.gui.features.transits import personal_timeline_core as core
+from ephemeraldaddy.gui.features.transits import personal_timeline_generation as core
 from ephemeraldaddy.gui.features.transits.cache import (
     PersonalTimelineDiskCache,
     personal_timeline_fingerprint,

@@ -5,30 +5,28 @@ import threading
 import time
 from zoneinfo import ZoneInfo
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
 from ephemeraldaddy.gui.features.transits import personal_timeline
-from ephemeraldaddy.gui.features.transits import personal_timeline_core
+from ephemeraldaddy.gui.features.transits import personal_timeline_window
 from ephemeraldaddy.gui.features.transits import personal_timeline_persistence as persistence
 
 
-_QT_APP = QCoreApplication.instance() or QCoreApplication([])
+_QT_APP = QApplication.instance() or QApplication([])
 UTC = datetime.timezone.utc
 
 
-def test_public_timeline_uses_explicit_subclass_without_core_mutation() -> None:
-    assert personal_timeline.PersonalTimelineWindowWidget is not personal_timeline_core.PersonalTimelineWindowWidget
-    assert issubclass(
+def test_public_timeline_exports_explicit_window_owner() -> None:
+    assert (
+        personal_timeline.PersonalTimelineWindowWidget
+        is personal_timeline_window.PersonalTimelineWindowWidget
+    )
+    assert personal_timeline.PersonalTimelineWindowWidget.__module__.endswith(
+        "personal_timeline_window"
+    )
+    assert not hasattr(
         personal_timeline.PersonalTimelineWindowWidget,
-        personal_timeline_core.PersonalTimelineWindowWidget,
-    )
-    assert not hasattr(
-        personal_timeline_core.PersonalTimelineWindowWidget,
         "_ephemeraldaddy_persistent_cache_installed",
-    )
-    assert not hasattr(
-        personal_timeline_core.PersonalTimelineWindowWidget,
-        "_on_personal_timeline_cache_read_finished",
     )
 
 

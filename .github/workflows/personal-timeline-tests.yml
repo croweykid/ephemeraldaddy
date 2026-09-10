@@ -33,6 +33,7 @@ jobs:
         run: >-
           python -m pytest -q
           tests/test_personal_timeline.py
+          tests/test_personal_timeline_window.py
           tests/test_personal_timeline_filters.py
           tests/test_personal_timeline_analysis.py
           tests/test_personal_timeline_cache.py
