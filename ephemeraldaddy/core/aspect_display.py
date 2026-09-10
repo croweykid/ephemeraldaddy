@@ -50,6 +50,19 @@ _AXIS_DISPLAY_LABEL_BY_ID: Mapping[str, str] = {
     "Rahu-Ketu": "Rahu–Ketu axis",
 }
 
+# Each antipodal axis has one stable endpoint used by display/comparison keys.
+# This is a key-space convention only; raw aspect rows keep the endpoint that
+# supplied their actual geometry.
+_AXIS_PRIMARY_BODY: Mapping[str, str] = {
+    "AS": "AS",
+    "DS": "AS",
+    "MC": "MC",
+    "IC": "MC",
+    "Rahu": "Rahu",
+    "Ketu": "Rahu",
+}
+_AXIS_COMPLEMENTARY_HALVES: frozenset[str] = frozenset({"DS", "IC", "Ketu"})
+
 # Aspect types related by a 180-degree endpoint flip. Harmonics whose
 # complements are not represented by the app (for example quintile -> 108°)
 # deliberately remain independent.
@@ -63,6 +76,20 @@ _AXIS_COMPLEMENT_FAMILY: Mapping[str, str] = {
     "quincunx": "semisextile-quincunx",
     "semisquare": "semisquare-sesquiquadrate",
     "sesquiquadrate": "semisquare-sesquiquadrate",
+}
+
+# Unlike the family tokens above, these remain real aspect names so callers of
+# display_aspect_key() can keep using the result for labels and aspect weights.
+_AXIS_COMPLEMENT_ASPECT: Mapping[str, str] = {
+    "conjunction": "opposition",
+    "opposition": "conjunction",
+    "square": "square",
+    "sextile": "trine",
+    "trine": "sextile",
+    "semisextile": "quincunx",
+    "quincunx": "semisextile",
+    "semisquare": "sesquiquadrate",
+    "sesquiquadrate": "semisquare",
 }
 
 
@@ -108,6 +135,37 @@ def _axis_endpoint_key(body: str) -> tuple[str, str]:
     if axis_id is not None:
         return "axis", axis_id
     return "body", body
+
+
+def _canonical_axis_display_key(
+    body1: str,
+    body2: str,
+    aspect_type: str,
+) -> tuple[tuple[str, str], str]:
+    """Canonicalize complementary axis halves to a real representative aspect.
+
+    For example, ``AS trine Jupiter`` and ``DS sextile Jupiter`` both become
+    ``AS trine Jupiter`` in comparison key space. Raw rows are not mutated.
+    Unsupported harmonic complements remain distinct rather than inventing an
+    aspect type the application does not represent.
+    """
+
+    complement = _AXIS_COMPLEMENT_ASPECT.get(aspect_type)
+    if complement is None:
+        return tuple(sorted((body1, body2))), aspect_type
+
+    flip_count = 0
+    canonical1 = body1
+    canonical2 = body2
+    if body1 in _AXIS_COMPLEMENTARY_HALVES:
+        canonical1 = _AXIS_PRIMARY_BODY[body1]
+        flip_count += 1
+    if body2 in _AXIS_COMPLEMENTARY_HALVES:
+        canonical2 = _AXIS_PRIMARY_BODY[body2]
+        flip_count += 1
+
+    canonical_type = complement if flip_count % 2 else aspect_type
+    return tuple(sorted((canonical1, canonical2))), canonical_type
 
 
 def axis_aspect_redundancy_key(
@@ -199,13 +257,18 @@ def display_aspect_key(
     use_houses: bool,
     known_positions: Collection[str] | Mapping[str, Any] | None = None,
 ) -> tuple[tuple[str, str], str] | None:
-    """Return a canonical user-visible aspect key, or None when hidden."""
+    """Return a canonical user-visible aspect key, or None when hidden.
+
+    Complementary halves of AS/DS, MC/IC, and Rahu/Ketu canonicalize here as
+    well as in row iterators so analytics callers cannot count the same axis
+    event twice. The returned aspect name is always a real app aspect type.
+    """
 
     if not aspect_is_displayable(aspect, use_houses=use_houses, known_positions=known_positions):
         return None
     p1, p2 = aspect_endpoint_names(aspect) or ("", "")
-    left, right = sorted((p1, p2))
-    return (left, right), normalize_aspect_type_for_display(aspect.get("type"))
+    aspect_type = normalize_aspect_type_for_display(aspect.get("type"))
+    return _canonical_axis_display_key(p1, p2, aspect_type)
 
 
 def iter_displayable_aspects(
