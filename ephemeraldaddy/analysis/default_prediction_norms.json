@@ -10,5 +10,7 @@
   "trait_baselines": {},
   "retired_trait_keys": [],
   "dnd_alignment_trait_keys": [],
-  "dnd_stat_raw_averages": {}
+  "dnd_stat_raw_averages": {},
+  "enneagram_type_raw_averages": {},
+  "enneagram_definition_signature": ""
 }

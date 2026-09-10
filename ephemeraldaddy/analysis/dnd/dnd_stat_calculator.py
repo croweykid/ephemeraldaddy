@@ -85,19 +85,7 @@ def _to_dnd_stat_from_db_norm(
     return int(math.floor(max(floor, min(ceiling, stat_value)) + 0.5))
 
 
-def _calculate_db_norm_stat_averages(
-    norm_charts: Iterable[Any] | None,
-    *,
-    allow_live: bool = False,
-) -> Dict[str, float]:
-    """Calculate stat norms only for an explicit snapshot-generation caller.
-
-    Runtime Predictions code must consume the persisted Official/My Database
-    snapshot instead of rescanning the live database. ``allow_live=True`` is
-    reserved for explicit norm-generation or diagnostic code.
-    """
-    if not allow_live:
-        return {}
+def _calculate_db_norm_stat_averages(norm_charts: Iterable[Any] | None) -> Dict[str, float]:
     totals = {key: 0.0 for key in _DND_STAT_COMPONENT_ORDER}
     count = 0
     for norm_chart in norm_charts or ():
