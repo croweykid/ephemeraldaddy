@@ -104,7 +104,6 @@ ASTRO_DATA_INPUT_FIELDS = frozenset(
         "death_hour",
         "death_minute",
         "death_place",
-        "lilith_calculation_mode",
     }
 )
 

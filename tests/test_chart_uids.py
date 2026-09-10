@@ -724,14 +724,13 @@ def test_load_chart_rejects_malformed_matching_derived_cache(tmp_path, monkeypat
     )
 
 
-def test_load_chart_rejects_derived_cache_when_lilith_mode_changes(tmp_path, monkeypatch):
+def test_load_chart_rejects_ambiguous_legacy_lilith_cache(tmp_path, monkeypatch):
     from ephemeraldaddy.core import ephemeris
 
     db_path = tmp_path / "charts.db"
     monkeypatch.setattr(db, "DB_DIR", tmp_path)
     monkeypatch.setattr(db, "DB_PATH", db_path)
     previous_lilith_mode = ephemeris.get_lilith_calculation_mode()
-    monkeypatch.setattr(db, "get_lilith_calculation_mode", ephemeris.get_lilith_calculation_mode)
     try:
         ephemeris.set_lilith_calculation_mode(ephemeris.LILITH_CALCULATION_MEAN)
         conn = db._get_conn()
@@ -791,11 +790,13 @@ def test_load_chart_rejects_derived_cache_when_lilith_mode_changes(tmp_path, mon
             rectification_range_end_minute=None,
             chart_uses_houses_value=True,
         )
-        assert true_signature != mean_signature
+        # The retired preference no longer changes the current body schema.
+        assert true_signature == mean_signature
 
         chart = db.load_chart(chart_id)
 
-        assert chart.positions.get("Lilith") != 123.0
+        assert "Lilith" not in chart.positions
+        assert {"Mean Lilith", "Osculating Lilith", "Natural Lilith"} <= chart.positions.keys()
         conn = sqlite3.connect(db_path)
         stored_signature = conn.execute(
             "SELECT derived_birth_data_signature FROM charts WHERE id = ?",
