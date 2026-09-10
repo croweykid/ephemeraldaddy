@@ -31686,6 +31686,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             sign=sign,
                             house_num=house_num,
                             chart_positions=getattr(chart, "positions", {}) or {},
+                            position_info_map=position_info_map,
                             sign_for_longitude=_sign_for_longitude,
                         )
                         append_plugin_paragraphs(self.chart_info_output, paragraphs)

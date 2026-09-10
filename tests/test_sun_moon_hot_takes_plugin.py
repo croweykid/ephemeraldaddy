@@ -39,7 +39,7 @@ def test_case_insensitive_sign_keys_and_exact_source_strings():
     source = json.loads(DATA_PATH.read_text(encoding="utf-8"))["aries"]["aries"]
     paragraphs = plugin.chart_info(_context(signs={"sUN": "ARIES", "mOoN": "aries"}))
     assert paragraphs[0][0] == {
-        "text": "Sun-Moon Hot Takes:",
+        "text": "Sun-Moon Hot Takes: ARIES Sun / aries Moon",
         "bold": True,
         "color_role": "highlight",
     }
@@ -47,6 +47,32 @@ def test_case_insensitive_sign_keys_and_exact_source_strings():
     assert paragraphs[1] == [{"text": "Best case: ", "bold": True}, {"text": source["best_case"]}]
     assert paragraphs[2] == [{"text": "Worst case: ", "bold": True}, {"text": source["worst_case"]}]
     assert plugin.chart_info(_context("Moon")) == plugin.chart_info(_context("Sun"))
+
+
+def test_all_uncertain_sun_moon_combinations_are_rendered_with_alternate_dividers():
+    plugin = _load_plugin()
+    context = _context()
+    context["chart_sign_options"] = {
+        "Sun": ["Aries", "Taurus"],
+        "Moon": ["Gemini", "Cancer"],
+    }
+
+    paragraphs = plugin.chart_info(context)
+    rendered = "\n".join(
+        "".join(segment["text"] for segment in paragraph)
+        for paragraph in paragraphs
+    )
+
+    for heading in (
+        "Sun-Moon Hot Takes: Aries Sun / Gemini Moon",
+        "Sun-Moon Hot Takes: Aries Sun / Cancer Moon",
+        "Sun-Moon Hot Takes: Taurus Sun / Gemini Moon",
+        "Sun-Moon Hot Takes: Taurus Sun / Cancer Moon",
+    ):
+        assert heading in rendered
+    alternate = "or! alternately! depending on exact birth time, this might be the case...:"
+    assert rendered.count(alternate) == 3
+    assert rendered.count(plugin._ALTERNATE_DIVIDER) == 6
 
 
 @pytest.mark.parametrize(
