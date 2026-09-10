@@ -36,9 +36,25 @@ def test_themes_section_uses_stable_family_key_role_and_traits_table_shape():
     assert "THEME_DEVIATION_ASSIGNMENT_THRESHOLD" in THEME_UI_SOURCE
 
 
-def test_themes_are_inserted_from_traits_construction_before_later_prediction_sections():
-    assert "_ensure_theme_predictions_section(owner, table)" in THEME_UI_SOURCE
-    assert "configure_traits_prediction_table = configure_traits_prediction_table" in THEME_UI_SOURCE
+def test_themes_are_inserted_after_traits_table_receives_its_parent():
+    install_source = THEME_UI_SOURCE.split("def install_theme_predictions", 1)[1]
+    assert "QTimer.singleShot(" in install_source
+    assert "_ensure_theme_predictions_section(owner, table)" in install_source
+    assert install_source.index("original_configure(owner, table)") < install_source.index(
+        "QTimer.singleShot("
+    )
+
+
+def test_below_average_themes_sort_most_negative_first():
+    comparator = THEME_UI_SOURCE.split("def lessThan", 1)[1].split(
+        "class _ThemePredictionColorDelegate", 1
+    )[0]
+    refresh = THEME_UI_SOURCE.split("def _refresh_theme_prediction_filter", 1)[1].split(
+        "def configure_theme_prediction_table", 1
+    )[0]
+    assert "return left_deviation < right_deviation" in comparator
+    assert "abs(left_deviation)" not in comparator
+    assert 'Qt.AscendingOrder if mode == "below" else Qt.DescendingOrder' in refresh
 
 
 def test_theme_render_uses_selected_static_prediction_norm_snapshot():
