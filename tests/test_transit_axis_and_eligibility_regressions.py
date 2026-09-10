@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import datetime
+from types import SimpleNamespace
 
 from ephemeraldaddy.core.aspect_display import (
     aspect_axis_display_label,
+    display_aspect_key,
     iter_displayable_aspects,
 )
 from ephemeraldaddy.core.composite import (
@@ -13,10 +15,15 @@ from ephemeraldaddy.core.composite import (
     compute_aspects,
     personal_transit_rules_for_mode,
 )
+from ephemeraldaddy.graphics.wheel_plot import (
+    _aspect_endpoint_hover_label,
+    _overlay_aspect_entry,
+)
 from ephemeraldaddy.gui.features.charts.presentation import format_transit_range
 from ephemeraldaddy.gui.features.charts.text_summary import (
     _aspect_body_with_sign,
     _format_popout_aspect_endpoint,
+    _overlay_aspect_segments,
 )
 
 
@@ -182,6 +189,47 @@ def test_shared_display_policy_collapses_complementary_axis_rows() -> None:
     assert visible == [aspects[0], aspects[2], aspects[4], aspects[6]]
 
 
+def test_display_aspect_key_canonicalizes_complementary_axis_halves_for_analytics() -> None:
+    pairs = (
+        (
+            {"p1": "AS", "p2": "Saturn", "type": "square"},
+            {"p1": "DS", "p2": "Saturn", "type": "square"},
+            "square",
+        ),
+        (
+            {"p1": "MC", "p2": "Venus", "type": "opposition"},
+            {"p1": "IC", "p2": "Venus", "type": "conjunction"},
+            "opposition",
+        ),
+        (
+            {"p1": "Rahu", "p2": "Moon", "type": "opposition"},
+            {"p1": "Ketu", "p2": "Moon", "type": "conjunction"},
+            "opposition",
+        ),
+        (
+            {"p1": "AS", "p2": "Jupiter", "type": "trine"},
+            {"p1": "DS", "p2": "Jupiter", "type": "sextile"},
+            "trine",
+        ),
+    )
+
+    for primary, complement, expected_type in pairs:
+        primary_key = display_aspect_key(primary, use_houses=True)
+        complement_key = display_aspect_key(complement, use_houses=True)
+        assert primary_key == complement_key
+        assert primary_key is not None
+        assert primary_key[1] == expected_type
+
+    # Do not fabricate harmonic complements that the app does not represent.
+    assert display_aspect_key(
+        {"p1": "AS", "p2": "Jupiter", "type": "quintile"},
+        use_houses=True,
+    ) != display_aspect_key(
+        {"p1": "DS", "p2": "Jupiter", "type": "biquintile"},
+        use_houses=True,
+    )
+
+
 def test_axis_event_labels_are_shared_and_do_not_replace_raw_endpoints() -> None:
     assert aspect_axis_display_label("AS") == "AS–DS axis"
     assert aspect_axis_display_label("DS") == "AS–DS axis"
@@ -195,6 +243,42 @@ def test_axis_event_labels_are_shared_and_do_not_replace_raw_endpoints() -> None
     assert representative.name == "AS"
     assert _format_popout_aspect_endpoint(representative, include_house=False) == "AS–DS axis"
     assert _aspect_body_with_sign("AS", {"AS": 0.0}) == "AS–DS axis"
+
+
+def test_overlay_axis_metadata_preserves_raw_endpoint_and_separate_display_label() -> None:
+    hit = SimpleNamespace(
+        a=_position("AS", 0.0, layer="TRANSIT"),
+        b=_position("Saturn", 90.0, layer="NATAL"),
+        aspect="square",
+        exactness=1.0,
+        weight=1.0,
+    )
+
+    segments = _overlay_aspect_segments([hit])
+    assert len(segments) == 1
+    segment = segments[0]
+    assert segment["p1"] == "AS"
+    assert segment["p2"] == "Saturn"
+    assert segment["p1_display_label"] == "AS–DS axis"
+    assert segment["p2_display_label"] == "Saturn"
+    assert segment["lon1_deg"] == 0.0
+
+    parsed = _overlay_aspect_entry(segment)
+    assert parsed is not None
+    entry, _score = parsed
+    assert entry["p1"] == "AS"
+    assert entry["p1_display_label"] == "AS–DS axis"
+
+    hover = _aspect_endpoint_hover_label(
+        endpoint_body=entry["p1"],
+        other_body=entry["p2"],
+        aspect_type=entry["type"],
+        lon_deg=entry["lon1_deg"],
+        endpoint_display_label=entry["p1_display_label"],
+        other_display_label=entry["p2_display_label"],
+    )
+    assert hover == "AS: Aries 00°00'\nAS–DS axis Square Saturn"
+    assert "AS–DS axis: Aries" not in hover
 
 
 def test_timed_transit_range_converts_utc_to_requested_display_timezone() -> None:
