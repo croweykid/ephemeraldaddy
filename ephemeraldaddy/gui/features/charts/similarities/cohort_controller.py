@@ -20,6 +20,9 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
     SIGNIFICANCE_CORRECTION_DEFAULT,
     load_significance_correction,
 )
+from ephemeraldaddy.gui.features.charts.similarities_export import (
+    similarities_match_clears_delta_threshold,
+)
 
 from .cohort_metadata import (
     build_gender_distribution,
@@ -205,6 +208,12 @@ class SimilaritiesController(_BaseSimilaritiesController):
             (str(label), int(count), selected_total)
             for label, count in counts.items()
             if int(count) > 0
+            and similarities_match_clears_delta_threshold(
+                int(count),
+                selected_total,
+                int(database_counts.get(label, 0) or 0),
+                database_total,
+            )
         ]
         self.host._set_similarities_section_matches(
             section_list,

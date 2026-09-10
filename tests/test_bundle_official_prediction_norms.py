@@ -2,10 +2,22 @@ import json
 from pathlib import Path
 
 import pytest
+import tools.bundle_official_prediction_norms as bundler
 
 from ephemeraldaddy.analysis.theme_prominence import theme_definition_signature
+from ephemeraldaddy.analysis.theme_norms import THEME_NORMS_AVAILABILITY_SCHEMA_VERSION
 from ephemeraldaddy.core.theme_reference import THEME_FAMILIES
 from tools.bundle_official_prediction_norms import bundle_snapshot
+
+
+@pytest.fixture(autouse=True)
+def _isolate_theme_validation(monkeypatch):
+    """Trait-definition coverage has dedicated tests in the companion module."""
+    monkeypatch.setattr(
+        bundler,
+        "validate_default_trait_coverage",
+        lambda _payload: {"active_default_trait_count": 1},
+    )
 
 
 def _theme_snapshot_fields() -> dict[str, object]:
@@ -13,6 +25,12 @@ def _theme_snapshot_fields() -> dict[str, object]:
         "theme_family_definition_signature": theme_definition_signature(),
         "theme_family_raw_averages": {
             family_key: 50.0 for family_key in THEME_FAMILIES
+        },
+        "theme_family_availability_schema_version": THEME_NORMS_AVAILABILITY_SCHEMA_VERSION,
+        "theme_family_raw_averages_by_availability": {
+            "houses:1|hd:1|bazi:1": {
+                family_key: 50.0 for family_key in THEME_FAMILIES
+            }
         },
     }
 
@@ -89,4 +107,37 @@ def test_bundle_official_snapshot_rejects_missing_theme_baselines(tmp_path):
     )
 
     with pytest.raises(ValueError, match="current Theme definitions"):
+        bundle_snapshot(source, tmp_path / "official.json")
+
+
+def test_bundle_official_snapshot_rejects_missing_availability_strata(tmp_path):
+    payload = {
+        "version": 1,
+        "chart_count": 1,
+        "trait_baselines": {"row": {"profile_hash": "x", "db_average": 1.0}},
+        **_theme_snapshot_fields(),
+    }
+    payload.pop("theme_family_raw_averages_by_availability")
+    source = tmp_path / "snapshot.json"
+    source.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="raw_averages_by_availability"):
+        bundle_snapshot(source, tmp_path / "official.json")
+
+
+def test_bundle_official_snapshot_rejects_incomplete_availability_stratum(tmp_path):
+    payload = {
+        "version": 1,
+        "chart_count": 1,
+        "trait_baselines": {"row": {"profile_hash": "x", "db_average": 1.0}},
+        **_theme_snapshot_fields(),
+    }
+    first_family = next(iter(THEME_FAMILIES))
+    del payload["theme_family_raw_averages_by_availability"][
+        "houses:1|hd:1|bazi:1"
+    ][first_family]
+    source = tmp_path / "snapshot.json"
+    source.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="availability stratum"):
         bundle_snapshot(source, tmp_path / "official.json")

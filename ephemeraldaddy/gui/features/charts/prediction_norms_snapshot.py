@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from ephemeraldaddy.analysis.theme_prominence import (
     calculate_database_theme_family_averages,
@@ -75,7 +75,10 @@ def _calculate_enneagram_snapshot_section(charts: list[Any]) -> tuple[dict[int, 
 
 
 def refresh_prediction_norms_snapshot(
-    owner: Any, *, user_initiated: bool = False
+    owner: Any,
+    *,
+    user_initiated: bool = False,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """Rebuild all snapshot-backed Predictions population norms on explicit request.
 
@@ -89,6 +92,25 @@ def refresh_prediction_norms_snapshot(
             "Whole-database prediction norms can only be rebuilt by the explicit "
             "Recalculate DB Norms action."
         )
+
+    last_terminal_percent = -5
+
+    def report(
+        completed: int,
+        total: int,
+        message: str,
+        *,
+        force_terminal: bool = False,
+    ) -> None:
+        nonlocal last_terminal_percent
+        line = f"[Prediction Norms] {completed}/{total}: {message}"
+        percent = int((float(completed) / float(total)) * 100.0) if total else 0
+        if force_terminal or completed == total or percent >= last_terminal_percent + 5:
+            _core.logger.info(line)
+            print(line, flush=True)
+            last_terminal_percent = percent
+        if progress_callback is not None:
+            progress_callback(completed, total, message)
 
     charts = _core._load_norm_charts(owner)
     traits = _core.list_traits(active_only=True)
@@ -107,9 +129,24 @@ def refresh_prediction_norms_snapshot(
         ("custom_trait", traits),
         ("dnd_alignment", dnd_alignment_traits),
     )
-    for source, group_traits in trait_groups:
-        if not group_traits:
-            continue
+    active_trait_groups = [(source, rows) for source, rows in trait_groups if rows]
+    # Work units track completed calculations rather than elapsed-time guesses:
+    # loading, each trait family, each D&D chart, Enneagram, Themes, and saving.
+    total_work = 4 + len(active_trait_groups) + len(charts)
+    completed_work = 1
+    report(
+        completed_work,
+        total_work,
+        f"Loaded {len(charts)} database charts",
+        force_terminal=True,
+    )
+    for source, group_traits in active_trait_groups:
+        report(
+            completed_work,
+            total_work,
+            f"Calculating {source.replace('_', ' ')} baselines",
+            force_terminal=True,
+        )
         from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
 
         averages = _database_trait_averages(owner, group_traits, force_refresh_stale=True)
@@ -123,10 +160,12 @@ def refresh_prediction_norms_snapshot(
                 "source": source,
                 "db_average": float(averages[name]),
             }
+        completed_work += 1
+        report(completed_work, total_work, f"Completed {source.replace('_', ' ')} baselines")
 
     dnd_stat_totals = {key: 0.0 for key in _core.DND_STAT_KEYS}
     dnd_stat_count = 0
-    for chart in charts:
+    for chart_index, chart in enumerate(charts, start=1):
         raw_scores = _core.calculate_weighted_criteria_scores(
             chart,
             predictors=_core.DND_STAT_PREDICTORS,
@@ -134,6 +173,12 @@ def refresh_prediction_norms_snapshot(
         for key in _core.DND_STAT_KEYS:
             dnd_stat_totals[key] += float(raw_scores.get(key, 0.0))
         dnd_stat_count += 1
+        completed_work += 1
+        report(
+            completed_work,
+            total_work,
+            f"Calculated Fantasy RPG stats for chart {chart_index} of {len(charts)}",
+        )
     dnd_stat_raw_averages = (
         {
             key: dnd_stat_totals[key] / float(dnd_stat_count)
@@ -143,16 +188,32 @@ def refresh_prediction_norms_snapshot(
         else {}
     )
 
+    report(
+        completed_work,
+        total_work,
+        "Calculating Enneagram baselines",
+        force_terminal=True,
+    )
     enneagram_type_raw_averages, enneagram_definition_signature = (
         _calculate_enneagram_snapshot_section(charts)
     )
+    completed_work += 1
+    report(completed_work, total_work, "Completed Enneagram baselines")
 
+    report(
+        completed_work,
+        total_work,
+        "Calculating availability-stratified Theme baselines",
+        force_terminal=True,
+    )
     theme_family_raw_averages = calculate_database_theme_family_averages(charts)
     if charts and set(theme_family_raw_averages) != set(THEME_FAMILIES):
         raise RuntimeError(
             "Could not calculate complete Theme family baselines for the Predictions norms snapshot."
         )
     theme_family_definition_signature = theme_definition_signature()
+    completed_work += 1
+    report(completed_work, total_work, "Completed Theme baselines")
 
     chart_uids = tuple(
         sorted(_core._chart_uid(chart) for chart in charts if _core._chart_uid(chart))
@@ -193,6 +254,12 @@ def refresh_prediction_norms_snapshot(
 
     # A manual rebuild creates/replaces My Database only. The bundled Official
     # catalog and the user's explicit source selection are independent.
+    report(
+        completed_work,
+        total_work,
+        "Saving database norms snapshot",
+        force_terminal=True,
+    )
     _core.save_prediction_norms_snapshot(snapshot, _core.PREDICTION_NORMS_SNAPSHOT_PATH)
     resolved_snapshot = _core.load_prediction_norms_snapshot(
         source=_core.PREDICTION_NORMS_SOURCE_MY_DATABASE
@@ -206,6 +273,8 @@ def refresh_prediction_norms_snapshot(
         )
     except Exception:
         pass
+    completed_work += 1
+    report(completed_work, total_work, "Database norms recalculation complete")
     return resolved_snapshot
 
 

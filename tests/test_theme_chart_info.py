@@ -3,7 +3,8 @@ from __future__ import annotations
 import pytest
 
 from ephemeraldaddy.analysis.theme_evidence import ThemeFactorEvidence
-from ephemeraldaddy.gui.features.charts import theme_chart_info as info
+from ephemeraldaddy.gui.features.chart_information import theme_family_presenter as info
+from ephemeraldaddy.gui.features.charts import theme_chart_info as adapter
 
 
 def test_theme_chart_info_renders_header_description_scores_and_supporting_bullets(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -96,21 +97,21 @@ class _FakeIndex:
 
 def test_only_theme_name_column_opens_chart_info(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
-    monkeypatch.setattr(info, "show_theme_family_chart_info", lambda owner, key: calls.append((owner, key)))
+    monkeypatch.setattr(adapter, "show_theme_family_chart_info", lambda owner, key: calls.append((owner, key)))
     theme_predictions = type("ThemePredictions", (), {"THEME_ROW_KEY_ROLE": 123})()
     owner = object()
 
-    info._handle_theme_prediction_row_clicked(owner, _FakeIndex(1), theme_predictions)
+    adapter._handle_theme_prediction_row_clicked(owner, _FakeIndex(1), theme_predictions)
     assert calls == []
 
-    info._handle_theme_prediction_row_clicked(owner, _FakeIndex(0), theme_predictions)
+    adapter._handle_theme_prediction_row_clicked(owner, _FakeIndex(0), theme_predictions)
     assert calls == [(owner, "family")]
 
 
 def test_factor_labels_cover_cross_system_theme_properties():
     assert info._factor_label("houses", 8) == "House 8"
     assert info._factor_label("gates", 55) == "Gate 55"
-    assert info._factor_label("channels", "39-55") == "Channel 39–55"
+    assert info._factor_label("channels", "39-55") == "Channel 39-55"
     assert info._factor_label("crosses", "the Sphinx") == "Incarnation Cross: the Sphinx"
     assert info._factor_label("centers", "G") == "G Center"
     assert info._factor_label("profiles", "1/3") == "Profile 1/3"
