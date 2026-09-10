@@ -50,6 +50,7 @@ def test_position_context_is_built_without_a_window_or_qt(monkeypatch):
         sign="Aries",
         house_num=None,
         chart_positions={"Sun": 5.0, "Moon": 45.0},
+        position_info_map={},
         sign_for_longitude=lambda longitude: "Aries" if longitude < 30 else "Taurus",
     )
     assert result == [[{"text": "supplement"}]]
@@ -60,6 +61,7 @@ def test_position_context_is_built_without_a_window_or_qt(monkeypatch):
         "house_num": None,
         "chart_uses_houses": False,
         "chart_signs": {"Sun": "Aries", "Moon": "Taurus"},
+        "chart_sign_options": {"Sun": ("Aries",), "Moon": ("Taurus",)},
     }
 
 
@@ -77,7 +79,42 @@ def test_position_context_ignores_missing_or_invalid_luminary_positions(monkeypa
         sign="Gemini",
         house_num=3,
         chart_positions={"Sun": "invalid"},
+        position_info_map={},
         sign_for_longitude=lambda longitude: "unused",
     )
     assert captured["chart_signs"] == {}
+    assert captured["chart_sign_options"] == {}
     assert captured["chart_uses_houses"] is True
+
+
+def test_position_context_preserves_all_uncertain_luminary_signs(monkeypatch):
+    captured = None
+
+    def capture(context):
+        nonlocal captured
+        captured = context
+        return []
+
+    monkeypatch.setattr(plugin_context, "chart_info_plugin_paragraphs", capture)
+    plugin_context.position_plugin_paragraphs(
+        body="Moon",
+        sign="Cancer",
+        house_num=None,
+        chart_positions={"Sun": 15.0, "Moon": 75.0},
+        position_info_map={
+            10: [
+                {"body": "Sun", "sign": "Aries", "icon_index": 12},
+                {"body": "Sun", "sign": "Taurus", "icon_index": 34},
+            ],
+            11: [
+                {"body": "Moon", "sign": "Gemini", "icon_index": 12},
+                {"body": "Moon", "sign": "Cancer", "icon_index": 34},
+            ],
+        },
+        sign_for_longitude=lambda longitude: "provisional",
+    )
+    assert captured["chart_signs"] == {"Sun": "Aries", "Moon": "Cancer"}
+    assert captured["chart_sign_options"] == {
+        "Sun": ("Aries", "Taurus"),
+        "Moon": ("Cancer", "Gemini"),
+    }
