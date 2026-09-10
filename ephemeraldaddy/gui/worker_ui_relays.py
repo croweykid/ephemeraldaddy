@@ -2,10 +2,10 @@
 
 PySide receiverless Python callables connected directly to signals emitted by a
 ``QObject`` living in a ``QThread`` do not provide a QObject thread-affinity
-boundary.  Terminal callbacks frequently update widgets or open dialogs, which
+boundary. Terminal callbacks frequently update widgets or open dialogs, which
 must run on the QApplication/main thread (and are fatal off-thread on macOS).
 
-These small relays are created and parented on the GUI thread.  Worker signals
+These small relays are created and parented on the GUI thread. Worker signals
 connect to their typed slots with ``Qt.QueuedConnection``; the slots then invoke
 the ordinary Python callbacks only after Qt has delivered the event to the
 relay's GUI-thread event loop.
@@ -27,7 +27,7 @@ class SimilarChartsUiRelay(QObject):
         parent: QObject,
         *,
         on_finished: Callable[[str, object], None],
-        on_failed: Callable[[str, str], None],
+        on_failed: Callable[[str, str, object], None],
     ) -> None:
         super().__init__(parent)
         self._on_finished = on_finished
@@ -40,10 +40,10 @@ class SimilarChartsUiRelay(QObject):
         finally:
             self.deleteLater()
 
-    @Slot(str, str)
-    def handle_failed(self, request_id: str, message: str) -> None:
+    @Slot(str, str, object)
+    def handle_failed(self, request_id: str, message: str, error: object) -> None:
         try:
-            self._on_failed(request_id, message)
+            self._on_failed(request_id, message, error)
         finally:
             self.deleteLater()
 
@@ -55,36 +55,34 @@ class PlanetDynamicsUiRelay(QObject):
         self,
         parent: QObject,
         *,
-        on_finished: Callable[[int, str, str, object], None],
-        on_failed: Callable[[int, str, str, str], None],
+        on_finished: Callable[[str, tuple[object, ...], object], None],
+        on_failed: Callable[[str, tuple[object, ...], str], None],
     ) -> None:
         super().__init__(parent)
         self._on_finished = on_finished
         self._on_failed = on_failed
 
-    @Slot(int, str, str, object)
+    @Slot(str, tuple, object)
     def handle_finished(
         self,
-        request_id: int,
-        chart_uid: str,
-        render_signature: str,
-        dynamics: object,
+        request_id: str,
+        signature: tuple[object, ...],
+        scores: object,
     ) -> None:
         try:
-            self._on_finished(request_id, chart_uid, render_signature, dynamics)
+            self._on_finished(request_id, signature, scores)
         finally:
             self.deleteLater()
 
-    @Slot(int, str, str, str)
+    @Slot(str, tuple, str)
     def handle_failed(
         self,
-        request_id: int,
-        chart_uid: str,
-        render_signature: str,
+        request_id: str,
+        signature: tuple[object, ...],
         message: str,
     ) -> None:
         try:
-            self._on_failed(request_id, chart_uid, render_signature, message)
+            self._on_failed(request_id, signature, message)
         finally:
             self.deleteLater()
 
@@ -96,15 +94,15 @@ class TraitReassessmentUiRelay(QObject):
         self,
         parent: QObject,
         *,
-        on_finished: Callable[[Any], None],
+        on_finished: Callable[[dict[str, str]], None],
         on_failed: Callable[[str], None],
     ) -> None:
         super().__init__(parent)
         self._on_finished = on_finished
         self._on_failed = on_failed
 
-    @Slot(object)
-    def handle_finished(self, report: Any) -> None:
+    @Slot(dict)
+    def handle_finished(self, report: dict[str, str]) -> None:
         try:
             self._on_finished(report)
         finally:
