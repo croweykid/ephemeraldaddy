@@ -93,6 +93,33 @@ def test_sparse_bazi_counts_normalize_by_maximum_not_range() -> None:
     }
 
 
+def test_activation_context_preserves_distinct_sparse_bazi_pillars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(themes, "chart_uses_houses", lambda _chart: True)
+    monkeypatch.setattr(themes._weighted, "calculate_dominant_sign_weights", lambda _chart: {})
+    monkeypatch.setattr(themes._weighted, "calculate_dominant_planet_weights", lambda _chart: {})
+    monkeypatch.setattr(themes._weighted, "calculate_dominant_house_weights", lambda _chart: {})
+    monkeypatch.setattr(themes._weighted, "calculate_dominant_nakshatra_weights", lambda _chart: {})
+    monkeypatch.setattr(themes, "_theme_reference_uses_human_design", lambda: False)
+    monkeypatch.setattr(themes, "_theme_reference_uses_bazi", lambda: True)
+    monkeypatch.setattr(
+        themes._weighted,
+        "active_bazi_sign_weights",
+        lambda _chart: {"rat": 1.0, "ox": 1.0, "tiger": 1.0, "rabbit": 1.0},
+    )
+
+    context = themes._activation_context(object())
+
+    assert context["bazi_available"] is True
+    assert context["bazisigns"] == {
+        "rat": 1.0,
+        "ox": 1.0,
+        "tiger": 1.0,
+        "rabbit": 1.0,
+    }
+
+
 def test_unknown_time_chart_excludes_human_design_activations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
