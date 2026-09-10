@@ -17,6 +17,9 @@ def test_plain_legacy_lilith_means_osculating_lilith() -> None:
 def test_historical_true_lilith_means_osculating_lilith() -> None:
     assert canonicalize_semantic_body_name("True Lilith") == OSCULATING_LILITH
     assert canonicalize_semantic_body_name("true lilith") == OSCULATING_LILITH
+    assert canonicalize_semantic_body_name("Lilith (true)") == OSCULATING_LILITH
+    assert canonicalize_semantic_body_name("Lilith (osculating)") == OSCULATING_LILITH
+    assert canonicalize_semantic_body_name("Lilith (mean)") == MEAN_LILITH
 
 
 def test_three_canonical_lilith_identities_never_collapse() -> None:

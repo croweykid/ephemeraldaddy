@@ -26,6 +26,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
     normalize_body_name,
 )
+from ephemeraldaddy.core.body_identity import canonicalize_semantic_body_name
 
 
 def _privacy_safe_chart_label(chart: Any) -> str:
@@ -39,8 +40,6 @@ def _privacy_safe_chart_label(chart: Any) -> str:
 BODY_ALIASES = {
     "fortune": "Part of Fortune",
     "part of fortune": "Part of Fortune",
-    "true lilith": "Lilith",
-    "lilith": "Lilith",
 }
 
 HD_TYPE_ALIASES = {
@@ -329,7 +328,8 @@ def normalize_weight_map_for_dominance_activation(
 def normalize_factor_value(value: str) -> str:
     """Normalize body/sign/axis aliases used by weighted criteria definitions."""
     token = str(value or "").strip()
-    canonical_alias = BODY_ALIASES.get(token.lower())
+    semantic_body = canonicalize_semantic_body_name(token)
+    canonical_alias = BODY_ALIASES.get(token.lower(), semantic_body)
     if canonical_alias:
         return canonical_alias
     canonical_from_lookup = CANONICAL_FACTOR_LOOKUP.get(token.casefold())

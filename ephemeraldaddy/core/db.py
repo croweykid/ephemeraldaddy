@@ -29,7 +29,7 @@ from ephemeraldaddy.core.chart_data_fields import (
     NonastralPatch,
     require_nonastral_data_fields,
 )
-from ephemeraldaddy.core.ephemeris import get_lilith_calculation_mode
+from ephemeraldaddy.core.body_identity import CANONICAL_LILITH_BODIES
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
@@ -2390,7 +2390,7 @@ def _chart_birth_data_signature_from_values(
         "birth_place": birth_place or "",
         "lat": round(float(lat or 0.0), 6),
         "lon": round(float(lon or 0.0), 6),
-        "lilith_calculation_mode": str(lilith_calculation_mode or get_lilith_calculation_mode()),
+        "body_schema": "three-lilith-v1",
         "birthtime_unknown": bool(birthtime_unknown),
         "retcon_time_used": bool(retcon_time_used),
         "retcon_time": retcon_time_token,
@@ -6374,6 +6374,10 @@ def _chart_from_row(chart_id: int, row):
         and derived_positions
         and derived_retrogrades
         and not invalid_payloads
+        and CANONICAL_LILITH_BODIES
+        <= set((derived_payloads["derived_positions"].value or {}).keys())
+        and CANONICAL_LILITH_BODIES
+        <= set((derived_payloads["derived_retrogrades"].value or {}).keys())
     )
     if can_hydrate_derived:
         chart = _new_chart_shell(

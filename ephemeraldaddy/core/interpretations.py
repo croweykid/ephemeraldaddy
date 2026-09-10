@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import datetime
 import math
+from copy import deepcopy
+
+from ephemeraldaddy.core.body_identity import canonicalize_semantic_body_name
 
 # from ephemeraldaddy.gui.style import DARK_THEME
 
@@ -74,7 +77,7 @@ PERSONAL = INNER_PLANETS | ANGLES
 
 NODES = {"Rahu", "Ketu"}
 ASTEROIDS = {"Vesta", "Ceres", "Juno", "Pallas"}
-BLACK_MOON_LILITH = {"Lilith"}
+BLACK_MOON_LILITH = {"Mean Lilith", "Osculating Lilith", "Natural Lilith"}
 POINTS = {"Part of Fortune"} # canonical label only; aka "Fortune"
 ANGLE_POINTS = ("AS", "IC", "DS", "MC")
 
@@ -116,7 +119,9 @@ NATAL_WEIGHT = { #aka NATAL_WEIGHT - use for calculating sign/planet/house/eleme
     "Ketu": 4,
     "Chiron": 1.5, #was 2, but I think that was high
     "Ceres": 1.5, #was 2, but I think that was high
-    "Lilith": 1.5, #was 2, but I think that was high
+    "Mean Lilith": 1.5,
+    "Osculating Lilith": 1.5, #was 2, but I think that was high
+    "Natural Lilith": 1.5,
     "Juno": 1.5, #was 2, but I think that was high
     "Vesta": 1.5, #was 2, but I think that was high
     "Pallas": 1.5, #was 2, but I think that was high
@@ -272,7 +277,9 @@ BODY_SIGN_DURATION_DAYS = {
     "Rahu": 566.0,
     "Ketu": 566.0,
     "Chiron": 1504.0,
-    "Lilith": 273.0,
+    "Mean Lilith": 273.0,
+    "Osculating Lilith": 273.0,
+    "Natural Lilith": 273.0,
     "Part of Fortune": 1.0,
     "AS": 0.08,
     "DS": 0.08,
@@ -283,7 +290,8 @@ BODY_SIGN_DURATION_DAYS = {
 
 def normalize_body_name(body: str) -> str:
     """Normalize legacy body aliases to canonical internal labels."""
-    return ANGLE_ALIASES.get(body, body)
+    angled = ANGLE_ALIASES.get(body, body)
+    return canonicalize_semantic_body_name(angled)
 
 
 def normalize_aspect_body(body: str) -> str:
@@ -327,8 +335,6 @@ def aspect_pair_weight(p1: str, p2: str, planet_weights: dict[str, float] | None
 
 def aspect_body_sign_duration(body: str) -> float:
     normalized = normalize_aspect_body(body)
-    if normalized == "Lilith (mean)":
-        normalized = "Lilith"
     return BODY_SIGN_DURATION_DAYS.get(normalized, 1.0)
 
 
@@ -599,7 +605,9 @@ PLANET_ORDER = [
     "Pallas",
     "Juno",
     "Vesta",
-    "Lilith",
+    "Mean Lilith",
+    "Osculating Lilith",
+    "Natural Lilith",
     "Part of Fortune",
     *ANGLE_POINTS,
 ]
@@ -1000,7 +1008,9 @@ PLANET_COLORS = {
     "Pallas":"#6699ff", #basic blue
     "Juno":"#6699ff", #basic blue
     "Vesta":"#6699ff", #basic blue
-    "Lilith":"#6699ff", #basic blue
+    "Mean Lilith":"#6699ff",
+    "Osculating Lilith":"#6699ff", #basic blue
+    "Natural Lilith":"#6699ff",
     "Part of Fortune":"#6699ff", #basic blue
     "Fortune":"#6699ff", #basic blue #should be treated as an alias
     "AS":"#33ccff", #lighter basic blue to indicate angles
@@ -1027,7 +1037,9 @@ DARK_TEXT = frozenset(
         "Pallas",
         "Juno",
         "Vesta",
-        "Lilith",
+        "Mean Lilith",
+        "Osculating Lilith",
+        "Natural Lilith",
         "Part of Fortune",
         "Fortune",
     )
@@ -1562,7 +1574,9 @@ PLANET_GLYPHS = {
     "Vesta": "⚶",
     "Rahu": "☊",
     "Ketu": "☋",
-    "Lilith": "⚸",
+    "Mean Lilith": "⚸",
+    "Osculating Lilith": "⚸",
+    "Natural Lilith": "⚸",
     "Part of Fortune": "⊗",
     "AS": "AS",
     "MC": "MC",
@@ -3034,7 +3048,7 @@ PLANET_KEYWORDS = {
         ],
         "polarity_partner": "Sun",
 },
-    "Lilith": {
+    "Osculating Lilith": {
         "nouns": [
             "refusal", "defiance", "taboo", "exile", "noncompliance", "provocation",
             "untamed desire", "erotic autonomy", "rejection", "social punishment", "subversion", "disowned hunger",
@@ -3164,6 +3178,9 @@ PLANET_KEYWORDS = {
         "polarity_partner": "MC",
     },
 }
+
+PLANET_KEYWORDS["Mean Lilith"] = deepcopy(PLANET_KEYWORDS["Osculating Lilith"])
+PLANET_KEYWORDS["Natural Lilith"] = deepcopy(PLANET_KEYWORDS["Osculating Lilith"])
 
 DOMINANT_BODY_MEANINGS = {
     "Sun": {
@@ -3655,7 +3672,7 @@ DOMINANT_BODY_MEANINGS = {
         "shorthand": "I must let go of what I already know too well.",
     },
 
-    "Lilith": {
+    "Osculating Lilith": {
         "symbol": "⚸",
         "category": "lunar_apogee",
         "core_theme": "Raw autonomy, refusal, erotic sovereignty, exile, taboo selfhood, untamed instinct",
@@ -3941,6 +3958,9 @@ DOMINANT_BODY_MEANINGS = {
     },
 }
 
+
+DOMINANT_BODY_MEANINGS["Mean Lilith"] = deepcopy(DOMINANT_BODY_MEANINGS["Osculating Lilith"])
+DOMINANT_BODY_MEANINGS["Natural Lilith"] = deepcopy(DOMINANT_BODY_MEANINGS["Osculating Lilith"])
 
 ASPECT_TYPES = {
     "chill vibes": {

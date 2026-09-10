@@ -24,7 +24,9 @@ RETCON_BODIES = [
     "Juno",
     "Vesta",
     "Rahu",
-    "Lilith",
+    "Mean Lilith",
+    "Osculating Lilith",
+    "Natural Lilith",
     "Ascendant",
     "MC",
 ]
@@ -45,7 +47,9 @@ SLOW_RETCON_BODIES = {
     "Pluto",
     "Chiron",
     "Rahu",
-    "Lilith",
+    "Mean Lilith",
+    "Osculating Lilith",
+    "Natural Lilith",
 }
 
 

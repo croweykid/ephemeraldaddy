@@ -40,6 +40,9 @@ CANONICAL_LILITH_BODIES = frozenset(
 LEGACY_SEMANTIC_BODY_ALIASES: dict[str, str] = {
     "Lilith": OSCULATING_LILITH,
     "True Lilith": OSCULATING_LILITH,
+    "Lilith (true)": OSCULATING_LILITH,
+    "Lilith (osculating)": OSCULATING_LILITH,
+    "Lilith (mean)": MEAN_LILITH,
 }
 
 _LEGACY_SEMANTIC_BODY_ALIASES_CASEFOLD = {

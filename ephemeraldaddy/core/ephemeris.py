@@ -10,6 +10,13 @@ from pathlib import Path
 from urllib.request import urlopen
 import warnings
 
+from ephemeraldaddy.core.body_identity import (
+    CANONICAL_LILITH_BODIES,
+    MEAN_LILITH,
+    NATURAL_LILITH,
+    OSCULATING_LILITH,
+)
+
 from ephemeraldaddy.core.deps import ensure_package
 _swe = ensure_package("pyswisseph")
 swe = _swe
@@ -298,72 +305,45 @@ _SWE_NAMED_BODY_IDS = {
     "Rahu": ("SE_TRUE_NODE", "TRUE_NODE"),
 }
 
+LILITH_SWISS_ID_CANDIDATES = {
+    MEAN_LILITH: ("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE"),
+    OSCULATING_LILITH: ("SE_OSCU_APOG", "OSCU_APOG", "OSCU_APOGEE"),
+    NATURAL_LILITH: ("SE_INTP_APOG", "INTP_APOG", "INTP_APOGEE"),
+}
+
+# Kept as inert import compatibility for older settings/UI code.  These values
+# no longer select chart output; every calculation emits the full triad.
 LILITH_CALCULATION_MEAN = "mean"
 LILITH_CALCULATION_TRUE = "true"
-_LILITH_CALCULATION_MODE = LILITH_CALCULATION_MEAN
-_LILITH_FALLBACK_WARNED = False
-
-
-def _normalize_lilith_calculation_mode(mode: str | None) -> str:
-    normalized = str(mode or "").strip().lower()
-    if normalized in {LILITH_CALCULATION_MEAN, LILITH_CALCULATION_TRUE}:
-        return normalized
-    return LILITH_CALCULATION_MEAN
 
 
 def set_lilith_calculation_mode(mode: str | None) -> str:
-    global _LILITH_CALCULATION_MODE
-    normalized = _normalize_lilith_calculation_mode(mode)
-    _LILITH_CALCULATION_MODE = normalized
-    return normalized
+    return str(mode or LILITH_CALCULATION_MEAN).strip().lower()
 
 
 def get_lilith_calculation_mode() -> str:
-    return _LILITH_CALCULATION_MODE
+    return "three-lilith"
 
 
 def get_lilith_display_name(mode: str | None = None) -> str:
-    normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
-    if normalized_mode == LILITH_CALCULATION_TRUE:
-        return "True Lilith"
-    return "Black Moon Lilith"
+    return OSCULATING_LILITH
 
 
 def lilith_mode_available(mode: str | None = None) -> bool:
-    return any(hasattr(swe, name) for name in _lilith_swe_id_names(mode))
+    body = OSCULATING_LILITH if str(mode).lower() == "true" else MEAN_LILITH
+    return lilith_body_available(body)
 
 
-def _lilith_swe_id_names(mode: str | None = None) -> tuple[str, ...]:
-    normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
-    if normalized_mode == LILITH_CALCULATION_TRUE:
-        # Osculating ("true") lunar apogee.
-        return ("SE_OSCU_APOG", "OSCU_APOG", "OSCU_APOGEE")
-    # Mean lunar apogee.
-    return ("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE")
+def lilith_swiss_id(body_name: str) -> int | None:
+    """Resolve one canonical Lilith to its own Swiss ID, without fallback."""
+    for candidate in LILITH_SWISS_ID_CANDIDATES.get(body_name, ()):
+        if hasattr(swe, candidate):
+            return int(getattr(swe, candidate))
+    return None
 
 
-def _lilith_swe_id_name_candidates(mode: str | None = None) -> tuple[str, ...]:
-    """
-    Return candidate Swiss-Ephemeris identifiers for Lilith.
-
-    When true/apparent apogee identifiers are unavailable in the installed
-    library build, include mean-apogee aliases as a compatibility fallback
-    instead of dropping Lilith from output entirely.
-    """
-    global _LILITH_FALLBACK_WARNED
-    preferred_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
-    preferred = _lilith_swe_id_names(preferred_mode)
-    mean_aliases = _lilith_swe_id_names(LILITH_CALCULATION_MEAN)
-    if preferred == mean_aliases:
-        return preferred
-    if preferred_mode == LILITH_CALCULATION_TRUE and not any(hasattr(swe, name) for name in preferred):
-        if not _LILITH_FALLBACK_WARNED:
-            logger.warning(
-                "True Lilith aliases are unavailable in this Swiss Ephemeris build; "
-                "falling back to mean-apogee aliases."
-            )
-            _LILITH_FALLBACK_WARNED = True
-    return (*preferred, *mean_aliases)
+def lilith_body_available(body_name: str) -> bool:
+    return body_name in CANONICAL_LILITH_BODIES and lilith_swiss_id(body_name) is not None
 
 
 def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | None:
@@ -383,10 +363,7 @@ def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | 
         rahu = planetary_longitude(dt_aware, "Rahu")
         return None if rahu is None else (rahu + 180.0) % 360.0
 
-    if normalized_name == "Lilith":
-        names = _lilith_swe_id_name_candidates()
-    else:
-        names = _SWE_NAMED_BODY_IDS.get(normalized_name)
+    names = LILITH_SWISS_ID_CANDIDATES.get(normalized_name) or _SWE_NAMED_BODY_IDS.get(normalized_name)
     if not names:
         return None
 
@@ -543,10 +520,10 @@ def planetary_positions(dt_aware, lat, lon):
     if rahu is not None:
         results["Rahu"] = rahu
         results["Ketu"] = (rahu + 180.0) % 360.0
-    lilith_id = _swe_body_id_optional(*_lilith_swe_id_name_candidates())
-    lilith = _swe_longitude(lilith_id) if lilith_id is not None else None
-    if lilith is not None:
-        results["Lilith"] = lilith
+    for lilith_name in (MEAN_LILITH, OSCULATING_LILITH, NATURAL_LILITH):
+        lilith = _swe_longitude(lilith_swiss_id(lilith_name)) if lilith_body_available(lilith_name) else None
+        if lilith is not None:
+            results[lilith_name] = lilith
 
     return results
 
@@ -609,7 +586,7 @@ def planetary_retrogrades(dt_aware) -> dict[str, bool]:
         "Juno": _swe_body_id_optional("SE_JUNO", "JUNO"),
         "Vesta": _swe_body_id_optional("SE_VESTA", "VESTA"),
         "Rahu": _swe_body_id_optional("SE_TRUE_NODE", "TRUE_NODE"),
-        "Lilith": _swe_body_id_optional(*_lilith_swe_id_name_candidates()),
+        **{name: lilith_swiss_id(name) for name in (MEAN_LILITH, OSCULATING_LILITH, NATURAL_LILITH)},
     }
 
     retrogrades: dict[str, bool] = {}
