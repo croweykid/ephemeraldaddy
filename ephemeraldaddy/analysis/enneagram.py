@@ -218,7 +218,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
             "Saturn in Scorpio":3,
             "Uranus in Taurus":5,"Neptune in Virgo":5,
             "Pluto in Cancer":5,
-            "Chiron in Gemini":4,"Vesta in Capricorn":4,"Vesta in H5":5,"Lillith in H7":5,
+            "Chiron in Gemini":4,"Vesta in Capricorn":4,"Vesta in H5":5,"Lilith in H7":5,
             "Cancer in H1":4,"Sagittarius in H1":3,"Aries in H10":3,"Cancer in H10":3,
         },
         "aspects":{
