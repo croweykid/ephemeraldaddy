@@ -2,6 +2,11 @@
 # ephemeraldaddy/gui/app.py
 from __future__ import annotations
 
+from ephemeraldaddy.gui.worker_ui_relays import (
+    PlanetDynamicsUiRelay,
+    SimilarChartsUiRelay,
+)
+
 import csv
 import calendar
 import copy
@@ -27773,25 +27778,26 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.finished.connect(
-            lambda completed_request_id, payload, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_finished(
+        similar_ui_relay = SimilarChartsUiRelay(
+            self,
+            on_finished=lambda completed_request_id, payload, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_finished(
                 completed_request_id,
                 payload,
                 expected_chart_token=expected_token,
                 expected_algorithm_mode=expected_mode,
                 expected_least_similar=expected_least,
-            )
-        )
-        worker.failed.connect(
-            lambda completed_request_id, message, error, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_failed(
+            ),
+            on_failed=lambda completed_request_id, message, error, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_failed(
                 completed_request_id,
                 message,
                 error,
                 expected_chart_token=expected_token,
                 expected_algorithm_mode=expected_mode,
                 expected_least_similar=expected_least,
-            )
+            ),
         )
+        worker.finished.connect(similar_ui_relay.handle_finished, Qt.QueuedConnection)
+        worker.failed.connect(similar_ui_relay.handle_failed, Qt.QueuedConnection)
         worker.finished.connect(thread.quit)
         worker.failed.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
@@ -37978,21 +37984,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         worker = _PlanetDynamicsWorker(request_id, signature, copy.deepcopy(chart))
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.finished.connect(
-            lambda completed_request_id, completed_signature, scores, chart_ref=chart: self._on_planet_dynamics_worker_finished(
+        planet_dynamics_ui_relay = PlanetDynamicsUiRelay(
+            self,
+            on_finished=lambda completed_request_id, completed_signature, scores, chart_ref=chart: self._on_planet_dynamics_worker_finished(
                 completed_request_id,
                 completed_signature,
                 scores,
                 chart_ref,
-            )
-        )
-        worker.failed.connect(
-            lambda completed_request_id, completed_signature, message: self._on_planet_dynamics_worker_failed(
+            ),
+            on_failed=lambda completed_request_id, completed_signature, message: self._on_planet_dynamics_worker_failed(
                 completed_request_id,
                 completed_signature,
                 message,
-            )
+            ),
         )
+        worker.finished.connect(planet_dynamics_ui_relay.handle_finished, Qt.QueuedConnection)
+        worker.failed.connect(planet_dynamics_ui_relay.handle_failed, Qt.QueuedConnection)
         worker.finished.connect(thread.quit)
         worker.failed.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
