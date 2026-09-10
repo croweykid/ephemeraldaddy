@@ -34,6 +34,9 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     apply_shared_dropdown_style,
     create_divider,
+    close_app_loading_progress,
+    create_app_loading_progress,
+    update_app_loading_progress,
     appwide_red_green_rgb_for_range,
 )
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
@@ -329,12 +332,26 @@ def _refresh_prediction_norms(owner: Any) -> None:
     button = getattr(owner, "_settings_refresh_prediction_norms_button", None)
     if button is not None:
         button.setEnabled(False)
+    progress = create_app_loading_progress(
+        parent=owner,
+        title="Recalculate Database Norms",
+        message="Preparing database norms…",
+    )
     _set_prediction_norms_status(
         owner,
         "Refreshing Predictions norms… this can take a while for large databases.",
     )
+
+    def update_progress(completed: int, total: int, message: str) -> None:
+        percent = (float(completed) / float(total) * 100.0) if total else 0.0
+        update_app_loading_progress(progress, message, percent)
+
     try:
-        snapshot = refresh_prediction_norms_snapshot(owner, user_initiated=True)
+        snapshot = refresh_prediction_norms_snapshot(
+            owner,
+            user_initiated=True,
+            progress_callback=update_progress,
+        )
         save_prediction_norms_source(PREDICTION_NORMS_SOURCE_MY_DATABASE)
         source_combo = getattr(owner, "_settings_prediction_norms_source_combo", None)
         if source_combo is not None:
@@ -359,6 +376,7 @@ def _refresh_prediction_norms(owner: Any) -> None:
         )
         raise
     finally:
+        close_app_loading_progress(progress)
         if button is not None:
             button.setEnabled(True)
 

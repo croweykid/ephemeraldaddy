@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 import sys
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from ephemeraldaddy.analysis import theme_prominence as prominence
 from ephemeraldaddy.analysis.theme_norms import (
@@ -139,6 +139,7 @@ def _install_availability_stratified_snapshot_refresh() -> None:
         owner: Any,
         *,
         user_initiated: bool = False,
+        progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> dict[str, Any]:
         captured: dict[str, Any] = {}
         original_calculator = snapshots.calculate_database_theme_family_averages
@@ -167,7 +168,11 @@ def _install_availability_stratified_snapshot_refresh() -> None:
         )
         snapshots._core.save_prediction_norms_snapshot = save_prediction_norms_snapshot
         try:
-            return original_refresh(owner, user_initiated=user_initiated)
+            return original_refresh(
+                owner,
+                user_initiated=user_initiated,
+                progress_callback=progress_callback,
+            )
         finally:
             snapshots.calculate_database_theme_family_averages = original_calculator
             snapshots._core.save_prediction_norms_snapshot = original_save

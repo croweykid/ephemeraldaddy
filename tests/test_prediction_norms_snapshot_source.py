@@ -15,8 +15,6 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     set_trait_retired_in_prediction_norms_snapshot,
     trait_norm_unavailability_reasons,
 )
-from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot as snapshot_module
-
 ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
 DND_SOURCE = (ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "dnd_predictions.py").read_text(encoding="utf-8")
@@ -128,7 +126,9 @@ def test_database_statistics_exposes_manual_refresh_norms_button():
     assert 'QPushButton("Recalculate DB Norms")' not in database_stats_builder
     assert "def add_prediction_norms_recalculation_tool" in DB_INFO_SOURCE
     assert "add_prediction_norms_recalculation_tool(self, dev_tools_section)" in APP_SOURCE
-    assert "refresh_prediction_norms_snapshot(owner, user_initiated=True)" in DB_INFO_SOURCE
+    assert "refresh_prediction_norms_snapshot(" in DB_INFO_SOURCE
+    assert "user_initiated=True" in DB_INFO_SOURCE
+    assert "progress_callback=update_progress" in DB_INFO_SOURCE
 
 
 def test_whole_database_norm_refresh_requires_explicit_user_action():
