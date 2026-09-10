@@ -50,7 +50,7 @@ def anti_properties_from_profile(profile: Mapping[str, Any]) -> dict[str, dict[A
 
 
 def load_anti_properties_from_file(path: str | Path) -> dict[str, dict[Any, Any]]:
-    """Parse a trait/Similarities JSON file and return its ordinary properties as anti data."""
+    """Parse a trait/Similarities Analysis export and return ordinary properties as anti data."""
     profiles = trait_store.parse_trait_file(path)
     source_profile = next(iter(profiles.values()))
     imported = anti_properties_from_profile(source_profile)
@@ -193,7 +193,7 @@ def add_anti_trait_file_button(core: ModuleType, owner: Any, traits_section: Any
 
 
 def on_trait_append_anti_clicked(core: ModuleType, owner: Any) -> None:
-    """Import one JSON trait profile into the selected trait's anti-property buckets."""
+    """Import one trait/Similarities Analysis profile into the selected trait's anti-property buckets."""
     dialog_parent = core._settings_dialog_for(owner)
     item = core.selected_trait_item(owner)
     if item is None:
@@ -216,7 +216,7 @@ def on_trait_append_anti_clicked(core: ModuleType, owner: Any) -> None:
         dialog_parent,
         "Append Anti-Trait File",
         "",
-        "JSON files (*.json)",
+        "Trait files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)",
     )
     if not file_path:
         return
