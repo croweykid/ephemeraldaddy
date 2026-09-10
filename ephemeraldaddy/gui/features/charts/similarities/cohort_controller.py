@@ -65,8 +65,6 @@ class SimilaritiesController(_BaseSimilaritiesController):
         self.gender_distribution_list = section_list
         self.host.similarities_gender_distribution_toggle = toggle
         self.host.similarities_gender_distribution_list = section_list
-        toggle.setVisible(False)
-        section_list.setVisible(False)
         if trailing_item is not None:
             layout.addItem(trailing_item)
         return panel
@@ -178,33 +176,38 @@ class SimilaritiesController(_BaseSimilaritiesController):
         self._render_gender_distribution()
 
     def _render_gender_distribution(self) -> None:
+        """Render gender prevalence through the standard Similarities section path."""
         toggle = self.gender_distribution_toggle
         section_list = self.gender_distribution_list
         if toggle is None or section_list is None:
             return
+
         distribution = self._cohort_gender_distribution
-        counts = distribution.get("counts", {}) if isinstance(distribution, Mapping) else {}
-        available = isinstance(counts, Mapping) and bool(counts)
-        toggle.setVisible(available)
-        section_list.setVisible(available and bool(toggle.isChecked()))
-        section_list.clear()
-        if not available or not isinstance(distribution, Mapping):
+        if not isinstance(distribution, Mapping):
+            self.host._set_similarities_section_matches(section_list, toggle, [])
             return
 
-        percentages = distribution.get("percentages", {})
-        database_percentages = distribution.get("databasePercentages", {})
-        significance = distribution.get("significance", {})
-        for label in counts:
-            selected_percent = float(percentages.get(label, 0.0)) if isinstance(percentages, Mapping) else 0.0
-            database_percent = (
-                float(database_percentages.get(label, 0.0))
-                if isinstance(database_percentages, Mapping)
-                else 0.0
-            )
-            result = significance.get(label, {}) if isinstance(significance, Mapping) else {}
-            marker = " *" if isinstance(result, Mapping) and result.get("significant") else ""
-            section_list.addItem(
-                f"{label}: {selected_percent:.1f}% (DB {database_percent:.1f}%, "
-                f"{selected_percent - database_percent:+.1f} pp){marker}"
-            )
-        section_list.setToolTip("* statistically significant after the configured multiple-testing correction")
+        counts = distribution.get("counts", {})
+        database_counts = distribution.get("databaseCounts", {})
+        selected_total = int(distribution.get("total", 0) or 0)
+        database_total = int(distribution.get("databaseTotal", 0) or 0)
+        if not isinstance(counts, Mapping):
+            counts = {}
+        if not isinstance(database_counts, Mapping):
+            database_counts = {}
+
+        matches = [
+            (str(label), int(count), selected_total)
+            for label, count in counts.items()
+            if int(count) > 0
+        ]
+        self.host._set_similarities_section_matches(
+            section_list,
+            toggle,
+            matches,
+            selection_total_count=selected_total,
+            db_match_counts={
+                str(label): int(count) for label, count in database_counts.items()
+            },
+            db_total_count=database_total,
+        )
