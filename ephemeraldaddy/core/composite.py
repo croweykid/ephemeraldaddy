@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterable, Mapping
 
+from ephemeraldaddy.core.aspect_display import axis_aspect_redundancy_key
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import planetary_longitude
 from ephemeraldaddy.core.interpretations import (
@@ -147,6 +148,13 @@ PERSONAL_TRANSIT_MODE_LIFE_FORECAST = "life_forecast"
 PERSONAL_TRANSIT_MODE_DAILY_VIBE = "daily_vibe"
 PERSONAL_TRANSIT_MAX_ORB_DEG = 3.0
 
+# Jupiter and Saturn are structurally important personal transits, but they are
+# neither fast inner transits nor outer/generational planets. Keep that policy
+# explicit instead of misclassifying them in the global planet taxonomy.
+PERSONAL_TRANSIT_SOCIAL_PLANETS = frozenset({"Jupiter", "Saturn"})
+PERSONAL_TRANSIT_CHIRON_BODIES = frozenset({"Chiron"})
+
+
 def _body_is_point(name: str) -> bool:
     return name in POINTS or name in {"Fortune"}
 
@@ -160,6 +168,14 @@ def _life_forecast_pair_filter(body_a: BodyPosition, body_b: BodyPosition, _cont
         return False
     if transit_name in OUTER_PLANETS:
         return natal_name in PERSONAL or natal_name in OUTER_PLANETS
+    if transit_name in PERSONAL_TRANSIT_SOCIAL_PLANETS:
+        return (
+            natal_name in PERSONAL
+            or natal_name in OUTER_PLANETS
+            or natal_name in PERSONAL_TRANSIT_CHIRON_BODIES
+        )
+    if transit_name in PERSONAL_TRANSIT_CHIRON_BODIES:
+        return natal_name in PERSONAL or natal_name in NODES or natal_name in PERSONAL_TRANSIT_CHIRON_BODIES
     if transit_name in NODES:
         return natal_name in PERSONAL
     if transit_name in ASTEROIDS or transit_name in BLACK_MOON_LILITH:
@@ -172,7 +188,10 @@ def _daily_vibe_pair_filter(body_a: BodyPosition, body_b: BodyPosition, _context
     natal_name = body_b.name
     if _body_is_point(transit_name) or _body_is_point(natal_name):
         return False
-    return transit_name in PERSONAL and natal_name in PERSONAL
+    return transit_name in PERSONAL and (
+        natal_name in PERSONAL or natal_name in PERSONAL_TRANSIT_CHIRON_BODIES
+    )
+
 
 def personal_transit_orb_cap(mode: str, transit_body: str, natal_body: str, aspect_name: str) -> float:
     aspect_name = aspect_name.lower()
@@ -185,6 +204,22 @@ def personal_transit_orb_cap(mode: str, transit_body: str, natal_body: str, aspe
             if natal_body in OUTER_PLANETS and angle in MAJOR_ASPECTS:
                 return PERSONAL_TRANSIT_MAX_ORB_DEG
             if natal_body in PERSONAL and angle in MINOR_ASPECTS:
+                return PERSONAL_TRANSIT_MAX_ORB_DEG
+            return 0.0
+        if transit_body in PERSONAL_TRANSIT_SOCIAL_PLANETS:
+            if (
+                natal_body in PERSONAL
+                or natal_body in OUTER_PLANETS
+                or natal_body in PERSONAL_TRANSIT_CHIRON_BODIES
+            ) and angle in MAJOR_ASPECTS:
+                return PERSONAL_TRANSIT_MAX_ORB_DEG
+            return 0.0
+        if transit_body in PERSONAL_TRANSIT_CHIRON_BODIES:
+            if (
+                natal_body in PERSONAL
+                or natal_body in NODES
+                or natal_body in PERSONAL_TRANSIT_CHIRON_BODIES
+            ) and angle in MAJOR_ASPECTS:
                 return PERSONAL_TRANSIT_MAX_ORB_DEG
             return 0.0
         if transit_body in NODES:
@@ -200,7 +235,7 @@ def personal_transit_orb_cap(mode: str, transit_body: str, natal_body: str, aspe
     if mode == PERSONAL_TRANSIT_MODE_DAILY_VIBE:
         if angle not in MAJOR_ASPECTS:
             return 0.0
-        if natal_body not in PERSONAL:
+        if natal_body not in PERSONAL and natal_body not in PERSONAL_TRANSIT_CHIRON_BODIES:
             return 0.0
         if transit_body in {"AS", "MC", "DS", "IC"}:
             return PERSONAL_TRANSIT_MAX_ORB_DEG
@@ -402,6 +437,31 @@ def compute_aspects(
                     break
 
     aspects.sort(key=lambda hit: (hit.exactness, hit.weight), reverse=True)
+
+    # Transit overlays contain exact antipodal axis pairs on one or both layers.
+    # Collapse complementary halves here so Personal/Global Transit renderers,
+    # range scanners, and exports all receive one canonical event regardless of
+    # which presentation path they use. Natal chart data remains untouched and
+    # is deduplicated by core.aspect_display at its presentation boundary.
+    if rules.context == "transit_to_natal":
+        unique_aspects: list[AspectHit] = []
+        seen_axis_events: set[tuple[object, ...]] = set()
+        for hit in aspects:
+            axis_key = axis_aspect_redundancy_key(
+                hit.a.name,
+                hit.b.name,
+                hit.aspect,
+                directed=True,
+                layer1=hit.a.layer,
+                layer2=hit.b.layer,
+            )
+            if axis_key is not None:
+                if axis_key in seen_axis_events:
+                    continue
+                seen_axis_events.add(axis_key)
+            unique_aspects.append(hit)
+        aspects = unique_aspects
+
     return aspects
 
 
