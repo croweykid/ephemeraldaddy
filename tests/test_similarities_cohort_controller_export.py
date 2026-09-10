@@ -33,3 +33,26 @@ def test_export_json_snapshots_current_selected_chart_uids(monkeypatch) -> None:
 
     assert controller._cohort_chart_uids == ["UID-A", "UID-B"]
     assert captured["sample_uids"] == ["UID-A", "UID-B"]
+
+
+def test_gender_distribution_passes_empty_matches_when_all_rows_fail_delta() -> None:
+    captured: dict[str, object] = {}
+
+    def render(_list, _toggle, matches, **kwargs) -> None:
+        captured["matches"] = matches
+        captured.update(kwargs)
+
+    controller = object.__new__(cohort_controller.SimilaritiesController)
+    controller.host = SimpleNamespace(_set_similarities_section_matches=render)
+    controller.gender_distribution_toggle = object()
+    controller.gender_distribution_list = object()
+    controller._cohort_gender_distribution = {
+        "counts": {"Female": 5, "Male": 5},
+        "databaseCounts": {"Female": 50, "Male": 50},
+        "total": 10,
+        "databaseTotal": 100,
+    }
+
+    controller._render_gender_distribution()
+
+    assert captured["matches"] == []

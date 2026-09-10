@@ -60,7 +60,6 @@ def _install_availability_matched_render(theme_predictions: Any) -> None:
 
     original_render = theme_predictions.render_theme_predictions
     original_subtheme_scores = theme_predictions.calculate_theme_subtheme_scores
-    original_snapshot_averages = theme_predictions.theme_family_snapshot_averages
     original_unavailability_reason = theme_predictions.theme_snapshot_unavailability_reason
 
     def calculate_theme_subtheme_scores(chart: Any) -> dict[str, float]:
@@ -96,6 +95,8 @@ def _install_availability_matched_render(theme_predictions: Any) -> None:
         if chart is None or bool(
             getattr(owner, "_is_placeholder_chart", lambda _chart: False)(chart)
         ):
+            owner._theme_prediction_activation_context = None
+            owner._theme_prediction_evidence_by_family = {}
             original_render(owner, chart)
             return
 
@@ -105,6 +106,11 @@ def _install_availability_matched_render(theme_predictions: Any) -> None:
             context = prominence._activation_context(chart)
         except Exception as exc:  # original renderer converts failures to UI status
             context_error = exc
+
+        # The Chart Information presenter reuses this exact scoring context;
+        # changing rows must not rebuild Human Design, BaZi, or house dominance.
+        owner._theme_prediction_activation_context = context
+        owner._theme_prediction_evidence_by_family = {}
 
         context_token = _ACTIVE_THEME_CONTEXT.set(context)
         error_token = _ACTIVE_THEME_CONTEXT_ERROR.set(context_error)
@@ -175,6 +181,13 @@ def _install_availability_stratified_snapshot_refresh() -> None:
     if app_module is not None:
         setattr(
             app_module,
+            "refresh_prediction_norms_snapshot",
+            refresh_prediction_norms_snapshot,
+        )
+    db_info_module = sys.modules.get("ephemeraldaddy.gui.features.controllers.db_info")
+    if db_info_module is not None:
+        setattr(
+            db_info_module,
             "refresh_prediction_norms_snapshot",
             refresh_prediction_norms_snapshot,
         )

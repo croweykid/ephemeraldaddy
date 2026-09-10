@@ -29,6 +29,12 @@ def test_theme_runtime_injects_availability_strata_during_explicit_norm_rebuild(
     assert "calculate_database_theme_family_baselines(charts)" in RUNTIME_SOURCE
     assert "enrich_theme_snapshot_with_availability_baselines" in RUNTIME_SOURCE
     assert '"refresh_prediction_norms_snapshot"' in RUNTIME_SOURCE
+    assert 'sys.modules.get("ephemeraldaddy.gui.features.controllers.db_info")' in RUNTIME_SOURCE
+
+
+def test_theme_runtime_caches_scoring_context_for_chart_info():
+    assert "owner._theme_prediction_activation_context = context" in RUNTIME_SOURCE
+    assert "owner._theme_prediction_evidence_by_family = {}" in RUNTIME_SOURCE
 
 
 def test_theme_runtime_installs_after_theme_predictions_extension():

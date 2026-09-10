@@ -79,6 +79,18 @@ def calculate_theme_factor_evidence(
         raise KeyError(f"Unknown Theme key(s): {', '.join(map(str, unknown))}")
 
     context = prominence._activation_context(chart)
+    return calculate_theme_factor_evidence_from_context(context, keys)
+
+
+def calculate_theme_factor_evidence_from_context(
+    context: Mapping[str, Any],
+    theme_keys: Sequence[str] | None = None,
+) -> dict[str, tuple[ThemeFactorEvidence, ...]]:
+    """Return evidence using an activation context already built for scoring."""
+    keys = tuple(theme_keys) if theme_keys is not None else tuple(THEMES)
+    unknown = [key for key in keys if key not in THEMES]
+    if unknown:
+        raise KeyError(f"Unknown Theme key(s): {', '.join(map(str, unknown))}")
     return {key: _evidence_for_theme(key, context) for key in keys}
 
 

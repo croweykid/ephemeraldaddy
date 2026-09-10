@@ -22,6 +22,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from ephemeraldaddy.analysis.theme_prominence import theme_definition_signature  # noqa: E402
+from ephemeraldaddy.analysis.theme_norms import (  # noqa: E402
+    THEME_FAMILY_AVAILABILITY_ROWS_FIELD,
+    THEME_NORMS_AVAILABILITY_SCHEMA_FIELD,
+    THEME_NORMS_AVAILABILITY_SCHEMA_VERSION,
+)
 from ephemeraldaddy.analysis.traits import (  # noqa: E402
     DEFAULT_TRAITS_PATH,
     parse_trait_file,
@@ -160,6 +165,40 @@ def validate_theme_family_coverage(payload: Mapping[str, Any]) -> dict[str, floa
                 f"Official prediction norms contain a non-finite Theme baseline for {family_key!r}."
             )
         averages[family_key] = value
+
+    if (
+        int(payload.get(THEME_NORMS_AVAILABILITY_SCHEMA_FIELD, 0) or 0)
+        != THEME_NORMS_AVAILABILITY_SCHEMA_VERSION
+    ):
+        raise ValueError(
+            "Official prediction norms require availability-stratified Theme "
+            "baselines calculated with the current schema."
+        )
+    strata = payload.get(THEME_FAMILY_AVAILABILITY_ROWS_FIELD, {})
+    if not isinstance(strata, Mapping) or not strata:
+        raise ValueError(
+            "Official prediction norms require a non-empty "
+            "theme_family_raw_averages_by_availability mapping."
+        )
+    for availability_key, stratum_rows in strata.items():
+        if not isinstance(stratum_rows, Mapping):
+            raise ValueError(
+                f"Official prediction norms contain an invalid Theme availability "
+                f"stratum {availability_key!r}."
+            )
+        for family_key in THEME_FAMILIES:
+            try:
+                value = float(stratum_rows[family_key])
+            except (KeyError, TypeError, ValueError):
+                raise ValueError(
+                    f"Official prediction norms are missing Theme baseline "
+                    f"{family_key!r} in availability stratum {availability_key!r}."
+                ) from None
+            if not math.isfinite(value):
+                raise ValueError(
+                    f"Official prediction norms contain a non-finite Theme baseline "
+                    f"for {family_key!r} in availability stratum {availability_key!r}."
+                )
     return averages
 
 
