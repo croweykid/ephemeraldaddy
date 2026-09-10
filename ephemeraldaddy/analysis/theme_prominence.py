@@ -106,6 +106,30 @@ def _normalized_dominance(values: Mapping[Any, Any] | None) -> dict[Any, float]:
     }
 
 
+def _normalized_sparse_counts(values: Mapping[Any, Any] | None) -> dict[Any, float]:
+    """Normalize sparse non-negative counts by their maximum observed count.
+
+    BaZi pillar counts only contain signs that are actually present.  Range
+    normalization is inappropriate for that representation because four
+    distinct pillars produce a zero range (all present signs have count 1),
+    incorrectly erasing every valid activation.
+    """
+    cleaned = {
+        key: max(0.0, number)
+        for key, value in (values or {}).items()
+        if (number := _finite_float(value)) is not None
+    }
+    if not cleaned:
+        return {}
+    maximum = max(cleaned.values(), default=0.0)
+    if maximum <= 0.0:
+        return {key: 0.0 for key in cleaned}
+    return {
+        key: max(0.0, min(1.0, value / maximum))
+        for key, value in cleaned.items()
+    }
+
+
 def _grouped_sign_dominance(
     raw_sign_weights: Mapping[str, Any] | None,
     groups: Mapping[str, Sequence[str]],
@@ -165,7 +189,7 @@ def _human_design_activations(chart: Any) -> dict[str, Any]:
         "centers": {str(center).strip().casefold() for center in result.defined_centers},
         "profile": _normalized_text(result.profile).replace(" ", ""),
         "authority": _normalized_text(result.authority),
-        "cross": _normalized_text(result.incarnation_cross),
+        "cross": str(result.incarnation_cross or "").strip(),
         "available": True,
     }
 
@@ -199,15 +223,24 @@ def _activation_context(chart: Any) -> dict[str, Any]:
         or _weighted.calculate_dominant_nakshatra_weights(chart)
     )
 
-    hd = _human_design_activations(chart) if _theme_reference_uses_human_design() else {
-        "gates": set(),
-        "channels": set(),
-        "centers": set(),
-        "profile": "",
-        "authority": "",
-        "cross": "",
-        "available": False,
-    }
+    # Human Design requires a usable birth time.  Unknown-time charts carry a
+    # placeholder datetime for other calculations; feeding that arbitrary time
+    # into HD would fabricate gates, channels, centers, profile, authority, and
+    # incarnation-cross evidence.  Until we add an all-day stability resolver,
+    # omit HD from Theme scoring whenever the chart cannot use timed houses.
+    hd = (
+        _human_design_activations(chart)
+        if use_houses and _theme_reference_uses_human_design()
+        else {
+            "gates": set(),
+            "channels": set(),
+            "centers": set(),
+            "profile": "",
+            "authority": "",
+            "cross": "",
+            "available": False,
+        }
+    )
     raw_bazi = _weighted.active_bazi_sign_weights(chart) if _theme_reference_uses_bazi() else {}
 
     return {
@@ -218,7 +251,7 @@ def _activation_context(chart: Any) -> dict[str, Any]:
         "elements": _grouped_sign_dominance(raw_sign_weights, _ELEMENT_SIGNS),
         "modes": _grouped_sign_dominance(raw_sign_weights, _MODE_SIGNS),
         "nakshatras": _normalized_dominance(raw_nakshatra_weights),
-        "bazisigns": _normalized_dominance(raw_bazi),
+        "bazisigns": _normalized_sparse_counts(raw_bazi),
         "bazi_available": bool(raw_bazi),
         "hd": hd,
     }
@@ -228,15 +261,37 @@ def _channel_key(value: Any) -> tuple[int, int] | None:
     return _weighted.normalize_channel_value(value)
 
 
+def _canonical_cross_name(value: Any) -> str:
+    """Reduce generated Human Design cross display text to its named cross."""
+    text = _normalized_text(value)
+    if not text:
+        return ""
+
+    # Generated display values look like:
+    # ``Right Angle Cross of the Sphinx 4 (gates 1/2 • 7/13)``.
+    # Gate decorations and the variant number are display metadata, not part of
+    # the canonical cross name stored by the Theme reference.
+    text = re.split(r"\bgates\b", text, maxsplit=1)[0].strip()
+    text = re.sub(
+        r"^(?:(?:right|left)\s+angle|juxtaposition)\s+cross\s+of\s+",
+        "",
+        text,
+    )
+    text = re.sub(r"^cross\s+of\s+", "", text)
+    text = re.sub(r"\s+\d+\s*$", "", text).strip()
+    return text
+
+
 def _cross_matches(active_cross: str, configured_cross: Any) -> bool:
-    configured = _normalized_text(configured_cross)
-    active = _normalized_text(active_cross)
+    configured = _canonical_cross_name(configured_cross)
+    active = _canonical_cross_name(active_cross)
     if not configured or not active:
         return False
-    # Reference data may use either the full Human Design display name or the
-    # shorter canonical cross name.  Accept only whole normalized suffix/name
-    # equivalence; arbitrary substring matching would create false positives.
-    return active == configured or active.endswith(f" {configured}") or configured.endswith(f" {active}")
+    return (
+        active == configured
+        or active.endswith(f" {configured}")
+        or configured.endswith(f" {active}")
+    )
 
 
 def _activation_for_item(
