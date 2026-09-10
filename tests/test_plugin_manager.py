@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_plugin_can_be_disabled_and_reenabled_without_deleting_it(monkeypatch, tmp_path):
-    from ephemeraldaddy.analysis import human_design_plugins as plugins
+    from ephemeraldaddy.analysis import plugins
 
     plugin_dir = tmp_path / "plugins"
     disabled_dir = plugin_dir / "disabled"
@@ -15,7 +15,13 @@ def test_plugin_can_be_disabled_and_reenabled_without_deleting_it(monkeypatch, t
     disabled_path = plugins.set_plugin_enabled(enabled_path.name, False)
     assert disabled_path == disabled_dir / enabled_path.name
     assert plugins.plugin_installations() == [
-        {"name": enabled_path.name, "enabled": False, "path": disabled_path}
+        {
+            "name": enabled_path.name,
+            "display_name": "Human Design Gates-Lines Supplement",
+            "enabled": False,
+            "path": disabled_path,
+            "plugin_type": "legacy_json",
+        }
     ]
     assert not enabled_path.exists()
 
@@ -33,6 +39,7 @@ def test_settings_places_presets_traits_and_plugin_manager_in_requested_tabs():
     assert 'astro_twin_tabs.addTab(presets_tab, "Astro Twin Presets Manager")' in app_source
     assert 'property_tabs.addTab(traits_widget, "Traits")' in app_source
     assert 'QGroupBox("Upload Panel")' in app_source
+    assert '"Plugin files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)"' in app_source
     assert 'heading = QLabel("Plugin Manager")' in plugin_source
     assert '["Plugin", "Status", "File location"]' in plugin_source
     assert '"✓ Enabled" if enabled else "✕ Disabled"' in plugin_source

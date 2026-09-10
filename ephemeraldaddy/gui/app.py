@@ -1211,6 +1211,9 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
 from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
+)
+from ephemeraldaddy.analysis.plugins import (
+    chart_info_plugin_paragraphs,
     install_plugin_file,
     installed_plugin_names,
     recognized_plugin_names,
@@ -23012,7 +23015,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self,
             "Upload Plugin File",
             "",
-            "JSON files (*.json);;All files (*)",
+            "Plugin files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)",
         )
         if not file_path:
             return
@@ -31664,11 +31667,30 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             display_body_label=str(selected_entry.get("display_body", "")),
                         )
                         return True
-                    self._show_position_info(
-                        selected_entry["body"],
-                        selected_entry["sign"],
-                        selected_entry["house"],
-                    )
+                    body = str(selected_entry["body"])
+                    sign = str(selected_entry["sign"])
+                    house_value = selected_entry.get("house")
+                    house_num = house_value if isinstance(house_value, int) else None
+                    self._show_position_info(body, sign, house_num)
+                    if targets_main_chart_info:
+                        chart = getattr(self, "_latest_chart", None)
+                        positions = getattr(chart, "positions", {}) if chart is not None else {}
+                        chart_signs = {
+                            luminary: _sign_for_longitude(positions[luminary])
+                            for luminary in ("Sun", "Moon")
+                            if luminary in positions
+                        }
+                        paragraphs = chart_info_plugin_paragraphs(
+                            {
+                                "target": "position",
+                                "body": body,
+                                "sign": sign,
+                                "house_num": house_num,
+                                "chart_uses_houses": house_num is not None,
+                                "chart_signs": chart_signs,
+                            }
+                        )
+                        self._append_chart_info_plugin_paragraphs(paragraphs)
                     return True
 
             if info_index != -1 and cursor.positionInBlock() >= info_index:
@@ -31921,6 +31943,52 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             header = f"{body} in {sign} • House {house_num}"
         self._set_chart_info_lines_with_segments(header, unique_lines)
+
+    def _append_chart_info_plugin_paragraphs(
+        self,
+        paragraphs: list[list[dict[str, Any]]],
+    ) -> None:
+        """Append normalized plugin output without exposing Qt objects to plugins."""
+        if not isinstance(paragraphs, (list, tuple)):
+            return
+        valid_paragraphs = [
+            [segment for segment in paragraph if isinstance(segment, dict) and segment.get("text")]
+            for paragraph in paragraphs
+            if isinstance(paragraph, (list, tuple))
+        ]
+        valid_paragraphs = [paragraph for paragraph in valid_paragraphs if paragraph]
+        if not valid_paragraphs:
+            return
+
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        existing_text = self.chart_info_output.toPlainText()
+        if existing_text:
+            cursor.insertText("\n" * max(0, 2 - len(existing_text) + len(existing_text.rstrip("\n"))))
+
+        for paragraph_index, paragraph in enumerate(valid_paragraphs):
+            if paragraph_index:
+                cursor.insertText("\n\n")
+            for segment in paragraph:
+                text = str(segment.get("text", ""))
+                if not text:
+                    continue
+                fmt = QTextCharFormat()
+                fmt.setForeground(
+                    QColor(
+                        CHART_DATA_HIGHLIGHT_COLOR
+                        if segment.get("color_role") == "highlight"
+                        else "#ffffff"
+                    )
+                )
+                fmt.setFontWeight(QFont.Bold if segment.get("bold") else QFont.Normal)
+                fmt.setFontItalic(bool(segment.get("italic")))
+                cursor.insertText(text, fmt)
+
+        self.chart_info_output.setTextCursor(cursor)
+        reset_cursor = self.chart_info_output.textCursor()
+        reset_cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_decan_info(self, body: str, sign: str, longitude: object | None) -> None:
         sign_key = str(sign or "").strip().title()
