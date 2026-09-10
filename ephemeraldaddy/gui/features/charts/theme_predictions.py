@@ -424,6 +424,11 @@ def _ensure_theme_predictions_section(owner: Any, traits_table: QTableView) -> N
         owner,
     )
 
+    state = getattr(owner, "_chart_right_panel_state", None)
+    schedule = getattr(owner, "_schedule_chart_render_for_active_right_panel", None)
+    if getattr(state, "active_tab", None) == "predictions" and callable(schedule):
+        QTimer.singleShot(0, schedule)
+
 
 def _extend_right_panel_stack() -> None:
     """Make Themes independently visible/current in Predictions scheduling."""
