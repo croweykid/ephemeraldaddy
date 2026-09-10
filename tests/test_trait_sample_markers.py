@@ -61,11 +61,13 @@ def test_marker_installer_marks_table_and_html_without_changing_trait_target(mon
     core._apply_traits_prediction_metadata(owner, [], {}, prefix_html="prefix")
 
     rows = captured["rows"]
-    assert rows[0]["name"] == "🧚 Ascribed"
+    assert rows[0]["name"] == "Ascribed"
+    assert rows[0]["display_name"] == "🧚 Ascribed"
     assert rows[1]["name"] == "Other"
+    assert rows[1]["display_name"] == "Other"
     assert captured["rank_html"] == "<a href='trait:Ascribed'>🧚 Ascribed</a>"
 
-    core._show_trait_chart_info(owner, "🧚 Ascribed")
+    core._show_trait_chart_info(owner, rows[0]["name"])
     assert captured["chart_info_name"] == "Ascribed"
 
 
@@ -88,4 +90,33 @@ def test_marker_installer_emits_no_marker_when_exclusion_policy_is_enabled(monke
     core._apply_traits_prediction_metadata(owner, [], {})
 
     assert captured["rows"][0]["name"] == "Ascribed"
+    assert captured["rows"][0]["display_name"] == "Ascribed"
     assert captured["rank_html"] == "<a href='trait:Ascribed'>Ascribed</a>"
+
+
+def test_legitimate_fairy_prefix_is_preserved_for_chart_info(monkeypatch) -> None:
+    core, captured = _fake_core()
+    owner = SimpleNamespace(_traits_prediction_chart=SimpleNamespace(chart_uid="UID-1"))
+
+    core._trait_prediction_rows_from_metadata = lambda traits, metadata: [
+        {"name": "🧚 Legitimate name", "likelihood": 90.0, "deviation": 40.0}
+    ]
+
+    monkeypatch.setattr(
+        trait_sample_markers,
+        "ascribed_trait_names_for_chart",
+        lambda chart, traits: set(),
+    )
+    monkeypatch.setattr(
+        trait_sample_markers,
+        "predictions_exclude_ascribed_enabled",
+        lambda owner: False,
+    )
+
+    trait_sample_markers.install_trait_sample_markers(core)
+    core._apply_traits_prediction_metadata(owner, [], {})
+    row = captured["rows"][0]
+    core._show_trait_chart_info(owner, row["name"])
+
+    assert row["display_name"] == "🧚 Legitimate name"
+    assert captured["chart_info_name"] == "🧚 Legitimate name"
