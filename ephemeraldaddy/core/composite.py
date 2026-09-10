@@ -421,8 +421,8 @@ def compute_aspects(
                     if rules.orb_table
                     else aspect.orb_deg
                 )
-                if orb <= allowed_orb:
-                    exactness = 1.0 if allowed_orb == 0 else max(0.0, 1.0 - (orb / allowed_orb))
+                if allowed_orb > 0.0 and orb <= allowed_orb:
+                    exactness = max(0.0, 1.0 - (orb / allowed_orb))
                     aspects.append(
                         AspectHit(
                             a=body_a,
