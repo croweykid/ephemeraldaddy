@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ephemeraldaddy.gui.worker_ui_relays import TraitReassessmentUiRelay
+
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -321,8 +323,13 @@ def on_reassess_unavailable_traits_clicked(owner: Any) -> None:
         owner._trait_norm_reassessment_worker = None
 
     thread.started.connect(worker.run)
-    worker.finished.connect(reassessment_finished, Qt.QueuedConnection)
-    worker.failed.connect(reassessment_failed, Qt.QueuedConnection)
+    ui_relay = TraitReassessmentUiRelay(
+        owner,
+        on_finished=reassessment_finished,
+        on_failed=reassessment_failed,
+    )
+    worker.finished.connect(ui_relay.handle_finished, Qt.QueuedConnection)
+    worker.failed.connect(ui_relay.handle_failed, Qt.QueuedConnection)
     worker.finished.connect(thread.quit)
     worker.failed.connect(thread.quit)
     worker.finished.connect(worker.deleteLater)
