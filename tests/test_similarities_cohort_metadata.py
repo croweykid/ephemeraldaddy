@@ -4,6 +4,7 @@ from collections import OrderedDict
 from types import SimpleNamespace
 
 from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
+    UNSPECIFIED_GENDER_LABEL,
     build_gender_distribution,
     chart_uid_is_ascribed,
     chart_uids_from_mapping,
@@ -41,16 +42,24 @@ def test_gender_distribution_uses_chart_counts_and_flags_significance() -> None:
     assert set(distribution["significantCategories"]) == {"Female", "Male"}
 
 
-def test_gender_distribution_omits_missing_gender_from_denominator() -> None:
+def test_gender_distribution_counts_missing_gender_as_unspecified() -> None:
     selected = [SimpleNamespace(gender="Female"), SimpleNamespace(gender=None)]
     database = [SimpleNamespace(gender="Female"), SimpleNamespace(gender="Male")]
 
     distribution = build_gender_distribution(selected, database)
 
     assert distribution is not None
-    assert distribution["counts"] == {"Female": 1, "Male": 0}
-    assert distribution["total"] == 1
-    assert distribution["percentages"] == {"Female": 100.0, "Male": 0.0}
+    assert distribution["counts"] == {
+        "Female": 1,
+        "Male": 0,
+        UNSPECIFIED_GENDER_LABEL: 1,
+    }
+    assert distribution["total"] == 2
+    assert distribution["percentages"] == {
+        "Female": 50.0,
+        "Male": 0.0,
+        UNSPECIFIED_GENDER_LABEL: 50.0,
+    }
     assert distribution["statisticallySignificant"] is False
 
 
