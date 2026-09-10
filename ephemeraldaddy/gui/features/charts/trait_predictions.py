@@ -9,7 +9,6 @@ renderer and outside ``app.py``.
 
 from __future__ import annotations
 
-from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot as _prediction_norms_snapshot
 from ephemeraldaddy.gui.features.charts import trait_predictions_core as _core
 from ephemeraldaddy.gui.features.charts.trait_prediction_policy import (
     install_trait_prediction_policy as _install_trait_prediction_policy,
@@ -23,9 +22,6 @@ from ephemeraldaddy.gui.features.charts.theme_predictions import (
 
 _install_trait_prediction_policy(_core)
 _install_trait_sample_markers(_core)
-# Theme population baselines are first-class data in prediction_norms_snapshot;
-# prevent the legacy extension hook from wrapping/recalculating them a second time.
-_prediction_norms_snapshot._ephemeraldaddy_theme_norms_installed = True
 _install_theme_predictions(_core)
 
 for _name in dir(_core):
