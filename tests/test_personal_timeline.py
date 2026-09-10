@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from ephemeraldaddy.gui.features.transits import personal_timeline as timeline
+from ephemeraldaddy.gui.features.transits import personal_timeline_core as timeline
 
 
 UTC = datetime.timezone.utc
