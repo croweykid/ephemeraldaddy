@@ -16,27 +16,15 @@ jobs:
         with:
           ref: fix/gui-thread-dialogs
           fetch-depth: 1
-      - name: Inspect target worker connections
+      - name: Inspect worker signal signatures
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-
           source = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
-          for needle in (
-              "_on_similar_charts_worker_finished",
-              "_on_planet_dynamics_worker_finished",
-          ):
-              positions = []
-              start = 0
-              while True:
-                  index = source.find(needle, start)
-                  if index < 0:
-                      break
-                  positions.append(index)
-                  start = index + len(needle)
-              print(f"\n===== {needle}: {len(positions)} occurrence(s) =====")
-              for index in positions:
-                  print(source[max(0, index - 700): index + 900])
-                  print("===== END =====")
+          for needle in ("class _PlanetDynamicsWorker", "class _ChartRenderWorker"):
+              index = source.find(needle)
+              print(f"===== {needle} @ {index} =====")
+              if index >= 0:
+                  print(source[index:index + 1800])
           PY
