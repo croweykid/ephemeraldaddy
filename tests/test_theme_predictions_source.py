@@ -50,6 +50,15 @@ def test_themes_are_inserted_after_traits_table_receives_its_parent():
     assert "layout.insertWidget(traits_index + 1, themes_section)" in ensure_source
 
 
+def test_theme_section_reschedules_when_predictions_was_restored_active():
+    ensure_source = THEME_UI_SOURCE.split("def _ensure_theme_predictions_section", 1)[1].split(
+        "def _extend_right_panel_stack", 1
+    )[0]
+    assert 'getattr(state, "active_tab", None) == "predictions"' in ensure_source
+    assert 'getattr(owner, "_schedule_chart_render_for_active_right_panel", None)' in ensure_source
+    assert "QTimer.singleShot(0, schedule)" in ensure_source
+
+
 def test_below_average_themes_sort_most_negative_first():
     comparator = THEME_UI_SOURCE.split("def lessThan", 1)[1].split(
         "class _ThemePredictionColorDelegate", 1
