@@ -6036,7 +6036,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         controls_layout.addWidget(update_button, 0, 4, 2, 1)
         right_layout.addLayout(controls_layout)
 
-        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
+        local_tz = self.transit_panel_controller.display_timezone
         location_label = getattr(transit_chart, "birth_place", None) or getattr(self, "_transit_location_label", None) or "Unknown"
         raw_location = location_label
         transit_location = (transit_chart.lat, transit_chart.lon)
@@ -6389,6 +6389,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                                 state["start"],
                                 state["end"],
                                 include_time=bool(state.get("include_time", include_time)),
+                                display_timezone=local_tz,
                                 start_truncated_to_scope=bool(state.get("start_truncated_to_scope", False)),
                                 end_truncated_to_scope=bool(state.get("end_truncated_to_scope", False)),
                             )
@@ -6702,6 +6703,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                                 start_dt,
                                 end_dt,
                                 include_time=row_include_time,
+                                display_timezone=local_tz,
                                 start_truncated_to_scope=start_truncated,
                                 end_truncated_to_scope=end_truncated,
                             )
@@ -7079,7 +7081,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 return
             lat, lon, location_label = resolved_location
 
-            local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
+            local_tz = self.transit_panel_controller.display_timezone
             selected_date = popout_date_input.date()
             selected_time = popout_time_input.time()
             selected_local = datetime.datetime(

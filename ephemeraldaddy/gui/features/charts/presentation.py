@@ -62,17 +62,17 @@ def format_transit_range(
     end_dt: datetime.datetime | None,
     *,
     include_time: bool,
+    display_timezone: datetime.tzinfo,
     start_truncated_to_scope: bool = False,
     end_truncated_to_scope: bool = False,
-    display_timezone: datetime.tzinfo | None = None,
 ) -> str:
     """Format a transit window, converting timed UTC endpoints for display.
 
     Transit-window calculations return aware UTC datetimes. Timed ranges should
     be shown in the same local clock convention used by the Personal Transit
-    inputs/header, not as raw UTC. ``display_timezone`` exists for deterministic
-    callers/tests; omitting it uses the machine's local timezone. Date-only
-    ranges retain their existing date semantics.
+    inputs/header, not as raw UTC. Callers must pass the same rule-aware timezone
+    used to interpret the transit input. Date-only ranges retain their existing
+    date semantics.
     """
 
     stamp = "%m-%d-%Y %H:%M" if include_time else "%m-%d-%Y"
@@ -80,9 +80,7 @@ def format_transit_range(
     def _display_dt(value: datetime.datetime | None) -> datetime.datetime | None:
         if value is None or not include_time or value.tzinfo is None:
             return value
-        if display_timezone is not None:
-            return value.astimezone(display_timezone)
-        return value.astimezone()
+        return value.astimezone(display_timezone)
 
     display_start = _display_dt(start_dt)
     display_end = _display_dt(end_dt)

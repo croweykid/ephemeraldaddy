@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 from ephemeraldaddy.core.aspect_display import (
     aspect_axis_display_label,
@@ -292,6 +293,19 @@ def test_timed_transit_range_converts_utc_to_requested_display_timezone() -> Non
         include_time=True,
         display_timezone=edt,
     ) == "09-10-2026 09:08 -> 09-10-2026 09:37"
+
+
+def test_timed_transit_range_uses_selected_dates_dst_rule() -> None:
+    new_york = ZoneInfo("America/New_York")
+    start = datetime.datetime(2026, 1, 10, 17, 0, tzinfo=datetime.timezone.utc)
+    end = datetime.datetime(2026, 1, 10, 18, 0, tzinfo=datetime.timezone.utc)
+
+    assert format_transit_range(
+        start,
+        end,
+        include_time=True,
+        display_timezone=new_york,
+    ) == "01-10-2026 12:00 -> 01-10-2026 13:00"
 
 
 def test_date_only_transit_range_keeps_existing_utc_date_semantics() -> None:
