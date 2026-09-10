@@ -5,6 +5,7 @@ on:
     paths:
       - "ephemeraldaddy/core/aspect_display.py"
       - "ephemeraldaddy/core/composite.py"
+      - "ephemeraldaddy/graphics/wheel_plot.py"
       - "ephemeraldaddy/gui/features/charts/presentation.py"
       - "ephemeraldaddy/gui/features/charts/text_summary.py"
       - "tests/test_transit_axis_and_eligibility_regressions.py"
