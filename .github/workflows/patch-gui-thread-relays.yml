@@ -16,15 +16,164 @@ jobs:
         with:
           ref: fix/gui-thread-dialogs
           fetch-depth: 1
-      - name: Inspect worker signal signatures
+
+      - name: Patch worker terminal delivery
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          source = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
-          for needle in ("class _PlanetDynamicsWorker", "class _ChartRenderWorker"):
-              index = source.find(needle)
-              print(f"===== {needle} @ {index} =====")
-              if index >= 0:
-                  print(source[index:index + 1800])
+
+          app_path = Path("ephemeraldaddy/gui/app.py")
+          traits_path = Path("ephemeraldaddy/gui/features/settings/traits_manager.py")
+          app = app_path.read_text(encoding="utf-8")
+          traits = traits_path.read_text(encoding="utf-8")
+
+          app_import = (
+              "from ephemeraldaddy.gui.worker_ui_relays import (\n"
+              "    PlanetDynamicsUiRelay,\n"
+              "    SimilarChartsUiRelay,\n"
+              ")\n"
+          )
+          if app_import not in app:
+              future = "from __future__ import annotations\n"
+              if future in app:
+                  app = app.replace(future, future + "\n" + app_import, 1)
+              else:
+                  app = app_import + "\n" + app
+
+          def replace_worker_terminal_block(
+              source: str,
+              *,
+              worker_anchor: str,
+              expected_handler: str,
+              replacement: str,
+          ) -> str:
+              if source.count(worker_anchor) != 1:
+                  raise SystemExit(
+                      f"Expected exactly one {worker_anchor!r}; found {source.count(worker_anchor)}"
+                  )
+              worker_pos = source.index(worker_anchor)
+              first_connect = source.index("worker.finished.connect(", worker_pos)
+              start = source.rfind("\n", 0, first_connect) + 1
+              terminal_connect = source.index("worker.finished.connect(thread.quit)", first_connect)
+              end = source.rfind("\n", 0, terminal_connect) + 1
+              old_block = source[start:end]
+              if expected_handler not in old_block or "worker.failed.connect(" not in old_block:
+                  raise SystemExit(
+                      f"Refusing to replace unexpected terminal connection block for {worker_anchor}"
+                  )
+              return source[:start] + replacement + source[end:]
+
+          similar_block = """        similar_ui_relay = SimilarChartsUiRelay(
+              self,
+              on_finished=lambda completed_request_id, payload, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_finished(
+                  completed_request_id,
+                  payload,
+                  expected_chart_token=expected_token,
+                  expected_algorithm_mode=expected_mode,
+                  expected_least_similar=expected_least,
+              ),
+              on_failed=lambda completed_request_id, message, error, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_failed(
+                  completed_request_id,
+                  message,
+                  error,
+                  expected_chart_token=expected_token,
+                  expected_algorithm_mode=expected_mode,
+                  expected_least_similar=expected_least,
+              ),
+          )
+          worker.finished.connect(similar_ui_relay.handle_finished, Qt.QueuedConnection)
+          worker.failed.connect(similar_ui_relay.handle_failed, Qt.QueuedConnection)
+          """
+          app = replace_worker_terminal_block(
+              app,
+              worker_anchor="worker = SimilarChartsWorker(",
+              expected_handler="_on_similar_charts_worker_finished",
+              replacement=similar_block,
+          )
+
+          planet_block = """        planet_dynamics_ui_relay = PlanetDynamicsUiRelay(
+              self,
+              on_finished=lambda completed_request_id, completed_signature, scores, chart_ref=chart: self._on_planet_dynamics_worker_finished(
+                  completed_request_id,
+                  completed_signature,
+                  scores,
+                  chart_ref,
+              ),
+              on_failed=lambda completed_request_id, completed_signature, message: self._on_planet_dynamics_worker_failed(
+                  completed_request_id,
+                  completed_signature,
+                  message,
+              ),
+          )
+          worker.finished.connect(planet_dynamics_ui_relay.handle_finished, Qt.QueuedConnection)
+          worker.failed.connect(planet_dynamics_ui_relay.handle_failed, Qt.QueuedConnection)
+          """
+          app = replace_worker_terminal_block(
+              app,
+              worker_anchor="worker = _PlanetDynamicsWorker(",
+              expected_handler="_on_planet_dynamics_worker_finished",
+              replacement=planet_block,
+          )
+
+          trait_import = "from ephemeraldaddy.gui.worker_ui_relays import TraitReassessmentUiRelay\n"
+          if trait_import not in traits:
+              future = "from __future__ import annotations\n"
+              if future not in traits:
+                  raise SystemExit("Could not locate traits_manager future import")
+              traits = traits.replace(future, future + "\n" + trait_import, 1)
+
+          old_trait_connections = (
+              "    worker.finished.connect(reassessment_finished, Qt.QueuedConnection)\n"
+              "    worker.failed.connect(reassessment_failed, Qt.QueuedConnection)\n"
+          )
+          new_trait_connections = (
+              "    ui_relay = TraitReassessmentUiRelay(\n"
+              "        owner,\n"
+              "        on_finished=reassessment_finished,\n"
+              "        on_failed=reassessment_failed,\n"
+              "    )\n"
+              "    worker.finished.connect(ui_relay.handle_finished, Qt.QueuedConnection)\n"
+              "    worker.failed.connect(ui_relay.handle_failed, Qt.QueuedConnection)\n"
+          )
+          if traits.count(old_trait_connections) != 1:
+              raise SystemExit(
+                  "Expected one Trait reassessment terminal callback block; "
+                  f"found {traits.count(old_trait_connections)}"
+              )
+          traits = traits.replace(old_trait_connections, new_trait_connections, 1)
+
+          app_path.write_text(app, encoding="utf-8")
+          traits_path.write_text(traits, encoding="utf-8")
           PY
+
+      - name: Verify source regression and syntax
+        shell: bash
+        run: |
+          python -m py_compile \
+            ephemeraldaddy/gui/app.py \
+            ephemeraldaddy/gui/worker_ui_relays.py \
+            ephemeraldaddy/gui/features/settings/traits_manager.py \
+            tests/test_worker_gui_thread_delivery_source.py
+          python - <<'PY'
+          import runpy
+          namespace = runpy.run_path("tests/test_worker_gui_thread_delivery_source.py")
+          for name, value in sorted(namespace.items()):
+              if name.startswith("test_") and callable(value):
+                  value()
+                  print(f"PASS {name}")
+          PY
+          git diff --check
+
+      - name: Commit patched sources
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ephemeraldaddy/gui/app.py ephemeraldaddy/gui/features/settings/traits_manager.py
+          if git diff --cached --quiet; then
+            echo "No patch changes produced"
+            exit 1
+          fi
+          git commit -m "Route worker terminal callbacks through GUI thread relays"
+          git push origin HEAD:fix/gui-thread-dialogs
