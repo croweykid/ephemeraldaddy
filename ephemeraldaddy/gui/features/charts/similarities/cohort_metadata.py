@@ -19,6 +19,10 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 )
 
 
+SAMPLE_UIDS_KEY = "sample_uids"
+LEGACY_SAMPLE_UIDS_KEY = "chartUIDs"
+
+
 def normalize_chart_uid(value: object) -> str:
     """Return a canonical permanent chart UID for provenance comparisons."""
     return str(value or "").strip().upper()
@@ -148,10 +152,10 @@ def inject_trait_cohort_metadata(
     payload: Mapping[str, Any],
     selection_name: str,
     *,
-    chart_uids: Iterable[object],
+    sample_uids: Iterable[object],
     gender_distribution: Mapping[str, Any] | None,
 ) -> Mapping[str, Any]:
-    """Attach provenance to a normal Similarities trait profile in-place.
+    """Attach source-sample provenance to a normal Similarities trait profile.
 
     Dissimilarity bundles are intentionally left alone: they are descriptive
     two-chart bundles rather than reusable population trait profiles.
@@ -159,24 +163,37 @@ def inject_trait_cohort_metadata(
     profile = payload.get(selection_name)
     if not isinstance(profile, dict) or "model" not in profile:
         return payload
-    profile["chartUIDs"] = sorted(
+    profile[SAMPLE_UIDS_KEY] = sorted(
         {
             uid
-            for raw_uid in chart_uids
+            for raw_uid in sample_uids
             if (uid := normalize_chart_uid(raw_uid))
         }
     )
+    profile.pop(LEGACY_SAMPLE_UIDS_KEY, None)
     if gender_distribution:
         profile["genderDistribution"] = OrderedDict(gender_distribution)
     return payload
 
 
+def sample_uids_for_profile(profile: Mapping[str, Any]) -> tuple[object, ...]:
+    """Return provenance values, preferring the canonical key over the legacy key."""
+    raw_uids = profile.get(SAMPLE_UIDS_KEY)
+    if raw_uids is None:
+        raw_uids = profile.get(LEGACY_SAMPLE_UIDS_KEY, ())
+    if not isinstance(raw_uids, (list, tuple, set, frozenset)):
+        return ()
+    return tuple(raw_uids)
+
+
 def chart_uid_is_ascribed(profile: Mapping[str, Any], chart_uid: object) -> bool:
-    """Return whether a chart UID belongs to the trait's original ascribed cohort."""
+    """Return whether a chart UID belongs to the trait's original source sample."""
     target = normalize_chart_uid(chart_uid)
     if not target:
         return False
-    raw_uids = profile.get("chartUIDs", ())
-    if not isinstance(raw_uids, (list, tuple, set, frozenset)):
-        return False
-    return target in {normalize_chart_uid(value) for value in raw_uids if normalize_chart_uid(value)}
+    raw_uids = sample_uids_for_profile(profile)
+    return target in {
+        normalize_chart_uid(value)
+        for value in raw_uids
+        if normalize_chart_uid(value)
+    }

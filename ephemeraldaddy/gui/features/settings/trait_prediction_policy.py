@@ -79,8 +79,9 @@ def add_trait_prediction_policy_controls(owner: Any, traits_section: Any) -> Non
     )
     owner._traits_exclude_ascribed_predictions_checkbox.setChecked(bool(exclude_ascribed))
     owner._traits_exclude_ascribed_predictions_checkbox.setToolTip(
-        "Uses permanent chart UIDs exported in chartUIDs. This is Trait-specific: "
-        "being ascribed one Trait does not exclude the chart from unrelated Traits."
+        "Uses permanent chart UIDs exported in sample_uids. When this is off, source-sample "
+        "Traits remain visible and are marked with 🧚. This is Trait-specific: belonging to "
+        "one Trait's source sample does not affect unrelated Traits."
     )
     owner._traits_exclude_ascribed_predictions_checkbox.toggled.connect(
         lambda checked: _set_policy(
