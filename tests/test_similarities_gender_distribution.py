@@ -84,53 +84,61 @@ def test_gender_distribution_preserves_canonical_afab_m_label() -> None:
     assert distribution["percentages"]["AFAB-M"] == 80.0
 
 
-class _FakeToggle:
-    def __init__(self, *, checked: bool = True) -> None:
-        self.visible = False
-        self._checked = checked
-
-    def setVisible(self, visible: bool) -> None:
-        self.visible = bool(visible)
-
-    def isChecked(self) -> bool:
-        return self._checked
-
-
-class _FakeList:
+class _FakeHost:
     def __init__(self) -> None:
-        self.visible = False
-        self.items: list[str] = []
-        self.tooltip = ""
+        self.render_calls: list[tuple[object, object, list[tuple[str, int, int]], dict[str, object]]] = []
 
-    def setVisible(self, visible: bool) -> None:
-        self.visible = bool(visible)
-
-    def clear(self) -> None:
-        self.items.clear()
-
-    def addItem(self, text: str) -> None:
-        self.items.append(text)
-
-    def setToolTip(self, text: str) -> None:
-        self.tooltip = text
+    def _set_similarities_section_matches(
+        self,
+        section_list: object,
+        toggle: object,
+        matches: list[tuple[str, int, int]],
+        **kwargs: object,
+    ) -> None:
+        self.render_calls.append((section_list, toggle, matches, kwargs))
 
 
-def test_gender_section_renders_without_adjusted_statistical_significance() -> None:
+def test_gender_section_uses_standard_similarities_renderer() -> None:
     controller = SimilaritiesController.__new__(SimilaritiesController)
-    toggle = _FakeToggle(checked=True)
-    section_list = _FakeList()
+    host = _FakeHost()
+    toggle = object()
+    section_list = object()
+    controller.host = host
     controller.gender_distribution_toggle = toggle
     controller.gender_distribution_list = section_list
     controller._cohort_gender_distribution = {
-        "counts": {"Male": 7},
-        "percentages": {"Male": 100.0},
-        "databasePercentages": {"Male": 50.0},
-        "significance": {"Male": {"significant": False}},
-        "statisticallySignificant": False,
+        "counts": {"Female": 0, "Male": 7},
+        "total": 7,
+        "databaseCounts": {"Female": 5, "Male": 5},
+        "databaseTotal": 10,
     }
 
     controller._render_gender_distribution()
 
-    assert toggle.visible is True
-    assert section_list.visible is True
-    assert section_list.items == ["Male: 100.0% (DB 50.0%, +50.0 pp)"]
+    assert host.render_calls == [
+        (
+            section_list,
+            toggle,
+            [("Male", 7, 7)],
+            {
+                "selection_total_count": 7,
+                "db_match_counts": {"Female": 5, "Male": 5},
+                "db_total_count": 10,
+            },
+        )
+    ]
+
+
+def test_gender_section_empty_state_uses_standard_similarities_renderer() -> None:
+    controller = SimilaritiesController.__new__(SimilaritiesController)
+    host = _FakeHost()
+    toggle = object()
+    section_list = object()
+    controller.host = host
+    controller.gender_distribution_toggle = toggle
+    controller.gender_distribution_list = section_list
+    controller._cohort_gender_distribution = None
+
+    controller._render_gender_distribution()
+
+    assert host.render_calls == [(section_list, toggle, [], {})]
