@@ -115,7 +115,7 @@ class RankingsPanelMixin:
 
         self._rankings_section_expanded = {"traits": True, "sign_dominance": True}
         # Rankings are derived from the complete database row set rather than
-        # the filtered/ordered rows rendered by ``_populate_list``.  Keep the
+        # the filtered/ordered rows rendered by ``_populate_list``. Keep the
         # initial refresh pending until the panel is actually visible.
         self._rankings_data_dirty = True
         self._rankings_trait_visible_limits: dict[str, int] = {}
@@ -235,7 +235,9 @@ class RankingsPanelMixin:
             )
         )
         self.rankings_signs_label.setWordWrap(True)
-        self.rankings_signs_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
+        self.rankings_signs_label.setStyleSheet(
+            "color: #d8d8d8; padding: 2px 0 6px 0;"
+        )
         most_sign_layout.addWidget(self.rankings_signs_label)
 
         least_sign_layout = self._add_left_panel_collapsible_section(
@@ -404,6 +406,38 @@ class RankingsPanelMixin:
             float(database_average_pct),
         )
 
+    def _rehydrate_rankings_traits_cached_names(
+        self, rows: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Refresh cached presentation names by stable UID without rescoring rows."""
+        if not rows:
+            return []
+        chart_uids = tuple(
+            self._normalize_rankings_chart_uid(row.get("chart_uid", ""))
+            for row in rows
+            if self._normalize_rankings_chart_uid(row.get("chart_uid", ""))
+        )
+        chart_ids_by_uid = get_chart_ids_by_uid(chart_uids)
+        hydrated_rows: list[dict[str, Any]] = []
+        for row in rows:
+            hydrated_row = dict(row)
+            chart_uid = self._normalize_rankings_chart_uid(
+                hydrated_row.get("chart_uid", "")
+            )
+            chart_id = chart_ids_by_uid.get(chart_uid)
+            if chart_id is not None:
+                chart = self._get_chart_for_filter(int(chart_id))
+                if chart is not None and not self._is_placeholder_chart(chart):
+                    chart_name = str(
+                        getattr(chart, "name", "")
+                        or f"Chart {chart_uid or chart_id}"
+                    ).strip()
+                    hydrated_row["name"] = (
+                        chart_name or f"Chart {chart_uid or chart_id}"
+                    )
+            hydrated_rows.append(hydrated_row)
+        return hydrated_rows
+
     def _rankings_traits_chart_rankings(
         self,
         *,
@@ -469,8 +503,14 @@ class RankingsPanelMixin:
                         if latest_sequence != cached_sequence:
                             sorted_cache[cache_key] = (latest_sequence, cached_rows)
                         if limit is None:
-                            return list(cached_rows)
-                        return list(cached_rows[: max(0, int(limit))])
+                            cached_result = list(cached_rows)
+                        else:
+                            cached_result = list(
+                                cached_rows[: max(0, int(limit))]
+                            )
+                        return self._rehydrate_rankings_traits_cached_names(
+                            cached_result
+                        )
 
         chart_ids_by_uid = get_chart_ids_by_uid(normalized_chart_uids)
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
@@ -919,11 +959,18 @@ class RankingsPanelMixin:
         if active_job is not None:
             active_thread, _active_worker, active_token = active_job
             if isinstance(active_thread, QThread) and active_thread.isRunning():
-                if active_token[:-1] == job_key and not active_thread.isInterruptionRequested():
+                if (
+                    active_token[:-1] == job_key
+                    and not active_thread.isInterruptionRequested()
+                ):
                     self._rankings_traits_worker_token = active_token
-                    self._rankings_traits_worker_context = dict(snapshot_database_values)
+                    self._rankings_traits_worker_context = dict(
+                        snapshot_database_values
+                    )
                     return
-                sequence = int(getattr(self, "_rankings_traits_worker_sequence", 0)) + 1
+                sequence = int(
+                    getattr(self, "_rankings_traits_worker_sequence", 0)
+                ) + 1
                 self._rankings_traits_worker_sequence = sequence
                 token = (*job_key, sequence)
                 self._rankings_traits_worker_token = token
@@ -976,7 +1023,9 @@ class RankingsPanelMixin:
         worker.failed.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         worker.failed.connect(worker.deleteLater)
-        thread.finished.connect(self._on_rankings_trait_thread_stopped, Qt.QueuedConnection)
+        thread.finished.connect(
+            self._on_rankings_trait_thread_stopped, Qt.QueuedConnection
+        )
         thread.start()
 
     @Slot()
@@ -1031,7 +1080,9 @@ class RankingsPanelMixin:
         snapshot_values = getattr(self, "_rankings_traits_worker_context", {})
         if isinstance(snapshot_values, dict) and selected_trait_name in snapshot_values:
             try:
-                return {selected_trait_name: float(snapshot_values[selected_trait_name])}
+                return {
+                    selected_trait_name: float(snapshot_values[selected_trait_name])
+                }
             except (TypeError, ValueError):
                 return {}
         return {}
@@ -1318,9 +1369,13 @@ class RankingsPanelMixin:
             return
         selected_sign = str(combo.currentText() or "").strip()
         if selected_sign not in ZODIAC_NAMES:
-            label.setText("<span style='color:#9a9a9a;'>Select a sign to rank chart dominance.</span>")
+            label.setText(
+                "<span style='color:#9a9a9a;'>Select a sign to rank chart dominance.</span>"
+            )
             return
-        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in database_chart_ids}))
+        normalized_chart_ids = tuple(
+            sorted({int(chart_id) for chart_id in database_chart_ids})
+        )
         stored_weights = load_dominant_sign_weights(list(normalized_chart_ids))
         chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)
         rows: list[dict[str, Any]] = []
@@ -1334,7 +1389,9 @@ class RankingsPanelMixin:
         db_count = 0
         cache = getattr(self, "_database_metrics_cache", None)
         if isinstance(cache, dict):
-            total_weight = float(cache.get("dominant_sign_total_weight", 0.0) or 0.0)
+            total_weight = float(
+                cache.get("dominant_sign_total_weight", 0.0) or 0.0
+            )
             totals = cache.get("dominant_sign_totals", {})
             if total_weight:
                 db_average = float(totals.get(selected_sign, 0.0)) / total_weight
@@ -1379,7 +1436,8 @@ class RankingsPanelMixin:
                 {
                     "chart_uid": chart_uid,
                     "name": str(
-                        getattr(chart, "name", "") or f"Chart {chart_uid or chart_id}"
+                        getattr(chart, "name", "")
+                        or f"Chart {chart_uid or chart_id}"
                     ),
                     "value": normalized_value if least else value,
                     "total_weight": chart_total_weight,
@@ -1453,7 +1511,9 @@ class RankingsPanelMixin:
                 ),
             )
             for row in sign_ranked_rows[:20]:
-                chart_key = str(row.get("chart_uid") or row.get("name") or "").strip()
+                chart_key = str(
+                    row.get("chart_uid") or row.get("name") or ""
+                ).strip()
                 if chart_key:
                     sign_top_20_memberships.setdefault(chart_key, []).append(sign)
 
@@ -1475,10 +1535,15 @@ class RankingsPanelMixin:
         table_rows = []
         for rank, row in enumerate(rows[:display_limit], start=1):
             chart_uid = html.escape(str(row.get("chart_uid", "") or ""))
-            chart_key = str(row.get("chart_uid") or row.get("name") or "").strip()
+            chart_key = str(
+                row.get("chart_uid") or row.get("name") or ""
+            ).strip()
             name = html.escape(str(row["name"]))
             name_style = html.escape(
-                str(row.get("name_style") or "color:#f0f0f0; text-decoration:none"),
+                str(
+                    row.get("name_style")
+                    or "color:#f0f0f0; text-decoration:none"
+                ),
                 quote=True,
             )
             glyph_html = ""
