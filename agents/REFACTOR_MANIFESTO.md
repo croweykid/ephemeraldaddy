@@ -726,3 +726,250 @@ The undertaking succeeds when:
 Architecture is serving the user only when it produces a faster, more reliable,
 and easier-to-evolve application. That is the standard by which every refactor
 step must be judged.
+
+## 15. Immediate plan of attack
+
+**Recorded:** 2026-09-10 23:17:30 UTC
+
+**Purpose:** Turn the long-term phases above into a rational, low-regression
+execution order for the next sequence of bounded changes.
+
+### Current scale and planning principle
+
+At the time this plan was recorded, `ephemeraldaddy/gui/app.py` was 39,847
+lines. `ManageChartsDialog` accounted for roughly 22,900 lines and `MainWindow`
+for roughly 14,500 lines. The largest-looking blocks are not automatically the
+safest first moves: the sentiment tally, Database Search filter evaluator,
+window constructors, rendering queue, and top-level window classes combine
+state, presentation, calculation, caching, and refresh behavior.
+
+Do not prioritize a migration by the number of lines it removes. Prioritize
+work that establishes explicit ownership, typed inputs/results, focused tests,
+and a deletion path for legacy coupling. The immediate sequence is:
+
+1. establish repeatable baselines and a caller/ownership inventory;
+2. extract genuinely stateless leaf code and small reusable widgets;
+3. move pure calculations currently implemented as window methods;
+4. finish the UID-first Database View selection path and introduce its
+   model/controller;
+5. complete `ChartEditSession` and extract `ChartRecalculationPolicy`;
+6. establish reusable Chart Information ownership;
+7. replace runtime callback injection and borrowed methods one workflow at a
+   time;
+8. separate and canonically rename the top-level windows only after their state
+   boundaries are real;
+9. migrate the large Search, Analytics, Similarities, and sentiment workflows
+   after their state and refresh contracts are explicit; and
+10. reduce `app.py` to composition/bootstrap last.
+
+### Immediate low-risk extraction queue
+
+#### A. Module-level stateless helpers
+
+Move coherent function families directly to their workflow owners, never to a
+generic `helpers.py` or `utils.py`:
+
+- birth/date field validation and conversion to `chart_editor`;
+- Lilith calculation-method normalization to its calculation/settings owner;
+- similarity calculator settings loading/saving to `similarities`;
+- prediction defaults to `predictions`; and
+- Wikipedia lookup preferences to the Web Profile or Chart Editor biography
+  workflow.
+
+Each move must inventory callers first, add or retain focused tests, preserve
+startup import order, and ensure the destination does not import `app.py`.
+
+#### B. Standalone widgets and narrow Qt primitives
+
+Move one class at a time, with its constructor callers and behavior tests:
+
+- `SegmentedTimeEdit` to `features/chart_editor/`;
+- `ChartListWidget` to `features/database_view/`, near the future list adapter;
+- `_GlobalCloseShortcutFilter` to `features/windowing/`;
+- `_PlanetDynamicsWorker` to its analytics/rendering workflow;
+- `ResizablePixmapLabel` to its photo-gallery or presentation owner; and
+- `_ComboItemColorDelegate` to the concrete workflow that uses it, unless a
+  caller audit proves that it is genuinely appwide.
+
+Do not collect unrelated widgets in a new generic staging module. Confirm that
+tests do not depend on importing their old definitions from `app.py`, and check
+for import cycles and cold-import regressions with every move.
+
+#### C. Bootstrap and platform helpers
+
+Extract small, coherent clusters for application identity, packaged-font
+registration, Qt application construction, global shortcuts, screen geometry,
+input scaling, icons, debug logging, and dependency-check state. Prefer
+specific modules under `features/windowing/`, such as
+`application_bootstrap.py` and `application_identity.py`.
+
+Preserve the existing startup order exactly while doing this work. Avoid any
+move that initializes Qt, Matplotlib, fonts, the database, or platform-specific
+APIs earlier than before, and measure cold-import/startup effects.
+
+#### D. Pure or effectively static window methods
+
+Extract functions that do not depend on mutable window state before attempting
+their surrounding UI workflows. Initial candidates include:
+
+- analysis export-row construction;
+- Database Analytics cache encoding/decoding and population-norm calculations;
+- chart birth-year, aspect, body, and row normalization helpers;
+- Chart Editor export Markdown construction;
+- aspect line-segment construction;
+- metadata-change and database-refresh impact classification; and
+- analytics/cache signatures.
+
+Use a tested pure function or typed policy object in the canonical destination.
+When numerous callers make an immediate cutover unsafe, leave a temporary
+one-line delegate, document its deletion condition, migrate all callers, and
+then remove it. Do not replace window methods with mixins that retain the same
+hidden window dependencies.
+
+#### E. Finish existing extraction seams
+
+Prefer completing an existing boundary over creating another overlapping one.
+Inspect thin adapters around `ChartEditorController`, `ChartEditSession`,
+Database close/import progress, Transit controllers, related-chart choices,
+Web Profile import, and existing import/export builders. Keep pure work in the
+service/model, progress and cancellation in a narrow GUI controller, and the
+window limited to signal wiring and rendering.
+
+### First high-value architectural work
+
+#### 1. UID-first Database Selection
+
+Complete one remaining Database View selection/navigation UID slice at a time.
+Inventory and classify every related `chart_id`, `current_chart_id`,
+`selected_ids`, ID-keyed cache, signal, navigation anchor, export path, and
+refresh request as persistence-only, transitional, or erroneous.
+
+Once the selection/navigation path no longer maintains durable parallel row-ID
+state, introduce `DatabaseSelectionModel` and `DatabaseSelectionController` in
+`features/database_view/selection.py`. They own ordered chart UIDs, anchor UID,
+visible-versus-logical selection, and restoration after filters or refreshes.
+A narrow view adapter alone translates Qt items/indexes and persistence row IDs.
+
+This precedes broad Database View window extraction because selection is shared
+by filters, collections, batch editing, exporting, duplicate checks, hiding,
+analytics, and Chart Editor navigation.
+
+#### 2. Complete `ChartEditSession`
+
+Make `ChartEditSession` the authoritative owner of one create/edit lifecycle:
+
+- active chart UID;
+- authoritative loaded values versus current draft;
+- dirty-field classification;
+- save/discard state;
+- rectified-time value, enablement, and reliability metadata;
+- `chart_uses_houses` availability;
+- recalculation impact; and
+- the save result/change set emitted downstream.
+
+Move state transitions before moving widget construction. The Chart Editor
+should read explicit values from its widgets, submit them through a controller,
+and render session results; it should not retain a parallel authoritative
+session in arbitrary window attributes.
+
+#### 3. Pure recalculation policy, then GUI coordination
+
+First create and test `core/chart_recalculation_policy.py`. It must distinguish
+authoritative birth facts, rectified-time hypotheses and enablement,
+`chart_uses_houses`, derived astronomical data, tags, subjective metadata, and
+presentation-only/flavor metadata. Preserve the optimization that lightweight
+metadata edits do not trigger astronomical recalculation or broad analytics
+refreshes.
+
+Only after the pure policy is stable should
+`features/coordination/recalculation_coordinator.py` translate its typed impact
+into targeted recalculation, cache invalidation, Search/Analytics/Predictions
+updates, and rendering. Test unknown-time, rectified-time, and no-houses cases
+explicitly.
+
+#### 4. Reusable Chart Information
+
+Extract pure information models/builders and token/color formatting first, then
+give `ChartInformationPresenter` a narrow `ChartInformationPanel` interface.
+Convert one click source or entity family at a time: signs, bodies/positions,
+houses, nakshatras, aspects, and Human Design entities.
+
+Keep `ChartEditorInfoTabs` limited to the Chart Editor lower-left tab container;
+it must not own the appwide presenter. Preserve appwide color coding and the
+graph-popout contract that clicks update the associated Chart Information
+panel.
+
+### Explicitly deferred high-risk moves
+
+Do **not** begin with the following wholesale moves:
+
+- `_update_sentiment_tally`: first separate inputs, pure aggregation, norm/cache
+  lookup, view-model construction, and the two window-specific presenters;
+- `_chart_matches_filters`: first characterize each filter, introduce immutable
+  `DatabaseSearchQuery`, translate widgets once, and extract predicate families
+  into a non-Qt evaluator with representative benchmarks;
+- either giant window `__init__`: allow constructors to shrink as leaf widgets,
+  models, sessions, controllers, and factories gain explicit ownership;
+- the complete `ManageChartsDialog` or `MainWindow` classes: moving or renaming
+  them before state extraction only creates correctly named giant classes;
+- Settings as one project: migrate a section when it is touched without making
+  Settings reorganization block UID/session work; or
+- the asynchronous render queue as a wholesale move: first characterize render
+  order, generation invalidation, stale-result rejection, hidden-tab deferral,
+  overlay lifecycle, timing preview, cache cleanliness, and cancellation.
+
+Pure subcalculations within these areas may still migrate early when their
+inputs and outputs can be made explicit and tested independently.
+
+### Initial bounded change sequence
+
+Subject to caller audits and existing coverage, use this as the first concrete
+queue of PR-sized changes:
+
+1. Extract `SegmentedTimeEdit` with focused widget tests.
+2. Extract `ChartListWidget` with keyboard, double-click, drag, and open-feedback
+   behavior tests.
+3. Move pure similarity-settings functions to `similarities`.
+4. Move metadata-change classification into a tested
+   `ChartRecalculationPolicy` foundation.
+5. Convert one remaining Database View selection/navigation ID slice to UID.
+6. Introduce the UID-only `DatabaseSelectionModel` after that slice is clean.
+7. Expand `ChartEditSession` to own authoritative-versus-draft state and dirty
+   classification.
+8. Move one Chart Information builder family behind typed models.
+9. Replace one coherent runtime callback-injection group with an explicit
+   controller and narrow Protocol/callback bundle.
+10. Repeat by workflow, measuring behavior and deleting each compatibility
+    facade when its caller count reaches zero.
+
+The exact order of the first three leaf moves may change if a caller/import
+audit reveals unexpected coupling. UID Selection, `ChartEditSession`, and
+recalculation policy remain the first architectural unlocks.
+
+### Backlog and review discipline
+
+Label each candidate as one of:
+
+1. **Leaf move** — no window state changes.
+2. **Pure extraction** — typed calculation/formatting inputs and outputs.
+3. **State extraction** — introduces or completes a model/session/controller.
+4. **Ownership migration** — reroutes live UI behavior and removes a legacy
+   path.
+
+Before every significant slice, record:
+
+- canonical workflow owner and current callers;
+- window attributes read and written;
+- signals, timers, workers, and cancellation/staleness tokens;
+- database access and transaction boundaries;
+- chart identity form and any row-ID conversion;
+- cache keys and invalidation/refresh consumers;
+- unknown-time, rectified-time, and `chart_uses_houses` behavior;
+- existing correctness and source-characterization coverage;
+- relevant before/after performance measurement; and
+- every compatibility shim plus its objective deletion condition.
+
+Review the final diff as a new reviewer would: trace affected callers and state
+transitions, verify the underlying ownership problem was improved rather than
+merely relocated, and do not treat passing tests or a reduced line count as
+sufficient proof of success.
