@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from ephemeraldaddy.gui.features.chart_information import plugin_context
+
 
 def test_generic_hook_dispatch_is_after_native_position_info_and_main_target_only():
     source = (
@@ -10,9 +12,10 @@ def test_generic_hook_dispatch_is_after_native_position_info_and_main_target_onl
     )[0]
     assert "targets_main_chart_info = target_info_widget is self.chart_info_output" in method
     dispatch_guard = method.rsplit("if targets_main_chart_info:", 1)[1]
-    assert "chart_info_plugin_paragraphs(" in dispatch_guard
+    assert "position_plugin_paragraphs(" in dispatch_guard
+    assert "append_plugin_paragraphs(self.chart_info_output, paragraphs)" in dispatch_guard
     assert method.index("self._show_position_info(body, sign, house_num)") < method.index(
-        "chart_info_plugin_paragraphs("
+        "position_plugin_paragraphs("
     )
 
 
@@ -23,10 +26,58 @@ def test_app_uses_generic_plugin_ownership_and_python_upload_filter():
     assert "from ephemeraldaddy.analysis.plugins import (" in source
     generic_import = source.split("from ephemeraldaddy.analysis.plugins import (", 1)[1].split(")", 1)[0]
     for name in (
-        "chart_info_plugin_paragraphs",
         "install_plugin_file",
         "installed_plugin_names",
         "recognized_plugin_names",
     ):
         assert name in generic_import
+    assert "from ephemeraldaddy.gui.features.chart_information.plugin_context import (" in source
+    assert "from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (" in source
     assert "Plugin files (*.json *.py)" in source
+
+
+def test_position_context_is_built_without_a_window_or_qt(monkeypatch):
+    captured = None
+
+    def capture(context):
+        nonlocal captured
+        captured = context
+        return [[{"text": "supplement"}]]
+
+    monkeypatch.setattr(plugin_context, "chart_info_plugin_paragraphs", capture)
+    result = plugin_context.position_plugin_paragraphs(
+        body="Sun",
+        sign="Aries",
+        house_num=None,
+        chart_positions={"Sun": 5.0, "Moon": 45.0},
+        sign_for_longitude=lambda longitude: "Aries" if longitude < 30 else "Taurus",
+    )
+    assert result == [[{"text": "supplement"}]]
+    assert captured == {
+        "target": "position",
+        "body": "Sun",
+        "sign": "Aries",
+        "house_num": None,
+        "chart_uses_houses": False,
+        "chart_signs": {"Sun": "Aries", "Moon": "Taurus"},
+    }
+
+
+def test_position_context_ignores_missing_or_invalid_luminary_positions(monkeypatch):
+    captured = None
+
+    def capture(context):
+        nonlocal captured
+        captured = context
+        return []
+
+    monkeypatch.setattr(plugin_context, "chart_info_plugin_paragraphs", capture)
+    plugin_context.position_plugin_paragraphs(
+        body="Mars",
+        sign="Gemini",
+        house_num=3,
+        chart_positions={"Sun": "invalid"},
+        sign_for_longitude=lambda longitude: "unused",
+    )
+    assert captured["chart_signs"] == {}
+    assert captured["chart_uses_houses"] is True

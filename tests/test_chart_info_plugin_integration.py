@@ -1,5 +1,4 @@
 import os
-from types import SimpleNamespace
 
 import pytest
 
@@ -11,7 +10,10 @@ QTextCursor = QtGui.QTextCursor
 QApplication = QtWidgets.QApplication
 QPlainTextEdit = QtWidgets.QPlainTextEdit
 
-from ephemeraldaddy.gui.app import CHART_DATA_HIGHLIGHT_COLOR, MainWindow
+from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    append_plugin_paragraphs,
+)
 
 
 def _app():
@@ -22,9 +24,8 @@ def test_chart_info_plugin_renderer_appends_and_resets_each_segment_format():
     _app()
     output = QPlainTextEdit()
     output.setPlainText("Native Sun interpretation")
-    owner = SimpleNamespace(chart_info_output=output)
-    MainWindow._append_chart_info_plugin_paragraphs(
-        owner,
+    append_plugin_paragraphs(
+        output,
         [
             [
                 {"text": "Header", "bold": True, "color_role": "highlight"},
@@ -59,20 +60,5 @@ def test_chart_info_plugin_renderer_ignores_malformed_empty_output():
     _app()
     output = QPlainTextEdit()
     output.setPlainText("native")
-    owner = SimpleNamespace(chart_info_output=output)
-    MainWindow._append_chart_info_plugin_paragraphs(owner, [[], [{}], ["bad"]])
+    append_plugin_paragraphs(output, [[], [{}], ["bad"]])
     assert output.toPlainText() == "native"
-
-
-def test_generic_hook_dispatch_is_restricted_to_main_chart_info_source():
-    source = (MainWindow._handle_summary_info_click.__code__.co_filename)
-    text = open(source, encoding="utf-8").read()
-    method = text.split("    def _handle_summary_info_click(", 1)[1].split(
-        "    def _run_with_chart_info_output(", 1
-    )[0]
-    assert "targets_main_chart_info = target_info_widget is self.chart_info_output" in method
-    assert "if targets_main_chart_info:" in method
-    assert "chart_info_plugin_paragraphs(" in method
-    assert method.index("self._show_position_info(body, sign, house_num)") < method.index(
-        "chart_info_plugin_paragraphs("
-    )
