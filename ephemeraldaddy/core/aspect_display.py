@@ -32,6 +32,66 @@ STRUCTURAL_ASPECT_TAUTOLOGIES: Mapping[str, frozenset[frozenset[str]]] = {
     ),
 }
 
+# Antipodal endpoints describe one axis. When both halves aspect the same third
+# endpoint, the two rows are the same geometric event expressed from opposite
+# ends of that axis. Keep only one user-visible representative.
+_AXIS_ID_BY_BODY: Mapping[str, str] = {
+    "AS": "AS-DS",
+    "DS": "AS-DS",
+    "MC": "MC-IC",
+    "IC": "MC-IC",
+    "Rahu": "Rahu-Ketu",
+    "Ketu": "Rahu-Ketu",
+}
+
+_AXIS_DISPLAY_LABEL_BY_ID: Mapping[str, str] = {
+    "AS-DS": "AS–DS axis",
+    "MC-IC": "MC–IC axis",
+    "Rahu-Ketu": "Rahu–Ketu axis",
+}
+
+# Each antipodal axis has one stable endpoint used by display/comparison keys.
+# This is a key-space convention only; raw aspect rows keep the endpoint that
+# supplied their actual geometry.
+_AXIS_PRIMARY_BODY: Mapping[str, str] = {
+    "AS": "AS",
+    "DS": "AS",
+    "MC": "MC",
+    "IC": "MC",
+    "Rahu": "Rahu",
+    "Ketu": "Rahu",
+}
+_AXIS_COMPLEMENTARY_HALVES: frozenset[str] = frozenset({"DS", "IC", "Ketu"})
+
+# Aspect types related by a 180-degree endpoint flip. Harmonics whose
+# complements are not represented by the app (for example quintile -> 108°)
+# deliberately remain independent.
+_AXIS_COMPLEMENT_FAMILY: Mapping[str, str] = {
+    "conjunction": "conjunction-opposition",
+    "opposition": "conjunction-opposition",
+    "square": "square",
+    "sextile": "sextile-trine",
+    "trine": "sextile-trine",
+    "semisextile": "semisextile-quincunx",
+    "quincunx": "semisextile-quincunx",
+    "semisquare": "semisquare-sesquiquadrate",
+    "sesquiquadrate": "semisquare-sesquiquadrate",
+}
+
+# Unlike the family tokens above, these remain real aspect names so callers of
+# display_aspect_key() can keep using the result for labels and aspect weights.
+_AXIS_COMPLEMENT_ASPECT: Mapping[str, str] = {
+    "conjunction": "opposition",
+    "opposition": "conjunction",
+    "square": "square",
+    "sextile": "trine",
+    "trine": "sextile",
+    "semisextile": "quincunx",
+    "quincunx": "semisextile",
+    "semisquare": "sesquiquadrate",
+    "sesquiquadrate": "semisquare",
+}
+
 
 def normalize_aspect_body_for_display(body: Any) -> str:
     """Normalize body labels for display/comparison filtering."""
@@ -45,6 +105,21 @@ def normalize_aspect_type_for_display(aspect_type: Any) -> str:
     return str(aspect_type or "").strip().replace(" ", "_").lower()
 
 
+def aspect_axis_display_label(body: Any) -> str | None:
+    """Return the user-facing axis label for an antipodal endpoint, if any.
+
+    This is presentation metadata only. Callers must keep the canonical raw
+    endpoint (AS/DS, MC/IC, Rahu/Ketu) for geometry, scoring, lookup, and click
+    metadata.
+    """
+
+    normalized = normalize_aspect_body_for_display(body)
+    axis_id = _AXIS_ID_BY_BODY.get(normalized)
+    if axis_id is None:
+        return None
+    return _AXIS_DISPLAY_LABEL_BY_ID[axis_id]
+
+
 def aspect_endpoint_names(aspect: Mapping[str, Any]) -> tuple[str, str] | None:
     """Return normalized endpoint body names, or None when incomplete."""
 
@@ -53,6 +128,84 @@ def aspect_endpoint_names(aspect: Mapping[str, Any]) -> tuple[str, str] | None:
     if not p1 or not p2:
         return None
     return p1, p2
+
+
+def _axis_endpoint_key(body: str) -> tuple[str, str]:
+    axis_id = _AXIS_ID_BY_BODY.get(body)
+    if axis_id is not None:
+        return "axis", axis_id
+    return "body", body
+
+
+def _canonical_axis_display_key(
+    body1: str,
+    body2: str,
+    aspect_type: str,
+) -> tuple[tuple[str, str], str]:
+    """Canonicalize complementary axis halves to a real representative aspect.
+
+    For example, ``AS trine Jupiter`` and ``DS sextile Jupiter`` both become
+    ``AS trine Jupiter`` in comparison key space. Raw rows are not mutated.
+    Unsupported harmonic complements remain distinct rather than inventing an
+    aspect type the application does not represent.
+    """
+
+    complement = _AXIS_COMPLEMENT_ASPECT.get(aspect_type)
+    if complement is None:
+        return tuple(sorted((body1, body2))), aspect_type
+
+    flip_count = 0
+    canonical1 = body1
+    canonical2 = body2
+    if body1 in _AXIS_COMPLEMENTARY_HALVES:
+        canonical1 = _AXIS_PRIMARY_BODY[body1]
+        flip_count += 1
+    if body2 in _AXIS_COMPLEMENTARY_HALVES:
+        canonical2 = _AXIS_PRIMARY_BODY[body2]
+        flip_count += 1
+
+    canonical_type = complement if flip_count % 2 else aspect_type
+    return tuple(sorted((canonical1, canonical2))), canonical_type
+
+
+def axis_aspect_redundancy_key(
+    body1: Any,
+    body2: Any,
+    aspect_type: Any,
+    *,
+    directed: bool = False,
+    layer1: Any = None,
+    layer2: Any = None,
+) -> tuple[Any, ...] | None:
+    """Return a key shared by redundant complementary axis-aspect halves.
+
+    ``directed=False`` is appropriate for natal/chart aspect mappings, whose
+    endpoints are symmetric. Transit-to-natal hits use ``directed=True`` and
+    preserve layer identity so a transiting axis aspect is never confused with
+    a transiting planet aspect to a natal axis.
+    """
+
+    p1 = normalize_aspect_body_for_display(body1)
+    p2 = normalize_aspect_body_for_display(body2)
+    family = _AXIS_COMPLEMENT_FAMILY.get(normalize_aspect_type_for_display(aspect_type))
+    if not p1 or not p2 or family is None:
+        return None
+    if p1 not in _AXIS_ID_BY_BODY and p2 not in _AXIS_ID_BY_BODY:
+        return None
+
+    endpoint1 = _axis_endpoint_key(p1)
+    endpoint2 = _axis_endpoint_key(p2)
+    if directed:
+        return (
+            endpoint1,
+            endpoint2,
+            family,
+            str(layer1 or ""),
+            str(layer2 or ""),
+        )
+
+    left, right = sorted((endpoint1, endpoint2))
+    return left, right, family
 
 
 def is_structural_aspect_tautology(aspect: Mapping[str, Any]) -> bool:
@@ -104,13 +257,18 @@ def display_aspect_key(
     use_houses: bool,
     known_positions: Collection[str] | Mapping[str, Any] | None = None,
 ) -> tuple[tuple[str, str], str] | None:
-    """Return a canonical user-visible aspect key, or None when hidden."""
+    """Return a canonical user-visible aspect key, or None when hidden.
+
+    Complementary halves of AS/DS, MC/IC, and Rahu/Ketu canonicalize here as
+    well as in row iterators so analytics callers cannot count the same axis
+    event twice. The returned aspect name is always a real app aspect type.
+    """
 
     if not aspect_is_displayable(aspect, use_houses=use_houses, known_positions=known_positions):
         return None
     p1, p2 = aspect_endpoint_names(aspect) or ("", "")
-    left, right = sorted((p1, p2))
-    return (left, right), normalize_aspect_type_for_display(aspect.get("type"))
+    aspect_type = normalize_aspect_type_for_display(aspect.get("type"))
+    return _canonical_axis_display_key(p1, p2, aspect_type)
 
 
 def iter_displayable_aspects(
@@ -119,8 +277,21 @@ def iter_displayable_aspects(
     use_houses: bool,
     known_positions: Collection[str] | Mapping[str, Any] | None = None,
 ) -> Iterable[Mapping[str, Any]]:
-    """Yield aspects that pass the shared user-visible aspect rules."""
+    """Yield the canonical user-visible aspect set without redundant axis halves."""
 
+    seen_axis_events: set[tuple[Any, ...]] = set()
     for aspect in aspects:
-        if aspect_is_displayable(aspect, use_houses=use_houses, known_positions=known_positions):
-            yield aspect
+        if not aspect_is_displayable(aspect, use_houses=use_houses, known_positions=known_positions):
+            continue
+        endpoints = aspect_endpoint_names(aspect)
+        if endpoints is not None:
+            axis_key = axis_aspect_redundancy_key(
+                endpoints[0],
+                endpoints[1],
+                aspect.get("type"),
+            )
+            if axis_key is not None:
+                if axis_key in seen_axis_events:
+                    continue
+                seen_axis_events.add(axis_key)
+        yield aspect

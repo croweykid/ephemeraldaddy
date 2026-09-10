@@ -18,6 +18,7 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_spe
 from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.core.aspect_display import (
     ASPECT_DISPLAY_ANGLE_BODIES,
+    aspect_axis_display_label,
     is_structural_aspect_tautology,
     iter_displayable_aspects,
 )
@@ -265,12 +266,13 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
 
 
 
-
-
 def _aspect_label(atype: str) -> str:
     return atype.replace("_", " ").title()
 
 def _aspect_body_with_sign(body: str, positions: dict[str, float]) -> str:
+    axis_label = aspect_axis_display_label(body)
+    if axis_label is not None:
+        return axis_label
     display_body = _display_body_name(body)
     lon = positions.get(body)
     if lon is None:
@@ -311,7 +313,11 @@ def _house_display_name(house_num: int) -> str:
 
 
 def _format_popout_aspect_endpoint(body: Any, *, include_house: bool) -> str:
-    display_name = _display_body_name(getattr(body, "name", ""))
+    raw_name = getattr(body, "name", "")
+    axis_label = aspect_axis_display_label(raw_name)
+    if axis_label is not None:
+        return axis_label
+    display_name = _display_body_name(raw_name)
     lon_deg = getattr(body, "lon_deg", None)
     sign = getattr(body, "sign", None)
     if sign is None and lon_deg is not None:
@@ -332,14 +338,18 @@ def _overlay_aspect_segments(aspect_hits: list[Any]) -> list[dict[str, float | s
         lon2 = getattr(hit.b, "lon_deg", None)
         if lon1 is None or lon2 is None:
             continue
+        raw_p1 = str(getattr(hit.a, "name", "Endpoint 1"))
+        raw_p2 = str(getattr(hit.b, "name", "Endpoint 2"))
         segments.append(
             {
                 "lon1_deg": float(lon1),
                 "lon2_deg": float(lon2),
                 "type": str(hit.aspect),
                 "score": float(getattr(hit, "exactness", 0.0)) * float(getattr(hit, "weight", 1.0)),
-                "p1": _display_body_name(getattr(hit.a, "name", "Endpoint 1")),
-                "p2": _display_body_name(getattr(hit.b, "name", "Endpoint 2")),
+                "p1": raw_p1,
+                "p2": raw_p2,
+                "p1_display_label": aspect_axis_display_label(raw_p1) or _display_body_name(raw_p1),
+                "p2_display_label": aspect_axis_display_label(raw_p2) or _display_body_name(raw_p2),
             }
         )
     return segments
@@ -953,8 +963,10 @@ def format_chart_text(
             )
             line = f"{line} ⓘ"
             line_entries: list[dict[str, object]] = []
-            p1_body_label = _display_body_name(p1)
-            p2_body_label = _display_body_name(p2)
+            p1_axis_label = aspect_axis_display_label(p1)
+            p2_axis_label = aspect_axis_display_label(p2)
+            p1_body_label = p1_axis_label or _display_body_name(p1)
+            p2_body_label = p2_axis_label or _display_body_name(p2)
             p1_body_start = line.find(p1_body_label)
             if p1_body_start != -1:
                 line_entries.append(
@@ -977,7 +989,7 @@ def format_chart_text(
                 )
             sign1 = sign_for_longitude(positions[p1]) if p1 in positions else None
             sign2 = sign_for_longitude(positions[p2]) if p2 in positions else None
-            if sign1:
+            if sign1 and p1_axis_label is None:
                 sign1_start = line.find(sign1)
                 if sign1_start != -1:
                     line_entries.append(
@@ -988,7 +1000,7 @@ def format_chart_text(
                             "span_end": sign1_start + len(sign1),
                         }
                     )
-            if sign2:
+            if sign2 and p2_axis_label is None:
                 sign2_start = line.find(sign2, (p2_body_start + len(p2_body_label)) if p2_body_start != -1 else 0)
                 if sign2_start != -1:
                     line_entries.append(
@@ -1342,7 +1354,7 @@ def format_compact_transit_chart_text(
                 line_number,
                 line,
                 _body_glyph_only(p1),
-                _display_body_name(p1),
+                aspect_axis_display_label(p1) or _display_body_name(p1),
                 start=p1_body_start,
             )
             if p1_sign:
@@ -1367,7 +1379,7 @@ def format_compact_transit_chart_text(
                 line_number,
                 line,
                 _body_glyph_only(p2),
-                _display_body_name(p2),
+                aspect_axis_display_label(p2) or _display_body_name(p2),
                 start=p2_body_start,
             )
             if p2_sign:

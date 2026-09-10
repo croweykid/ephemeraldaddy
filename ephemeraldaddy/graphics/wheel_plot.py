@@ -61,23 +61,27 @@ def _overlay_aspect_entry(overlay_asp):
     aspect_type = overlay_asp.get("type")
     if lon1 is None or lon2 is None or not aspect_type:
         return None
+    raw_p1 = str(
+        overlay_asp.get("p1")
+        or overlay_asp.get("body1")
+        or overlay_asp.get("endpoint1_label")
+        or "Endpoint 1"
+    )
+    raw_p2 = str(
+        overlay_asp.get("p2")
+        or overlay_asp.get("body2")
+        or overlay_asp.get("endpoint2_label")
+        or "Endpoint 2"
+    )
     return (
         {
             "type": str(aspect_type),
             "lon1_deg": float(lon1) % 360.0,
             "lon2_deg": float(lon2) % 360.0,
-            "p1": str(
-                overlay_asp.get("p1")
-                or overlay_asp.get("body1")
-                or overlay_asp.get("endpoint1_label")
-                or "Endpoint 1"
-            ),
-            "p2": str(
-                overlay_asp.get("p2")
-                or overlay_asp.get("body2")
-                or overlay_asp.get("endpoint2_label")
-                or "Endpoint 2"
-            ),
+            "p1": raw_p1,
+            "p2": raw_p2,
+            "p1_display_label": str(overlay_asp.get("p1_display_label") or raw_p1),
+            "p2_display_label": str(overlay_asp.get("p2_display_label") or raw_p2),
         },
         float(overlay_asp.get("score", 1.0)),
     )
@@ -133,12 +137,22 @@ def _aspect_endpoint_position_label(body, lon_deg):
     return f"{body}: {sign_name} {_format_degree_minutes(normalized_lon % 30.0)}"
 
 
-def _aspect_endpoint_hover_label(*, endpoint_body, other_body, aspect_type, lon_deg):
+def _aspect_endpoint_hover_label(
+    *,
+    endpoint_body,
+    other_body,
+    aspect_type,
+    lon_deg,
+    endpoint_display_label=None,
+    other_display_label=None,
+):
     aspect_label = _format_aspect_type_label(aspect_type)
+    relationship_endpoint = str(endpoint_display_label or endpoint_body)
+    relationship_other = str(other_display_label or other_body)
     return "\n".join(
         (
             _aspect_endpoint_position_label(endpoint_body, lon_deg),
-            f"{endpoint_body} {aspect_label} {other_body}",
+            f"{relationship_endpoint} {aspect_label} {relationship_other}",
         )
     )
 
@@ -147,6 +161,13 @@ def _aspect_endpoint_body_labels(asp):
     return (
         str(asp.get("p1") or asp.get("body1") or asp.get("endpoint1_label") or "Endpoint 1"),
         str(asp.get("p2") or asp.get("body2") or asp.get("endpoint2_label") or "Endpoint 2"),
+    )
+
+
+def _aspect_endpoint_display_labels(asp, body1, body2):
+    return (
+        str(asp.get("p1_display_label") or body1),
+        str(asp.get("p2_display_label") or body2),
     )
 
 
@@ -529,6 +550,7 @@ def _draw_chart_wheel(
         x1, y1 = _aspect_endpoint_xy(lon1_deg, r_aspect)
         x2, y2 = _aspect_endpoint_xy(lon2_deg, r_aspect)
         body1, body2 = _aspect_endpoint_body_labels(asp)
+        display_body1, display_body2 = _aspect_endpoint_display_labels(asp, body1, body2)
         aspect_endpoint_hover_targets.extend(
             (
                 {
@@ -538,6 +560,8 @@ def _draw_chart_wheel(
                         other_body=body2,
                         aspect_type=asp_type,
                         lon_deg=lon1_deg,
+                        endpoint_display_label=display_body1,
+                        other_display_label=display_body2,
                     ),
                 },
                 {
@@ -547,6 +571,8 @@ def _draw_chart_wheel(
                         other_body=body1,
                         aspect_type=asp_type,
                         lon_deg=lon2_deg,
+                        endpoint_display_label=display_body2,
+                        other_display_label=display_body1,
                     ),
                 },
             )
