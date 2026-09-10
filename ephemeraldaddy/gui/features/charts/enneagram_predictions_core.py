@@ -1,0 +1,1314 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
+"""Enneagram prediction chart rendering and popout info helpers."""
+
+from __future__ import annotations
+
+import html
+import math
+import random
+import re
+import statistics
+import time
+from typing import Any, Callable
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_COLORS,
+    ASPECT_SCORE_WEIGHTS,
+    ENNEAGRAM_REALMS,
+    HOUSE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
+    PLANET_ORDER,
+    SIGN_COLORS,
+    ZODIAC_NAMES,
+    normalize_body_name,
+)
+from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_planet_weights,
+    calculate_dominant_house_weights,
+    calculate_dominant_nakshatra_weights,
+    calculate_dominant_sign_weights,
+    house_for_longitude,
+)
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
+    add_prediction_calculate_prompt,
+    stop_prediction_loading_blink,
+)
+from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
+from ephemeraldaddy.analysis.human_design import derive_human_design_profile
+from ephemeraldaddy.core.chart import chart_uses_houses
+
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    DEFAULT_CATEGORY_WEIGHTS as WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS,
+    DOMINANCE_NORMALIZATION_SHARE,
+    PREDICTION_SCORE_MODE_OPPORTUNITY,
+    TYPE_SIGNATURE_SCALE_SQRT,
+    WeightedPredictorScoringOptions,
+    calculate_weighted_criteria_scores,
+    coerce_scoring_options,
+    parse_position_spec as parse_weighted_position_spec,
+    weighted_position_entries,
+)
+
+
+ENNEAGRAM_PREDICTION_GRAPH_BASE_HEIGHT_PX = 240
+ENNEAGRAM_PREDICTION_GRAPH_HEIGHT_PX = ENNEAGRAM_PREDICTION_GRAPH_BASE_HEIGHT_PX + 10
+ENNEAGRAM_DEBUG_LOGGING = False
+ENNEAGRAM_ANTI_FACTOR = 1.0
+ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
+ENNEAGRAM_SCORING_OPTIONS = WeightedPredictorScoringOptions(
+    use_direct_dominance_activation=True,
+    use_position_dominance_weighting=True,
+    use_aspect_dominance_weighting=True,
+    simplify_anti_factor_handling=True,
+    average_scores_by_criterion_count=False,
+    type_signature_scale_mode=TYPE_SIGNATURE_SCALE_SQRT,
+    score_mode=PREDICTION_SCORE_MODE_OPPORTUNITY,
+    dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
+    use_mutual_exclusive_bucket_scoring=True,
+    human_design_activation_weight=1.0,
+)
+ENNEAGRAM_REALM_DISPLAY_ORDER = ("head", "heart", "body")
+ENNEAGRAM_REALM_WEIGHT_LOW_COLOR = (127, 0, 0)
+ENNEAGRAM_REALM_WEIGHT_MID_COLOR = (255, 235, 59)
+ENNEAGRAM_REALM_WEIGHT_HIGH_COLOR = (0, 255, 102)
+
+ENNEAGRAM_PREDICTION_SCORE_SEMANTICS = "database_deviation"
+ENNEAGRAM_PREDICTION_PAYLOAD_VERSION = 2
+
+ENNEAGRAM_CATEGORY_WEIGHT_KEYS = (
+    "signs",
+    "bodies",
+    "nakshatras",
+    "houses",
+    "gates",
+    "channels",
+    "hdtypes",
+    "centers",
+    "profiles",
+    "authorities",
+    "bazisigns",
+    "positions",
+    "aspects",
+)
+
+
+
+
+def default_enneagram_scoring_options() -> WeightedPredictorScoringOptions:
+    """Return default Enneagram scoring switches for Settings > Predictions."""
+    return WeightedPredictorScoringOptions(
+        use_direct_dominance_activation=True,
+        use_position_dominance_weighting=True,
+        use_aspect_dominance_weighting=True,
+        simplify_anti_factor_handling=True,
+        average_scores_by_criterion_count=False,
+        type_signature_scale_mode=TYPE_SIGNATURE_SCALE_SQRT,
+        score_mode=PREDICTION_SCORE_MODE_OPPORTUNITY,
+        dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
+        use_mutual_exclusive_bucket_scoring=True,
+        human_design_activation_weight=1.0,
+    )
+
+
+def merge_enneagram_scoring_options(payload: Any) -> WeightedPredictorScoringOptions:
+    """Overlay persisted scoring switches onto Enneagram defaults."""
+    defaults = default_enneagram_scoring_options()
+    if not isinstance(payload, dict):
+        return defaults
+    merged = {
+        "use_direct_dominance_activation": defaults.use_direct_dominance_activation,
+        "use_position_dominance_weighting": defaults.use_position_dominance_weighting,
+        "use_aspect_dominance_weighting": defaults.use_aspect_dominance_weighting,
+        "simplify_anti_factor_handling": defaults.simplify_anti_factor_handling,
+        "average_scores_by_criterion_count": defaults.average_scores_by_criterion_count,
+        "type_signature_scale_mode": defaults.type_signature_scale_mode,
+        "score_mode": defaults.score_mode,
+        "dominance_normalization_mode": defaults.dominance_normalization_mode,
+        "use_mutual_exclusive_bucket_scoring": defaults.use_mutual_exclusive_bucket_scoring,
+        "human_design_activation_weight": defaults.human_design_activation_weight,
+    }
+    merged.update(payload)
+    return coerce_scoring_options(merged)
+
+
+def set_enneagram_scoring_options(overrides: WeightedPredictorScoringOptions | dict[str, Any] | None) -> None:
+    """Override runtime Enneagram scoring switches used by predictions."""
+    global ENNEAGRAM_SCORING_OPTIONS
+    if overrides is None:
+        ENNEAGRAM_SCORING_OPTIONS = default_enneagram_scoring_options()
+        return
+    ENNEAGRAM_SCORING_OPTIONS = coerce_scoring_options(overrides)
+
+
+def enneagram_scoring_options_to_payload(options: WeightedPredictorScoringOptions) -> dict[str, Any]:
+    return {
+        "use_direct_dominance_activation": bool(options.use_direct_dominance_activation),
+        "use_position_dominance_weighting": bool(options.use_position_dominance_weighting),
+        "use_aspect_dominance_weighting": bool(options.use_aspect_dominance_weighting),
+        "simplify_anti_factor_handling": bool(options.simplify_anti_factor_handling),
+        "average_scores_by_criterion_count": bool(options.average_scores_by_criterion_count),
+        "type_signature_scale_mode": str(options.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_SQRT),
+        "score_mode": str(options.score_mode or PREDICTION_SCORE_MODE_OPPORTUNITY),
+        "dominance_normalization_mode": str(options.dominance_normalization_mode or DOMINANCE_NORMALIZATION_SHARE),
+        "use_mutual_exclusive_bucket_scoring": bool(options.use_mutual_exclusive_bucket_scoring),
+        "human_design_activation_weight": float(options.human_design_activation_weight),
+    }
+
+def default_enneagram_category_weights() -> dict[str, float]:
+    """Return the GUI's default equal-weight Enneagram predictor controls."""
+    return {key: 1.0 for key in ENNEAGRAM_CATEGORY_WEIGHT_KEYS}
+
+
+def merge_enneagram_category_weights(payload: Any) -> dict[str, float]:
+    """Overlay persisted category weights onto the default GUI weight map."""
+    merged = default_enneagram_category_weights()
+    if isinstance(payload, dict):
+        for key in merged:
+            try:
+                merged[key] = float(payload.get(key, merged[key]))
+            except (TypeError, ValueError):
+                continue
+    return merged
+
+
+def _coerce_complete_enneagram_type_scores(cached_scores: Any) -> dict[int, float] | None:
+    """Return a complete finite 1-9 score cache, or None when it must be recalculated."""
+    if not isinstance(cached_scores, dict):
+        return None
+    coerced: dict[int, float] = {}
+    for enneagram_type in range(1, 10):
+        if enneagram_type in cached_scores:
+            raw_score = cached_scores[enneagram_type]
+        elif str(enneagram_type) in cached_scores:
+            raw_score = cached_scores[str(enneagram_type)]
+        else:
+            return None
+        try:
+            score = float(raw_score)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(score):
+            return None
+        coerced[enneagram_type] = score
+    return coerced
+
+
+
+def _chart_prediction_cache_uid(chart: Any) -> str:
+    for attr in ("chart_uid", "permanent_uid", "uid", "UID"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _enneagram_definition_signature() -> str:
+    return repr((ENNEAGRAM_REALMS, ENNEAGRAM_CATEGORY_WEIGHTS, enneagram_scoring_options_to_payload(ENNEAGRAM_SCORING_OPTIONS)))
+
+
+def _enneagram_norms_token(owner: Any) -> str:
+    norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
+    try:
+        return str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
+    except Exception:
+        return "prediction_norms:unavailable"
+
+
+def _enneagram_chart_state_token(owner: Any, chart: Any) -> str:
+    # Predictions caches must be scoped to the chart's permanent UID, not the
+    # mutable/legacy current_chart_id used by some Analytics render tokens.
+    return repr({
+        "uid": _chart_prediction_cache_uid(chart),
+        "birth_date": str(getattr(chart, "birth_date", "") or ""),
+        "birth_time": str(getattr(chart, "birth_time", "") or ""),
+        "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "datetime_iso": str(getattr(chart, "datetime_iso", "") or ""),
+        "birth_place": str(getattr(chart, "birth_place", "") or ""),
+        "lat": str(getattr(chart, "lat", "") or ""),
+        "lon": str(getattr(chart, "lon", "") or ""),
+        "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+        "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+        "retcon_hour": getattr(chart, "retcon_hour", None),
+        "retcon_minute": getattr(chart, "retcon_minute", None),
+        "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+        "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+        "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
+        "chart_uses_houses": bool(chart_uses_houses(chart)),
+    })
+
+
+def _load_persisted_enneagram_prediction_payload(chart: Any) -> dict[str, Any]:
+    chart_uid = _chart_prediction_cache_uid(chart)
+    if not chart_uid:
+        return {}
+    try:
+        from ephemeraldaddy.core import db
+
+        payload = db.get_chart_enneagram_prediction_metadata(chart_uid)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _persist_enneagram_prediction_payload(chart: Any, payload: dict[str, Any]) -> None:
+    chart_uid = _chart_prediction_cache_uid(chart)
+    if not chart_uid or not isinstance(payload, dict):
+        return
+    try:
+        from ephemeraldaddy.core import db
+
+        serializable = dict(payload)
+        serializable["chart_uid"] = chart_uid
+        db.upsert_chart_enneagram_prediction_metadata(chart_uid, serializable)
+    except Exception:
+        pass
+
+
+def _cache_payload_chart_uid_matches(chart: Any, payload: Any, *, require_uid: bool = False) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    current_uid = _chart_prediction_cache_uid(chart)
+    payload_uid = str(payload.get("chart_uid", "") or "").strip()
+    if not payload_uid:
+        return not require_uid
+    return bool(current_uid and payload_uid == current_uid)
+
+def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) -> dict[int, float]:
+    """Write ranked Enneagram prediction metadata back onto a chart object."""
+    normalized_scores: dict[int, float] = {}
+    for enneagram_type in range(1, 10):
+        try:
+            score = float(scores.get(enneagram_type, 0.0))
+        except (AttributeError, TypeError, ValueError):
+            score = 0.0
+        normalized_scores[enneagram_type] = score if math.isfinite(score) else 0.0
+
+    ranked_scores = sorted(
+        normalized_scores.items(),
+        key=lambda item: (-item[1], item[0]),
+    )
+    chart.enneagram_type_weights = {
+        enneagram_type: score for enneagram_type, score in ranked_scores
+    }
+    if ranked_scores and ranked_scores[0][1] > 0:
+        chart.dominant_enneagram_type = ranked_scores[0][0]
+        chart.top_three_enneagram_types = [
+            enneagram_type
+            for enneagram_type, score in ranked_scores[:3]
+            if score > 0
+        ]
+    else:
+        chart.dominant_enneagram_type = None
+        chart.top_three_enneagram_types = []
+    return normalized_scores
+
+
+def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
+    """Override runtime category weights used by Enneagram predictions."""
+    global ENNEAGRAM_CATEGORY_WEIGHTS
+    base = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
+    if not isinstance(overrides, dict):
+        ENNEAGRAM_CATEGORY_WEIGHTS = base
+        return
+    merged = dict(base)
+    for key, value in overrides.items():
+        if key in merged:
+            try:
+                merged[key] = float(value)
+            except (TypeError, ValueError):
+                continue
+    ENNEAGRAM_CATEGORY_WEIGHTS = merged
+
+#this is redundant and should be imported from a consolidated universal source of truth
+BODY_ALIASES = {
+    "fortune": "Part of Fortune",
+    "part of fortune": "Part of Fortune",
+    "true lilith": "Lilith",
+    "lilith": "Lilith",
+}
+CANONICAL_FACTOR_NAMES = tuple(dict.fromkeys([*PLANET_ORDER, *ZODIAC_NAMES, "AS", "DS", "IC", "MC"]))
+CANONICAL_FACTOR_LOOKUP = {name.casefold(): name for name in CANONICAL_FACTOR_NAMES}
+
+DEFAULT_ENNEAGRAM_CRITERION_MULTIPLIER = 1.0
+
+
+def _normalize_weight_map_by_range(raw_weights: dict[Any, float]) -> dict[Any, float]:
+    if not raw_weights:
+        return {}
+    cleaned: dict[Any, float] = {}
+    for key, raw_value in raw_weights.items():
+        try:
+            cleaned[key] = float(raw_value)
+        except (TypeError, ValueError):
+            cleaned[key] = 0.0
+    values = list(cleaned.values())
+    max_value = max(values)
+    min_value = min(values)
+    range_value = max_value - min_value
+    if range_value <= 0:
+        return {key: 0.0 for key in cleaned}
+    return {key: (value - min_value) / range_value for key, value in cleaned.items()}
+
+
+def _criterion_multiplier_for_type(factors: dict[str, Any], category: str) -> float:
+    multipliers = factors.get("criterion_multipliers", {})
+    if not isinstance(multipliers, dict):
+        return DEFAULT_ENNEAGRAM_CRITERION_MULTIPLIER
+    raw_value = multipliers.get(category, DEFAULT_ENNEAGRAM_CRITERION_MULTIPLIER)
+    try:
+        return float(raw_value)
+    except (TypeError, ValueError):
+        return DEFAULT_ENNEAGRAM_CRITERION_MULTIPLIER
+
+
+def _active_human_design_gates(chart: Any) -> set[int]:
+    cached = {
+        int(gate)
+        for gate in (getattr(chart, "human_design_gates", None) or [])
+        if str(gate).strip().isdigit() and 1 <= int(gate) <= 64
+    }
+    if cached:
+        return cached
+    try:
+        gates, _lines, _channels, _hd_type = derive_human_design_profile(chart)
+    except Exception:
+        return set()
+    return {int(gate) for gate in gates if 1 <= int(gate) <= 64}
+
+
+def _debug_log(message: str) -> None:
+    if ENNEAGRAM_DEBUG_LOGGING:
+        print(message)
+
+
+def _normalize_factor_value(value: str) -> str:
+    token = str(value or "").strip()
+    canonical_alias = BODY_ALIASES.get(token.lower())
+    if canonical_alias:
+        return canonical_alias
+    canonical_from_lookup = CANONICAL_FACTOR_LOOKUP.get(token.casefold())
+    if canonical_from_lookup:
+        return canonical_from_lookup
+    normalized = normalize_body_name(token)
+    if normalized:
+        normalized_lookup = CANONICAL_FACTOR_LOOKUP.get(str(normalized).casefold())
+        if normalized_lookup:
+            return normalized_lookup
+        return str(normalized)
+    return token
+
+
+def _normalize_string_set(values: Any) -> set[str]:
+    return {
+        _normalize_factor_value(str(value).strip())
+        for value in values or set()
+        if str(value).strip()
+    }
+
+
+def _normalize_house_set(values: Any) -> set[int]:
+    return {
+        int(house_num)
+        for house_num in values or set()
+        if str(house_num).strip().isdigit() and 1 <= int(house_num) <= 12
+    }
+
+
+def _normalize_gate_set(values: Any) -> set[int]:
+    return {
+        int(gate_num)
+        for gate_num in values or set()
+        if str(gate_num).strip().isdigit() and 1 <= int(gate_num) <= 64
+    }
+
+
+def _coerce_weighted_entries(values: Any) -> dict[Any, float]:
+    weighted: dict[Any, float] = {}
+    if isinstance(values, dict):
+        source = values.items()
+    else:
+        source = ((value, 1.0) for value in (values or []))
+    for key, raw_weight in source:
+        if key is None:
+            continue
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError):
+            weight = 1.0
+        weighted[key] = weight
+    return weighted
+
+
+def _weighted_string_entries(values: Any) -> dict[str, float]:
+    entries: dict[str, float] = {}
+    for raw_value, weight in _coerce_weighted_entries(values).items():
+        token = _normalize_factor_value(str(raw_value).strip())
+        if token:
+            entries[token] = weight
+    return entries
+
+
+def _weighted_house_entries(values: Any) -> dict[int, float]:
+    entries: dict[int, float] = {}
+    for raw_value, weight in _coerce_weighted_entries(values).items():
+        token = str(raw_value).strip()
+        if token.isdigit() and 1 <= int(token) <= 12:
+            entries[int(token)] = weight
+    return entries
+
+
+def _weighted_gate_entries(values: Any) -> dict[int, float]:
+    entries: dict[int, float] = {}
+    for raw_value, weight in _coerce_weighted_entries(values).items():
+        token = str(raw_value).strip()
+        if token.isdigit() and 1 <= int(token) <= 64:
+            entries[int(token)] = weight
+    return entries
+
+
+def _parse_house_token(token: str) -> int | None:
+    match = re.fullmatch(r"H\s*(\d{1,2})", token.strip(), re.IGNORECASE)
+    if not match:
+        return None
+    house_num = int(match.group(1))
+    return house_num if 1 <= house_num <= 12 else None
+
+
+def _parse_position_spec(raw_spec: str) -> tuple[str, str | int, str] | None:
+    return parse_weighted_position_spec(raw_spec)
+
+
+def _parse_aspect_spec(raw_spec: str) -> tuple[str, str, str] | None:
+    text = str(raw_spec).strip()
+    if not text:
+        return None
+    aspect_pattern = "|".join(sorted(ASPECT_SCORE_WEIGHTS.keys(), key=len, reverse=True))
+    match = re.fullmatch(rf"(.+?)\s+({aspect_pattern})\s+(.+)", text, re.IGNORECASE)
+    if not match:
+        return None
+    left = _normalize_factor_value(match.group(1).strip())
+    aspect_type = match.group(2).strip().lower()
+    right = _normalize_factor_value(match.group(3).strip())
+    if not left or not right:
+        return None
+    return (left, aspect_type, right)
+
+
+def _normalize_category_delta(
+    positive_delta: float,
+    negative_delta: float,
+    *,
+    criteria_count: int,
+    anti_factor: float = ENNEAGRAM_ANTI_FACTOR,
+) -> float:
+    if criteria_count <= 0:
+        return 0.0
+    return (positive_delta - (anti_factor * negative_delta)) / float(criteria_count)
+
+
+def calculate_enneagram_type_weights(
+    chart: Any,
+    *,
+    enneagram: dict[int, dict[str, Any]],
+    calculate_sign_weights: Callable[[Any], dict[str, float]],
+    calculate_body_weights: Callable[[Any], dict[str, float]],
+    calculate_house_weights: Callable[[Any], dict[int, float]],
+    chart_uses_houses: Callable[[Any], bool],
+) -> dict[int, float]:
+    """Compute Enneagram type scores from reusable weighted chart criteria."""
+    weighted_scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=enneagram,
+        category_weights=ENNEAGRAM_CATEGORY_WEIGHTS,
+        anti_factor=ENNEAGRAM_ANTI_FACTOR,
+        scoring_options=ENNEAGRAM_SCORING_OPTIONS,
+        calculate_sign_weights=calculate_sign_weights,
+        calculate_body_weights=calculate_body_weights,
+        calculate_house_weights=calculate_house_weights,
+        uses_houses=chart_uses_houses,
+        debug=_debug_log if ENNEAGRAM_DEBUG_LOGGING else None,
+        debug_prefix="[Enneagram Debug]",
+        parse_error_prefix="[Enneagram Parse Error]",
+        format_debug_target=lambda enneagram_type: f"type {enneagram_type}",
+    )
+    return {enneagram_type: float(weighted_scores.get(enneagram_type, 0.0)) for enneagram_type in range(1, 10)}
+
+
+def calculate_database_enneagram_type_averages(
+    norm_charts: Any,
+    *,
+    calculate_type_weights: Callable[[Any], dict[int, float]],
+) -> dict[int, float]:
+    """Return per-type Enneagram score averages across database norm charts."""
+    totals = {enneagram_type: 0.0 for enneagram_type in range(1, 10)}
+    counts = {enneagram_type: 0 for enneagram_type in range(1, 10)}
+    for norm_chart in norm_charts or []:
+        try:
+            scores = calculate_type_weights(norm_chart)
+        except Exception:
+            continue
+        for enneagram_type in range(1, 10):
+            try:
+                score = float(scores.get(enneagram_type, 0.0))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if math.isfinite(score):
+                totals[enneagram_type] += score
+                counts[enneagram_type] += 1
+    return {
+        enneagram_type: (totals[enneagram_type] / counts[enneagram_type])
+        for enneagram_type in range(1, 10)
+        if counts[enneagram_type] > 0
+    }
+
+
+def enneagram_score_parts(
+    chart: Any,
+    *,
+    calculate_type_weights: Callable[[Any], dict[int, float]],
+    norm_charts: Any = None,
+    db_norm_averages: dict[int, float] | None = None,
+) -> dict[int, dict[str, float]]:
+    """Return chart, database, and deviation scores for Enneagram predictions."""
+    chart_scores = calculate_type_weights(chart)
+    database_averages = dict(db_norm_averages or {})
+    if not database_averages:
+        database_averages = calculate_database_enneagram_type_averages(
+            norm_charts,
+            calculate_type_weights=calculate_type_weights,
+        )
+    parts: dict[int, dict[str, float]] = {}
+    for enneagram_type in range(1, 10):
+        chart_score = float(chart_scores.get(enneagram_type, 0.0))
+        database_score = float(database_averages.get(enneagram_type, 0.0)) if database_averages else 0.0
+        parts[enneagram_type] = {
+            "chart": chart_score,
+            "database": database_score,
+            "deviation": chart_score - database_score,
+        }
+    return parts
+
+def draw_enneagram_predictions(
+    ax: Any,
+    *,
+    chart: Any,
+    enneagram: dict[int, dict[str, Any]],
+    calculate_type_weights: Callable[[Any], dict[int, float]],
+    chart_theme_colors: dict[str, str],
+    apply_standard_bar_axes: Callable[[Any, list[str]], None],
+    standard_chart_layout: dict[str, float],
+) -> None:
+    """Draw the Enneagram prediction bar chart on the provided Matplotlib axis."""
+    fallback_bar_color = str(
+        chart_theme_colors.get("accent", chart_theme_colors.get("text", "#f5f5f5"))
+    )
+    text_color = str(chart_theme_colors.get("text", "#f5f5f5"))
+    spine_color = str(chart_theme_colors.get("spine", "#444444"))
+
+    type_labels = [
+        f"{num} {str(enneagram.get(num, {}).get('name', '')).strip()}".strip()
+        for num in range(1, 10)
+    ]
+    cached_scores = _coerce_complete_enneagram_type_scores(
+        getattr(chart, "enneagram_type_weights", None)
+    )
+    if cached_scores is not None:
+        type_scores = cached_scores
+    else:
+        type_scores = calculate_type_weights(chart)
+    values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
+    max_value = max(values) if values else 0.0
+    min_value = min(values) if values else 0.0
+    value_span = max(1.0, max_value - min_value)
+    avg_value = (sum(values) / len(values)) if values else 0.0
+    median_value = float(statistics.median(values)) if values else 0.0
+
+    enneagram_colors = [
+        str(enneagram.get(num, {}).get("color", fallback_bar_color))
+        for num in range(1, 10)
+    ]
+    bars = ax.bar(type_labels, values, color=enneagram_colors)
+    apply_standard_bar_axes(ax, type_labels)
+    for index, tick_label in enumerate(ax.get_xticklabels(), start=1):
+        tick_label.set_picker(True)
+        tick_label.set_gid(f"enneagram_label:{index}")
+    ax.set_ylim(min(0.0, min_value - (value_span * 0.12)), max(1.0, max_value + (value_span * 0.12)))
+    ax.set_anchor("W")
+    ax.axhline(
+        avg_value,
+        color="#ff0000",
+        linestyle=(0, (3, 2)),
+        linewidth=1.1,
+        alpha=0.95,
+    )
+    ax.axhline(
+        median_value,
+        color="#8b0000",
+        linestyle=(0, (5, 3)),
+        linewidth=1.2,
+        alpha=0.95,
+    )
+    for type_num, bar, type_label in zip(range(1, 10), bars, type_labels, strict=True):
+        bar.set_gid(f"enneagram:{type_num}")
+        bar.set_picker(True)
+    for spine in ax.spines.values():
+        spine.set_color(spine_color)
+    ax.figure.tight_layout()
+    ax.figure.subplots_adjust(
+        left=standard_chart_layout["left"],
+        # Enneagram labels include both type numbers and names; reserve about
+        # 20px more bottom padding in Chart View's 240px graph canvas so the
+        # vertical labels are not clipped by the Predictions panel viewport.
+        bottom=max(float(standard_chart_layout["bottom"]), 0.28),
+        top=standard_chart_layout["top"],
+        right=standard_chart_layout["right"],
+    )
+
+
+def build_enneagram_popout_info_html(
+    enneagram_type: int,
+    *,
+    enneagram: dict[int, dict[str, Any]],
+    chart_theme_colors: dict[str, str],
+    highlight_color: str,
+    debug_math_enabled: bool = False,
+    chart: Any | None = None,
+    calculate_type_weights: Callable[[Any], dict[int, float]] | None = None,
+) -> str:
+    """Build HTML for the Enneagram popout info panel selection."""
+    text_color = str(chart_theme_colors.get("text", "#f5f5f5"))
+    type_data = enneagram.get(int(enneagram_type), {})
+    type_color = str(type_data.get("color") or text_color).strip() or text_color
+    motivation = str(type_data.get("motivation", "No motivation data available.")).strip()
+    description = str(type_data.get("description", "No description data available.")).strip()
+    quotes = type_data.get("quotes", [])
+    quote_list = [str(quote).strip() for quote in quotes if str(quote).strip()]
+    selected_quote = random.choice(quote_list) if quote_list else "No quote available."
+
+    debug_html = ""
+    if debug_math_enabled and chart is not None and callable(calculate_type_weights):
+        type_scores = calculate_type_weights(chart)
+        selected_score = float(type_scores.get(int(enneagram_type), 0.0))
+        factors = enneagram.get(int(enneagram_type), {})
+        sign_weights = _normalize_weight_map_by_range(
+            getattr(chart, "dominant_sign_weights", None) or calculate_dominant_sign_weights(chart)
+        )
+        body_weights = _normalize_weight_map_by_range(
+            getattr(chart, "dominant_planet_weights", None) or calculate_dominant_planet_weights(chart)
+        )
+        nak_weights = _normalize_weight_map_by_range(
+            getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart)
+        )
+        use_houses = chart_uses_houses(chart)
+        house_weights = _normalize_weight_map_by_range((
+            (getattr(chart, "dominant_house_weights", None) or calculate_dominant_house_weights(chart))
+            if use_houses
+            else {}
+        ))
+        body_house_lookup: dict[str, int] = {}
+        if use_houses:
+            for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
+                try:
+                    house_num = house_for_longitude(getattr(chart, "houses", None), float(lon))
+                except (TypeError, ValueError):
+                    continue
+                if house_num is not None:
+                    body_house_lookup[_normalize_factor_value(str(raw_body))] = house_num
+        active_gates = _active_human_design_gates(chart)
+        houses_pos = _normalize_house_set(factors.get("houses", set()))
+        houses_neg = _normalize_house_set(factors.get("antihouses", set()))
+        house_positive_total = (
+            sum(float(house_weights.get(house_num, 0.0)) for house_num in houses_pos) if use_houses else 0.0
+        )
+        house_negative_total = (
+            sum(float(house_weights.get(house_num, 0.0)) for house_num in houses_neg) if use_houses else 0.0
+        )
+        house_criteria_count = len(houses_pos) + len(houses_neg)
+        house_normalized_delta = _normalize_category_delta(
+            house_positive_total, house_negative_total, criteria_count=house_criteria_count if use_houses else 0
+        )
+        gates_pos = _normalize_gate_set(factors.get("gates", set()))
+        gates_neg = _normalize_gate_set(factors.get("antigates", set()))
+        gate_positive_total = sum(6.0 for gate in gates_pos if gate in active_gates)
+        gate_negative_total = sum(6.0 for gate in gates_neg if gate in active_gates)
+        gate_criteria_count = len(gates_pos) + len(gates_neg)
+        gate_normalized_delta = _normalize_category_delta(
+            gate_positive_total, gate_negative_total, criteria_count=gate_criteria_count
+        )
+        sorted_rows = "".join(
+            (
+                "<li>"
+                f"<span style='color:{html.escape(str(enneagram.get(type_num, {}).get('color', text_color)))};"
+                "font-weight:700;'>"
+                f"Type {type_num}</span>: {float(type_scores.get(type_num, 0.0)):.1f}"
+                "</li>"
+            )
+            for type_num in range(1, 10)
+        )
+        def _color_token(label: str, color: str) -> str:
+            return f"<span style='color:{color};font-weight:700;'>{html.escape(label)}</span>"
+        sign_items = "".join(
+            f"<li>{_color_token(sign, SIGN_COLORS.get(sign, text_color))}: {float(sign_weights.get(sign, 0.0)):.4f}</li>"
+            for sign in sorted(_normalize_string_set(factors.get('signs', set())))
+        ) or "<li>None</li>"
+        body_items = "".join(
+            f"<li>{_color_token(body, PLANET_COLORS.get(body, text_color))}: {float(body_weights.get(body, 0.0)):.4f}</li>"
+            for body in sorted(_normalize_string_set(factors.get('bodies', set())))
+        ) or "<li>None</li>"
+        house_items = "".join(
+            f"<li>{_color_token(f'House {house_num}', HOUSE_COLORS.get(str(house_num), text_color))}: {float(house_weights.get(house_num, 0.0)):.4f}</li>"
+            for house_num in sorted(_normalize_house_set(factors.get('houses', set())))
+        ) or "<li>None</li>"
+        anti_house_items = "".join(
+            f"<li>{_color_token(f'House {house_num}', HOUSE_COLORS.get(str(house_num), text_color))}: {float(house_weights.get(house_num, 0.0)):.4f}</li>"
+            for house_num in sorted(_normalize_house_set(factors.get('antihouses', set())))
+        ) or "<li>None</li>"
+        nak_items = "".join(
+            f"<li>{_color_token(nak, NAKSHATRA_PLANET_COLOR.get(nak, (None, text_color))[1] or text_color)}: {float(nak_weights.get(nak, 0.0)):.4f}</li>"
+            for nak in sorted(_normalize_string_set(factors.get('nakshatras', set())))
+        ) or "<li>None</li>"
+        anti_nak_items = "".join(
+            f"<li>{_color_token(nak, NAKSHATRA_PLANET_COLOR.get(nak, (None, text_color))[1] or text_color)}: {float(nak_weights.get(nak, 0.0)):.4f}</li>"
+            for nak in sorted(_normalize_string_set(factors.get('antinakshatras', set())))
+        ) or "<li>None</li>"
+        aspect_items_parts: list[str] = []
+        for aspect in sorted({str(v).strip() for v in factors.get("aspects", set()) if str(v).strip()}):
+            parsed_aspect = _parse_aspect_spec(aspect)
+            if parsed_aspect is None:
+                aspect_items_parts.append(f"<li>{html.escape(aspect)}</li>")
+                continue
+            left_body, aspect_type, right_body = parsed_aspect
+            left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
+            aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
+            right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
+            aspect_items_parts.append(f"<li>{left_html} {aspect_html} {right_html}</li>")
+        aspect_items = "".join(aspect_items_parts) or "<li>None</li>"
+        anti_aspect_items_parts: list[str] = []
+        for aspect in sorted({str(v).strip() for v in factors.get("antiaspects", set()) if str(v).strip()}):
+            parsed_aspect = _parse_aspect_spec(aspect)
+            if parsed_aspect is None:
+                anti_aspect_items_parts.append(f"<li>{html.escape(aspect)}</li>")
+                continue
+            left_body, aspect_type, right_body = parsed_aspect
+            left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
+            aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
+            right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
+            anti_aspect_items_parts.append(f"<li>{left_html} {aspect_html} {right_html}</li>")
+        anti_aspect_items = "".join(anti_aspect_items_parts) or "<li>None</li>"
+        anti_sign_items = "".join(
+            f"<li>{_color_token(sign, SIGN_COLORS.get(sign, text_color))}: {float(sign_weights.get(sign, 0.0)):.4f}</li>"
+            for sign in sorted(_normalize_string_set(factors.get('antisigns', set())))
+        ) or "<li>None</li>"
+        anti_body_items = "".join(
+            f"<li>{_color_token(body, PLANET_COLORS.get(body, text_color))}: {float(body_weights.get(body, 0.0)):.4f}</li>"
+            for body in sorted(_normalize_string_set(factors.get('antibodies', set())))
+        ) or "<li>None</li>"
+        gate_items = "".join(
+            (
+                f"<li>Gate {gate}: "
+                f"<span style='color:{'#00ff66' if gate in active_gates else '#6b1d1d'};"
+                "font-weight:700;'>"
+                f"{'✓ active' if gate in active_gates else '✗ inactive'}</span></li>"
+            )
+            for gate in sorted(_normalize_gate_set(factors.get('gates', set())))
+        ) or "<li>None</li>"
+        anti_gate_items = "".join(
+            (
+                f"<li>Gate {gate}: "
+                f"<span style='color:{'#00ff66' if gate in active_gates else '#6b1d1d'};"
+                "font-weight:700;'>"
+                f"{'✓ active (negative hit)' if gate in active_gates else '✗ inactive'}</span></li>"
+            )
+            for gate in sorted(_normalize_gate_set(factors.get('antigates', set())))
+        ) or "<li>None</li>"
+        def _format_position_item(raw_position: str) -> str:
+            parsed_position = _parse_position_spec(raw_position)
+            if parsed_position is None:
+                return f"<li>{html.escape(raw_position)}: ✗ parse error</li>"
+            category, container, subject = parsed_position
+            if category == "body_in_house" and isinstance(container, int):
+                body_html = _color_token(str(subject), PLANET_COLORS.get(str(subject), text_color))
+                house_html = _color_token(f"H{container}", HOUSE_COLORS.get(str(container), text_color))
+                score = float(body_weights.get(str(subject), 0.0)) + float(house_weights.get(container, 0.0))
+                matched = body_house_lookup.get(str(subject)) == container
+                return f"<li>{body_html} in {house_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+            if category == "sign_in_house" and isinstance(container, int):
+                sign_html = _color_token(str(subject), SIGN_COLORS.get(str(subject), text_color))
+                house_html = _color_token(f"H{container}", HOUSE_COLORS.get(str(container), text_color))
+                score = float(sign_weights.get(str(subject), 0.0)) + float(house_weights.get(container, 0.0))
+                matched = False
+                for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
+                    body = _normalize_factor_value(str(raw_body))
+                    if body_house_lookup.get(body) != container:
+                        continue
+                    try:
+                        if sign_for_longitude(float(lon)) == str(subject):
+                            matched = True
+                            break
+                    except (TypeError, ValueError):
+                        continue
+                return f"<li>{sign_html} in {house_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+            if category == "body_in_sign" and isinstance(container, str):
+                body_html = _color_token(str(subject), PLANET_COLORS.get(str(subject), text_color))
+                sign_html = _color_token(container, SIGN_COLORS.get(container, text_color))
+                score = float(body_weights.get(str(subject), 0.0)) + float(sign_weights.get(container, 0.0))
+                body_lon = (getattr(chart, "positions", None) or {}).get(str(subject))
+                matched = False
+                try:
+                    matched = sign_for_longitude(float(body_lon)) == container
+                except (TypeError, ValueError):
+                    pass
+                return f"<li>{body_html} in {sign_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+            return f"<li>{html.escape(raw_position)}: ✓ parsed</li>"
+        def _format_aspect_item(raw_aspect: str) -> str:
+            parsed_aspect = _parse_aspect_spec(raw_aspect)
+            if parsed_aspect is None:
+                return f"<li>{html.escape(raw_aspect)}: ✗ parse error</li>"
+            left_body, aspect_type, right_body = parsed_aspect
+            score = (
+                float(body_weights.get(left_body, 0.0))
+                + float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
+                + float(body_weights.get(right_body, 0.0))
+            )
+            matched = any(
+                {_normalize_factor_value(str(a.get("p1", ""))), _normalize_factor_value(str(a.get("p2", "")))} == {left_body, right_body}
+                and str(a.get("type", "")).strip().lower() == aspect_type
+                for a in (getattr(chart, "aspects", None) or [])
+            )
+            left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
+            aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
+            right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
+            return f"<li>{left_html} {aspect_html} {right_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+        position_items = "".join(
+            _format_position_item(position)
+            for position in sorted(weighted_position_entries(factors.get('positions', set())))
+        ) or "<li>None</li>"
+        anti_position_items = "".join(
+            _format_position_item(position)
+            for position in sorted(weighted_position_entries(factors.get('antipositions', set())))
+        ) or "<li>None</li>"
+        aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("aspects", set()) if str(v).strip()})) or "<li>None</li>"
+        anti_aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("antiaspects", set()) if str(v).strip()})) or "<li>None</li>"
+        formula_bits = ", ".join(
+            f"{category}×{weight:.2f}" for category, weight in ENNEAGRAM_CATEGORY_WEIGHTS.items()
+        )
+        debug_html = (
+            "<hr style='margin-top:12px;margin-bottom:10px;border:0;border-top:1px solid #555;'/>"
+            f"<div style='font-size:13px;color:{text_color};'>"
+            f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Calculator debug details</div>"
+            "<div style='margin-top:6px;'>"
+            "Score model (per type): most astrological categories normalize as "
+            "(positive matched-weight sum - anti_factor × negative matched-weight sum) / criterion_count; "
+            "HD type/profile/authority, HD centers, and BaZi signs contribute direct matched criterion weights."
+            "</div>"
+            f"<div style='margin-top:6px;'>Category weights currently used: {html.escape(formula_bits)}; "
+            f"anti_factor={ENNEAGRAM_ANTI_FACTOR:.2f}.</div>"
+            f"<div style='margin-top:6px;'>Selected type final score: <b>{selected_score:.4f}</b>.</div>"
+            "<div style='margin-top:6px;'>All final type scores (so you can verify ranking math):</div>"
+            f"<ol style='margin-top:4px;'>{sorted_rows}</ol>"
+            f"<div style='margin-top:8px;font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Criterion breakdown for selected type</div>"
+            "<ul style='margin-top:4px;'>"
+            f"<li><b>Signs (+)</b><ul>{sign_items}</ul></li>"
+            f"<li><b>Signs (-)</b><ul>{anti_sign_items}</ul></li>"
+            f"<li><b>Bodies (+)</b><ul>{body_items}</ul></li>"
+            f"<li><b>Bodies (-)</b><ul>{anti_body_items}</ul></li>"
+            f"<li><b>Houses (+)</b><ul>{house_items}</ul></li>"
+            f"<li><b>Houses (-)</b><ul>{anti_house_items}</ul></li>"
+            f"<li><b>Houses contribution</b>: +{house_positive_total:.4f} / -{house_negative_total:.4f} "
+            f"→ normalized {house_normalized_delta:.4f}</li>"
+            f"<li><b>Nakshatras (+)</b><ul>{nak_items}</ul></li>"
+            f"<li><b>Nakshatras (-)</b><ul>{anti_nak_items}</ul></li>"
+            f"<li><b>HD Gates (+)</b><ul>{gate_items}</ul></li>"
+            f"<li><b>HD Gates (-)</b><ul>{anti_gate_items}</ul></li>"
+            f"<li><b>HD Gates contribution</b>: +{gate_positive_total:.4f} / -{gate_negative_total:.4f} "
+            f"→ normalized {gate_normalized_delta:.4f}; active gates detected: {len(active_gates)}</li>"
+            f"<li><b>Positions (+)</b><ul>{position_items}</ul></li>"
+            f"<li><b>Positions (-)</b><ul>{anti_position_items}</ul></li>"
+            f"<li><b>Aspects (+)</b><ul>{aspect_items}</ul></li>"
+            f"<li><b>Aspects (-)</b><ul>{anti_aspect_items}</ul></li>"
+            "</ul>"
+            "<div style='margin-top:6px;'>"
+            "To verify manually with a calculator: compute each category's contribution according to its rule, multiply by the category weight, then sum all weighted category values for the final type score."
+            "</div>"
+            "</div>"
+        )
+
+    return (
+        f"<div style='font-size:18px;font-weight:700;color:{html.escape(type_color)};'>"
+        f"Enneagram Type {enneagram_type}"
+        "</div>"
+        f"<div style='margin-top:8px;'><span style='font-weight:700;color:{highlight_color};'>"
+        "Motivation:"
+        f"</span> {html.escape(motivation)}</div>"
+        f"<div style='margin-top:8px;font-size:12px;color:{text_color};font-style:italic;'>"
+        f"{html.escape(selected_quote)}"
+        "</div>"
+        f"<div style='margin-top:8px;color:{text_color};'>"
+        f"{html.escape(description)}"
+        "</div>"
+        f"{debug_html}"
+    )
+
+
+def enneagram_realm_scores_for_type_scores(type_scores: dict[int, float]) -> dict[str, float]:
+    """Return combined Enneagram score totals for head, heart, and body realms."""
+    realm_scores: dict[str, float] = {}
+    for realm_name in ENNEAGRAM_REALM_DISPLAY_ORDER:
+        realm_config = ENNEAGRAM_REALMS.get(realm_name, {})
+        realm_types = realm_config.get("types", set())
+        realm_scores[realm_name] = sum(
+            float(type_scores.get(int(type_num), 0.0)) for type_num in realm_types
+        )
+    return realm_scores
+
+
+def _interpolate_enneagram_realm_color(
+    start: tuple[int, int, int],
+    end: tuple[int, int, int],
+    ratio: float,
+) -> str:
+    clamped_ratio = max(0.0, min(1.0, float(ratio)))
+    red = int(round(start[0] + ((end[0] - start[0]) * clamped_ratio)))
+    green = int(round(start[1] + ((end[1] - start[1]) * clamped_ratio)))
+    blue = int(round(start[2] + ((end[2] - start[2]) * clamped_ratio)))
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def enneagram_realm_color_for_score(score: float) -> str:
+    """Map an Enneagram realm score onto a dark-red/yellow/green weight scale."""
+    color_ceiling = max(
+        1.0,
+        sum(max(0.0, float(weight)) for weight in ENNEAGRAM_CATEGORY_WEIGHTS.values()),
+    )
+    color_midpoint = color_ceiling / 2.0
+    clamped_score = max(0.0, min(float(score), color_ceiling))
+    if clamped_score <= color_midpoint:
+        return _interpolate_enneagram_realm_color(
+            ENNEAGRAM_REALM_WEIGHT_LOW_COLOR,
+            ENNEAGRAM_REALM_WEIGHT_MID_COLOR,
+            clamped_score / color_midpoint if color_midpoint > 0 else 0.0,
+        )
+    return _interpolate_enneagram_realm_color(
+        ENNEAGRAM_REALM_WEIGHT_MID_COLOR,
+        ENNEAGRAM_REALM_WEIGHT_HIGH_COLOR,
+        (clamped_score - color_midpoint) / color_midpoint
+        if color_midpoint > 0
+        else 1.0,
+    )
+
+
+def enneagram_realm_summary_html(type_scores: dict[int, float]) -> str:
+    """Return weight-colored HTML summarizing combined Head/Heart/Body weights."""
+    realm_scores = enneagram_realm_scores_for_type_scores(type_scores)
+    realm_tokens = []
+    for realm_name in ENNEAGRAM_REALM_DISPLAY_ORDER:
+        label = realm_name.title()
+        score = realm_scores.get(realm_name, 0.0)
+        color = enneagram_realm_color_for_score(score)
+        realm_tokens.append(
+            f"<span style='color:{color};font-weight:700;'>"
+            f"{html.escape(label)} ({score:.1f})</span>"
+        )
+    return ", ".join(realm_tokens) + "."
+
+
+def tritype_text_for_scores(type_scores: dict[int, float]) -> str:
+    """Return the top-ranked tritype string from Enneagram scores."""
+    ranked_types = sorted(
+        range(1, 10),
+        key=lambda type_num: (float(type_scores.get(type_num, 0.0)), -type_num),
+        reverse=True,
+    )[:3]
+    return "-".join(str(type_num) for type_num in ranked_types)
+
+
+
+class EnneagramPredictionPanelAdapter:
+    """Own the Enneagram prediction panel lifecycle for Chart View."""
+
+    def __init__(
+        self,
+        *,
+        enneagram: dict[int, dict[str, Any]],
+        calculate_type_weights: Callable[[Any], dict[int, float]],
+        chart_theme_colors: dict[str, str],
+        apply_standard_bar_axes: Callable[[Any, list[str]], None],
+        standard_chart_layout: dict[str, float],
+        is_placeholder_chart: Callable[[Any], bool],
+        tritype_label: Any = None,
+        chart_layout: Any = None,
+        debug_math_enabled: bool = False,
+        clear_layout_widgets: Callable[[Any], None] | None = None,
+        calculate_callback: Callable[[Any, str], None] | None = None,
+        reset_canvas_callback: Callable[[str], None] | None = None,
+        manual_recalculation_provider: Callable[[], bool] | None = None,
+        norm_charts_provider: Callable[[], Any] | None = None,
+        norm_charts_token_provider: Callable[[], str] | None = None,
+        header_action_callback: Callable[[str, str], None] | None = None,
+    ) -> None:
+        self.enneagram = enneagram
+        self.calculate_type_weights = calculate_type_weights
+        self.chart_theme_colors = chart_theme_colors
+        self.apply_standard_bar_axes = apply_standard_bar_axes
+        self.standard_chart_layout = standard_chart_layout
+        self.is_placeholder_chart = is_placeholder_chart
+        self.tritype_label = tritype_label
+        self.enneagram_prediction_chart_layout = chart_layout
+        self.debug_math_enabled = debug_math_enabled
+        self.clear_layout_widgets = clear_layout_widgets
+        self.calculate_callback = calculate_callback
+        self.reset_canvas_callback = reset_canvas_callback
+        self.manual_recalculation_provider = manual_recalculation_provider
+        self.norm_charts_provider = norm_charts_provider
+        self.norm_charts_token_provider = norm_charts_token_provider
+        self.header_action_callback = header_action_callback
+
+    def _set_header_action(self, state: str) -> None:
+        if callable(self.header_action_callback):
+            self.header_action_callback("enneagram", state)
+
+    def _manual_recalculation_only(self) -> bool:
+        if callable(self.manual_recalculation_provider):
+            try:
+                return bool(self.manual_recalculation_provider())
+            except Exception:
+                return True
+        return True
+
+    def _show_calculate_prompt(self, chart: Any | None) -> None:
+        self._set_header_action("calculate")
+        layout = self.enneagram_prediction_chart_layout
+        if layout is None:
+            return
+        if callable(self.clear_layout_widgets):
+            self.clear_layout_widgets(layout)
+        if callable(self.reset_canvas_callback):
+            self.reset_canvas_callback("enneagram_prediction_canvas")
+        add_prediction_calculate_prompt(layout)
+        if self.tritype_label is not None:
+            stop_prediction_loading_blink(self.tritype_label)
+            self.tritype_label.setText("<b>Predicted Tritype:</b> No prior data")
+
+    def _draw_no_data(self, ax: Any, _chart: Any | None) -> None:
+        ax.clear()
+        ax.set_facecolor(self.chart_theme_colors["panel"])
+        ax.set_axis_off()
+        ax.text(
+            0.5,
+            0.5,
+            "No data",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            color=self.chart_theme_colors["text"],
+            fontsize=11,
+            fontweight="bold",
+        )
+
+    def draw(self, ax: Any, chart: Any) -> None:
+        draw_enneagram_predictions(
+            ax,
+            chart=chart,
+            enneagram=self.enneagram,
+            calculate_type_weights=self.calculate_type_weights,
+            chart_theme_colors=self.chart_theme_colors,
+            apply_standard_bar_axes=self.apply_standard_bar_axes,
+            standard_chart_layout=self.standard_chart_layout,
+        )
+
+    def build_popout_info(self, chart: Any | None, target: int) -> str:
+        return build_enneagram_popout_info_html(
+            target,
+            enneagram=self.enneagram,
+            chart_theme_colors=self.chart_theme_colors,
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            debug_math_enabled=self.debug_math_enabled,
+            chart=chart,
+            calculate_type_weights=self.calculate_type_weights,
+        )
+
+    def _norm_charts(self) -> Any:
+        if callable(self.norm_charts_provider):
+            try:
+                return self.norm_charts_provider()
+            except Exception:
+                return []
+        return []
+
+    def _norms_token(self) -> str:
+        if callable(self.norm_charts_token_provider):
+            try:
+                return str(self.norm_charts_token_provider())
+            except Exception:
+                return "prediction_norms:unavailable"
+        return _enneagram_norms_token(self)
+
+    def _database_norm_averages(self, norm_charts: Any) -> dict[int, float]:
+        return calculate_database_enneagram_type_averages(
+            norm_charts,
+            calculate_type_weights=self.calculate_type_weights,
+        )
+
+    def _score_parts(self, chart: Any, norm_charts: Any | None = None) -> dict[int, dict[str, float]]:
+        return enneagram_score_parts(
+            chart,
+            calculate_type_weights=self.calculate_type_weights,
+            norm_charts=norm_charts,
+            db_norm_averages=self._database_norm_averages(norm_charts),
+        )
+
+    def _cache_key(self, chart: Any) -> tuple[str, str, str]:
+        return (_enneagram_chart_state_token(self, chart), self._norms_token(), _enneagram_definition_signature())
+
+    def _restore_cache(self, chart: Any) -> dict[str, Any] | None:
+        cached = getattr(chart, "_enneagram_prediction_cache", None)
+        if not _cache_payload_chart_uid_matches(chart, cached, require_uid=True):
+            cached = None
+        if not isinstance(cached, dict):
+            cached = _load_persisted_enneagram_prediction_payload(chart)
+            if isinstance(cached, dict) and "chart_uid" not in cached:
+                cached["chart_uid"] = _chart_prediction_cache_uid(chart)
+        scores = _coerce_complete_enneagram_type_scores(cached.get("scores") if isinstance(cached, dict) else None)
+        if scores is None:
+            legacy_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
+            if legacy_scores is None:
+                return None
+            cached = {
+                "chart_uid": _chart_prediction_cache_uid(chart),
+                "key": ("legacy_raw_enneagram_type_weights", _enneagram_chart_state_token(self, chart)),
+                "key_fingerprint": "legacy_raw_enneagram_type_weights",
+                "scores": legacy_scores,
+                "score_semantics": "legacy_raw",
+                "cached_at": time.time(),
+                "legacy": True,
+            }
+        else:
+            cached = dict(cached)
+            cached["scores"] = scores
+        try:
+            setattr(chart, "_enneagram_prediction_cache", cached)
+            cache_enneagram_prediction_metadata(chart, scores)
+        except Exception:
+            pass
+        return cached
+
+    def _cache_is_stale(self, chart: Any, cached: dict[str, Any]) -> bool:
+        if cached.get("score_semantics") != ENNEAGRAM_PREDICTION_SCORE_SEMANTICS:
+            return True
+        return cached.get("key") != self._cache_key(chart) and cached.get("key_fingerprint") != repr(self._cache_key(chart))
+
+    def cache_metadata(self, chart: Any) -> dict[int, float]:
+        norm_charts = self._norm_charts()
+        parts = self._score_parts(chart, norm_charts)
+        raw_scores = {enneagram_type: values["deviation"] for enneagram_type, values in parts.items()}
+        scores = _coerce_complete_enneagram_type_scores(raw_scores) or raw_scores
+        scores = cache_enneagram_prediction_metadata(chart, scores)
+        db_norm_averages = {
+            enneagram_type: values["database"]
+            for enneagram_type, values in parts.items()
+            if "database" in values
+        }
+        payload = {"version": ENNEAGRAM_PREDICTION_PAYLOAD_VERSION, "chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "score_semantics": ENNEAGRAM_PREDICTION_SCORE_SEMANTICS, "scores": scores, "parts": parts, "db_norm_averages": db_norm_averages, "cached_at": time.time()}
+        try:
+            setattr(chart, "_enneagram_prediction_cache", payload)
+        except Exception:
+            pass
+        _persist_enneagram_prediction_payload(chart, payload)
+        return scores
+
+    def _show_stale_recalculate_notice(self, chart: Any, *, refreshing: bool = False) -> None:
+        self._set_header_action("recalculate")
+        layout = self.enneagram_prediction_chart_layout
+        if layout is None:
+            return
+
+    def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> None:
+        if chart is None or self.is_placeholder_chart(chart):
+            metric_panel_renderer(
+                canvas_attr="enneagram_prediction_canvas",
+                container_layout=self.enneagram_prediction_chart_layout,
+                figsize=(5.5, 3.2),
+                title="Enneagram",
+                draw_fn=self._draw_no_data,
+                chart=chart,
+                display_height=ENNEAGRAM_PREDICTION_GRAPH_HEIGHT_PX,
+            )
+            if self.tritype_label is not None:
+                stop_prediction_loading_blink(self.tritype_label)
+                self.tritype_label.setText(
+                    "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
+                )
+            return
+        # Cached-only render intentionally avoids this warmup path: scores = self.cache_metadata(chart)
+        cached = self._restore_cache(chart)
+        if not isinstance(cached, dict):
+            self._show_calculate_prompt(chart)
+            return
+        scores = _coerce_complete_enneagram_type_scores(cached.get("scores"))
+        if scores is None:
+            self._show_calculate_prompt(chart)
+            return
+        cache_stale = self._cache_is_stale(chart, cached)
+
+        def _draw_with_cached_scores(ax: Any, draw_chart: Any) -> None:
+            draw_enneagram_predictions(
+                ax,
+                chart=draw_chart,
+                enneagram=self.enneagram,
+                calculate_type_weights=lambda _chart: scores,
+                chart_theme_colors=self.chart_theme_colors,
+                apply_standard_bar_axes=self.apply_standard_bar_axes,
+                standard_chart_layout=self.standard_chart_layout,
+            )
+
+        metric_panel_renderer(
+            canvas_attr="enneagram_prediction_canvas",
+            container_layout=self.enneagram_prediction_chart_layout,
+            figsize=(5.5, 3.2),
+            title="Enneagram",
+            draw_fn=_draw_with_cached_scores,
+            chart=chart,
+            display_height=ENNEAGRAM_PREDICTION_GRAPH_HEIGHT_PX,
+        )
+        if cache_stale:
+            manual_only = self._manual_recalculation_only()
+            self._show_stale_recalculate_notice(chart, refreshing=not manual_only)
+            if not manual_only and callable(self.calculate_callback):
+                self.calculate_callback(chart, "enneagram")
+        if not cache_stale:
+            self._set_header_action("up_to_date")
+        if self.tritype_label is not None:
+            stop_prediction_loading_blink(self.tritype_label)
+            self.tritype_label.setText(
+                f"<b>Predicted Tritype:</b> {tritype_text_for_scores(scores)}"
+                f"<br>{enneagram_realm_summary_html(scores)}"
+            )
+
+def connect_enneagram_popout_pick_handler(
+    popout_canvas: Any,
+    info_panel: Any,
+    *,
+    build_info_html: Callable[[int], str],
+) -> None:
+    """Attach standard Enneagram bar click behavior to the popout chart canvas."""
+
+    def _on_pick(event) -> None:
+        artist = getattr(event, "artist", None)
+        artist_gid = artist.get_gid() if artist is not None else None
+        if not isinstance(artist_gid, str) or ":" not in artist_gid:
+            return
+        chart_key, raw_value = artist_gid.split(":", 1)
+        if chart_key not in {"enneagram", "enneagram_label"}:
+            return
+        try:
+            enneagram_type = int(raw_value)
+        except ValueError:
+            return
+        info_panel.setHtml(build_info_html(enneagram_type))
+
+    popout_canvas.mpl_connect("pick_event", _on_pick)
