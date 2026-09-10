@@ -24,6 +24,7 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 from .cohort_metadata import (
     build_gender_distribution,
     chart_uids_from_mapping,
+    normalize_chart_uid,
 )
 from .controller import SimilaritiesController as _BaseSimilaritiesController
 
@@ -90,9 +91,23 @@ class SimilaritiesController(_BaseSimilaritiesController):
         super().calculate_pair_similarity()
         self._refresh_cohort_metadata(self.host._selected_local_row_ids())
 
+    def _refresh_export_sample_uids(self) -> None:
+        """Snapshot the persistent chart selection immediately before export."""
+        selected_chart_uids = getattr(self.host, "_selected_chart_uids", None)
+        if not callable(selected_chart_uids):
+            return
+        self._cohort_chart_uids = sorted(
+            {
+                uid
+                for raw_uid in selected_chart_uids()
+                if (uid := normalize_chart_uid(raw_uid))
+            }
+        )
+
     def export_json(self) -> None:
         """Export reusable Trait data with its source cohort metadata."""
         self.capture_legacy_attributes()
+        self._refresh_export_sample_uids()
         export_similarities_analysis_json_dialog(
             self.host,
             self.export_sections,
