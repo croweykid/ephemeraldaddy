@@ -438,6 +438,26 @@ class RankingsPanelMixin:
             hydrated_rows.append(hydrated_row)
         return hydrated_rows
 
+    @staticmethod
+    def _rankings_trait_score_token_is_current(
+        *,
+        chart_uid: str,
+        selected_trait_key: tuple[str, str, str],
+        chart_tokens: dict[str, str],
+        profile_token_cache: object,
+    ) -> bool:
+        """Return whether cached trait scores belong to the chart's current astro data."""
+        if not isinstance(profile_token_cache, dict):
+            return False
+        profile_cache_key = (selected_trait_key[2], chart_uid)
+        cached_chart_token = str(profile_token_cache.get(profile_cache_key, "") or "")
+        current_chart_token = str(chart_tokens.get(chart_uid, "") or "")
+        return bool(
+            cached_chart_token
+            and current_chart_token
+            and cached_chart_token == current_chart_token
+        )
+
     def _rankings_traits_chart_rankings(
         self,
         *,
@@ -544,12 +564,19 @@ class RankingsPanelMixin:
         profile_token_cache = getattr(
             self, "_traits_distribution_individual_profile_token_cache", None
         )
-        chart_tokens: dict[str, str] | None = None
+        if cached_rows is not None and changed_chart_uids:
+            # The Database View rows have already been refreshed at this point,
+            # but the deferred metrics path may not have cleared trait caches yet.
+            # Force current UID-keyed birth-data tokens so a changed chart cannot
+            # repair the completed ranking from its pre-edit score.
+            self._traits_distribution_chart_token_cache = None
+        chart_tokens = self._traits_distribution_chart_tokens()
         chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
         hidden_chart_uids = {
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
+        unresolved_changed_uids: set[str] = set()
         if cached_rows is not None and changed_chart_uids:
             rows = self._rehydrate_rankings_traits_cached_names(
                 [
@@ -579,6 +606,16 @@ class RankingsPanelMixin:
             resolved_chart_uid = chart_uid_by_id.get(int(chart_id), "")
             if not resolved_chart_uid or resolved_chart_uid != chart_uid:
                 continue
+            score_token_is_current = self._rankings_trait_score_token_is_current(
+                chart_uid=chart_uid,
+                selected_trait_key=selected_trait_key,
+                chart_tokens=chart_tokens,
+                profile_token_cache=profile_token_cache,
+            )
+            if not score_token_is_current:
+                if changed_chart_uids and chart_uid in changed_chart_uids:
+                    unresolved_changed_uids.add(chart_uid)
+                continue
             chart_cache_key = (cache_revision, trait_signature, chart_uid)
             likelihoods = likelihood_cache.get(chart_cache_key)
             cached_likelihood: object | None = None
@@ -586,20 +623,8 @@ class RankingsPanelMixin:
                 cached_likelihood = likelihoods.get(selected_trait_name)
             if cached_likelihood is None and isinstance(individual_cache, dict):
                 cached_likelihood = individual_cache.get((selected_trait_key, chart_uid))
-            if (
-                cached_likelihood is None
-                and isinstance(profile_cache, dict)
-                and isinstance(profile_token_cache, dict)
-            ):
-                profile_cache_key = (selected_trait_key[2], chart_uid)
-                cached_chart_token = str(
-                    profile_token_cache.get(profile_cache_key, "") or ""
-                )
-                if chart_tokens is None:
-                    chart_tokens = self._traits_distribution_chart_tokens()
-                current_chart_token = chart_tokens.get(chart_uid)
-                if cached_chart_token and cached_chart_token == current_chart_token:
-                    cached_likelihood = profile_cache.get(profile_cache_key)
+            if cached_likelihood is None and isinstance(profile_cache, dict):
+                cached_likelihood = profile_cache.get((selected_trait_key[2], chart_uid))
             if cached_likelihood is None:
                 continue
             try:
@@ -624,6 +649,20 @@ class RankingsPanelMixin:
                 str(row["name"]).casefold(),
             )
         )
+        if cache_complete and unresolved_changed_uids:
+            # A chart changed after the caller's completeness check. Never
+            # advance the journal sequence past an unresolved stale score.
+            for chart_uid in unresolved_changed_uids:
+                likelihood_cache.pop(
+                    (cache_revision, trait_signature, chart_uid), None
+                )
+                if isinstance(individual_cache, dict):
+                    individual_cache.pop((selected_trait_key, chart_uid), None)
+            self._traits_distribution_analytics_cache = {}
+            QTimer.singleShot(0, lambda: self._refresh_rankings_panel({"traits"}))
+            if limit is None:
+                return rows
+            return rows[: max(0, int(limit))]
         if cache_complete:
             try:
                 cache_sequence = db.latest_chart_change_sequence()
@@ -900,45 +939,66 @@ class RankingsPanelMixin:
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
-        chart_tokens: dict[str, str] | None = None
+        # _refresh_charts can replace birth data before its deferred metrics pass
+        # clears trait caches. Rebuild fingerprints now so cache completeness is
+        # based on current UID-bound astro data, not the ordering of those calls.
+        self._traits_distribution_chart_token_cache = None
+        chart_tokens = self._traits_distribution_chart_tokens()
+        cache_complete = True
+        purged_stale_score = False
         for chart_id, chart_uid in sorted(chart_uids_by_id.items()):
             chart_uid = self._normalize_rankings_chart_uid(chart_uid)
             if not chart_uid or chart_uid in hidden_chart_uids:
                 continue
-            chart_cache_key = (cache_revision, trait_signature, chart_uid)
-            if isinstance(likelihood_cache, dict):
-                likelihoods = likelihood_cache.get(chart_cache_key)
-                if isinstance(likelihoods, dict) and selected_trait_name in likelihoods:
-                    continue
-
-            if (
-                isinstance(individual_cache, dict)
-                and (selected_trait_key, chart_uid) in individual_cache
-            ):
-                continue
-
-            if isinstance(profile_cache, dict) and isinstance(
-                profile_token_cache, dict
-            ):
-                profile_cache_key = (selected_trait_key[2], chart_uid)
-                cached_chart_token = str(
-                    profile_token_cache.get(profile_cache_key, "") or ""
-                )
-                if chart_tokens is None:
-                    chart_tokens = self._traits_distribution_chart_tokens()
-                current_chart_token = chart_tokens.get(chart_uid)
-                if (
-                    cached_chart_token
-                    and cached_chart_token == current_chart_token
-                    and profile_cache_key in profile_cache
-                ):
-                    continue
-
             chart = self._get_chart_for_filter(chart_id)
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            return False
-        return True
+            chart_cache_key = (cache_revision, trait_signature, chart_uid)
+            individual_cache_key = (selected_trait_key, chart_uid)
+            profile_cache_key = (selected_trait_key[2], chart_uid)
+            score_token_is_current = self._rankings_trait_score_token_is_current(
+                chart_uid=chart_uid,
+                selected_trait_key=selected_trait_key,
+                chart_tokens=chart_tokens,
+                profile_token_cache=profile_token_cache,
+            )
+            if not score_token_is_current:
+                if isinstance(likelihood_cache, dict) and chart_cache_key in likelihood_cache:
+                    likelihood_cache.pop(chart_cache_key, None)
+                    purged_stale_score = True
+                if isinstance(individual_cache, dict) and individual_cache_key in individual_cache:
+                    individual_cache.pop(individual_cache_key, None)
+                    purged_stale_score = True
+                cache_complete = False
+                continue
+
+            has_cached_score = False
+            if isinstance(likelihood_cache, dict):
+                likelihoods = likelihood_cache.get(chart_cache_key)
+                has_cached_score = bool(
+                    isinstance(likelihoods, dict)
+                    and selected_trait_name in likelihoods
+                )
+            if (
+                not has_cached_score
+                and isinstance(individual_cache, dict)
+                and individual_cache_key in individual_cache
+            ):
+                has_cached_score = True
+            if (
+                not has_cached_score
+                and isinstance(profile_cache, dict)
+                and profile_cache_key in profile_cache
+            ):
+                has_cached_score = True
+            if not has_cached_score:
+                cache_complete = False
+
+        if purged_stale_score:
+            # The shared collector's aggregate cache can otherwise short-circuit
+            # before it reaches the now-missing UID score and recalculates it.
+            self._traits_distribution_analytics_cache = {}
+        return cache_complete
 
     def _start_rankings_trait_worker(
         self,
