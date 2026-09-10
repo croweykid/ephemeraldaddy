@@ -1,62 +1,29 @@
-"""Local Human Design supplement plugin loading.
-
-Plugins are user-supplied JSON files stored outside the packaged reference data.
-"""
+"""Human Design supplement support for the legacy humdes_gates.json plugin."""
 from __future__ import annotations
 
 import json
-import shutil
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-RECOGNIZED_PLUGIN_FILENAMES: tuple[str, ...] = ("humdes_gates.json",)
-PLUGIN_DIR = Path.home() / ".ephemeraldaddy" / "plugins"
-DISABLED_PLUGIN_DIR = PLUGIN_DIR / "disabled"
+from ephemeraldaddy.analysis import plugins as plugin_runtime
+
+# Compatibility exports for callers that predate the generic plugin runtime.
+RECOGNIZED_PLUGIN_FILENAMES = plugin_runtime.RECOGNIZED_PLUGIN_FILENAMES
+PLUGIN_DIR = plugin_runtime.PLUGIN_DIR
+DISABLED_PLUGIN_DIR = plugin_runtime.DISABLED_PLUGIN_DIR
 HUMDES_GATES_PATH = PLUGIN_DIR / "humdes_gates.json"
+recognized_plugin_names = plugin_runtime.recognized_plugin_names
+installed_plugin_names = plugin_runtime.installed_plugin_names
+plugin_installations = plugin_runtime.plugin_installations
+set_plugin_enabled = plugin_runtime.set_plugin_enabled
+validate_plugin_file = plugin_runtime.validate_plugin_file
+install_plugin_file = plugin_runtime.install_plugin_file
 
 _OPTIONAL_GATE_KEYS = {"app_summary", "source_ref"}
 _REQUIRED_GATE_KEYS = {"gate", "source_name", "app_name", "source_summary", "lines"}
 _REQUIRED_LINE_KEYS = {"id", "gate", "line", "source_name", "app_name"}
-
-
-def recognized_plugin_names() -> list[str]:
-    return list(RECOGNIZED_PLUGIN_FILENAMES)
-
-
-def installed_plugin_names() -> list[str]:
-    """Return recognized plugin filenames installed in either state."""
-    return [
-        name
-        for name in RECOGNIZED_PLUGIN_FILENAMES
-        if (PLUGIN_DIR / name).exists() or (DISABLED_PLUGIN_DIR / name).exists()
-    ]
-
-
-def plugin_installations() -> list[dict[str, Any]]:
-    """Describe installed plugins for Settings without loading their payloads."""
-    installations: list[dict[str, Any]] = []
-    for name in installed_plugin_names():
-        enabled_path = PLUGIN_DIR / name
-        enabled = enabled_path.exists()
-        path = enabled_path if enabled else DISABLED_PLUGIN_DIR / name
-        installations.append({"name": name, "enabled": enabled, "path": path})
-    return installations
-
-
-def set_plugin_enabled(name: str, enabled: bool) -> Path:
-    """Enable or disable an installed plugin while retaining its local file."""
-    if name not in RECOGNIZED_PLUGIN_FILENAMES:
-        raise ValueError("Plugin filename is not recognized.")
-    source = (DISABLED_PLUGIN_DIR if enabled else PLUGIN_DIR) / name
-    destination = (PLUGIN_DIR if enabled else DISABLED_PLUGIN_DIR) / name
-    if not source.exists():
-        if destination.exists():
-            return destination
-        raise FileNotFoundError(f"Plugin is not installed: {name}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    source.replace(destination)
-    return destination
 
 
 def _clean_text(value: Any) -> str:
@@ -124,37 +91,28 @@ def _validate_humdes_payload(payload: Any) -> dict[str, Any]:
     return normalized_payload
 
 
-def validate_plugin_file(path: str | Path) -> dict[str, Any]:
-    plugin_path = Path(path)
-    if plugin_path.name not in RECOGNIZED_PLUGIN_FILENAMES:
-        raise ValueError("Plugin filename is not recognized.")
-    with plugin_path.open("r", encoding="utf-8") as handle:
-        payload = json.load(handle)
-    if plugin_path.name == "humdes_gates.json":
-        return _validate_humdes_payload(payload)
-    raise ValueError("Plugin filename is not recognized.")
-
-
-def install_plugin_file(path: str | Path) -> Path:
-    source_path = Path(path)
-    validate_plugin_file(source_path)
-    PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
-    destination = PLUGIN_DIR / source_path.name
-    shutil.copyfile(source_path, destination)
-    disabled_copy = DISABLED_PLUGIN_DIR / source_path.name
-    if disabled_copy.exists():
-        disabled_copy.unlink()
-    return destination
-
-
-def load_humdes_gates(path: str | Path | None = None) -> dict[str, Any] | None:
-    plugin_path = Path(path) if path is not None else HUMDES_GATES_PATH
+def _load_humdes_path(plugin_path: Path) -> dict[str, Any] | None:
     if not plugin_path.exists():
         return None
     try:
-        return validate_plugin_file(plugin_path)
+        with plugin_path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        return _validate_humdes_payload(payload)
     except (OSError, json.JSONDecodeError, ValueError):
         return None
+
+
+@lru_cache(maxsize=8)
+def _load_default_humdes_gates(revision: int) -> dict[str, Any] | None:
+    del revision  # The cache key is intentionally the plugin-state revision.
+    return _load_humdes_path(plugin_runtime.PLUGIN_DIR / "humdes_gates.json")
+
+
+def load_humdes_gates(path: str | Path | None = None) -> dict[str, Any] | None:
+    """Load validated HD supplement data; default installed data is revision-cached."""
+    if path is not None:
+        return _load_humdes_path(Path(path))
+    return _load_default_humdes_gates(plugin_runtime.plugin_revision())
 
 
 _FIXING_HEADER_PATTERN = re.compile(
@@ -186,8 +144,6 @@ def _trim_line_fixing_text(text: str, fixing: str | None, body: str | None = Non
             return clean[: detriment_headers[0].start()].strip()
         return clean
 
-    # Detriment: preserve the lead-in before the exaltation header, remove the
-    # exaltation header/body, and keep the detriment header plus its body text.
     if not detriment_headers:
         return clean
     exaltation_headers = _fixing_header_matches(clean, r"\b(?:in\s+)?exalt(?:ed|ation)\b")
@@ -197,7 +153,12 @@ def _trim_line_fixing_text(text: str, fixing: str | None, body: str | None = Non
     return f"{lead}\n{detriment}".strip() if lead else detriment
 
 
-def humdes_gate_line_supplement_lines(gate: int, line: int | None = None, fixing: str | None = None, fixing_body: str | None = None) -> list[str]:
+def humdes_gate_line_supplement_lines(
+    gate: int,
+    line: int | None = None,
+    fixing: str | None = None,
+    fixing_body: str | None = None,
+) -> list[str]:
     payload = load_humdes_gates()
     if not payload:
         return []
@@ -213,7 +174,14 @@ def humdes_gate_line_supplement_lines(gate: int, line: int | None = None, fixing
     summary = _clean_text(gate_data.get("app_summary")) or _clean_text(gate_data.get("source_summary"))
     if summary:
         lines.append(f"• <strong>Gate summary:</strong> {summary}")
-    for key, label in (("center", "Center"), ("circuit", "Circuit"), ("quarter", "Quarter"), ("channel", "Channel"), ("deity", "Deity"), ("physiology", "Physiology")):
+    for key, label in (
+        ("center", "Center"),
+        ("circuit", "Circuit"),
+        ("quarter", "Quarter"),
+        ("channel", "Channel"),
+        ("deity", "Deity"),
+        ("physiology", "Physiology"),
+    ):
         value = _clean_text(gate_data.get(key))
         if value:
             lines.append(f"• <strong>{label}:</strong> {value}")

@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ephemeraldaddy.analysis.human_design_plugins import plugin_installations, set_plugin_enabled
+from ephemeraldaddy.analysis.plugins import plugin_installations, set_plugin_enabled
 
 
 def _file_browser_name() -> str:
@@ -76,7 +76,8 @@ class PluginManagerPanel(QWidget):
         records = plugin_installations()
         self.table.setRowCount(len(records))
         for row, record in enumerate(records):
-            name_item = QTableWidgetItem(str(record["name"]))
+            display_name = str(record.get("display_name") or record["name"])
+            name_item = QTableWidgetItem(display_name)
             name_item.setData(Qt.UserRole, record)
             self.table.setItem(row, 0, name_item)
             enabled = bool(record["enabled"])
