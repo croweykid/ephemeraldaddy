@@ -44,6 +44,12 @@ _AXIS_ID_BY_BODY: Mapping[str, str] = {
     "Ketu": "Rahu-Ketu",
 }
 
+_AXIS_DISPLAY_LABEL_BY_ID: Mapping[str, str] = {
+    "AS-DS": "AS–DS axis",
+    "MC-IC": "MC–IC axis",
+    "Rahu-Ketu": "Rahu–Ketu axis",
+}
+
 # Aspect types related by a 180-degree endpoint flip. Harmonics whose
 # complements are not represented by the app (for example quintile -> 108°)
 # deliberately remain independent.
@@ -70,6 +76,21 @@ def normalize_aspect_type_for_display(aspect_type: Any) -> str:
     """Normalize aspect names to the snake-case keys used across the app."""
 
     return str(aspect_type or "").strip().replace(" ", "_").lower()
+
+
+def aspect_axis_display_label(body: Any) -> str | None:
+    """Return the user-facing axis label for an antipodal endpoint, if any.
+
+    This is presentation metadata only. Callers must keep the canonical raw
+    endpoint (AS/DS, MC/IC, Rahu/Ketu) for geometry, scoring, lookup, and click
+    metadata.
+    """
+
+    normalized = normalize_aspect_body_for_display(body)
+    axis_id = _AXIS_ID_BY_BODY.get(normalized)
+    if axis_id is None:
+        return None
+    return _AXIS_DISPLAY_LABEL_BY_ID[axis_id]
 
 
 def aspect_endpoint_names(aspect: Mapping[str, Any]) -> tuple[str, str] | None:
