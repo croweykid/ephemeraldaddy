@@ -28,13 +28,6 @@ def _marked_name(name: object, marker_names: set[str]) -> str:
     return text
 
 
-def _unmarked_name(name: object) -> str:
-    text = str(name or "")
-    if text.startswith(SOURCE_SAMPLE_TRAIT_PREFIX):
-        return text[len(SOURCE_SAMPLE_TRAIT_PREFIX) :]
-    return text
-
-
 def install_trait_sample_markers(core: ModuleType) -> None:
     """Install display-only 🧚 markers for Traits whose source sample contains the chart.
 
@@ -49,7 +42,6 @@ def install_trait_sample_markers(core: ModuleType) -> None:
     original_apply = core._apply_traits_prediction_metadata
     original_rows_from_metadata = core._trait_prediction_rows_from_metadata
     original_rank_row = core._trait_rank_row
-    original_show_trait_chart_info = core._show_trait_chart_info
 
     def rows_from_metadata_with_sample_markers(
         traits: list[dict[str, Any]],
@@ -62,7 +54,9 @@ def install_trait_sample_markers(core: ModuleType) -> None:
         marked_rows: list[dict[str, Any]] = []
         for row in rows:
             marked = dict(row)
-            marked["name"] = _marked_name(marked.get("name", ""), marker_names)
+            marked["display_name"] = _marked_name(
+                marked.get("name", ""), marker_names
+            )
             marked_rows.append(marked)
         return marked_rows
 
@@ -86,9 +80,6 @@ def install_trait_sample_markers(core: ModuleType) -> None:
         escaped_name = html.escape(name)
         marked_name = html.escape(f"{SOURCE_SAMPLE_TRAIT_PREFIX}{name}")
         return rendered.replace(f">{escaped_name}</a>", f">{marked_name}</a>", 1)
-
-    def show_trait_chart_info_with_unmarked_name(owner: Any, name: str) -> None:
-        original_show_trait_chart_info(owner, _unmarked_name(name))
 
     def apply_metadata_with_sample_markers(
         owner: Any,
@@ -118,6 +109,5 @@ def install_trait_sample_markers(core: ModuleType) -> None:
 
     core._trait_prediction_rows_from_metadata = rows_from_metadata_with_sample_markers
     core._trait_rank_row = rank_row_with_sample_marker
-    core._show_trait_chart_info = show_trait_chart_info_with_unmarked_name
     core._apply_traits_prediction_metadata = apply_metadata_with_sample_markers
     core._ephemeraldaddy_trait_sample_markers_installed = True

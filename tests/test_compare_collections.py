@@ -17,6 +17,10 @@ from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
 from ephemeraldaddy.gui.features.charts.similarities_export import (
     build_similarities_json_export_payload,
 )
+from ephemeraldaddy.gui.features.similarities.compare_collections import (
+    CompareCollectionsDialog,
+)
+from ephemeraldaddy.gui.features.similarities import compare_collections
 
 
 def chart(*, unknown_signs=(), **positions):
@@ -100,6 +104,47 @@ def test_shared_column_export_combines_both_collections_independently():
 
     assert profile["positions"] == {"Sun in Aries": 50}
     assert profile["samples"] == [35, 0]
+
+
+def test_collection_export_cohort_uids_use_permanent_mapping_keys():
+    chart_a = chart(Sun=1)
+    chart_b = chart(Sun=2)
+    chart_omitted = chart(Sun=3)
+    population = {
+        "uid-b": chart_b,
+        "UID-A": chart_a,
+        "UID-OMITTED": chart_omitted,
+    }
+
+    assert CompareCollectionsDialog._uids_for_charts(
+        [chart_a, chart_b], population
+    ) == ("UID-A", "UID-B")
+
+
+def test_collection_column_export_passes_its_cohort_uids(monkeypatch):
+    captured = {}
+    dialog = SimpleNamespace(
+        _trait_export_sections=[("A",), ("Shared",), ("B",)],
+        _trait_export_sample_uids=[
+            ("UID-A",),
+            ("UID-A", "UID-B"),
+            ("UID-B",),
+        ],
+    )
+
+    monkeypatch.setattr(
+        compare_collections,
+        "export_similarities_analysis_json_dialog",
+        lambda parent, sections, **kwargs: captured.update(
+            parent=parent, sections=sections, **kwargs
+        ),
+    )
+
+    CompareCollectionsDialog._export_column(dialog, 1)
+
+    assert captured["parent"] is dialog
+    assert captured["sections"] == ("Shared",)
+    assert captured["sample_uids"] == ("UID-A", "UID-B")
 
 
 def test_collection_export_accepts_every_similarities_analysis_factor_section():

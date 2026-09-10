@@ -143,7 +143,7 @@ class _TraitPredictionRowsModel(QAbstractTableModel):
         column = index.column()
         if role == Qt.DisplayRole:
             if column == 0:
-                return row.get("name", "")
+                return row.get("display_name", row.get("name", ""))
             if column == 1:
                 return f"{float(row.get('likelihood', 0.0)):.1f}%"
             if column == 2:
@@ -161,7 +161,7 @@ class _TraitPredictionRowsModel(QAbstractTableModel):
                 return QColor(red, green, blue)
             return QColor("#f5f5f5")
         if role == Qt.ToolTipRole and column == 0:
-            return str(row.get("name", ""))
+            return str(row.get("display_name", row.get("name", "")))
         if role == TRAIT_ROW_NAME_ROLE:
             return row.get("name", "")
         if role == TRAIT_ROW_COLOR_ROLE:
