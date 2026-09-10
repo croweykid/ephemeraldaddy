@@ -1211,9 +1211,17 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
 from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
+)
+from ephemeraldaddy.analysis.plugins import (
     install_plugin_file,
     installed_plugin_names,
     recognized_plugin_names,
+)
+from ephemeraldaddy.gui.features.chart_information.plugin_context import (
+    position_plugin_paragraphs,
+)
+from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (
+    append_plugin_paragraphs,
 )
 from ephemeraldaddy.gui.settings.modules.plugins import build_plugin_manager_panel
 from ephemeraldaddy.analysis.human_design_reference import (
@@ -23012,7 +23020,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self,
             "Upload Plugin File",
             "",
-            "JSON files (*.json);;All files (*)",
+            "Plugin files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)",
         )
         if not file_path:
             return
@@ -31664,11 +31672,21 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             display_body_label=str(selected_entry.get("display_body", "")),
                         )
                         return True
-                    self._show_position_info(
-                        selected_entry["body"],
-                        selected_entry["sign"],
-                        selected_entry["house"],
-                    )
+                    body = str(selected_entry["body"])
+                    sign = str(selected_entry["sign"])
+                    house_value = selected_entry.get("house")
+                    house_num = house_value if isinstance(house_value, int) else None
+                    self._show_position_info(body, sign, house_num)
+                    if targets_main_chart_info:
+                        chart = getattr(self, "_latest_chart", None)
+                        paragraphs = position_plugin_paragraphs(
+                            body=body,
+                            sign=sign,
+                            house_num=house_num,
+                            chart_positions=getattr(chart, "positions", {}) or {},
+                            sign_for_longitude=_sign_for_longitude,
+                        )
+                        append_plugin_paragraphs(self.chart_info_output, paragraphs)
                     return True
 
             if info_index != -1 and cursor.positionInBlock() >= info_index:
