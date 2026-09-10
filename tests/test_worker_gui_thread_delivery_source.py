@@ -61,10 +61,10 @@ def test_gui_relays_are_qobjects_with_typed_slots() -> None:
     assert "super().__init__(parent)" in RELAYS_SOURCE
     for decorator in (
         "@Slot(str, object)",
-        "@Slot(str, str)",
-        "@Slot(int, str, str, object)",
-        "@Slot(int, str, str, str)",
-        "@Slot(object)",
+        "@Slot(str, str, object)",
+        "@Slot(str, tuple, object)",
+        "@Slot(str, tuple, str)",
+        "@Slot(dict)",
         "@Slot(str)",
     ):
         assert decorator in RELAYS_SOURCE
