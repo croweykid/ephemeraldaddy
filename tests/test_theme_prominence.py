@@ -78,6 +78,61 @@ def test_unavailable_houses_are_skipped_not_scored_as_zero(monkeypatch: pytest.M
     assert scores["sample"] == pytest.approx(100.0)
 
 
+def test_sparse_bazi_counts_normalize_by_maximum_not_range() -> None:
+    assert themes._normalized_sparse_counts(
+        {"rat": 1.0, "ox": 1.0, "tiger": 1.0, "rabbit": 1.0}
+    ) == {
+        "rat": 1.0,
+        "ox": 1.0,
+        "tiger": 1.0,
+        "rabbit": 1.0,
+    }
+    assert themes._normalized_sparse_counts({"rat": 2.0, "ox": 1.0}) == {
+        "rat": 1.0,
+        "ox": 0.5,
+    }
+
+
+def test_unknown_time_chart_excludes_human_design_activations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(themes, "chart_uses_houses", lambda _chart: False)
+    monkeypatch.setattr(themes._weighted, "calculate_dominant_sign_weights", lambda _chart: {})
+    monkeypatch.setattr(themes._weighted, "calculate_dominant_planet_weights", lambda _chart: {})
+    monkeypatch.setattr(themes._weighted, "calculate_dominant_nakshatra_weights", lambda _chart: {})
+    monkeypatch.setattr(themes, "_theme_reference_uses_human_design", lambda: True)
+    monkeypatch.setattr(themes, "_theme_reference_uses_bazi", lambda: False)
+
+    def fail_if_called(_chart: object):
+        raise AssertionError("unknown-time chart must not calculate Human Design")
+
+    monkeypatch.setattr(themes, "_human_design_activations", fail_if_called)
+
+    context = themes._activation_context(object())
+
+    assert context["houses_available"] is False
+    assert context["hd"]["available"] is False
+    assert context["hd"]["gates"] == set()
+    assert context["hd"]["channels"] == set()
+    assert context["hd"]["cross"] == ""
+
+
+def test_generated_incarnation_cross_decorations_are_removed_before_matching() -> None:
+    generated = "Right Angle Cross of the Sphinx 4 (gates 1/2 • 7/13)"
+
+    assert themes._canonical_cross_name(generated) == "the sphinx"
+    assert themes._cross_matches(generated, "the Sphinx") is True
+    assert themes._cross_matches(generated, "Rulership") is False
+    assert themes._cross_matches(
+        "Left Angle Cross of Cycles 2 (gates 53/54 • 42/32)",
+        "Cycles",
+    ) is True
+    assert themes._cross_matches(
+        "Juxtaposition Cross of Caring 1 (gates 27/28 • 19/33)",
+        "Caring",
+    ) is True
+
+
 def test_family_scores_average_only_scorable_subthemes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         themes,
