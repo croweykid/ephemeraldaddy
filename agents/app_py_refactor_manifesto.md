@@ -1,11 +1,16 @@
 # `app.py` Refactor Manifesto and Migration Plan
 
 **Status:** Approved architectural direction  
+**Last implementation audit:** 2026-09-10 (`8d8742e`)
 **Scope:** `ephemeraldaddy/gui/app.py` and the workflows currently coupled to it  
 **Audience:** Codex agents and human contributors  
 **Primary constraint:** Preserve every existing feature while measurably improving responsiveness, throughput, troubleshooting, and future development speed.
 
-- app.py should be no more than 5,000–8,000 lines. It should serve as application/window orchestration only. We are currently in the process of refactoring accordingly, toward and end result resembling something like:
+- `app.py` should be no more than 5,000–8,000 lines and should serve as
+  application/window orchestration only. The intended high-level feature
+  separation remains:
+
+```text
 features/
     chart_editor/
     import_export/
@@ -15,6 +20,76 @@ features/
     human_design/
     research/
     settings/
+```
+
+This compact tree is a durable structural goal: it names the major capability
+areas that should no longer live in `app.py`. Section 3 refines it into the
+canonical workflow-first package architecture used for concrete moves. Where
+the names differ, use section 3's more precise destination names (for example,
+`database_view/` and `transits/`) without losing any capability area listed
+above. Some areas may ultimately be subpackages of a workflow rather than
+direct children of `features/`.
+
+## 0. Current implementation status (audited 2026-09-10)
+
+This is a point-in-time implementation ledger, not a replacement for the
+normative direction below. Update this section when a phase exit gate changes;
+do not infer completion merely because a destination directory exists.
+
+### Executive assessment
+
+The refactor is **directionally aligned but not on track against the phased
+exit gates**. Useful bounded extractions have continued, especially under
+`chart_editor`, `database_view`, `transits`, and `settings`, but the prerequisite
+and ownership milestones have not been completed in order. `app.py` is still
+39,819 lines with 1,088 indented methods, and it still defines both legacy
+top-level window classes. The 5,000–8,000-line composition-root goal therefore
+remains distant.
+
+| Phase | Status | Audited evidence / remaining exit condition |
+| --- | --- | --- |
+| 0 — baselines and safeguards | **Partial** | Performance instrumentation and focused Database View/Chart Editor performance tests exist, as do many source-characterization tests. There is still no complete, reproducible baseline suite covering every workflow named by the exit gate, nor one maintained routing/lifecycle inventory. |
+| 1 — UID migration | **Advanced, not complete** | Important selection, hidden-chart, refresh, duplicate, ranking, and worker state is UID-owned and guarded by source tests. Numeric row IDs and ID-shaped workflow APIs remain throughout `app.py`, including chart-picking, composite-chart, export, similarities, and tool-routing paths. Persistence-boundary conversion is not yet consistently narrow. |
+| 2 — top-level windows | **Not started at the class boundary** | `ManageChartsDialog` and `MainWindow` remain defined in `app.py`; neither canonical window class nor `AppwideWindowCoordinator` exists. Tests still parse the legacy class names, so renaming requires a coordinated characterization-test update rather than an alias-only claim of completion. |
+| 3 — explicit interfaces | **Not complete** | Sentiment tally behavior is still borrowed at class level, and `install_chart_view_right_panel_callbacks` still attaches `MethodType` methods at runtime. Some newer controllers use narrow callbacks, showing the intended pattern, but the phase exit gate is unmet. |
+| 4 — core workflows | **Early/partial** | `ChartEditSession` and a callback-based `ChartEditorController` exist and are used incrementally. The session does not yet own the full lifecycle promised in section 6.1. The canonical Database Selection, recalculation policy/coordinator, Database Search query/evaluator/controller, and non-Qt web-profile service modules do not yet exist. |
+| 5 — legacy package replacement | **Partial extraction, no retirement** | Correct workflow packages are growing, but `gui/features/charts` still contains 80 Python modules and both generic controller staging modules remain. There is no appwide `chart_information` package. |
+| 6 — settings | **Partial** | `gui/settings/core.py` and `gui/settings/modules` now exist, but legacy settings implementations remain under `gui/` and `gui/features/settings`; additions should use the canonical home while touched legacy code is migrated deliberately. |
+| 7 — composition root | **Not started as an exit gate** | Imports and bounded helpers have moved out, but both primary windows and substantial workflow logic remain in `app.py`; it is not yet independently testable as a small composition root. |
+
+### What is safe to change or remove now
+
+- **Safe documentation cleanup:** keep this ledger current and replace stale
+  counts/evidence. Preserve the high-level structural goals above; section 3
+  supplies their concrete package mapping rather than superseding them.
+  Historical provenance in section 8 should remain until the two
+  workarounds it explains are actually retired; afterward it can move to Git
+  history or an implementation note.
+- **Safe code removal only after caller proof:** delete a compatibility alias,
+  borrowed method, runtime installer group, or legacy-ID adapter only in the
+  same bounded change that migrates all callers and updates its characterization
+  tests. The current audit does **not** establish any of those artifacts as
+  dead code.
+- **Safe forward work:** finish one UID-first workflow slice, then implement its
+  canonical owner behind a narrow interface. The lowest-risk next structural
+  slices are the Database Selection model/controller and completing
+  `ChartEditSession`, because both already have UID/state characterization
+  coverage to build on.
+- **Do not remove yet:** the legacy window classes, `MethodType` callback
+  installer, sentiment tally borrowing, `gui/features/charts`, or generic
+  controller modules. Each still has live callers or source tests and requires
+  staged replacement, not deletion.
+- **Do not weaken the gates:** the apparent out-of-order progress is not a
+  reason to drop UID, performance, unknown/rectified-time,
+  `chart_uses_houses`, stale-worker, or behavioral regression requirements.
+
+### Audit method
+
+The status above was established from the checked-out tree, not inferred from
+directory names: line/method counts of `gui/app.py`, exact class and callback
+references, existence checks for each canonical target module, package module
+counts, focused test inventory, and recent file history. Re-run those checks
+when updating the date or claiming a phase transition.
 
 ## 1. Mission
 

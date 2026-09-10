@@ -10,9 +10,18 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
+from ephemeraldaddy.core import db
 from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     ZODIAC_NAMES,
@@ -48,6 +57,47 @@ from ephemeraldaddy.gui.tooltips import (
 )
 
 
+class _RankingsTraitWorker(QObject):
+    """Populate one ranking trait's chart cache outside the GUI thread."""
+
+    progress = Signal(object, float)
+    finished = Signal(object, object)
+    failed = Signal(object, str)
+
+    def __init__(
+        self,
+        owner: Any,
+        token: object,
+        chart_uids: tuple[str, ...],
+        trait_items: list[dict[str, Any]],
+        trait_signature: tuple[tuple[str, str, str], ...],
+    ) -> None:
+        super().__init__()
+        self._owner = owner
+        self._token = token
+        self._chart_uids = chart_uids
+        self._trait_items = trait_items
+        self._trait_signature = trait_signature
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            result = self._owner._collect_traits_distribution_analytics_by_uids(
+                self._chart_uids,
+                trait_items=self._trait_items,
+                trait_signature=self._trait_signature,
+                time_budget_seconds=None,
+                progress_callback=lambda percent: self.progress.emit(
+                    self._token, percent
+                ),
+                should_cancel=QThread.currentThread().isInterruptionRequested,
+            )
+        except Exception as exc:
+            self.failed.emit(self._token, str(exc))
+            return
+        self.finished.emit(self._token, result)
+
+
 class RankingsPanelMixin:
     """Mixin that builds and refreshes the Database View Rankings panel."""
 
@@ -65,9 +115,14 @@ class RankingsPanelMixin:
 
         self._rankings_section_expanded = {"traits": True, "sign_dominance": True}
         # Rankings are derived from the complete database row set rather than
-        # the filtered/ordered rows rendered by ``_populate_list``.  Keep the
+        # the filtered/ordered rows rendered by ``_populate_list``. Keep the
         # initial refresh pending until the panel is actually visible.
         self._rankings_data_dirty = True
+        self._rankings_trait_visible_limits: dict[str, int] = {}
+        self._rankings_traits_sorted_order_cache: dict[
+            tuple[object, ...], tuple[int, tuple[dict[str, Any], ...]]
+        ] = {}
+        self._rankings_traits_last_parsed_percent = 0.0
         traits_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
@@ -101,9 +156,35 @@ class RankingsPanelMixin:
         )
         self.rankings_traits_label.setWordWrap(True)
         self.rankings_traits_label.setStyleSheet(
-            "color: #d8d8d8; padding: 2px 0 6px 0;"
+            "color: #d8d8d8; padding: 2px 0 6px 0; background: transparent;"
         )
-        traits_layout.addWidget(self.rankings_traits_label)
+        self.rankings_traits_scroll = QScrollArea()
+        self.rankings_traits_scroll.setWidgetResizable(True)
+        self.rankings_traits_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.rankings_traits_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.rankings_traits_scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+        )
+        self.rankings_traits_scroll.viewport().setStyleSheet("background: transparent;")
+        self.rankings_traits_scroll.setFixedHeight(24)
+        self.rankings_traits_scroll.setWidget(self.rankings_traits_label)
+        traits_layout.addWidget(self.rankings_traits_scroll)
+
+        trait_more_row = QWidget()
+        trait_more_row_layout = QHBoxLayout(trait_more_row)
+        trait_more_row_layout.setContentsMargins(0, 0, 0, 0)
+        trait_more_row_layout.setSpacing(6)
+        trait_more_row_layout.addStretch(1)
+        self.rankings_traits_more_button = QPushButton("show next 10")
+        self.rankings_traits_more_button.setToolTip(
+            "Append the next 10 already-scored charts to this trait ranking."
+        )
+        self.rankings_traits_more_button.clicked.connect(
+            self._on_rankings_traits_show_next_clicked
+        )
+        self.rankings_traits_more_button.setVisible(False)
+        trait_more_row_layout.addWidget(self.rankings_traits_more_button)
+        traits_layout.addWidget(trait_more_row)
 
         signs_layout = self._add_left_panel_collapsible_section(
             panel,
@@ -154,7 +235,9 @@ class RankingsPanelMixin:
             )
         )
         self.rankings_signs_label.setWordWrap(True)
-        self.rankings_signs_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
+        self.rankings_signs_label.setStyleSheet(
+            "color: #d8d8d8; padding: 2px 0 6px 0;"
+        )
         most_sign_layout.addWidget(self.rankings_signs_label)
 
         least_sign_layout = self._add_left_panel_collapsible_section(
@@ -243,6 +326,430 @@ class RankingsPanelMixin:
     @staticmethod
     def _normalize_rankings_chart_uid(raw_uid: object) -> str:
         return str(raw_uid or "").strip().upper()
+
+    def _rankings_trait_visible_limit(self, trait_name: str) -> int:
+        trait_name = str(trait_name or "").strip()
+        if not trait_name:
+            return 10
+        limits = getattr(self, "_rankings_trait_visible_limits", None)
+        if not isinstance(limits, dict):
+            limits = {}
+            self._rankings_trait_visible_limits = limits
+        try:
+            current_limit = int(limits.get(trait_name, 10))
+        except (TypeError, ValueError):
+            current_limit = 10
+        current_limit = max(10, current_limit)
+        limits[trait_name] = current_limit
+        return current_limit
+
+    def _sync_rankings_traits_scroll_height(self) -> None:
+        scroll = getattr(self, "rankings_traits_scroll", None)
+        label = getattr(self, "rankings_traits_label", None)
+        if not isinstance(scroll, QScrollArea) or not isinstance(label, QLabel):
+            return
+        viewport_width = max(1, int(scroll.viewport().width()))
+        label.setMinimumHeight(0)
+        try:
+            content_height = int(label.heightForWidth(viewport_width))
+        except (TypeError, ValueError):
+            content_height = int(label.sizeHint().height())
+        if content_height <= 0:
+            content_height = int(label.sizeHint().height())
+        content_height = max(24, content_height + 6)
+        label.setMinimumHeight(content_height)
+        scroll.setFixedHeight(min(400, content_height))
+
+    def _set_rankings_traits_html(self, rendered_html: str, *, has_more: bool) -> None:
+        label = getattr(self, "rankings_traits_label", None)
+        if not isinstance(label, QLabel):
+            return
+        scroll = getattr(self, "rankings_traits_scroll", None)
+        previous_scroll_value = 0
+        if isinstance(scroll, QScrollArea):
+            previous_scroll_value = int(scroll.verticalScrollBar().value())
+        label.setText(rendered_html)
+        more_button = getattr(self, "rankings_traits_more_button", None)
+        if isinstance(more_button, QPushButton):
+            more_button.setVisible(bool(has_more))
+
+        def _finish_layout() -> None:
+            self._sync_rankings_traits_scroll_height()
+            current_scroll = getattr(self, "rankings_traits_scroll", None)
+            if isinstance(current_scroll, QScrollArea):
+                bar = current_scroll.verticalScrollBar()
+                bar.setValue(min(previous_scroll_value, int(bar.maximum())))
+
+        QTimer.singleShot(0, _finish_layout)
+
+    def _rankings_traits_sorted_cache_key(
+        self,
+        *,
+        chart_uids: tuple[str, ...],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        selected_trait_name: str,
+        database_average_pct: float,
+    ) -> tuple[object, ...]:
+        hidden_chart_uids = tuple(
+            sorted(
+                self._normalize_rankings_chart_uid(chart_uid)
+                for chart_uid in getattr(self, "_hidden_chart_uids", set())
+                if self._normalize_rankings_chart_uid(chart_uid)
+            )
+        )
+        return (
+            int(getattr(self, "_database_metrics_cache_revision", 0)),
+            trait_signature,
+            selected_trait_name,
+            chart_uids,
+            hidden_chart_uids,
+            float(database_average_pct),
+        )
+
+    def _rehydrate_rankings_traits_cached_names(
+        self, rows: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Refresh cached presentation names by stable UID without rescoring rows."""
+        if not rows:
+            return []
+        chart_uids = tuple(
+            self._normalize_rankings_chart_uid(row.get("chart_uid", ""))
+            for row in rows
+            if self._normalize_rankings_chart_uid(row.get("chart_uid", ""))
+        )
+        chart_ids_by_uid = get_chart_ids_by_uid(chart_uids)
+        hydrated_rows: list[dict[str, Any]] = []
+        for row in rows:
+            hydrated_row = dict(row)
+            chart_uid = self._normalize_rankings_chart_uid(
+                hydrated_row.get("chart_uid", "")
+            )
+            chart_id = chart_ids_by_uid.get(chart_uid)
+            if chart_id is not None:
+                chart = self._get_chart_for_filter(int(chart_id))
+                if chart is not None and not self._is_placeholder_chart(chart):
+                    chart_name = str(
+                        getattr(chart, "name", "")
+                        or f"Chart {chart_uid or chart_id}"
+                    ).strip()
+                    hydrated_row["name"] = (
+                        chart_name or f"Chart {chart_uid or chart_id}"
+                    )
+            hydrated_rows.append(hydrated_row)
+        return hydrated_rows
+
+    @staticmethod
+    def _rankings_trait_score_token_is_current(
+        *,
+        chart_uid: str,
+        selected_trait_key: tuple[str, str, str],
+        chart_tokens: dict[str, str],
+        profile_token_cache: object,
+    ) -> bool:
+        """Return whether cached trait scores belong to the chart's current astro data."""
+        if not isinstance(profile_token_cache, dict):
+            return False
+        profile_cache_key = (selected_trait_key[2], chart_uid)
+        cached_chart_token = str(profile_token_cache.get(profile_cache_key, "") or "")
+        current_chart_token = str(chart_tokens.get(chart_uid, "") or "")
+        return bool(
+            cached_chart_token
+            and current_chart_token
+            and cached_chart_token == current_chart_token
+        )
+
+    def _rankings_traits_chart_rankings(
+        self,
+        *,
+        chart_uids: list[str] | set[str] | tuple[str, ...],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        selected_trait_name: str,
+        database_values: dict[str, float],
+        limit: int | None,
+        cache_complete: bool,
+    ) -> list[dict[str, Any]]:
+        """Return ranked cached trait scores without recalculating chart likelihoods."""
+        if not selected_trait_name:
+            return []
+        normalized_chart_uids = tuple(
+            sorted(
+                {
+                    self._normalize_rankings_chart_uid(chart_uid)
+                    for chart_uid in chart_uids
+                    if self._normalize_rankings_chart_uid(chart_uid)
+                }
+            )
+        )
+        db_average_pct = float(database_values.get(selected_trait_name, 0.0)) * 100.0
+        cache_key = self._rankings_traits_sorted_cache_key(
+            chart_uids=normalized_chart_uids,
+            trait_signature=trait_signature,
+            selected_trait_name=selected_trait_name,
+            database_average_pct=db_average_pct,
+        )
+        sorted_cache = getattr(self, "_rankings_traits_sorted_order_cache", None)
+        if not isinstance(sorted_cache, dict):
+            sorted_cache = {}
+            self._rankings_traits_sorted_order_cache = sorted_cache
+
+        cached_rows: tuple[dict[str, Any], ...] | None = None
+        changed_chart_uids: set[str] | None = None
+        if cache_complete:
+            cached_entry = sorted_cache.get(cache_key)
+            if (
+                isinstance(cached_entry, tuple)
+                and len(cached_entry) == 2
+                and isinstance(cached_entry[0], int)
+                and isinstance(cached_entry[1], tuple)
+            ):
+                cached_sequence = int(cached_entry[0])
+                cached_rows = cached_entry[1]
+                try:
+                    journal_changes = db.chart_changes_since(cached_sequence)
+                    latest_sequence = db.latest_chart_change_sequence()
+                except Exception:
+                    journal_changes = None
+                    latest_sequence = cached_sequence
+                if journal_changes is not None:
+                    normalized_scope_uids = set(normalized_chart_uids)
+                    changed_chart_uids = {
+                        self._normalize_rankings_chart_uid(change.get("chart_uid", ""))
+                        for change in journal_changes
+                        if bool(change.get("astro_data_changed", False))
+                        and self._normalize_rankings_chart_uid(change.get("chart_uid", ""))
+                        in normalized_scope_uids
+                    }
+                    if not changed_chart_uids:
+                        hydrated_rows = self._rehydrate_rankings_traits_cached_names(
+                            list(cached_rows)
+                        )
+                        hydrated_rows.sort(
+                            key=lambda row: (
+                                -float(row["likelihood"]),
+                                -float(row["deviation"]),
+                                str(row["name"]).casefold(),
+                            )
+                        )
+                        sorted_cache[cache_key] = (
+                            latest_sequence,
+                            tuple(hydrated_rows),
+                        )
+                        if limit is None:
+                            return hydrated_rows
+                        return hydrated_rows[: max(0, int(limit))]
+
+        chart_ids_by_uid = get_chart_ids_by_uid(normalized_chart_uids)
+        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        likelihood_cache = getattr(
+            self, "_traits_distribution_chart_likelihood_cache", None
+        )
+        if not isinstance(likelihood_cache, dict):
+            return []
+        selected_trait_key = next(
+            (
+                trait_key
+                for trait_key in trait_signature
+                if trait_key[0] == selected_trait_name
+            ),
+            None,
+        )
+        if selected_trait_key is None:
+            return []
+        individual_cache = getattr(
+            self, "_traits_distribution_individual_likelihood_cache", None
+        )
+        profile_cache = getattr(
+            self, "_traits_distribution_individual_profile_likelihood_cache", None
+        )
+        profile_token_cache = getattr(
+            self, "_traits_distribution_individual_profile_token_cache", None
+        )
+        if cached_rows is not None and changed_chart_uids:
+            # The Database View rows have already been refreshed at this point,
+            # but the deferred metrics path may not have cleared trait caches yet.
+            # Force current UID-keyed birth-data tokens so a changed chart cannot
+            # repair the completed ranking from its pre-edit score.
+            self._traits_distribution_chart_token_cache = None
+        chart_tokens = self._traits_distribution_chart_tokens()
+        chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
+        hidden_chart_uids = {
+            self._normalize_rankings_chart_uid(chart_uid)
+            for chart_uid in getattr(self, "_hidden_chart_uids", set())
+        }
+        unresolved_changed_uids: set[str] = set()
+        if cached_rows is not None and changed_chart_uids:
+            rows = self._rehydrate_rankings_traits_cached_names(
+                [
+                    dict(row)
+                    for row in cached_rows
+                    if self._normalize_rankings_chart_uid(row.get("chart_uid", ""))
+                    not in changed_chart_uids
+                ]
+            )
+            ranking_chart_uids = tuple(
+                chart_uid
+                for chart_uid in normalized_chart_uids
+                if chart_uid in changed_chart_uids
+            )
+        else:
+            rows: list[dict[str, Any]] = []
+            ranking_chart_uids = normalized_chart_uids
+        for chart_uid in ranking_chart_uids:
+            if chart_uid in hidden_chart_uids:
+                continue
+            chart_id = chart_ids_by_uid.get(chart_uid)
+            if chart_id is None:
+                continue
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            resolved_chart_uid = chart_uid_by_id.get(int(chart_id), "")
+            if not resolved_chart_uid or resolved_chart_uid != chart_uid:
+                continue
+            score_token_is_current = self._rankings_trait_score_token_is_current(
+                chart_uid=chart_uid,
+                selected_trait_key=selected_trait_key,
+                chart_tokens=chart_tokens,
+                profile_token_cache=profile_token_cache,
+            )
+            if not score_token_is_current:
+                if changed_chart_uids and chart_uid in changed_chart_uids:
+                    unresolved_changed_uids.add(chart_uid)
+                continue
+            chart_cache_key = (cache_revision, trait_signature, chart_uid)
+            likelihoods = likelihood_cache.get(chart_cache_key)
+            cached_likelihood: object | None = None
+            if isinstance(likelihoods, dict):
+                cached_likelihood = likelihoods.get(selected_trait_name)
+            if cached_likelihood is None and isinstance(individual_cache, dict):
+                cached_likelihood = individual_cache.get((selected_trait_key, chart_uid))
+            if cached_likelihood is None and isinstance(profile_cache, dict):
+                cached_likelihood = profile_cache.get((selected_trait_key[2], chart_uid))
+            if cached_likelihood is None:
+                continue
+            try:
+                likelihood = float(cached_likelihood)
+            except (TypeError, ValueError):
+                continue
+            chart_name = str(
+                getattr(chart, "name", "") or f"Chart {chart_uid or chart_id}"
+            ).strip()
+            rows.append(
+                {
+                    "chart_uid": chart_uid,
+                    "name": chart_name or f"Chart {chart_uid or chart_id}",
+                    "likelihood": likelihood,
+                    "deviation": likelihood - db_average_pct,
+                }
+            )
+        rows.sort(
+            key=lambda row: (
+                -float(row["likelihood"]),
+                -float(row["deviation"]),
+                str(row["name"]).casefold(),
+            )
+        )
+        if cache_complete and unresolved_changed_uids:
+            # A chart changed after the caller's completeness check. Never
+            # advance the journal sequence past an unresolved stale score.
+            for chart_uid in unresolved_changed_uids:
+                likelihood_cache.pop(
+                    (cache_revision, trait_signature, chart_uid), None
+                )
+                if isinstance(individual_cache, dict):
+                    individual_cache.pop((selected_trait_key, chart_uid), None)
+            self._traits_distribution_analytics_cache = {}
+            QTimer.singleShot(0, lambda: self._refresh_rankings_panel({"traits"}))
+            if limit is None:
+                return rows
+            return rows[: max(0, int(limit))]
+        if cache_complete:
+            try:
+                cache_sequence = db.latest_chart_change_sequence()
+            except Exception:
+                cache_sequence = 0
+            sorted_cache[cache_key] = (cache_sequence, tuple(rows))
+            while len(sorted_cache) > 16:
+                sorted_cache.pop(next(iter(sorted_cache)))
+        if limit is None:
+            return rows
+        return rows[: max(0, int(limit))]
+
+    def _rankings_traits_rows_for_display(
+        self,
+        *,
+        chart_uids: list[str] | set[str] | tuple[str, ...],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        selected_trait_name: str,
+        database_values: dict[str, float],
+        cache_complete: bool,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        visible_limit = self._rankings_trait_visible_limit(selected_trait_name)
+        candidate_rows = self._rankings_traits_chart_rankings(
+            chart_uids=chart_uids,
+            trait_signature=trait_signature,
+            selected_trait_name=selected_trait_name,
+            database_values=database_values,
+            limit=visible_limit + 1,
+            cache_complete=cache_complete,
+        )
+        return candidate_rows[:visible_limit], len(candidate_rows) > visible_limit
+
+    def _render_rankings_traits_html(
+        self,
+        selected_trait_name: str | None,
+        rankings: list[dict[str, Any]],
+        *,
+        cache_warmed: bool,
+        parsed_percent: float | None,
+    ) -> str:
+        rendered = self._render_traits_distribution_rankings_html(
+            selected_trait_name,
+            rankings,
+            scope_label="the database",
+            cache_warmed=cache_warmed,
+            parsed_percent=parsed_percent,
+        )
+        if selected_trait_name and rankings and len(rankings) != 10:
+            rendered = rendered.replace(
+                "Top 10 <b>", f"Top {len(rankings)} <b>", 1
+            )
+        return rendered
+
+    def _on_rankings_traits_show_next_clicked(self) -> None:
+        combo = getattr(self, "rankings_trait_combo", None)
+        if not isinstance(combo, QComboBox):
+            return
+        selected_trait_name = str(combo.currentData() or "").strip()
+        if not selected_trait_name:
+            return
+        limits = getattr(self, "_rankings_trait_visible_limits", None)
+        if not isinstance(limits, dict):
+            limits = {}
+            self._rankings_trait_visible_limits = limits
+        limits[selected_trait_name] = (
+            self._rankings_trait_visible_limit(selected_trait_name) + 10
+        )
+
+        active_job = getattr(self, "_rankings_traits_active_job", None)
+        token = getattr(self, "_rankings_traits_worker_token", None)
+        if active_job is not None and token is not None:
+            active_thread = active_job[0]
+            if (
+                isinstance(active_thread, QThread)
+                and active_thread.isRunning()
+                and str(token[0]) == selected_trait_name
+            ):
+                self._rankings_traits_last_live_progress_key = None
+                self._on_rankings_trait_progress(
+                    token,
+                    float(
+                        getattr(self, "_rankings_traits_last_parsed_percent", 0.0)
+                        or 0.0
+                    ),
+                )
+                return
+        self._refresh_rankings_panel({"traits"})
 
     def _rankings_database_chart_uids(self) -> set[str]:
         """Return current database chart UIDs from live dialog rows, not stale metrics cache."""
@@ -377,14 +884,14 @@ class RankingsPanelMixin:
             self, "rankings_traits_label"
         ):
             return
-        self.rankings_traits_label.setText(
-            self._render_traits_distribution_rankings_html(
+        self._set_rankings_traits_html(
+            self._render_rankings_traits_html(
                 None,
                 [],
-                scope_label="the database",
                 cache_warmed=True,
                 parsed_percent=100.0,
-            )
+            ),
+            has_more=False,
         )
 
     def _rankings_trait_likelihood_cache_complete(
@@ -432,94 +939,324 @@ class RankingsPanelMixin:
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
-        journal_backed_cache = bool(
-            int(
-                getattr(
-                    self, "_traits_distribution_likelihood_cache_change_sequence", 0
-                )
-                or 0
-            )
-        )
-        chart_tokens: dict[str, str] | None = None
+        # _refresh_charts can replace birth data before its deferred metrics pass
+        # clears trait caches. Rebuild fingerprints now so cache completeness is
+        # based on current UID-bound astro data, not the ordering of those calls.
+        self._traits_distribution_chart_token_cache = None
+        chart_tokens = self._traits_distribution_chart_tokens()
+        cache_complete = True
+        purged_stale_score = False
         for chart_id, chart_uid in sorted(chart_uids_by_id.items()):
             chart_uid = self._normalize_rankings_chart_uid(chart_uid)
             if not chart_uid or chart_uid in hidden_chart_uids:
                 continue
-            chart_cache_key = (cache_revision, trait_signature, chart_uid)
-            if isinstance(likelihood_cache, dict):
-                likelihoods = likelihood_cache.get(chart_cache_key)
-                if isinstance(likelihoods, dict) and selected_trait_name in likelihoods:
-                    continue
-
-            if (
-                isinstance(individual_cache, dict)
-                and (selected_trait_key, chart_uid) in individual_cache
-            ):
-                continue
-
-            if isinstance(profile_cache, dict) and isinstance(
-                profile_token_cache, dict
-            ):
-                profile_cache_key = (selected_trait_key[2], chart_uid)
-                if journal_backed_cache and profile_cache_key in profile_cache:
-                    continue
-                cached_chart_token = str(
-                    profile_token_cache.get(profile_cache_key, "") or ""
-                )
-                if chart_tokens is None:
-                    chart_tokens = self._traits_distribution_chart_tokens()
-                current_chart_token = chart_tokens.get(chart_uid)
-                if (
-                    cached_chart_token
-                    and cached_chart_token == current_chart_token
-                    and profile_cache_key in profile_cache
-                ):
-                    continue
-
             chart = self._get_chart_for_filter(chart_id)
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            return False
-        return True
+            chart_cache_key = (cache_revision, trait_signature, chart_uid)
+            individual_cache_key = (selected_trait_key, chart_uid)
+            profile_cache_key = (selected_trait_key[2], chart_uid)
+            score_token_is_current = self._rankings_trait_score_token_is_current(
+                chart_uid=chart_uid,
+                selected_trait_key=selected_trait_key,
+                chart_tokens=chart_tokens,
+                profile_token_cache=profile_token_cache,
+            )
+            if not score_token_is_current:
+                if isinstance(likelihood_cache, dict) and chart_cache_key in likelihood_cache:
+                    likelihood_cache.pop(chart_cache_key, None)
+                    purged_stale_score = True
+                if isinstance(individual_cache, dict) and individual_cache_key in individual_cache:
+                    individual_cache.pop(individual_cache_key, None)
+                    purged_stale_score = True
+                cache_complete = False
+                continue
 
-    def _schedule_rankings_traits_continuation(self, selected_trait_name: str) -> None:
-        """Continue an incomplete trait ranking without blocking the UI thread.
-
-        The analytics collector deliberately observes a time budget.  A Rankings
-        refresh used to consume one budget and then simply leave the partial
-        result on screen forever.  Keep asking it for another small slice; the
-        per-chart cache makes every slice resume at the first missing chart.
-        """
-        token = (
-            str(selected_trait_name or ""),
-            int(getattr(self, "_database_metrics_cache_revision", 0)),
-        )
-        self._rankings_traits_continuation_token = token
-
-        def continue_ranking() -> None:
-            if getattr(self, "_rankings_traits_continuation_token", None) != token:
-                return
-            combo = getattr(self, "rankings_trait_combo", None)
+            has_cached_score = False
+            if isinstance(likelihood_cache, dict):
+                likelihoods = likelihood_cache.get(chart_cache_key)
+                has_cached_score = bool(
+                    isinstance(likelihoods, dict)
+                    and selected_trait_name in likelihoods
+                )
             if (
-                not isinstance(combo, QComboBox)
-                or str(combo.currentData() or "") != token[0]
+                not has_cached_score
+                and isinstance(individual_cache, dict)
+                and individual_cache_key in individual_cache
             ):
-                return
-            rankings_visible = getattr(
-                self, "_active_left_panel", None
-            ) == "rankings" and bool(getattr(self, "_left_panel_visible", False))
-            is_collapsed = getattr(self, "_is_left_panel_collapsed", None)
-            if callable(is_collapsed) and is_collapsed():
-                rankings_visible = False
-            if not rankings_visible:
-                # The queued callback is the only continuation for this partial
-                # pass.  Preserve it as dirty work so showing Rankings again
-                # restarts warmup through _refresh_visible_rankings_sections.
-                self._rankings_data_dirty = True
-                return
-            self._refresh_rankings_panel({"traits"})
+                has_cached_score = True
+            if (
+                not has_cached_score
+                and isinstance(profile_cache, dict)
+                and profile_cache_key in profile_cache
+            ):
+                has_cached_score = True
+            if not has_cached_score:
+                cache_complete = False
 
-        QTimer.singleShot(0, continue_ranking)
+        if purged_stale_score:
+            # The shared collector's aggregate cache can otherwise short-circuit
+            # before it reaches the now-missing UID score and recalculates it.
+            self._traits_distribution_analytics_cache = {}
+        return cache_complete
+
+    def _start_rankings_trait_worker(
+        self,
+        selected_trait_name: str,
+        database_chart_uids: tuple[str, ...],
+        trait_items: list[dict[str, Any]],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        snapshot_database_values: dict[str, float],
+    ) -> None:
+        """Run the formerly timer-sliced scoring collector in one worker thread."""
+        chart_tokens = self._traits_distribution_chart_tokens()
+        authoritative_chart_state = tuple(
+            (chart_uid, str(chart_tokens.get(chart_uid, "") or ""))
+            for chart_uid in database_chart_uids
+        )
+        norm_state = tuple(sorted(snapshot_database_values.items()))
+        job_key = (
+            selected_trait_name,
+            int(getattr(self, "_database_metrics_cache_revision", 0)),
+            database_chart_uids,
+            authoritative_chart_state,
+            trait_signature,
+            norm_state,
+        )
+        active_job = getattr(self, "_rankings_traits_active_job", None)
+        if active_job is not None:
+            active_thread, _active_worker, active_token = active_job
+            if isinstance(active_thread, QThread) and active_thread.isRunning():
+                if (
+                    active_token[:-1] == job_key
+                    and not active_thread.isInterruptionRequested()
+                ):
+                    self._rankings_traits_worker_token = active_token
+                    self._rankings_traits_worker_context = dict(
+                        snapshot_database_values
+                    )
+                    return
+                sequence = int(
+                    getattr(self, "_rankings_traits_worker_sequence", 0)
+                ) + 1
+                self._rankings_traits_worker_sequence = sequence
+                token = (*job_key, sequence)
+                self._rankings_traits_worker_token = token
+                self._rankings_traits_pending_job = (
+                    token,
+                    database_chart_uids,
+                    trait_items,
+                    trait_signature,
+                    snapshot_database_values,
+                )
+                active_thread.requestInterruption()
+                return
+            self._on_rankings_trait_thread_stopped()
+            if getattr(self, "_rankings_traits_active_job", None) is not None:
+                return
+
+        sequence = int(getattr(self, "_rankings_traits_worker_sequence", 0)) + 1
+        self._rankings_traits_worker_sequence = sequence
+        token = (*job_key, sequence)
+        self._rankings_traits_worker_token = token
+        self._rankings_traits_worker_context = dict(snapshot_database_values)
+        self._rankings_traits_last_parsed_percent = 0.0
+        self._launch_rankings_trait_worker(
+            token, database_chart_uids, trait_items, trait_signature
+        )
+
+    def _launch_rankings_trait_worker(
+        self,
+        token: object,
+        database_chart_uids: tuple[str, ...],
+        trait_items: list[dict[str, Any]],
+        trait_signature: tuple[tuple[str, str, str], ...],
+    ) -> None:
+        thread = QThread(self if isinstance(self, QObject) else None)
+        worker = _RankingsTraitWorker(
+            self, token, database_chart_uids, trait_items, trait_signature
+        )
+        self._rankings_traits_active_job = (thread, worker, token)
+        jobs = getattr(self, "_rankings_traits_worker_jobs", None)
+        if not isinstance(jobs, list):
+            jobs = []
+            self._rankings_traits_worker_jobs = jobs
+        jobs.append((thread, worker, token))
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.progress.connect(self._on_rankings_trait_progress, Qt.QueuedConnection)
+        worker.finished.connect(self._on_rankings_trait_finished, Qt.QueuedConnection)
+        worker.failed.connect(self._on_rankings_trait_failed, Qt.QueuedConnection)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.failed.connect(worker.deleteLater)
+        thread.finished.connect(
+            self._on_rankings_trait_thread_stopped, Qt.QueuedConnection
+        )
+        thread.start()
+
+    @Slot()
+    def _on_rankings_trait_thread_stopped(self) -> None:
+        active_job = getattr(self, "_rankings_traits_active_job", None)
+        if active_job is None:
+            return
+        thread, _worker, _token = active_job
+        if thread.isRunning():
+            return
+        jobs = getattr(self, "_rankings_traits_worker_jobs", [])
+        if active_job in jobs:
+            jobs.remove(active_job)
+        self._rankings_traits_active_job = None
+        thread.deleteLater()
+        pending = getattr(self, "_rankings_traits_pending_job", None)
+        self._rankings_traits_pending_job = None
+        if pending is None:
+            return
+        token, chart_uids, trait_items, trait_signature, snapshot_values = pending
+        if token != getattr(self, "_rankings_traits_worker_token", None):
+            return
+        self._rankings_traits_worker_context = dict(snapshot_values)
+        self._rankings_traits_last_parsed_percent = 0.0
+        self._launch_rankings_trait_worker(
+            token, chart_uids, trait_items, trait_signature
+        )
+
+    def _stop_rankings_trait_worker(self, wait_msecs: int | None = None) -> None:
+        """Stop cache population before the Database View owner is destroyed."""
+        self._rankings_traits_worker_token = None
+        self._rankings_traits_pending_job = None
+        jobs = list(getattr(self, "_rankings_traits_worker_jobs", []))
+        for thread, _worker, _token in jobs:
+            if isinstance(thread, QThread) and thread.isRunning():
+                thread.requestInterruption()
+                thread.quit()
+        for thread, _worker, _token in jobs:
+            if not isinstance(thread, QThread) or not thread.isRunning():
+                continue
+            if wait_msecs is None:
+                thread.wait()
+            else:
+                thread.wait(max(0, int(wait_msecs)))
+
+    def _rankings_trait_snapshot_database_values(
+        self,
+        *,
+        selected_trait_name: str,
+    ) -> dict[str, float]:
+        """Return the selected stored DB norm used by the active ranking worker."""
+        snapshot_values = getattr(self, "_rankings_traits_worker_context", {})
+        if isinstance(snapshot_values, dict) and selected_trait_name in snapshot_values:
+            try:
+                return {
+                    selected_trait_name: float(snapshot_values[selected_trait_name])
+                }
+            except (TypeError, ValueError):
+                return {}
+        return {}
+
+    @Slot(object, float)
+    def _on_rankings_trait_progress(self, token: object, parsed_percent: float) -> None:
+        if token != getattr(self, "_rankings_traits_worker_token", None):
+            return
+        try:
+            parsed_value = max(0.0, min(100.0, float(parsed_percent)))
+        except (TypeError, ValueError):
+            parsed_value = 0.0
+        self._rankings_traits_last_parsed_percent = parsed_value
+        progress_key = (token, int(parsed_value))
+        if (
+            progress_key
+            == getattr(self, "_rankings_traits_last_live_progress_key", None)
+            and parsed_value < 100.0
+        ):
+            return
+
+        trait_name = str(token[0])
+        chart_uids = tuple(token[2])
+        trait_signature = token[4]
+        database_values = self._rankings_trait_snapshot_database_values(
+            selected_trait_name=trait_name,
+        )
+        if trait_name not in database_values:
+            safe_trait = html.escape(trait_name)
+            self._set_rankings_traits_html(
+                "<span style='color:#ffb3b3;'>Stored DB norm unavailable for "
+                f"<b>{safe_trait}</b>. Generate or refresh this trait's DB Norms in Settings before ranking.</span>",
+                has_more=False,
+            )
+            return
+        rankings, has_more = self._rankings_traits_rows_for_display(
+            chart_uids=chart_uids,
+            trait_signature=trait_signature,
+            selected_trait_name=trait_name,
+            database_values=database_values,
+            cache_complete=False,
+        )
+        if rankings:
+            self._rankings_traits_last_live_progress_key = progress_key
+            self._set_rankings_traits_html(
+                self._render_rankings_traits_html(
+                    trait_name,
+                    rankings,
+                    cache_warmed=False,
+                    parsed_percent=parsed_value,
+                ),
+                has_more=has_more,
+            )
+            return
+
+        safe_trait = html.escape(trait_name)
+        self._set_rankings_traits_html(
+            f"<span style='color:#9a9a9a;'>Calculating top chart matches for "
+            f"<b>{safe_trait}</b>… {parsed_value:.0f}% of DB parsed.</span>",
+            has_more=False,
+        )
+
+    @Slot(object, object)
+    def _on_rankings_trait_finished(self, token: object, result: object) -> None:
+        if token != getattr(self, "_rankings_traits_worker_token", None):
+            return
+        trait_name = str(token[0])
+        trait_signature = token[4]
+        database_values = self._rankings_trait_snapshot_database_values(
+            selected_trait_name=trait_name,
+        )
+        if trait_name not in database_values:
+            safe_trait = html.escape(trait_name)
+            self._set_rankings_traits_html(
+                "<span style='color:#ffb3b3;'>Stored DB norm unavailable for "
+                f"<b>{safe_trait}</b>. Generate or refresh this trait's DB Norms in Settings before ranking.</span>",
+                has_more=False,
+            )
+            return
+        chart_uids = self._rankings_database_chart_uids()
+        rankings, has_more = self._rankings_traits_rows_for_display(
+            chart_uids=chart_uids,
+            trait_signature=trait_signature,
+            selected_trait_name=trait_name,
+            database_values=database_values,
+            cache_complete=True,
+        )
+        self._rankings_traits_last_parsed_percent = 100.0
+        self._set_rankings_traits_html(
+            self._render_rankings_traits_html(
+                trait_name,
+                rankings,
+                cache_warmed=True,
+                parsed_percent=100.0,
+            ),
+            has_more=has_more,
+        )
+
+    @Slot(object, str)
+    def _on_rankings_trait_failed(self, token: object, message: str) -> None:
+        if token != getattr(self, "_rankings_traits_worker_token", None):
+            return
+        self._set_rankings_traits_html(
+            f"<span style='color:#ffb3b3;'>Trait ranking failed: {html.escape(message)}</span>",
+            has_more=False,
+        )
 
     def _refresh_rankings_panel(self, sections: set[str] | None = None) -> None:
         if not hasattr(self, "rankings_traits_label"):
@@ -544,8 +1281,8 @@ class RankingsPanelMixin:
         trait_items = list_traits(active_only=True)
         # Ranking one trait must not warm every active trait for every chart.
         # Besides doing unnecessary work, that made an 8-second partial pass
-        # advance only a few charts.  A one-trait signature is independently
-        # cacheable and is sufficient both for ranking and its DB comparison.
+        # advance only a few charts. A one-trait signature is independently
+        # cacheable; its comparison baseline always comes from stored DB Norms.
         ranking_trait_items = (
             [
                 trait
@@ -557,71 +1294,55 @@ class RankingsPanelMixin:
         )
         trait_signature = self._traits_distribution_signature(ranking_trait_items)
         database_values: dict[str, float] = {}
-        snapshot_database_values: dict[str, float] = {}
         cache_warmed = False
         parsed_percent: float | None = 100.0
         if selected_trait_name:
-            requested_trait_names = {selected_trait_name}
             try:
                 snapshot_averages = trait_snapshot_averages(ranking_trait_items)
             except Exception:
                 snapshot_averages = {}
-            if requested_trait_names and requested_trait_names.issubset(
-                set(snapshot_averages)
+            if selected_trait_name not in snapshot_averages:
+                self._stop_rankings_trait_worker(wait_msecs=0)
+                safe_trait = html.escape(selected_trait_name)
+                self._set_rankings_traits_html(
+                    "<span style='color:#ffb3b3;'>Stored DB norm unavailable for "
+                    f"<b>{safe_trait}</b>. Generate or refresh this trait's DB Norms in Settings before ranking.</span>",
+                    has_more=False,
+                )
+                if "sign_dominance" in requested_sections:
+                    self._refresh_sign_dominance_rankings(database_chart_ids)
+                return
+            database_values = {
+                selected_trait_name: float(snapshot_averages[selected_trait_name]) / 100.0
+            }
+            if not isinstance(
+                getattr(self, "_traits_distribution_chart_likelihood_cache", None),
+                dict,
             ):
-                database_values = {
-                    name: float(snapshot_averages[name]) / 100.0
-                    for name in requested_trait_names
-                }
-                snapshot_database_values = dict(database_values)
-                cache_warmed = True
-                parsed_percent = 100.0
-                if not isinstance(
-                    getattr(self, "_traits_distribution_chart_likelihood_cache", None),
-                    dict,
-                ):
-                    self._load_traits_distribution_likelihood_cache()
-                if not self._rankings_trait_likelihood_cache_complete(
-                    chart_uids_by_id=self._traits_distribution_chart_uid_by_id(),
-                    trait_signature=trait_signature,
-                    selected_trait_name=selected_trait_name,
-                ):
-                    database_values = {}
-                    cache_warmed = False
-            if not database_values:
-                database_analytics = self._collect_traits_distribution_analytics(
-                    database_chart_ids,
-                    trait_items=ranking_trait_items,
-                    trait_signature=trait_signature,
-                    # Yield frequently so the progress text and the rest of the
-                    # application remain responsive while a cold cache warms.
-                    time_budget_seconds=0.1,
+                self._load_traits_distribution_likelihood_cache()
+            cache_warmed = self._rankings_trait_likelihood_cache_complete(
+                chart_uids_by_id=self._traits_distribution_chart_uid_by_id(),
+                trait_signature=trait_signature,
+                selected_trait_name=selected_trait_name,
+            )
+            if not cache_warmed:
+                parsed_percent = 0.0
+                self._start_rankings_trait_worker(
+                    selected_trait_name,
+                    tuple(sorted(database_chart_uids)),
+                    ranking_trait_items,
+                    trait_signature,
+                    dict(database_values),
                 )
-                database_count = max(0, int(database_analytics.get("chart_count", 0)))
-                totals = database_analytics.get("totals", {})
-                names = list(database_analytics.get("trait_names", []))
-                database_values = {
-                    name: (
-                        float(totals.get(name, 0.0)) / float(database_count)
-                        if database_count
-                        else 0.0
-                    )
-                    for name in names
-                }
-                # Norms define the comparison baseline.  The local collector is
-                # invoked here only to populate missing per-chart scores.
-                if snapshot_database_values:
-                    database_values = snapshot_database_values
-                cache_warmed = database_count > 0 and not bool(
-                    database_analytics.get("partial", False)
+                self._on_rankings_trait_progress(
+                    getattr(self, "_rankings_traits_worker_token", None), 0.0
                 )
-                parsed_percent = database_analytics.get("parsed_percent", 100.0)
-                if bool(database_analytics.get("partial", False)):
-                    self._schedule_rankings_traits_continuation(selected_trait_name)
-                else:
-                    self._rankings_traits_continuation_token = None
-            else:
-                self._rankings_traits_continuation_token = None
+                if "sign_dominance" in requested_sections:
+                    self._refresh_sign_dominance_rankings(database_chart_ids)
+                return
+            self._stop_rankings_trait_worker(wait_msecs=0)
+        else:
+            self._stop_rankings_trait_worker(wait_msecs=0)
         database_chart_uids = tuple(
             sorted(
                 str(chart_uid).strip().upper()
@@ -629,20 +1350,21 @@ class RankingsPanelMixin:
                 if str(chart_uid or "").strip()
             )
         )
-        trait_rankings = self._traits_distribution_chart_rankings(
+        trait_rankings, has_more = self._rankings_traits_rows_for_display(
             chart_uids=database_chart_uids,
             trait_signature=trait_signature,
             selected_trait_name=selected_trait_name or "",
             database_values=database_values,
+            cache_complete=cache_warmed,
         )
-        self.rankings_traits_label.setText(
-            self._render_traits_distribution_rankings_html(
+        self._set_rankings_traits_html(
+            self._render_rankings_traits_html(
                 selected_trait_name,
                 trait_rankings,
-                scope_label="the database",
                 cache_warmed=cache_warmed,
                 parsed_percent=parsed_percent,
-            )
+            ),
+            has_more=has_more,
         )
         if "sign_dominance" in requested_sections:
             self._refresh_sign_dominance_rankings(database_chart_ids)
@@ -715,9 +1437,13 @@ class RankingsPanelMixin:
             return
         selected_sign = str(combo.currentText() or "").strip()
         if selected_sign not in ZODIAC_NAMES:
-            label.setText("<span style='color:#9a9a9a;'>Select a sign to rank chart dominance.</span>")
+            label.setText(
+                "<span style='color:#9a9a9a;'>Select a sign to rank chart dominance.</span>"
+            )
             return
-        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in database_chart_ids}))
+        normalized_chart_ids = tuple(
+            sorted({int(chart_id) for chart_id in database_chart_ids})
+        )
         stored_weights = load_dominant_sign_weights(list(normalized_chart_ids))
         chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)
         rows: list[dict[str, Any]] = []
@@ -731,7 +1457,9 @@ class RankingsPanelMixin:
         db_count = 0
         cache = getattr(self, "_database_metrics_cache", None)
         if isinstance(cache, dict):
-            total_weight = float(cache.get("dominant_sign_total_weight", 0.0) or 0.0)
+            total_weight = float(
+                cache.get("dominant_sign_total_weight", 0.0) or 0.0
+            )
             totals = cache.get("dominant_sign_totals", {})
             if total_weight:
                 db_average = float(totals.get(selected_sign, 0.0)) / total_weight
@@ -776,7 +1504,8 @@ class RankingsPanelMixin:
                 {
                     "chart_uid": chart_uid,
                     "name": str(
-                        getattr(chart, "name", "") or f"Chart {chart_uid or chart_id}"
+                        getattr(chart, "name", "")
+                        or f"Chart {chart_uid or chart_id}"
                     ),
                     "value": normalized_value if least else value,
                     "total_weight": chart_total_weight,
@@ -850,7 +1579,9 @@ class RankingsPanelMixin:
                 ),
             )
             for row in sign_ranked_rows[:20]:
-                chart_key = str(row.get("chart_uid") or row.get("name") or "").strip()
+                chart_key = str(
+                    row.get("chart_uid") or row.get("name") or ""
+                ).strip()
                 if chart_key:
                     sign_top_20_memberships.setdefault(chart_key, []).append(sign)
 
@@ -872,10 +1603,15 @@ class RankingsPanelMixin:
         table_rows = []
         for rank, row in enumerate(rows[:display_limit], start=1):
             chart_uid = html.escape(str(row.get("chart_uid", "") or ""))
-            chart_key = str(row.get("chart_uid") or row.get("name") or "").strip()
+            chart_key = str(
+                row.get("chart_uid") or row.get("name") or ""
+            ).strip()
             name = html.escape(str(row["name"]))
             name_style = html.escape(
-                str(row.get("name_style") or "color:#f0f0f0; text-decoration:none"),
+                str(
+                    row.get("name_style")
+                    or "color:#f0f0f0; text-decoration:none"
+                ),
                 quote=True,
             )
             glyph_html = ""

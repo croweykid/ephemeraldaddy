@@ -58,6 +58,7 @@ class NonastralPatch(TypedDict, total=False):
     negative_sentiment_intensity: int | None
     familiarity: int | None
     alignment_score: int | None
+    cultural_contribution_score: int | None
     sexiness_score: int
     matched_expectations: int
     familiarity_factors: list[str]
@@ -193,6 +194,7 @@ NONASTRAL_DATA = frozenset(
         "negative_sentiment_intensity",
         "familiarity",
         "alignment_score",
+        "cultural_contribution_score",
         "sexiness_score",
         "matched_expectations",
         "familiarity_factors",

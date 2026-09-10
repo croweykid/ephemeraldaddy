@@ -8,7 +8,7 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import QLabel, QSizePolicy
 
 
-PREDICTION_CALCULATE_PROMPT = "No prior data. Calculate (can take awhile)?"
+PREDICTION_CALCULATE_PROMPT = "No prior data. Calculate?"
 
 
 _LOADING_TIMER_ATTR = "_ephemeraldaddy_loading_blink_timer"

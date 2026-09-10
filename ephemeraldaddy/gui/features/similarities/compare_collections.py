@@ -78,7 +78,7 @@ class CompareCollectionsDialog(QDialog):
                 self._custom_collections.values(), key=lambda item: item.name.casefold()
             )
         ]
-        self.setWindowTitle("Compare-Contrast Collections")
+        self.setWindowTitle("🆚Compare-Contrast Collections") #🆚 or ⇄ icon
         self.resize(1050, 650)
         layout = QVBoxLayout(self)
         intro = QLabel(
@@ -128,6 +128,7 @@ class CompareCollectionsDialog(QDialog):
         self.result_column_layouts: list[QVBoxLayout] = []
         self.export_buttons: list[QPushButton] = []
         self._trait_export_sections = [(), (), ()]
+        self._trait_export_sample_uids: list[tuple[str, ...]] = [(), (), ()]
         for column_index in range(3):
             column = QVBoxLayout()
             export_button = QPushButton("Export Trait Profile", self)
@@ -237,6 +238,8 @@ class CompareCollectionsDialog(QDialog):
         )
         charts_a, omitted_a = filter_aggregable_charts(collection_members_a)
         charts_b, omitted_b = filter_aggregable_charts(collection_members_b)
+        uids_a = self._uids_for_charts(charts_a, charts_by_uid)
+        uids_b = self._uids_for_charts(charts_b, charts_by_uid)
         database_population, omitted_database = filter_aggregable_charts(
             charts_by_uid.values()
         )
@@ -334,6 +337,7 @@ class CompareCollectionsDialog(QDialog):
                 database_known,
                 cohort_size=total_a,
             ),
+            sample_uids=uids_a,
         )
         self._set_export_column(
             1,
@@ -345,6 +349,7 @@ class CompareCollectionsDialog(QDialog):
                 database_known,
                 cohort_size=total_a + total_b,
             ),
+            sample_uids=tuple(sorted(set(uids_a) | set(uids_b))),
         )
         self._set_export_column(
             2,
@@ -356,14 +361,39 @@ class CompareCollectionsDialog(QDialog):
                 database_known,
                 cohort_size=total_b,
             ),
+            sample_uids=uids_b,
         )
 
-    def _set_export_column(self, index: int, export_sections: tuple) -> None:
+    @staticmethod
+    def _uids_for_charts(
+        charts: list[object], charts_by_uid: Mapping[str, object]
+    ) -> tuple[str, ...]:
+        """Return permanent mapping keys for the retained cohort charts."""
+        retained_ids = {id(chart) for chart in charts}
+        return tuple(
+            sorted(
+                {
+                    str(chart_uid).strip().upper()
+                    for chart_uid, chart in charts_by_uid.items()
+                    if id(chart) in retained_ids and str(chart_uid).strip()
+                }
+            )
+        )
+
+    def _set_export_column(
+        self,
+        index: int,
+        export_sections: tuple,
+        *,
+        sample_uids: tuple[str, ...],
+    ) -> None:
         self._trait_export_sections[index] = export_sections
+        self._trait_export_sample_uids[index] = sample_uids
         self.export_buttons[index].setEnabled(bool(export_sections))
 
     def _clear_exports(self) -> None:
         self._trait_export_sections = [(), (), ()]
+        self._trait_export_sample_uids = [(), (), ()]
         for button in self.export_buttons:
             button.setEnabled(False)
 
@@ -384,7 +414,9 @@ class CompareCollectionsDialog(QDialog):
 
     def _export_column(self, index: int) -> None:
         export_similarities_analysis_json_dialog(
-            self, self._trait_export_sections[index]
+            self,
+            self._trait_export_sections[index],
+            sample_uids=self._trait_export_sample_uids[index],
         )
 
     def _show_omission_notice(

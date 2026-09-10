@@ -382,9 +382,7 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QStyle,
-    QStyleOptionSlider,
     QAbstractButton,
-    QSlider,
     QToolTip,
     QTabWidget,
 )
@@ -634,7 +632,11 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     refresh_prediction_norms_snapshot,
     trait_snapshot_averages,
 )
-from ephemeraldaddy.gui.features.charts.right_panel_state import ChartRightPanelState
+from ephemeraldaddy.gui.features.charts.right_panel_state import (
+    ChartRightPanelState,
+    save_section_expanded,
+    saved_section_expanded,
+)
 from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     PersonalTransitLocationError,
     build_personal_transit_header_lines,
@@ -1049,6 +1051,10 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     snapshot_human_design_search_selections,
     weight_is_at_least_triple_next_highest,
 )
+from ephemeraldaddy.gui.widgets.signed_emoji_slider import AlignmentEmojiSlider
+from ephemeraldaddy.gui.features.chart_editor.cultural_contribution import (
+    CulturalContributionController,
+)
 from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     add_chart_editor_personal_relevance_rows,
     apply_chart_editor_last_encounter_metadata,
@@ -1056,6 +1062,10 @@ from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     load_chart_editor_last_encounter_controls,
     parse_last_encounter_text,
     reset_chart_editor_last_encounter_controls,
+)
+from ephemeraldaddy.gui.features.database_view.batch_editor.cultural_contribution import (
+    CulturalContributionBatchCallbacks,
+    CulturalContributionBatchEditor,
 )
 from ephemeraldaddy.gui.features.database_view.batch_editor.personal_relevance import (
     build_batch_last_encounter_controls,
@@ -1201,9 +1211,17 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
 from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
+)
+from ephemeraldaddy.analysis.plugins import (
     install_plugin_file,
     installed_plugin_names,
     recognized_plugin_names,
+)
+from ephemeraldaddy.gui.features.chart_information.plugin_context import (
+    position_plugin_paragraphs,
+)
+from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (
+    append_plugin_paragraphs,
 )
 from ephemeraldaddy.gui.settings.modules.plugins import build_plugin_manager_panel
 from ephemeraldaddy.analysis.human_design_reference import (
@@ -1840,72 +1858,6 @@ def _find_children_for_types(container: QObject, *widget_types: type[QObject]) -
 
 def _sentiment_label_color(label: str) -> str | None:
     return SENTIMENT_COLORS.get((label or "").strip().lower())
-
-
-class AlignmentEmojiSlider(QSlider):
-    """Horizontal alignment slider with an emoji marker that tracks thresholds."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(Qt.Horizontal, parent)
-        self.setRange(-10, 10)
-        self.setSingleStep(1)
-        self.setPageStep(1)
-        self.setTickInterval(5)
-        self.setValue(0)
-        self.setMinimumHeight(34)
-        self.setStyleSheet(
-            "QSlider::groove:horizontal {"
-            "height: 12px;"
-            "border-radius: 6px;"
-            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-            "stop:0 #c62828, stop:0.5 #7f7f7f, stop:1 #1565c0);"
-            "}"
-            "QSlider::handle:horizontal {"
-            "background: transparent;"
-            "border: none;"
-            "width: 20px;"
-            "margin: -8px 0px;"
-            "}"
-        )
-        self._emoji_marker = QLabel(self)
-        self._emoji_marker.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self._emoji_marker.setAlignment(Qt.AlignCenter)
-        self._emoji_marker.setFixedSize(24, 24)
-        self._refresh_emoji()
-        self.valueChanged.connect(self._refresh_emoji)
-
-    @staticmethod
-    def _emoji_for_value(value: int) -> str:
-        if value <= -10:
-            return "😈"
-        if value <= -5:
-            return "😠"
-        if value < 5:
-            return "⚖️"
-        if value < 10:
-            return "🙂"
-        return "😇"
-
-    def _refresh_emoji(self) -> None:
-        self._emoji_marker.setText(self._emoji_for_value(self.value()))
-        self._position_emoji_marker()
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        self._position_emoji_marker()
-
-    def _position_emoji_marker(self) -> None:
-        opt = QStyleOptionSlider()
-        self.initStyleOption(opt)
-        handle_rect = self.style().subControlRect(
-            QStyle.CC_Slider,
-            opt,
-            QStyle.SC_SliderHandle,
-            self,
-        )
-        x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
-        y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
-        self._emoji_marker.move(x, y)
 
 
 SEARCH_GENDER_BLANK_ALIASES = {"", "none", "unknown", "blank", "undefined", "__blank__"}
@@ -13994,6 +13946,24 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         alignment_section_layout.addWidget(self.batch_alignment_apply_button)
         layout.addWidget(alignment_section)
 
+        cultural_section, cultural_section_layout = add_collapsible_section(
+            "💭Perceived Cultural Contributions"
+        )
+        self.batch_cultural_contribution_section = cultural_section
+        self.batch_cultural_contribution_editor = CulturalContributionBatchEditor(
+            CulturalContributionBatchCallbacks(
+                selected_chart_uids=self._selected_chart_uids,
+                apply_patch=self._apply_batch_nonastral_patch,
+                confirm=self._confirm_batch_edit,
+                refresh_selection=self._update_batch_edit_state,
+                refresh_filters=self._refresh_filters_after_batch_edit,
+            ),
+            parent=self,
+            slider_factory=AlignmentEmojiSlider,
+            layout=cultural_section_layout,
+        )
+        layout.addWidget(cultural_section)
+
 
         layout.addWidget(build_batch_similarity_section(self, add_collapsible_section))
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section, SOURCE_OPTIONS, GENDER_OPTIONS, QuadStateSlider))
@@ -14441,6 +14411,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._batch_last_typology_selection_uids = set(chart_uid_set)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
+        self.batch_cultural_contribution_editor.refresh(
+            chart for _chart_id, chart in resolved_items
+        )
         self._batch_last_selection_uids = chart_uid_set
 
     def _update_batch_tag_state(self) -> None:
@@ -17202,6 +17175,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.batch_alignment_slider.blockSignals(False)
         self._update_batch_alignment_score_label(0)
         self.batch_alignment_slider.setToolTip("")
+        self.batch_cultural_contribution_editor.clear()
         if hasattr(self, "_batch_metric_lucygoosey"):
             for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered", "last_encounter", "matched_expectations"):
                 self._set_batch_metric_lucygoosey_state(metric_key, False)
@@ -17376,6 +17350,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._is_closing = True
         close_progress = DatabaseCloseProgress(self)
         close_progress.update("Stopping background database work…", 12)
+        self._stop_rankings_trait_worker()
         self._database_metrics_preload_enabled = False
         self._database_metrics_background_preload_sections.clear()
         self._database_metrics_background_preload_scheduled = False
@@ -23045,7 +23020,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self,
             "Upload Plugin File",
             "",
-            "JSON files (*.json);;All files (*)",
+            "Plugin files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)",
         )
         if not file_path:
             return
@@ -23379,6 +23354,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "batch_relationship_section",
             "batch_personal_relevance_section",
             "batch_alignment_section",
+            "batch_cultural_contribution_section",
             "batch_predictability_section",
         ):
             widget = getattr(self, attr, None)
@@ -26063,6 +26039,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             col = idx // relationship_rows
             relationship_layout.addWidget(checkbox, row + 1, col)
         relationship_widget.setLayout(relationship_layout)
+        self.cultural_contribution_controller = CulturalContributionController(
+            slider_factory=AlignmentEmojiSlider,
+            on_user_change=self._on_sentiment_metric_changed,
+        )
         self._update_observations_relationship_subheaders()
         self.name_edit.textChanged.connect(self._update_observations_relationship_subheaders)
         self.gender_combo.currentIndexChanged.connect(
@@ -26096,10 +26076,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         sentiment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.sentiment_panel_toggle = QToolButton()
+        sentiment_expanded = saved_section_expanded(
+            self, "observations", "sentiment_types"
+        )
         configure_collapsible_header_toggle(
             self.sentiment_panel_toggle,
             title="💭Sentiment Types",
-            expanded=False,
+            expanded=sentiment_expanded,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         self.sentiment_panel_toggle.toggled.connect(
@@ -26109,8 +26092,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 expanded,
             )
         )
+        self.sentiment_panel_toggle.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "sentiment_types", expanded
+            )
+        )
         sentiment_box_layout.addWidget(self.sentiment_panel_toggle)
-        sentiment_widget.setVisible(False)
+        sentiment_widget.setVisible(sentiment_expanded)
         sentiment_box_layout.addWidget(sentiment_widget)
 
         # Relationship group box container.
@@ -26129,10 +26117,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         relationship_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.relationship_panel_toggle = QToolButton()
+        relationship_expanded = saved_section_expanded(
+            self, "observations", "relationship_types"
+        )
         configure_collapsible_header_toggle(
             self.relationship_panel_toggle,
             title="💭Relationship Types",
-            expanded=False,
+            expanded=relationship_expanded,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         self.relationship_panel_toggle.toggled.connect(
@@ -26142,8 +26133,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 expanded,
             )
         )
+        self.relationship_panel_toggle.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "relationship_types", expanded
+            )
+        )
         relationship_box_layout.addWidget(self.relationship_panel_toggle)
-        relationship_widget.setVisible(False)
+        relationship_widget.setVisible(relationship_expanded)
         relationship_box_layout.addWidget(relationship_widget)
 
         sentiment_relation_layout.addWidget(sentiment_box)
@@ -26163,10 +26159,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         predictability_box.setLayout(predictability_box_layout)
         predictability_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self.predictability_panel_toggle = QToolButton()
+        predictability_expanded = saved_section_expanded(
+            self, "observations", "predictability"
+        )
         configure_collapsible_header_toggle(
             self.predictability_panel_toggle,
             title="💭Predictability",
-            expanded=False,
+            expanded=predictability_expanded,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         predictability_box_layout.addWidget(self.predictability_panel_toggle)
@@ -26191,7 +26190,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 expanded,
             )
         )
-        predictability_content_widget.setVisible(False)
+        self.predictability_panel_toggle.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "predictability", expanded
+            )
+        )
+        predictability_content_widget.setVisible(predictability_expanded)
         predictability_box_layout.addWidget(predictability_content_widget)
         self.predictability_section_box = predictability_box
         predictability_box.setVisible(self._visibility.get("chart_view.predictability"))
@@ -26218,10 +26222,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         reminds_me_of_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.reminds_me_of_panel_toggle = QToolButton()
+        reminds_me_of_expanded = saved_section_expanded(
+            self, "observations", "reminds_me_of"
+        )
         configure_collapsible_header_toggle(
             self.reminds_me_of_panel_toggle,
             title="💭Reminds me of",
-            expanded=False,
+            expanded=reminds_me_of_expanded,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         reminds_me_of_box_layout.addWidget(self.reminds_me_of_panel_toggle)
@@ -26267,7 +26274,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 expanded,
             )
         )
-        reminds_me_of_content_widget.setVisible(False)
+        self.reminds_me_of_panel_toggle.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "reminds_me_of", expanded
+            )
+        )
+        reminds_me_of_content_widget.setVisible(reminds_me_of_expanded)
         reminds_me_of_box_layout.addWidget(reminds_me_of_content_widget)
         sentiment_relation_layout.addWidget(reminds_me_of_box)
         setup_chart_view_emoji_portrait_section(self, sentiment_relation_layout)
@@ -26390,12 +26402,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         relevance_box_layout.setSpacing(6)
         relevance_box.setLayout(relevance_box_layout)
 
-        relevance_header = QLabel("Personal Relevance")
-        relevance_header.setStyleSheet(
-            "QLabel {"
-            "font-weight: 600;"
-            "color: #cfcfcf;"
-            "}"
+        relevance_expanded = saved_section_expanded(
+            self, "observations", "personal_relevance"
+        )
+        relevance_header = QToolButton()
+        configure_collapsible_header_toggle(
+            relevance_header,
+            title="Personal Relevance",
+            expanded=relevance_expanded,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
 
         relevance_content_widget = QWidget()
@@ -26409,8 +26424,20 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.personal_relevance_subheader = QLabel()
         self.personal_relevance_subheader.setWordWrap(True)
         self.personal_relevance_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
-        relevance_box_layout.addWidget(self.personal_relevance_subheader)
-        relevance_content_widget.setVisible(True)
+        sentiment_metrics_layout.addWidget(
+            self.personal_relevance_subheader, 0, 0, 1, 2
+        )
+        relevance_header.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                relevance_header, relevance_content_widget, expanded
+            )
+        )
+        relevance_header.toggled.connect(
+            lambda expanded: save_section_expanded(
+                self, "observations", "personal_relevance", expanded
+            )
+        )
+        relevance_content_widget.setVisible(relevance_expanded)
         relevance_box_layout.addWidget(relevance_content_widget)
         sentiment_metrics_container_layout.addWidget(relevance_box)
         self.positive_sentiment_intensity_spin = QSpinBox()
@@ -26448,22 +26475,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         
         sentiment_metrics_layout.addWidget(
             QLabel("💖 Positive Sentiment Intensity:"),
-            0,
+            1,
             0,
         )
         sentiment_metrics_layout.addWidget(
             self.positive_sentiment_intensity_spin,
-            0,
+            1,
             1,
         )
         sentiment_metrics_layout.addWidget(
             QLabel("💔 Negative Sentiment Intensity:"),
-            1,
+            2,
             0,
         )
         sentiment_metrics_layout.addWidget(
             self.negative_sentiment_intensity_spin,
-            1,
+            2,
             1,
         )
         familiarity_label_widget = QWidget()
@@ -26482,15 +26509,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         familiarity_label_widget.setLayout(familiarity_label_layout)
         sentiment_metrics_layout.addWidget(
             familiarity_label_widget,
-            2,
+            3,
             0,
         )
         sentiment_metrics_layout.addWidget(
             self.familiarity_spin,
-            2,
+            3,
             1,
         )
-        add_chart_editor_personal_relevance_rows(self, sentiment_metrics_layout, first_row=3)
+        add_chart_editor_personal_relevance_rows(
+            self, sentiment_metrics_layout, first_row=4
+        )
         build_subjective_notes_alignment_sections(
             self,
             sentiment_metrics_container_layout,
@@ -31643,11 +31672,21 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             display_body_label=str(selected_entry.get("display_body", "")),
                         )
                         return True
-                    self._show_position_info(
-                        selected_entry["body"],
-                        selected_entry["sign"],
-                        selected_entry["house"],
-                    )
+                    body = str(selected_entry["body"])
+                    sign = str(selected_entry["sign"])
+                    house_value = selected_entry.get("house")
+                    house_num = house_value if isinstance(house_value, int) else None
+                    self._show_position_info(body, sign, house_num)
+                    if targets_main_chart_info:
+                        chart = getattr(self, "_latest_chart", None)
+                        paragraphs = position_plugin_paragraphs(
+                            body=body,
+                            sign=sign,
+                            house_num=house_num,
+                            chart_positions=getattr(chart, "positions", {}) or {},
+                            sign_for_longitude=_sign_for_longitude,
+                        )
+                        append_plugin_paragraphs(self.chart_info_output, paragraphs)
                     return True
 
             if info_index != -1 and cursor.positionInBlock() >= info_index:
@@ -33355,6 +33394,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.familiarity_spin.setValue(1)
         self.matched_expectations_slider.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
+        self.cultural_contribution_controller.clear()
         self._set_sexiness_score_state(0)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
@@ -33550,6 +33590,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "batch_relationship_section",
             "batch_personal_relevance_section",
             "batch_alignment_section",
+            "batch_cultural_contribution_section",
             "batch_predictability_section",
         ):
             widget = getattr(self, attr, None)
@@ -34107,6 +34148,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         placeholder.familiarity = self.familiarity_spin.value()
         placeholder.matched_expectations = self.matched_expectations_slider.value()
         placeholder.alignment_score = self.alignment_slider.value()
+        self.cultural_contribution_controller.apply_to_chart(
+            placeholder, is_event_chart=False
+        )
         placeholder.sexiness_score = self.sexiness_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
@@ -34281,6 +34325,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if hasattr(chart, "familiarity"):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
+        self.cultural_contribution_controller.apply_to_chart(
+            chart, is_event_chart=is_event_chart
+        )
         if hasattr(chart, "sexiness_score"):
             chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
         if hasattr(chart, "matched_expectations"):
@@ -35012,6 +35059,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         else None
                     )
                 )
+                self.cultural_contribution_controller.apply_to_chart(
+                    chart, is_event_chart=is_event_chart
+                )
                 if hasattr(chart, "sexiness_score"):
                     chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
@@ -35363,6 +35413,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.familiarity_spin.setValue(1)
         self.matched_expectations_slider.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
+        self.cultural_contribution_controller.clear()
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -35859,6 +35910,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             int(loaded_alignment or 0),
             assigned=isinstance(loaded_alignment, int),
         )
+        self.cultural_contribution_controller.load(chart)
         self._set_sexiness_score_state(0)
         self._set_sexiness_score_state(getattr(chart, "sexiness_score", 0) or 0)
         self._chart_familiarity_factors = list(

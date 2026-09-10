@@ -95,7 +95,7 @@ def test_time_sensitivity_human_design_section_starts_expanded():
     )
 
 
-def test_predictions_gender_guesser_section_starts_expanded():
+def test_predictions_gender_guesser_section_uses_saved_collapsed_by_default_state():
     build_start = CHART_EDITOR_SOURCE.index("def _build_predictions_panel")
     build_end = CHART_EDITOR_SOURCE.index(
         "def _ensure_photo_gallery_chart_uid", build_start
@@ -104,4 +104,4 @@ def test_predictions_gender_guesser_section_starts_expanded():
     gender_start = method.index('section_key="gender_guesser"')
     gender_section = method[gender_start:]
 
-    assert "expanded=True" in gender_section
+    assert 'expanded=prediction_expanded("gender_guesser")' in gender_section
