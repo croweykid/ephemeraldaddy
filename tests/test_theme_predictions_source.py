@@ -38,11 +38,16 @@ def test_themes_section_uses_stable_family_key_role_and_traits_table_shape():
 
 def test_themes_are_inserted_after_traits_table_receives_its_parent():
     install_source = THEME_UI_SOURCE.split("def install_theme_predictions", 1)[1]
-    assert "QTimer.singleShot(" in install_source
+    ensure_source = THEME_UI_SOURCE.split("def _ensure_theme_predictions_section", 1)[1].split(
+        "def _extend_right_panel_stack", 1
+    )[0]
+    assert "QTimer.singleShot(0, ensure_after_parenting)" in install_source
     assert "_ensure_theme_predictions_section(owner, table)" in install_source
     assert install_source.index("original_configure(owner, table)") < install_source.index(
-        "QTimer.singleShot("
+        "QTimer.singleShot(0, ensure_after_parenting)"
     )
+    assert "traits_index = layout.indexOf(traits_section)" in ensure_source
+    assert "layout.insertWidget(traits_index + 1, themes_section)" in ensure_source
 
 
 def test_below_average_themes_sort_most_negative_first():
