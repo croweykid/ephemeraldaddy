@@ -25,7 +25,6 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path('ephemeraldaddy/gui/features/charts/chart_data_output.py')
           text = path.read_text()
@@ -34,17 +33,10 @@ jobs:
           assert text.count(anchor) == 1, 'chart-data header helper anchor changed'
           text = text.replace(anchor, replacement, 1)
 
-          guard_pattern = re.compile(
-              r'(    def _apply_positions_row_colors\(self, text: str\) -> None:\n'
-              r'        current_section = self\._current_chart_data_section\(\)\n)'
-              r'        if current_section not in \{"POSITIONS", "UNCERTAIN TIME VARIANTS"\}:\n'
-          )
-          text, guard_count = guard_pattern.subn(
-              r'\1        if not _is_position_row_color_section(current_section):\n',
-              text,
-              count=1,
-          )
-          assert guard_count == 1, f'expected one positions row-color guard, found {guard_count}'
+          old_guard = '''    def _apply_positions_row_colors(self, text: str, stripped_text: str) -> None:\n        current_section = self._current_chart_data_section()\n        if current_section not in {"POSITIONS", "UNCERTAIN TIME VARIANTS"}:\n            return\n'''
+          new_guard = '''    def _apply_positions_row_colors(self, text: str, stripped_text: str) -> None:\n        current_section = self._current_chart_data_section()\n        if not _is_position_row_color_section(current_section):\n            return\n'''
+          assert text.count(old_guard) == 1, f'expected one positions row-color guard, found {text.count(old_guard)}'
+          text = text.replace(old_guard, new_guard, 1)
           path.write_text(text)
 
           path = Path('ephemeraldaddy/gui/features/charts/text_summary.py')
