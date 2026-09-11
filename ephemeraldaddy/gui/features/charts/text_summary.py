@@ -496,7 +496,7 @@ def _append_draconic_aspects(
     for asp in sorted_aspects:
         p1 = str(asp["p1"])
         p2 = str(asp["p2"])
-        endpoint_labels[("D", p1)] = _draconic_aspect_endpoint_label("D.", p1, draconic_positions)
+        endpoint_labels[("D", p1)] = _draconic_aspect_endpoint_label("Drac.", p1, draconic_positions)
         endpoint_labels[("N", p2)] = _draconic_aspect_endpoint_label("N.", p2, natal_positions)
     label_width = max((len(label) for label in endpoint_labels.values()), default=8)
     label_width = max(label_width, 8)
