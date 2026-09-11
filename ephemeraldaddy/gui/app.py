@@ -14232,16 +14232,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         for chart_uid in selected_chart_uids:
             if chart_uid not in self._batch_selection_uid_order:
                 self._batch_selection_uid_order.append(chart_uid)
-
-
-    def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
-        chart_uid_map = get_chart_uid_map(selected_chart_ids)
-        self._update_batch_selection_order_by_uids([
-            str(chart_uid_map[chart_id]).strip().upper()
-            for chart_id in selected_chart_ids
-            if chart_uid_map.get(chart_id)
-        ])
-
     @staticmethod
     def _alignment_value_for_chart(chart: Chart) -> int:
         raw_value = getattr(chart, "alignment_score", 0)

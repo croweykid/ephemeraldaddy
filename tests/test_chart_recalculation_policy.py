@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
+import subprocess
+import sys
 from types import SimpleNamespace
 
 from ephemeraldaddy.core.chart_recalculation_policy import ChartRecalculationPolicy
@@ -42,6 +44,21 @@ def _chart(**overrides):
 
 def test_new_chart_requires_full_refresh_classification():
     assert ChartRecalculationPolicy.changed_fields(None, _chart()) is None
+
+
+def test_policy_does_not_load_database_persistence_module():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; import ephemeraldaddy.core.chart_recalculation_policy; "
+            "print('ephemeraldaddy.core.db' in sys.modules)",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout.strip() == "False"
 
 
 def test_descriptive_change_does_not_become_birth_data_change():

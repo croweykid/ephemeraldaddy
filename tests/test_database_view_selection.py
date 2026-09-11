@@ -12,6 +12,18 @@ def test_model_normalizes_and_deduplicates_uid_selection_in_order():
     assert model.selected_uid_set == {"UID-A", "UID-B"}
 
 
+def test_model_normalizes_constructor_identity_state():
+    model = DatabaseSelectionModel(
+        selected_uids=[" uid-a ", "UID-A"],
+        anchor_uid=" uid-a ",
+        prior_single_selection=" uid-b ",
+    )
+
+    assert model.selected_uids == ["UID-A"]
+    assert model.anchor_uid == "UID-A"
+    assert model.prior_single_selection == "UID-B"
+
+
 def test_filtered_merge_preserves_logical_selection_hidden_from_view():
     model = DatabaseSelectionModel(selected_uids=["HIDDEN", "VISIBLE-A"])
     controller = DatabaseSelectionController(model)

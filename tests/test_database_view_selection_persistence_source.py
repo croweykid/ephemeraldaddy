@@ -117,6 +117,7 @@ def test_database_view_does_not_retain_parallel_integer_selection_state():
         "return self._local_row_ids_for_uids(self._database_selection.model.selected_uids)"
         in class_source
     )
+    assert "def _update_batch_selection_order(" not in class_source
 
 
 def test_navigation_anchor_does_not_retain_parallel_integer_identity():

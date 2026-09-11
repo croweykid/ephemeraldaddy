@@ -45,7 +45,7 @@ and ownership milestones have not been completed in order. Five initial
 bounded moves are now complete: `SegmentedTimeEdit`, `ChartListWidget`,
 similarity-calculator settings persistence, saved-chart change classification,
 and Database View logical-selection state have canonical owners and focused
-regression coverage. `app.py` is still 39,491 lines with 1,069
+regression coverage. `app.py` is still 39,481 lines with 1,068
 four-space-indented methods, and it still defines both legacy
 top-level window classes. The 5,000–8,000-line composition-root goal therefore
 remains distant.

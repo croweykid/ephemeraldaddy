@@ -31,6 +31,11 @@ class DatabaseSelectionModel:
     anchor_uid: str | None = None
     prior_single_selection: str | None = None
 
+    def __post_init__(self) -> None:
+        self.selected_uids = _ordered_unique_uids(self.selected_uids)
+        self.anchor_uid = normalize_chart_uid(self.anchor_uid)
+        self.prior_single_selection = normalize_chart_uid(self.prior_single_selection)
+
     @property
     def selected_uid_set(self) -> set[str]:
         return set(self.selected_uids)

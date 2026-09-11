@@ -12,7 +12,10 @@ from typing import Any
 
 from ephemeraldaddy.core.chart import resolve_use_birth_time_data
 from ephemeraldaddy.core.chart_data_fields import astro_data_recalculation_token
-from ephemeraldaddy.core.db import SOURCE_HYPOTHETICAL, normalize_chart_type
+from ephemeraldaddy.core.chart_types import (
+    CHART_TYPE_HYPOTHETICAL,
+    normalize_chart_type,
+)
 
 
 def _normalized_tags(tags: Iterable[object] | None) -> tuple[str, ...]:
@@ -39,7 +42,7 @@ def _is_non_aggregable(chart: object) -> bool:
     chart_type = getattr(chart, "chart_type", None) or getattr(chart, "source", None)
     return bool(getattr(chart, "is_placeholder", False)) or (
         str(chart_type or "").strip().lower() == "placeholder"
-        or normalize_chart_type(chart_type) == SOURCE_HYPOTHETICAL
+        or normalize_chart_type(chart_type) == CHART_TYPE_HYPOTHETICAL
     )
 
 
