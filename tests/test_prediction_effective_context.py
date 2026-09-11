@@ -5,6 +5,9 @@ from types import SimpleNamespace
 
 from ephemeraldaddy.analysis import prediction_context as context_module
 from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
+from ephemeraldaddy.gui.features.predictions.trait_factor_explanations import (
+    build_trait_factor_evidence,
+)
 
 
 def _range_chart() -> SimpleNamespace:
@@ -88,11 +91,10 @@ def test_rectified_range_context_uses_resolved_midpoint_not_persisted_dominance(
 def test_weighted_score_and_factor_evidence_share_rectified_context(monkeypatch):
     chart, context = _resolved_context(monkeypatch)
     matches = {}
-    predictors = {
-        "range-sensitive trait": {
-            "signs": {"Taurus": 10.0, "Gemini": 10.0},
-        }
+    profile = {
+        "signs": {"Taurus": 10.0, "Gemini": 10.0},
     }
+    predictors = {"range-sensitive trait": profile}
 
     scores = context_module.calculate_weighted_criteria_scores_with_context(
         chart,
@@ -102,7 +104,16 @@ def test_weighted_score_and_factor_evidence_share_rectified_context(monkeypatch)
         _original_calculate=predictor.calculate_weighted_criteria_scores,
     )
 
+    trait_matches = matches["range-sensitive trait"]
+    evidence = build_trait_factor_evidence(
+        context.chart,
+        profile,
+        matches=trait_matches,
+    )
+
     assert scores["range-sensitive trait"] > 0.0
-    assert matches["range-sensitive trait"]["positive"] == ["Gemini"]
-    assert "Taurus" not in matches["range-sensitive trait"]["positive"]
+    assert trait_matches["positive"] == ["Gemini"]
+    assert "Taurus" not in trait_matches["positive"]
+    assert "Gemini" in evidence.supporting
+    assert "Taurus not above baseline in chart" in evidence.missing
     assert context.matched_criteria_by_profile
