@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
+
 from ephemeraldaddy.analysis import prediction_context as context_module
 from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
 from ephemeraldaddy.gui.features.predictions.trait_factor_explanations import (
@@ -71,6 +73,55 @@ def _resolved_context(monkeypatch):
         force_rebuild=True,
     )
     return chart, context
+
+
+def test_injected_calculators_do_not_load_gui_metric_defaults(monkeypatch):
+    def unexpected_default():
+        pytest.fail("GUI metric default should not load when its calculator is injected")
+
+    monkeypatch.setattr(context_module, "_default_sign_weight_calculator", unexpected_default)
+    monkeypatch.setattr(context_module, "_default_body_weight_calculator", unexpected_default)
+    monkeypatch.setattr(context_module, "_default_house_weight_calculator", unexpected_default)
+    monkeypatch.setattr(context_module, "_default_nakshatra_weight_calculator", unexpected_default)
+
+    _chart, context = _resolved_context(monkeypatch)
+
+    assert context.sign_weights == {"Taurus": 0.0, "Gemini": 10.0}
+    assert context.body_weights == {"Moon": 10.0}
+    assert context.house_weights == {}
+    assert context.nakshatra_weights == {"Mrigashira": 5.0}
+
+
+def test_context_overrides_bypass_chart_level_cache(monkeypatch):
+    chart = _range_chart()
+    monkeypatch.setattr(context_module, "apply_time_specific_metadata_policy", lambda _chart: None)
+    monkeypatch.setattr(context_module, "find_aspects", lambda _positions: [])
+
+    first = context_module.build_effective_prediction_context(
+        chart,
+        calculate_sign_weights=lambda _chart: {"Taurus": 10.0},
+        calculate_body_weights=lambda _chart: {"Moon": 10.0},
+        calculate_house_weights=lambda _chart: {1: 7.0},
+        calculate_nakshatra_weights=lambda _chart: {"Rohini": 5.0},
+        uses_houses=lambda _chart: False,
+    )
+    second = context_module.build_effective_prediction_context(
+        chart,
+        calculate_sign_weights=lambda _chart: {"Gemini": 12.0},
+        calculate_body_weights=lambda _chart: {"Moon": 11.0},
+        calculate_house_weights=lambda _chart: {1: 7.0},
+        calculate_nakshatra_weights=lambda _chart: {"Mrigashira": 6.0},
+        uses_houses=lambda _chart: True,
+    )
+
+    assert first is not second
+    assert first.use_houses is False
+    assert first.house_weights == {}
+    assert first.sign_weights == {"Taurus": 10.0}
+    assert second.use_houses is True
+    assert second.house_weights == {1: 7.0}
+    assert second.sign_weights == {"Gemini": 12.0}
+    assert not hasattr(chart, "_effective_prediction_context_cache")
 
 
 def test_rectified_range_context_uses_resolved_midpoint_not_persisted_dominance(monkeypatch):
