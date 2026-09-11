@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import datetime
 import math
 import unicodedata
@@ -37,6 +36,7 @@ from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
     planetary_retrogrades,
 )
+from ephemeraldaddy.core.human_design_system import _mandala_components
 from ephemeraldaddy.core.interpretations import (
     ASPECT_BODY_ALIASES,
     ASPECT_GLYPHS,
@@ -225,7 +225,7 @@ def _format_time_variant_signs(
     ordered_names.extend(extras)
     lines: dict[str, dict[str, object]] = {}
     for body in ordered_names:
-        if body not in set(getattr(chart, "unknown_signs", []) or []):
+        if not draconic and body not in set(getattr(chart, "unknown_signs", []) or []):
             continue
         samples = [
             (label, positions[body], sign_for_longitude(positions[body]))
@@ -1185,9 +1185,10 @@ def format_chart_text(
         lines.append("Unavailable (North Node position unknown)")
     else:
         draconic_time_variant_lines = _format_time_variant_signs(chart, draconic=True)
-        draconic_chart = copy.copy(chart)
-        draconic_chart.positions = dict(draconic_positions)
-        draconic_gate_lines = _personality_gate_line_map(draconic_chart)
+        draconic_gate_lines: dict[str, str] = {}
+        for body, longitude in draconic_positions.items():
+            gate, line, _color, _tone, _base = _mandala_components(longitude)
+            draconic_gate_lines[body] = f"{gate}.{line}"
 
         for body in ordered_bodies:
             display_body = _display_body_with_glyph(body, use_lilith_alias=True)
@@ -1691,8 +1692,18 @@ def format_transit_chart_text(chart: Chart, location_label: str) -> str:
         (idx for idx, line in enumerate(lines) if line.strip() == "POSITIONS"),
         0,
     )
+    draconic_start_index = next(
+        (idx for idx, line in enumerate(lines) if line.strip() == "DRACONIC POSITIONS"),
+        len(lines),
+    )
+    if (
+        draconic_start_index < len(lines)
+        and draconic_start_index > 0
+        and lines[draconic_start_index - 1].strip() == CHART_DATA_DIVIDER.strip()
+    ):
+        draconic_start_index -= 1
     cleaned_lines: list[str] = []
-    for line in lines[positions_start_index:]:
+    for line in lines[positions_start_index:draconic_start_index]:
         if _starts_with_any_prefix(line, TRANSIT_HEADER_ALIASES["name"]) or _starts_with_any_prefix(
             line,
             TRANSIT_HEADER_ALIASES["alias"],
