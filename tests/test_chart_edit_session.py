@@ -41,6 +41,51 @@ def test_reverting_value_clears_that_dirty_field():
     assert not session.is_dirty
 
 
+def test_reverting_last_authoritative_value_clears_recalculation_requirement():
+    session = ChartEditSession(authoritative_values={"birth_place": "Paris"})
+    session.set_draft_value("birth_place", "London", kind="authoritative")
+
+    session.set_draft_value("birth_place", "Paris", kind="authoritative")
+
+    assert not session.recalculation_required
+    assert not session.authoritative_dirty_fields
+
+
+def test_reverting_one_authoritative_value_preserves_other_recalculation_reason():
+    session = ChartEditSession(
+        authoritative_values={"birth_place": "Paris", "birth_date": "1900-01-01"}
+    )
+    session.set_draft_value("birth_place", "London", kind="authoritative")
+    session.set_draft_value("birth_date", "1901-01-01", kind="authoritative")
+
+    session.set_draft_value("birth_place", "Paris", kind="authoritative")
+
+    assert session.recalculation_required
+    assert session.authoritative_dirty_fields == {"birth_date"}
+
+
+def test_legacy_recalculation_bridge_tracks_an_explicit_reason():
+    session = ChartEditSession()
+
+    session.require_recalculation(True)
+    assert session.recalculation_required
+    assert session.authoritative_dirty_fields == {"legacy-unspecified"}
+
+    session.require_recalculation(False)
+    assert not session.recalculation_required
+    assert not session.authoritative_dirty_fields
+
+
+def test_identity_update_normalizes_uid_without_resetting_draft():
+    session = ChartEditSession(authoritative_values={"name": "Ada"})
+    session.set_draft_value("name", "Grace")
+
+    session.set_active_chart_uid(" chart-123 ")
+
+    assert session.active_chart_uid == "CHART-123"
+    assert session.draft_values == {"name": "Grace"}
+
+
 def test_mark_clean_accepts_draft_and_resets_recalculation():
     session = ChartEditSession(authoritative_values={"birth_date": "1900-01-01"})
     session.set_draft_value("birth_date", "1901-01-01", kind="authoritative")

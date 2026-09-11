@@ -1,9 +1,9 @@
-from ephemeraldaddy.gui.features.charts.selection_header import SelectionSummaryCounts
-
 from pathlib import Path
 
-
 APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+SELECTION_SOURCE = Path(
+    "ephemeraldaddy/gui/features/database_view/selection.py"
+).read_text(encoding="utf-8")
 
 
 def _method_source(method_name: str) -> str:
@@ -53,21 +53,24 @@ def test_close_event_does_not_persist_transient_placeholder_filter_state():
 
 
 def test_single_chart_deselection_is_remembered_for_undo():
-    init_section = APP_SOURCE[APP_SOURCE.index("self._selected_chart_uid_order: list[str]"):APP_SOURCE.index("self._custom_collections", APP_SOURCE.index("self._selected_chart_uid_order: list[str]"))]
     clear_method = _method_source("_clear_persistent_selection")
-    selection_method = _method_source("_on_selection_changed")
 
-    assert "self._prior_deselected_selection: list[str] = []" in init_section
-    assert "self._remember_single_chart_deselection(previous_selection, [])" in clear_method
-    assert "previous_selection = list(getattr(self, \"_selected_chart_uid_order\", []))" in selection_method
-    assert "self._remember_single_chart_deselection(" in selection_method
+    assert "DatabaseSelectionController(DatabaseSelectionModel())" in APP_SOURCE
+    assert (
+        "self._replace_persistent_selection_by_uids([], remember_deselection=True)"
+        in clear_method
+    )
+    assert (
+        "if remember_deselection and len(self.selected_uids) == 1 and not replacement:"
+        in SELECTION_SOURCE
+    )
+    assert "self.prior_single_selection = self.selected_uids[0]" in SELECTION_SOURCE
 
 
 def test_ctrl_z_restores_one_prior_deselected_selection():
     restore_method = _method_source("_restore_prior_deselected_selection")
-    assert "if len(prior_selection) != 1:" in restore_method
-    assert "self._prior_deselected_selection = []" in restore_method
-    assert "self._replace_persistent_selection_by_uids(prior_selection)" in restore_method
+    assert "restore_prior_single_selection()" in restore_method
+    assert "if prior_selection is None:" in restore_method
     assert "self._sync_visible_selection_from_persistent_selection()" in restore_method
     assert "QKeySequence.StandardKey.Undo" in APP_SOURCE
     assert "self._restore_prior_deselected_selection()" in APP_SOURCE
@@ -78,31 +81,52 @@ def test_copy_uses_persistent_selection_for_all_selected_chart_names():
     copy_method = _method_source("_copy_selected_chart_names_to_clipboard")
 
     assert "self._reconcile_persistent_selection_with_database()" in method
-    assert "_selected_chart_uid_order" in method
+    assert "_database_selection.model.selected_uids" in method
     assert "chart_uid in copied_uids" in method
     assert "self._local_row_id_by_chart_uid.get(chart_uid)" in method
     assert "_similar_charts_popout_chart_names_by_id" in method
-    assert "\"\\n\".join(selected_names)" in copy_method
+    assert '"\\n".join(selected_names)' in copy_method
+
 
 def test_database_view_has_local_uid_normalizer_for_persistent_selection():
     assert "class ManageChartsDialog" in APP_SOURCE
-    class_source = APP_SOURCE[APP_SOURCE.index("class ManageChartsDialog"):APP_SOURCE.index("class MainWindow")]
+    class_source = APP_SOURCE[
+        APP_SOURCE.index("class ManageChartsDialog") : APP_SOURCE.index(
+            "class MainWindow"
+        )
+    ]
     assert "def _normalized_chart_uid_key" in class_source
-    assert "return ManageChartsDialog._normalized_chart_uid_key(raw_chart_uid)" in class_source
+    assert (
+        "return ManageChartsDialog._normalized_chart_uid_key(raw_chart_uid)"
+        in class_source
+    )
 
 
 def test_database_view_does_not_retain_parallel_integer_selection_state():
-    class_source = APP_SOURCE[APP_SOURCE.index("class ManageChartsDialog"):APP_SOURCE.index("class MainWindow")]
+    class_source = APP_SOURCE[
+        APP_SOURCE.index("class ManageChartsDialog") : APP_SOURCE.index(
+            "class MainWindow"
+        )
+    ]
 
     assert "_selected_local_row_id_order" not in class_source
     assert "_selected_local_row_ids_set" not in class_source
-    assert "_selected_chart_uid_order: list[str]" in class_source
-    assert "_selected_chart_uids_set: set[str]" in class_source
-    assert "return self._local_row_ids_for_uids(self._selected_chart_uid_order)" in class_source
+    assert "DatabaseSelectionController(DatabaseSelectionModel())" in class_source
+    assert "selected_uids: list[str]" in SELECTION_SOURCE
+    assert (
+        "return self._local_row_ids_for_uids(self._database_selection.model.selected_uids)"
+        in class_source
+    )
+    assert "def _update_batch_selection_order(" not in class_source
 
 
 def test_navigation_anchor_does_not_retain_parallel_integer_identity():
-    class_source = APP_SOURCE[APP_SOURCE.index("class ManageChartsDialog"):APP_SOURCE.index("class MainWindow")]
+    class_source = APP_SOURCE[
+        APP_SOURCE.index("class ManageChartsDialog") : APP_SOURCE.index(
+            "class MainWindow"
+        )
+    ]
 
     assert "_filter_navigation_anchor_local_row_id" not in class_source
-    assert "_filter_navigation_anchor_chart_uid: str | None" in class_source
+    assert "anchor_uid: str | None" in SELECTION_SOURCE
+    assert "self._database_selection.model.anchor_uid" in class_source
