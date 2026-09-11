@@ -25,9 +25,8 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
-          # 1) Qualified Tropical/Draconic position sections must receive the same
-          # column-aware row coloring as the legacy POSITIONS section.
           path = Path('ephemeraldaddy/gui/features/charts/chart_data_output.py')
           text = path.read_text()
           anchor = '''def _is_chart_data_section_header(text: str) -> bool:\n    return text.strip().upper() in _CHART_DATA_SECTION_HEADER_NAMES\n'''
@@ -35,14 +34,19 @@ jobs:
           assert text.count(anchor) == 1, 'chart-data header helper anchor changed'
           text = text.replace(anchor, replacement, 1)
 
-          old_guard = '''        current_section = self._current_chart_data_section()\n        if current_section not in {"POSITIONS", "UNCERTAIN TIME VARIANTS"}:\n            return\n\n        columns = _split_padded_columns(text)\n'''
-          new_guard = '''        current_section = self._current_chart_data_section()\n        if not _is_position_row_color_section(current_section):\n            return\n\n        columns = _split_padded_columns(text)\n'''
-          assert text.count(old_guard) == 1, 'positions row-color guard changed'
-          text = text.replace(old_guard, new_guard, 1)
+          guard_pattern = re.compile(
+              r'(    def _apply_positions_row_colors\(self, text: str\) -> None:\n'
+              r'        current_section = self\._current_chart_data_section\(\)\n)'
+              r'        if current_section not in \{"POSITIONS", "UNCERTAIN TIME VARIANTS"\}:\n'
+          )
+          text, guard_count = guard_pattern.subn(
+              r'\1        if not _is_position_row_color_section(current_section):\n',
+              text,
+              count=1,
+          )
+          assert guard_count == 1, f'expected one positions row-color guard, found {guard_count}'
           path.write_text(text)
 
-          # 2) Missing Rahu must be recovered at the exact datetime used for the
-          # chart's rectified derived data, not the official chart.dt.
           path = Path('ephemeraldaddy/gui/features/charts/text_summary.py')
           text = path.read_text()
           old_import = '''from ephemeraldaddy.core.chart import (\n    Chart,\n    apply_unknown_sign_metadata,\n    rectification_range_midpoint_minutes,\n    rectification_range_minutes,\n)\n'''
@@ -61,11 +65,9 @@ jobs:
           text = text.replace(old_fallback, new_fallback, 1)
           path.write_text(text)
 
-          # Focused regression coverage in already-tracked test file (the repo
-          # intentionally ignores new *.py files).
           path = Path('tests/test_chart_data_position_headers.py')
           text = path.read_text()
-          addition = '''\n\ndef test_position_row_coloring_accepts_qualified_position_sections() -> None:\n    from ephemeraldaddy.gui.features.charts.chart_data_output import (\n        _is_position_row_color_section,\n    )\n\n    assert _is_position_row_color_section("POSITIONS")\n    assert _is_position_row_color_section("POSITIONS (Tropical)")\n    assert _is_position_row_color_section("POSITIONS (Draconic)")\n    assert _is_position_row_color_section("UNCERTAIN TIME VARIANTS")\n    assert not _is_position_row_color_section("ASPECTS")\n\n\ndef test_draconic_node_refresh_uses_rectified_effective_datetime(monkeypatch) -> None:\n    import datetime\n    from types import SimpleNamespace\n\n    from ephemeraldaddy.gui.features.charts import text_summary\n\n    official_dt = datetime.datetime(2000, 1, 2, 10, 15, tzinfo=datetime.timezone.utc)\n    chart = SimpleNamespace(\n        dt=official_dt,\n        lat=40.0,\n        lon=-74.0,\n        birthtime_unknown=False,\n        retcon_time_used=True,\n        retcon_hour=14,\n        retcon_minute=37,\n        use_birth_time_data=True,\n    )\n    captured = {}\n\n    def fake_planetary_positions(dt, lat, lon):\n        captured["dt"] = dt\n        captured["lat"] = lat\n        captured["lon"] = lon\n        return {"Rahu": 123.0}\n\n    monkeypatch.setattr(text_summary, "planetary_positions", fake_planetary_positions)\n\n    result = text_summary._planetary_positions_at_effective_chart_time(chart)\n\n    assert result == {"Rahu": 123.0}\n    assert captured["dt"] == official_dt.replace(hour=14, minute=37, second=0, microsecond=0)\n    assert captured["lat"] == 40.0\n    assert captured["lon"] == -74.0\n'''
+          addition = '''\n\ndef test_position_row_coloring_accepts_qualified_position_sections() -> None:\n    from ephemeraldaddy.gui.features.charts.chart_data_output import _is_position_row_color_section\n\n    assert _is_position_row_color_section("POSITIONS")\n    assert _is_position_row_color_section("POSITIONS (Tropical)")\n    assert _is_position_row_color_section("POSITIONS (Draconic)")\n    assert _is_position_row_color_section("UNCERTAIN TIME VARIANTS")\n    assert not _is_position_row_color_section("ASPECTS")\n\n\ndef test_draconic_node_refresh_uses_rectified_effective_datetime(monkeypatch) -> None:\n    import datetime\n    from types import SimpleNamespace\n\n    from ephemeraldaddy.gui.features.charts import text_summary\n\n    official_dt = datetime.datetime(2000, 1, 2, 10, 15, tzinfo=datetime.timezone.utc)\n    chart = SimpleNamespace(\n        dt=official_dt,\n        lat=40.0,\n        lon=-74.0,\n        birthtime_unknown=False,\n        retcon_time_used=True,\n        retcon_hour=14,\n        retcon_minute=37,\n        use_birth_time_data=True,\n    )\n    captured = {}\n\n    def fake_planetary_positions(dt, lat, lon):\n        captured["dt"] = dt\n        captured["lat"] = lat\n        captured["lon"] = lon\n        return {"Rahu": 123.0}\n\n    monkeypatch.setattr(text_summary, "planetary_positions", fake_planetary_positions)\n    result = text_summary._planetary_positions_at_effective_chart_time(chart)\n\n    assert result == {"Rahu": 123.0}\n    assert captured["dt"] == official_dt.replace(hour=14, minute=37, second=0, microsecond=0)\n    assert captured["lat"] == 40.0\n    assert captured["lon"] == -74.0\n'''
           assert 'test_position_row_coloring_accepts_qualified_position_sections' not in text
           text += addition
           path.write_text(text)
