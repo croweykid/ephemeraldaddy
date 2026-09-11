@@ -95,7 +95,17 @@ class SimilaritiesController(_BaseSimilaritiesController):
         self._refresh_cohort_metadata(self.host._selected_local_row_ids())
 
     def _refresh_export_sample_uids(self) -> None:
-        chart_people = getattr(self, "_chart_people_by_uid", None)
+        """Snapshot the persistent chart selection immediately before export."""
+        selected_chart_uids = getattr(self.host, "_selected_chart_uids", None)
+        if not callable(selected_chart_uids):
+            return
+        self._cohort_chart_uids = sorted(
+            {
+                uid
+                for raw_uid in selected_chart_uids()
+                if (uid := normalize_chart_uid(raw_uid))
+            }
+        )
 
     def export_json(self) -> None:
         """Export reusable Trait data with its source cohort metadata."""
