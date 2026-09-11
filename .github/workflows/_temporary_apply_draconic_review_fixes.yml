@@ -25,7 +25,7 @@ jobs:
           from pathlib import Path
           import re
 
-          # 1 + 2: directed aspect sorting call and removal of the splitlines string hack.
+          # 1 + 2: preserve directed D. -> N. endpoints and remove the splitlines string hack.
           path = Path('ephemeraldaddy/gui/features/charts/text_summary.py')
           text = path.read_text()
 
@@ -41,22 +41,27 @@ jobs:
           assert wrapped_count >= 1, 'expected _ChartSummaryText return wrappers'
           text = text.replace(wrapped_return, '"\\n".join(lines)')
 
-          old_sort = '''    sorted_aspects = sort_natal_aspects(
-              cross_aspects,
-              sort_mode,
-              planet_weights=dominant_planet_weights,
-          )'''
-          new_sort = '''    sorted_aspects = sort_natal_aspects(
-              cross_aspects,
-              sort_mode,
-              planet_weights=dominant_planet_weights,
-              preserve_endpoint_order=True,
-          )'''
-          assert text.count(old_sort) == 1, f'expected one Draconic sort call, found {text.count(old_sort)}'
-          text = text.replace(old_sort, new_sort, 1)
+          sort_pattern = re.compile(
+              r'(?m)^    sorted_aspects = sort_natal_aspects\(\n'
+              r'        cross_aspects,\n'
+              r'        sort_mode,\n'
+              r'        planet_weights=dominant_planet_weights,\n'
+              r'    \)$'
+          )
+          sort_replacement = (
+              '    sorted_aspects = sort_natal_aspects(\n'
+              '        cross_aspects,\n'
+              '        sort_mode,\n'
+              '        planet_weights=dominant_planet_weights,\n'
+              '        preserve_endpoint_order=True,\n'
+              '    )'
+          )
+          text, sort_count = sort_pattern.subn(sort_replacement, text, count=1)
+          assert sort_count == 1, f'expected one Draconic sort call, found {sort_count}'
           path.write_text(text)
 
-          # 2 + 3: update actual legacy/popout callers explicitly; transit popouts stop at Draconic sections.
+          # 2 + 3: update real popout callers explicitly. Both header forms remain valid;
+          # transit popouts stop before the natal-only Draconic sections.
           path = Path('ephemeraldaddy/gui/app.py')
           text = path.read_text()
           legacy_lookup = 'line.strip() == "POSITIONS"'
@@ -67,70 +72,80 @@ jobs:
               'line.strip() in {"POSITIONS", "POSITIONS (Tropical)"}',
           )
 
-          transit_block = '''            visible_summary_lines = summary_lines_local[positions_start_index:]
-              transit_visible_lines: list[str] = []'''
-          transit_replacement = '''            draconic_start_index = next(
-              (
-                  idx
-                  for idx, line in enumerate(summary_lines_local)
-                  if line.strip() in {"DRACONIC POSITIONS", "POSITIONS (Draconic)"}
-              ),
-              len(summary_lines_local),
+          transit_pattern = re.compile(
+              r'(?m)^(?P<indent>[ \t]*)visible_summary_lines = summary_lines_local\[positions_start_index:\]\n'
+              r'(?P=indent)transit_visible_lines: list\[str\] = \[\]$'
           )
-          visible_summary_lines = summary_lines_local[
-              positions_start_index:draconic_start_index
-          ]
-          transit_visible_lines: list[str] = []'''
-          transit_count = text.count(transit_block)
+
+          def transit_replacement(match: re.Match[str]) -> str:
+              i = match.group('indent')
+              ii = i + '    '
+              iii = ii + '    '
+              return (
+                  f'{i}draconic_start_index = next(\n'
+                  f'{ii}(\n'
+                  f'{iii}idx\n'
+                  f'{iii}for idx, line in enumerate(summary_lines_local)\n'
+                  f'{iii}if line.strip() in {{"DRACONIC POSITIONS", "POSITIONS (Draconic)"}}\n'
+                  f'{ii}),\n'
+                  f'{ii}len(summary_lines_local),\n'
+                  f'{i})\n'
+                  f'{i}visible_summary_lines = summary_lines_local[\n'
+                  f'{ii}positions_start_index:draconic_start_index\n'
+                  f'{i}]\n'
+                  f'{i}transit_visible_lines: list[str] = []'
+              )
+
+          text, transit_count = transit_pattern.subn(transit_replacement, text)
           assert transit_count >= 2, f'expected duplicated transit blocks, found {transit_count}'
-          text = text.replace(transit_block, transit_replacement)
           path.write_text(text)
 
-          # 4: register qualified position/aspect sections with the canonical output style.
+          # 4: register all qualified headers with the canonical Chart Data style.
           path = Path('ephemeraldaddy/gui/style.py')
           text = path.read_text()
-          old_headers = '''CHART_DATA_SECTION_HEADERS = (
-              "CHART INFO",
-              "CORE DESIGNATION",
-              "POSITIONS",
-              "HOUSES",
-              "ASPECTS",'''
-          new_headers = '''CHART_DATA_SECTION_HEADERS = (
-              "CHART INFO",
-              "CORE DESIGNATION",
-              "POSITIONS",
-              "POSITIONS (Tropical)",
-              "POSITIONS (Draconic)",
-              "HOUSES",
-              "ASPECTS",
-              "ASPECTS (Draconic)",'''
-          assert text.count(old_headers) == 1, 'canonical Chart Data header tuple shape changed'
-          text = text.replace(old_headers, new_headers, 1)
+          headers_pattern = re.compile(
+              r'CHART_DATA_SECTION_HEADERS = \(\n'
+              r'    "CHART INFO",\n'
+              r'    "CORE DESIGNATION",\n'
+              r'    "POSITIONS",\n'
+              r'    "HOUSES",\n'
+              r'    "ASPECTS",'
+          )
+          headers_replacement = (
+              'CHART_DATA_SECTION_HEADERS = (\n'
+              '    "CHART INFO",\n'
+              '    "CORE DESIGNATION",\n'
+              '    "POSITIONS",\n'
+              '    "POSITIONS (Tropical)",\n'
+              '    "POSITIONS (Draconic)",\n'
+              '    "HOUSES",\n'
+              '    "ASPECTS",\n'
+              '    "ASPECTS (Draconic)",'
+          )
+          text, header_count = headers_pattern.subn(headers_replacement, text, count=1)
+          assert header_count == 1, f'canonical Chart Data header tuple shape changed ({header_count})'
           path.write_text(text)
 
-          # Update header regression coverage to require ordinary str.splitlines behavior.
-          path = Path('tests/test_chart_data_position_headers.py')
-          text = path.read_text()
-          text = text.replace('    _ChartSummaryText,\n', '')
-          old_test = '''def test_chart_summary_displays_tropical_but_preserves_legacy_splitline_header() -> None:
-              summary = _ChartSummaryText("HEADER\\nPOSITIONS (Tropical)\\nBody  Sign")
+          # Regression coverage: qualified Tropical survives normal string splitting;
+          # legacy aliases remain recognized.
+          Path('tests/test_chart_data_position_headers.py').write_text('''from ephemeraldaddy.gui.features.charts.text_summary import (\n    DRACONIC_POSITION_HEADER_ALIASES,\n    POSITION_HEADER_ALIASES,\n    _header_matches,\n)\n\n\ndef test_tropical_position_header_accepts_legacy_and_qualified_forms() -> None:\n    assert _header_matches("POSITIONS", POSITION_HEADER_ALIASES)\n    assert _header_matches("POSITIONS (Tropical)", POSITION_HEADER_ALIASES)\n\n\ndef test_draconic_position_header_accepts_legacy_and_qualified_forms() -> None:\n    assert _header_matches("DRACONIC POSITIONS", DRACONIC_POSITION_HEADER_ALIASES)\n    assert _header_matches("POSITIONS (Draconic)", DRACONIC_POSITION_HEADER_ALIASES)\n\n\ndef test_tropical_qualifier_survives_standard_splitlines() -> None:\n    summary = "HEADER\\nPOSITIONS (Tropical)\\nBody  Sign"\n\n    assert "POSITIONS (Tropical)" in summary\n    assert summary.splitlines()[1] == "POSITIONS (Tropical)"\n''')
 
-              assert "POSITIONS (Tropical)" in summary
-              assert summary.splitlines()[1] == "POSITIONS"
-          '''
-          new_test = '''def test_tropical_qualifier_survives_standard_splitlines() -> None:
-              summary = "HEADER\\nPOSITIONS (Tropical)\\nBody  Sign"
-
-              assert "POSITIONS (Tropical)" in summary
-              assert summary.splitlines()[1] == "POSITIONS (Tropical)"
-          '''
-          assert text.count(old_test) == 1, 'header splitlines regression test shape changed'
-          text = text.replace(old_test, new_test, 1)
-          path.write_text(text)
-
-          # Add focused sorter/style regression tests.
           Path('tests/test_draconic_output_regressions.py').write_text('''from ephemeraldaddy.gui.features.charts.aspect_sorting import sort_natal_aspects\nfrom ephemeraldaddy.gui.style import CHART_DATA_SECTION_HEADERS\n\n\ndef _directed_aspect() -> dict:\n    return {\n        "p1": "Mars",\n        "p2": "Sun",\n        "type": "trine",\n        "angle": 120.0,\n        "delta": 0.0,\n    }\n\n\ndef test_position_sort_can_preserve_directed_endpoints() -> None:\n    result = sort_natal_aspects(\n        [_directed_aspect()],\n        "Position",\n        preserve_endpoint_order=True,\n    )\n    assert result[0]["p1"] == "Mars"\n    assert result[0]["p2"] == "Sun"\n\n\ndef test_default_position_sort_still_normalizes_symmetric_natal_endpoints() -> None:\n    result = sort_natal_aspects([_directed_aspect()], "Position")\n    assert result[0]["p1"] == "Sun"\n    assert result[0]["p2"] == "Mars"\n\n\ndef test_draconic_and_tropical_headers_are_registered_for_chart_data_styling() -> None:\n    assert "POSITIONS" in CHART_DATA_SECTION_HEADERS\n    assert "POSITIONS (Tropical)" in CHART_DATA_SECTION_HEADERS\n    assert "POSITIONS (Draconic)" in CHART_DATA_SECTION_HEADERS\n    assert "ASPECTS (Draconic)" in CHART_DATA_SECTION_HEADERS\n''')
+
+          # Guard against accidentally retaining the nonstandard string behavior.
+          assert '_ChartSummaryText' not in Path('ephemeraldaddy/gui/features/charts/text_summary.py').read_text()
           PY
+
+      - name: Validate syntax
+        shell: bash
+        run: |
+          python -m py_compile \
+            ephemeraldaddy/gui/features/charts/aspect_sorting.py \
+            ephemeraldaddy/gui/features/charts/text_summary.py \
+            ephemeraldaddy/gui/style.py \
+            ephemeraldaddy/gui/app.py \
+            tests/test_chart_data_position_headers.py \
+            tests/test_draconic_output_regressions.py
 
       - name: Remove temporary workflow and commit fixes
         shell: bash
