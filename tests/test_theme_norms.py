@@ -86,3 +86,51 @@ def test_extended_snapshot_fields_are_backward_compatible() -> None:
     assert payload[norms.THEME_CHART_SHARE_SCHEMA_FIELD] == 1
     assert payload[norms.THEME_FAMILY_AVAILABILITY_ROWS_FIELD]["houses:1|hd:1|bazi:0"]["family"] == 42.0
     assert payload[norms.THEME_SUBTHEME_SHARE_VALUES_FIELD]["houses:1|hd:1|bazi:0"]["a"] == [10.0, 15.0]
+
+
+def _complete_chart_share_snapshot_for_availability(availability_key: str) -> dict[str, object]:
+    return {
+        "theme_family_definition_signature": norms.prominence.theme_definition_signature(),
+        norms.THEME_CHART_SHARE_SCHEMA_FIELD: norms.THEME_CHART_SHARE_SCHEMA_VERSION,
+        norms.THEME_SUBTHEME_SHARE_AVERAGES_FIELD: {
+            availability_key: {theme_key: 1.0 for theme_key in norms.prominence.THEMES}
+        },
+        norms.THEME_SUBTHEME_SHARE_VALUES_FIELD: {
+            availability_key: {
+                theme_key: [0.5, 1.0, 1.5] for theme_key in norms.prominence.THEMES
+            }
+        },
+        norms.THEME_FAMILY_SHARE_AVERAGES_FIELD: {
+            availability_key: {
+                family_key: 10.0 for family_key in norms.prominence.THEME_FAMILIES
+            }
+        },
+        norms.THEME_FAMILY_SHARE_VALUES_FIELD: {
+            availability_key: {
+                family_key: [9.0, 10.0, 11.0]
+                for family_key in norms.prominence.THEME_FAMILIES
+            }
+        },
+        norms.THEME_FACTOR_ACTIVATION_VALUES_FIELD: {
+            availability_key: {
+                norms.theme_factor_distribution_key("signs", "Aries"): [0.0, 0.5, 1.0]
+            }
+        },
+    }
+
+
+def test_chart_share_norms_reject_missing_requested_availability_stratum() -> None:
+    stored_key = "houses:1|hd:1|bazi:1"
+    requested_key = "houses:0|hd:0|bazi:0"
+    payload = _complete_chart_share_snapshot_for_availability(stored_key)
+
+    assert norms.theme_chart_share_norms_for_availability(payload, requested_key) == {}
+
+
+def test_chart_share_norms_reject_incomplete_requested_rows() -> None:
+    availability_key = "houses:1|hd:1|bazi:1"
+    payload = _complete_chart_share_snapshot_for_availability(availability_key)
+    first_family = next(iter(norms.prominence.THEME_FAMILIES))
+    del payload[norms.THEME_FAMILY_SHARE_AVERAGES_FIELD][availability_key][first_family]
+
+    assert norms.theme_chart_share_norms_for_availability(payload, availability_key) == {}
