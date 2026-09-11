@@ -41,7 +41,6 @@ from zoneinfo import ZoneInfo
 
 from ephemeraldaddy.gui.crash_diagnostics import install_crash_diagnostics
 from ephemeraldaddy.core.position_descriptions import get_position_description
-from ephemeraldaddy.semantics_formatting import format_ordinal
 
 
 logger = logging.getLogger(__name__)
@@ -1095,7 +1094,6 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     get_cross_theme_description,
     get_cross_type_description,
 )
-from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
 )
@@ -1110,6 +1108,15 @@ from ephemeraldaddy.gui.features.chart_information.plugin_context import (
 from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (
     append_plugin_paragraphs,
 )
+from ephemeraldaddy.gui.features.chart_information.keyword_models import (
+    build_aspect_keyword_text,
+    build_element_definition_lines,
+    build_house_keyword_text,
+    build_planet_keyword_text,
+)
+from ephemeraldaddy.gui.features.chart_information.token_formatting import (
+    human_design_gate_header_suffix,
+)
 from ephemeraldaddy.gui.settings.modules.plugins import build_plugin_manager_panel
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
@@ -1117,7 +1124,6 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_CHANNELS,
     HD_COLORS,
     HD_BASES,
-    HD_CIRCUIT_GROUPS,
     HD_DIGESTION_NAMES,
     HD_ENVIRONMENT_COLORS,
     HD_ENVIRONMENTS,
@@ -29213,61 +29219,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         lines.append(self._build_sign_dominance_section(chart, sign_name))
         return "".join(lines)
 
-    def _element_definition(self, element: str) -> dict:
-        element_key = str(element or "").strip().lower()
-        return GRECOROMAN_ELEMENTS.get(element_key, {})
-
-    def _element_definition_lines(self, element: str) -> list[str]:
-        data = self._element_definition(element)
-        element_label = str(data.get("name") or element or "Element").strip().title()
-        if not data:
-            return [element_label, "", "No element definition data available."]
-        lines = [element_label]
-        greek = str(data.get("greek", "")).strip()
-        if greek:
-            lines.append(f"Greek: {greek}")
-        qualities = [str(item).strip() for item in data.get("qualities", []) if str(item).strip()]
-        if qualities:
-            lines.append(f"Qualities: {', '.join(qualities)}")
-        signs = [str(item).strip() for item in data.get("signs", []) if str(item).strip()]
-        if signs:
-            lines.append(f"Signs: {', '.join(signs)}")
-        for label, key in (
-            ("Polarity", "polarity"),
-            ("Temperament", "temperament"),
-            ("Core function", "core_function"),
-            ("Basic function", "basic_function"),
-            ("Core meaning", "core_meaning"),
-            ("Use", "use"),
-            ("Object", "object"),
-            ("Suit", "suit"),
-            ("Suit function", "suit_function"),
-            ("Suit style", "suit_style"),
-            ("Basic style", "basic_style"),
-        ):
-            value = str(data.get(key, "")).strip()
-            if value:
-                lines.append(f"{label}: {value}")
-        for label, key in (
-            ("Strengths", "strengths"),
-            ("Challenges", "challenges"),
-            ("Distortions", "distortions"),
-            ("Needs", "needs"),
-            ("Fears", "fears"),
-            ("Verbs", "verbs"),
-        ):
-            items = [str(item).strip() for item in data.get(key, []) if str(item).strip()]
-            if items:
-                lines.extend(["", f"{label}:", *(f"• {item}" for item in items)])
-        return lines
-
     def _build_element_popout_info(self, chart: Chart, element: str) -> str:
         element_name = str(element or "").strip().title()
-        data = self._element_definition(element_name)
+        data = GRECOROMAN_ELEMENTS.get(element_name.lower(), {})
         element_label = str(data.get("name") or element_name or "Element").strip().title()
         color = str(ELEMENT_COLORS.get(element_label, CHART_THEME_COLORS.get("text", "#f5f5f5")))
         lines = [f"<h3><span style='color:{html.escape(color)}'>{html.escape(element_label)}</span></h3>"]
-        for raw_line in self._element_definition_lines(element_label)[1:]:
+        for raw_line in build_element_definition_lines(element_label)[1:]:
             line = str(raw_line).strip()
             if not line:
                 lines.append("<br>")
@@ -31747,12 +31705,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     ) -> None:
         body_name = str(body or "").strip()
         display_body = str(display_body_label or "").strip() or _display_body_name(body_name)
-        verbs = PLANET_KEYWORDS.get(body_name, {}).get("verbs", [])
-        clean_verbs = [str(item).strip() for item in verbs if str(item).strip()]
-        if not clean_verbs:
-            self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
-            return
-        status_line = ""
         resolved_sign_name = str(sign_name or "").strip().title()
         resolved_house_num = house_num if isinstance(house_num, int) else None
         resolved_uses_houses = bool(chart_uses_houses) if chart_uses_houses is not None else None
@@ -31766,31 +31718,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if resolved_uses_houses is None and chart is not None:
             resolved_uses_houses = _chart_uses_houses(chart)
 
-        rulership_signs = PLANET_RULERSHIP.get(body_name, set())
-        exaltation = PLANET_EXALTATION.get(body_name, {})
-        detriment_signs = PLANET_DETRIMENT.get(body_name, set())
-        fall = PLANET_FALL.get(body_name, {})
-        if (
-            resolved_sign_name
-            and exaltation
-            and resolved_sign_name == str(exaltation.get("sign", "")).strip().title()
-        ):
-            status_line = f"Exalted in {resolved_sign_name}."
-        elif resolved_sign_name and resolved_sign_name in rulership_signs:
-            status_line = f"Ruler of {resolved_sign_name}."
-        elif resolved_sign_name and resolved_sign_name in detriment_signs:
-            status_line = f"Detriment in {resolved_sign_name}."
-        elif resolved_sign_name and fall and resolved_sign_name == str(fall.get("sign", "")).strip().title():
-            status_line = f"Fall in {resolved_sign_name}."
-        elif resolved_uses_houses:
-            joy_house = PLANETARY_JOYS.get(body_name)
-            if isinstance(joy_house, int) and resolved_house_num == joy_house:
-                status_line = f"With joy in house {joy_house}."
-        lines = [f"• {keyword}" for keyword in clean_verbs]
-        if status_line:
-            self.chart_info_output.setPlainText("\n".join([display_body, status_line, "", *lines]))
-            return
-        self.chart_info_output.setPlainText("\n".join([display_body, "", *lines]))
+        self.chart_info_output.setPlainText(
+            build_planet_keyword_text(
+                body_name,
+                display_body=display_body,
+                sign_name=resolved_sign_name,
+                house_number=resolved_house_num,
+                chart_uses_houses=bool(resolved_uses_houses),
+            )
+        )
 
     def _show_sign_keyword_info(
         self,
@@ -31935,19 +31871,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_element_keyword_info(self, element: str) -> None:
-        self.chart_info_output.setPlainText("\n".join(self._element_definition_lines(element)))
+        self.chart_info_output.setPlainText(
+            "\n".join(build_element_definition_lines(element))
+        )
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
-        aspect_label = str(atype or "").strip()
-        aspect_key = aspect_label.replace(" ", "_").lower()
-        aspect_keywords = ASPECT_KEYWORDS.get(aspect_key, [])
-        clean_keywords = [str(item).strip() for item in aspect_keywords if str(item).strip()]
-        header = f"{aspect_label or 'Aspect'} keywords"
-        if not clean_keywords:
-            self.chart_info_output.setPlainText(f"{header}\n\nNo keyword data available.")
-            return
-        lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
-        self.chart_info_output.setPlainText("\n".join(lines))
+        self.chart_info_output.setPlainText(build_aspect_keyword_text(atype))
 
 
     def _show_mode_keyword_info(self, mode: str) -> None:
@@ -31997,64 +31926,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         reset_cursor.movePosition(QTextCursor.Start)
         self.chart_info_output.setTextCursor(reset_cursor)
 
-    @staticmethod
-    def _ordinal_house_header(house_num: int) -> str:
-        return f"{format_ordinal(house_num)} House"
-
     def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
-        house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
-        clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
-        header = self._ordinal_house_header(house_num)
-        clean_joy_body = str(joy_body or "").strip()
-        if clean_joy_body:
-            header = f"{header} (planetary joy in {clean_joy_body})"
-        if not clean_keywords:
-            self.chart_info_output.setPlainText(f"{header}\n\nNo house keywords available.")
-            return
-        lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
-        self.chart_info_output.setPlainText("\n".join(lines))
+        self.chart_info_output.setPlainText(
+            build_house_keyword_text(house_num, joy_body=joy_body)
+        )
 
-
-    @staticmethod
-    def _format_hd_zodiac_degree(longitude: float) -> str:
-        normalized = float(longitude) % 360.0
-        sign_index = int(normalized // 30) % 12
-        degree_in_sign = normalized - (sign_index * 30)
-        whole_degrees = int(degree_in_sign)
-        minutes = int(round((degree_in_sign - whole_degrees) * 60))
-        if minutes == 60:
-            whole_degrees += 1
-            minutes = 0
-        if whole_degrees == 30:
-            whole_degrees = 0
-            sign_index = (sign_index + 1) % 12
-        return f"{whole_degrees}°{minutes:02d}' {ZODIAC_NAMES[sign_index]}"
-
-    @classmethod
-    def _hd_gate_degree_range_text(cls, gate_number: int) -> str:
-        try:
-            gate_index = MANDALA_GATE_ORDER.index(int(gate_number))
-        except ValueError:
-            return "degree range unknown"
-        gate_width = 360.0 / 64.0
-        start_longitude = (MANDALA_START_DEGREE + (gate_index * gate_width)) % 360.0
-        end_longitude = (start_longitude + gate_width) % 360.0
-        return f"{cls._format_hd_zodiac_degree(start_longitude)}–{cls._format_hd_zodiac_degree(end_longitude)}"
-
-    @staticmethod
-    def _hd_gate_circuit_group(gate_number: int) -> str:
-        for group_name, group_data in HD_CIRCUIT_GROUPS.items():
-            gates = group_data.get("gates", ()) if isinstance(group_data, dict) else ()
-            try:
-                if int(gate_number) in {int(gate) for gate in gates}:
-                    return str(group_name).strip().lower()
-            except (TypeError, ValueError):
-                continue
-        return "circuit unknown"
-
-    @classmethod
-    def _hd_gate_header_suffix(cls, gate_number: int) -> str:
-        return f"{cls._hd_gate_circuit_group(gate_number)}, {cls._hd_gate_degree_range_text(gate_number)}"
 
     def _show_human_design_gate_line_info(
         self,
@@ -32092,7 +31968,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         gate_label = f"{gate_number}.{line_number}" if line_number is not None else f"{gate_number}"
         if fixing_label:
             gate_label = f"{gate_label} ({fixing_label})"
-        title = f"Gate {gate_label} • {gate_info['name']} ({self._hd_gate_header_suffix(gate_number)})"
+        title = f"Gate {gate_label} • {gate_info['name']} ({human_design_gate_header_suffix(gate_number)})"
 
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
