@@ -19,6 +19,9 @@ DB_SOURCE = (REPO_ROOT / "ephemeraldaddy/core/db.py").read_text()
 RIGHT_PANEL_SOURCE = (
     REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py"
 ).read_text()
+SESSION_SOURCE = (
+    REPO_ROOT / "ephemeraldaddy/gui/features/chart_editor/session.py"
+).read_text()
 
 
 def _method(source: str, name: str) -> str:
@@ -40,7 +43,8 @@ def test_subjective_only_save_uses_lightweight_update_and_preserves_calculated_p
     lightweight = _function(DB_SOURCE, "update_chart_lightweight_metadata")
     update_sql = lightweight.split("UPDATE charts", 1)[1].split("WHERE id = ?", 1)[0]
 
-    assert "if recalculate_chart:\n                update_chart(chart_id, chart, **save_kwargs)" in save
+    assert "recalculation_event = not calculation_event and recalculate_chart" in save
+    assert "if recalculation_event:\n                update_chart(chart_id, chart, **save_kwargs)" in save
     assert "else:\n                update_chart_lightweight_metadata(chart_id, chart)" in save
     assert "positions" not in update_sql
     assert "houses" not in update_sql
@@ -91,10 +95,14 @@ def test_subjective_flush_defers_to_pending_birth_recalculation_without_losing_d
 
 def test_subjective_autosave_also_persists_material_facts_before_clearing_dirty_state():
     save = _method(APP_SOURCE, "on_update_chart")
+    record_successful_save = _method(SESSION_SOURCE, "record_successful_save")
     material_save = save.index("self._save_material_facts_for_chart(chart_id)")
-    clear_dirty = save.index("self._set_lucygoosey(False)", material_save)
+    clear_dirty = save.index(
+        "self._chart_edit_session.record_successful_save(", material_save
+    )
 
     assert material_save < clear_dirty
+    assert "self.mark_clean()" in record_successful_save
 
 
 def test_pending_autosaves_are_deferred_during_leave_prompt_and_save_remains_available():
