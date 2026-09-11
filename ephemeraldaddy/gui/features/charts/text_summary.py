@@ -25,6 +25,7 @@ from ephemeraldaddy.core.aspect_display import (
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import (
     Chart,
+    _effective_chart_datetime,
     apply_unknown_sign_metadata,
     rectification_range_midpoint_minutes,
     rectification_range_minutes,
@@ -82,6 +83,13 @@ DRACONIC_POSITION_HEADER_ALIASES: tuple[str, ...] = (
 
 def _header_matches(line: str, aliases: tuple[str, ...]) -> bool:
     return line.strip() in aliases
+
+
+def _planetary_positions_at_effective_chart_time(chart: Chart) -> dict:
+    effective_dt = _effective_chart_datetime(chart)
+    if effective_dt is None:
+        return {}
+    return planetary_positions(effective_dt, chart.lat, chart.lon)
 
 
 
@@ -1328,7 +1336,7 @@ def format_chart_text(
     draconic_source_positions = dict(chart.positions)
     if draconic_source_positions.get("Rahu") is None:
         try:
-            refreshed_positions = planetary_positions(chart.dt, chart.lat, chart.lon)
+            refreshed_positions = _planetary_positions_at_effective_chart_time(chart)
         except Exception:
             refreshed_positions = {}
         if refreshed_positions.get("Rahu") is not None:

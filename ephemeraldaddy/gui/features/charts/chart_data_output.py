@@ -58,6 +58,20 @@ def _is_chart_data_section_header(text: str) -> bool:
     return text.strip().upper() in _CHART_DATA_SECTION_HEADER_NAMES
 
 
+_POSITION_ROW_COLOR_SECTIONS = frozenset(
+    {
+        "POSITIONS",
+        "POSITIONS (Tropical)",
+        "POSITIONS (Draconic)",
+        "UNCERTAIN TIME VARIANTS",
+    }
+)
+
+
+def _is_position_row_color_section(section: str) -> bool:
+    return section in _POSITION_ROW_COLOR_SECTIONS
+
+
 def _normalized_chart_data_text(text: str) -> str:
     """Blank legacy ASCII divider rows around appwide section headers without changing line maps."""
     lines = text.splitlines()
@@ -1345,7 +1359,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
     def _apply_positions_row_colors(self, text: str, stripped_text: str) -> None:
         current_section = self._current_chart_data_section()
-        if current_section not in {"POSITIONS", "UNCERTAIN TIME VARIANTS"}:
+        if not _is_position_row_color_section(current_section):
             return
         if not stripped_text or stripped_text == "POSITIONS" or (CHART_DATA_DIVIDER and stripped_text == CHART_DATA_DIVIDER):
             return
