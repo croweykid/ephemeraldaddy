@@ -26,16 +26,22 @@ class ChartEditSession:
     authoritative_values: dict[str, Any] = field(default_factory=dict)
     draft_values: dict[str, Any] = field(default_factory=dict)
     dirty_fields: set[str] = field(default_factory=set)
-    recalculation_required: bool = False
+    authoritative_dirty_fields: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         self.active_chart_uid = _normalize_chart_uid(self.active_chart_uid)
         self.authoritative_values = dict(self.authoritative_values)
         self.draft_values = dict(self.draft_values or self.authoritative_values)
+        self.dirty_fields = set(self.dirty_fields)
+        self.authoritative_dirty_fields = set(self.authoritative_dirty_fields)
 
     @property
     def is_dirty(self) -> bool:
         return bool(self.dirty_fields)
+
+    @property
+    def recalculation_required(self) -> bool:
+        return bool(self.authoritative_dirty_fields)
 
     def begin(
         self,
@@ -49,7 +55,11 @@ class ChartEditSession:
         self.authoritative_values = values
         self.draft_values = dict(values)
         self.dirty_fields.clear()
-        self.recalculation_required = False
+        self.authoritative_dirty_fields.clear()
+
+    def set_active_chart_uid(self, chart_uid: str | None) -> None:
+        """Update only the persisted identity while preserving draft state."""
+        self.active_chart_uid = _normalize_chart_uid(chart_uid)
 
     def mark_dirty(
         self,
@@ -63,7 +73,15 @@ class ChartEditSession:
             raise ValueError("A dirty field must have a non-empty name")
         self.dirty_fields.add(normalized_field)
         if kind == "authoritative":
-            self.recalculation_required = True
+            self.authoritative_dirty_fields.add(normalized_field)
+
+    def require_recalculation(self, required: bool) -> None:
+        """Bridge legacy dirty notifications until all fields use typed drafts."""
+        legacy_reason = "legacy-unspecified"
+        if required:
+            self.authoritative_dirty_fields.add(legacy_reason)
+        else:
+            self.authoritative_dirty_fields.clear()
 
     def set_draft_value(
         self,
@@ -79,6 +97,7 @@ class ChartEditSession:
         self.draft_values[normalized_field] = value
         if self.authoritative_values.get(normalized_field) == value:
             self.dirty_fields.discard(normalized_field)
+            self.authoritative_dirty_fields.discard(normalized_field)
         else:
             self.mark_dirty(normalized_field, kind=kind)
 
@@ -86,10 +105,10 @@ class ChartEditSession:
         """Accept the current draft as saved and clear pending impact."""
         self.authoritative_values = dict(self.draft_values)
         self.dirty_fields.clear()
-        self.recalculation_required = False
+        self.authoritative_dirty_fields.clear()
 
     def discard(self) -> None:
         """Restore the authoritative snapshot and clear pending impact."""
         self.draft_values = dict(self.authoritative_values)
         self.dirty_fields.clear()
-        self.recalculation_required = False
+        self.authoritative_dirty_fields.clear()

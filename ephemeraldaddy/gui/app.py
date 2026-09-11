@@ -30202,7 +30202,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     @_metadata_autosave_requires_recalculation.setter
     def _metadata_autosave_requires_recalculation(self, required: bool) -> None:
-        self._chart_edit_session.recalculation_required = bool(required)
+        self._chart_edit_session.require_recalculation(required)
 
     def _set_lucygoosey(self, is_lucygoosey: bool) -> None:
         self._lucygoosey = is_lucygoosey
@@ -35339,12 +35339,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if normalized_uid is None:
             raise ValueError("A persisted chart must have a non-empty chart UID")
         self.current_chart_uid = normalized_uid
-        self._chart_edit_session.active_chart_uid = normalized_uid
+        self._chart_edit_session.set_active_chart_uid(normalized_uid)
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
         self.current_chart_uid = None
-        self._chart_edit_session.active_chart_uid = None
+        self._chart_edit_session.set_active_chart_uid(None)
 
     def _current_chart_uid_for_navigation(self) -> str | None:
         """Return the UID-owned navigation identity without an ID round trip."""
