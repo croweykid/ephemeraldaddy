@@ -1,9 +1,24 @@
 from ephemeraldaddy.core.interpretations import PLANETARY_JOYS
 from ephemeraldaddy.gui.features.chart_information.keyword_models import (
     build_aspect_keyword_text,
+    build_element_definition_lines,
     build_house_keyword_text,
     build_planet_keyword_text,
 )
+
+
+def test_element_definition_lines_are_reusable_by_panel_and_popout():
+    lines = build_element_definition_lines(" fire ")
+
+    assert lines[0] == "Fire"
+    assert any(line.startswith("Qualities: ") for line in lines)
+    assert "Strengths:" in lines
+    assert any(line.startswith("• ") for line in lines)
+    assert build_element_definition_lines("") == [
+        "Element",
+        "",
+        "No element definition data available.",
+    ]
 
 
 def test_planet_keywords_include_dignity_before_house_joy():

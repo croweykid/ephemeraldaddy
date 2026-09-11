@@ -5,6 +5,7 @@ from __future__ import annotations
 from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.core.interpretations import (
     ASPECT_KEYWORDS,
+    GRECOROMAN_ELEMENTS,
     PLANET_DETRIMENT,
     PLANET_EXALTATION,
     PLANET_FALL,
@@ -15,6 +16,54 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.chart_information.token_formatting import (
     ordinal_house_header,
 )
+
+
+def build_element_definition_lines(element: str) -> list[str]:
+    """Build reusable plain-text lines for a classical element definition."""
+    element_key = str(element or "").strip().lower()
+    data = GRECOROMAN_ELEMENTS.get(element_key, {})
+    element_label = str(data.get("name") or element or "Element").strip().title()
+    if not data:
+        return [element_label, "", "No element definition data available."]
+
+    lines = [element_label]
+    greek = str(data.get("greek", "")).strip()
+    if greek:
+        lines.append(f"Greek: {greek}")
+    qualities = [str(item).strip() for item in data.get("qualities", []) if str(item).strip()]
+    if qualities:
+        lines.append(f"Qualities: {', '.join(qualities)}")
+    signs = [str(item).strip() for item in data.get("signs", []) if str(item).strip()]
+    if signs:
+        lines.append(f"Signs: {', '.join(signs)}")
+    for label, key in (
+        ("Polarity", "polarity"),
+        ("Temperament", "temperament"),
+        ("Core function", "core_function"),
+        ("Basic function", "basic_function"),
+        ("Core meaning", "core_meaning"),
+        ("Use", "use"),
+        ("Object", "object"),
+        ("Suit", "suit"),
+        ("Suit function", "suit_function"),
+        ("Suit style", "suit_style"),
+        ("Basic style", "basic_style"),
+    ):
+        value = str(data.get(key, "")).strip()
+        if value:
+            lines.append(f"{label}: {value}")
+    for label, key in (
+        ("Strengths", "strengths"),
+        ("Challenges", "challenges"),
+        ("Distortions", "distortions"),
+        ("Needs", "needs"),
+        ("Fears", "fears"),
+        ("Verbs", "verbs"),
+    ):
+        items = [str(item).strip() for item in data.get(key, []) if str(item).strip()]
+        if items:
+            lines.extend(["", f"{label}:", *(f"• {item}" for item in items)])
+    return lines
 
 
 def build_planet_keyword_text(

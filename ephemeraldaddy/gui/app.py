@@ -1110,6 +1110,7 @@ from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (
 )
 from ephemeraldaddy.gui.features.chart_information.keyword_models import (
     build_aspect_keyword_text,
+    build_element_definition_lines,
     build_house_keyword_text,
     build_planet_keyword_text,
 )
@@ -29218,61 +29219,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         lines.append(self._build_sign_dominance_section(chart, sign_name))
         return "".join(lines)
 
-    def _element_definition(self, element: str) -> dict:
-        element_key = str(element or "").strip().lower()
-        return GRECOROMAN_ELEMENTS.get(element_key, {})
-
-    def _element_definition_lines(self, element: str) -> list[str]:
-        data = self._element_definition(element)
-        element_label = str(data.get("name") or element or "Element").strip().title()
-        if not data:
-            return [element_label, "", "No element definition data available."]
-        lines = [element_label]
-        greek = str(data.get("greek", "")).strip()
-        if greek:
-            lines.append(f"Greek: {greek}")
-        qualities = [str(item).strip() for item in data.get("qualities", []) if str(item).strip()]
-        if qualities:
-            lines.append(f"Qualities: {', '.join(qualities)}")
-        signs = [str(item).strip() for item in data.get("signs", []) if str(item).strip()]
-        if signs:
-            lines.append(f"Signs: {', '.join(signs)}")
-        for label, key in (
-            ("Polarity", "polarity"),
-            ("Temperament", "temperament"),
-            ("Core function", "core_function"),
-            ("Basic function", "basic_function"),
-            ("Core meaning", "core_meaning"),
-            ("Use", "use"),
-            ("Object", "object"),
-            ("Suit", "suit"),
-            ("Suit function", "suit_function"),
-            ("Suit style", "suit_style"),
-            ("Basic style", "basic_style"),
-        ):
-            value = str(data.get(key, "")).strip()
-            if value:
-                lines.append(f"{label}: {value}")
-        for label, key in (
-            ("Strengths", "strengths"),
-            ("Challenges", "challenges"),
-            ("Distortions", "distortions"),
-            ("Needs", "needs"),
-            ("Fears", "fears"),
-            ("Verbs", "verbs"),
-        ):
-            items = [str(item).strip() for item in data.get(key, []) if str(item).strip()]
-            if items:
-                lines.extend(["", f"{label}:", *(f"• {item}" for item in items)])
-        return lines
-
     def _build_element_popout_info(self, chart: Chart, element: str) -> str:
         element_name = str(element or "").strip().title()
-        data = self._element_definition(element_name)
+        data = GRECOROMAN_ELEMENTS.get(element_name.lower(), {})
         element_label = str(data.get("name") or element_name or "Element").strip().title()
         color = str(ELEMENT_COLORS.get(element_label, CHART_THEME_COLORS.get("text", "#f5f5f5")))
         lines = [f"<h3><span style='color:{html.escape(color)}'>{html.escape(element_label)}</span></h3>"]
-        for raw_line in self._element_definition_lines(element_label)[1:]:
+        for raw_line in build_element_definition_lines(element_label)[1:]:
             line = str(raw_line).strip()
             if not line:
                 lines.append("<br>")
@@ -31918,7 +31871,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_element_keyword_info(self, element: str) -> None:
-        self.chart_info_output.setPlainText("\n".join(self._element_definition_lines(element)))
+        self.chart_info_output.setPlainText(
+            "\n".join(build_element_definition_lines(element))
+        )
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
         self.chart_info_output.setPlainText(build_aspect_keyword_text(atype))
