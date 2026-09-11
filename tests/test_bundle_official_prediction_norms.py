@@ -51,6 +51,12 @@ def _legacy_theme_snapshot_fields() -> dict[str, object]:
 
 def _theme_snapshot_fields() -> dict[str, object]:
     payload = _legacy_theme_snapshot_fields()
+    factor_rows = {
+        factor_key: [0.0, 0.5, 1.0]
+        for factor_key in bundler._configured_theme_factor_keys_for_availability(
+            _AVAILABILITY
+        )
+    }
     payload.update(
         {
             THEME_CHART_SHARE_SCHEMA_FIELD: THEME_CHART_SHARE_SCHEMA_VERSION,
@@ -72,7 +78,7 @@ def _theme_snapshot_fields() -> dict[str, object]:
                 }
             },
             THEME_FACTOR_ACTIVATION_VALUES_FIELD: {
-                _AVAILABILITY: {"signs:\"Aries\"": [0.0, 0.5, 1.0]}
+                _AVAILABILITY: factor_rows
             },
         }
     )
@@ -196,4 +202,25 @@ def test_bundle_official_snapshot_rejects_incomplete_chart_share_distribution():
     del payload[THEME_SUBTHEME_SHARE_VALUES_FIELD][_AVAILABILITY][first_theme]
 
     with pytest.raises(ValueError, match="distribution"):
+        bundler.validate_theme_family_coverage(payload)
+
+
+def test_bundle_official_snapshot_requires_every_applicable_factor_distribution():
+    payload = _theme_snapshot_fields()
+    expected_keys = bundler._configured_theme_factor_keys_for_availability(_AVAILABILITY)
+    assert expected_keys
+    missing_factor = expected_keys[0]
+    del payload[THEME_FACTOR_ACTIVATION_VALUES_FIELD][_AVAILABILITY][missing_factor]
+
+    with pytest.raises(ValueError, match="factor_activation_values_by_availability"):
+        bundler.validate_theme_family_coverage(payload)
+
+
+def test_bundle_official_snapshot_rejects_arbitrary_factor_key_in_place_of_runtime_keys():
+    payload = _theme_snapshot_fields()
+    payload[THEME_FACTOR_ACTIVATION_VALUES_FIELD][_AVAILABILITY] = {
+        'signs:"Aries"': [0.0, 0.5, 1.0]
+    }
+
+    with pytest.raises(ValueError, match="factor_activation_values_by_availability"):
         bundler.validate_theme_family_coverage(payload)
