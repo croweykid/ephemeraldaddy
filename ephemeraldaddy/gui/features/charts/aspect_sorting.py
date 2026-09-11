@@ -62,7 +62,16 @@ def sort_natal_aspects(
     filtered_aspects: list[dict],
     sort_mode: str,
     planet_weights: dict[str, float] | None = None,
+    *,
+    preserve_endpoint_order: bool = False,
 ) -> list[dict]:
+    """Sort aspect records for display.
+
+    ``preserve_endpoint_order`` is required for directed overlays such as
+    Draconic -> natal aspects, where p1 and p2 describe different coordinate
+    frames and therefore must never be exchanged merely for display sorting.
+    Ordinary natal aspects remain symmetric and retain the historical behavior.
+    """
     if sort_mode == "Aspect":
         return sorted(
             filtered_aspects,
@@ -74,7 +83,11 @@ def sort_natal_aspects(
             ),
         )
     if sort_mode == "Position":
-        ordered_aspects = [_with_primary_position_endpoint(asp) for asp in filtered_aspects]
+        ordered_aspects = (
+            list(filtered_aspects)
+            if preserve_endpoint_order
+            else [_with_primary_position_endpoint(asp) for asp in filtered_aspects]
+        )
         return sorted(
             ordered_aspects,
             key=lambda a: (

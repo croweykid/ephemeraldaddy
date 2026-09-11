@@ -18,6 +18,20 @@ def test_manage_charts_delegates_similarities_panel_construction_to_controller()
     assert "self.db_info_panel = DBInfoPanel()" in controller_source
 
 
+def test_data_export_button_dispatches_through_cohort_aware_controller():
+    controller_source = CONTROLLER_SOURCE.read_text(encoding="utf-8")
+    build_panel = controller_source.split("def build_panel", 1)[1].split(
+        "def set_panel_scroll", 1
+    )[0]
+
+    assert "json_export_button.clicked.connect(self.export_json)" in build_panel
+    legacy_connection = (
+        "json_export_button.clicked.connect("
+        "self.host._export_similarities_analysis_json)"
+    )
+    assert legacy_connection not in build_panel
+
+
 def test_similarities_chart_info_is_a_static_sibling_below_analysis_scroll():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     controller_source = CONTROLLER_SOURCE.read_text(encoding="utf-8")
