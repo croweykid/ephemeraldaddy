@@ -84,33 +84,6 @@ def _header_matches(line: str, aliases: tuple[str, ...]) -> bool:
     return line.strip() in aliases
 
 
-class _ChartSummaryText(str):
-    """String compatible with legacy split-line consumers of ``POSITIONS``.
-
-    Chart Data Output now renders ``POSITIONS (Tropical)``. Several legacy
-    popout paths still split the returned string and search for the historical
-    plain ``POSITIONS`` header. Preserve those paths without forcing every
-    surface to adopt the qualified label: direct display gets the new header,
-    while split-line consumers continue to receive the legacy form.
-    """
-
-    def splitlines(self, keepends: bool = False) -> list[str]:
-        rendered: list[str] = []
-        for raw_line in super().splitlines(keepends):
-            ending = ""
-            body = raw_line
-            if keepends:
-                if body.endswith("\r\n"):
-                    body, ending = body[:-2], "\r\n"
-                elif body.endswith(("\n", "\r")):
-                    body, ending = body[:-1], body[-1]
-            if body.strip() == "POSITIONS (Tropical)":
-                leading = body[: len(body) - len(body.lstrip())]
-                trailing = body[len(body.rstrip()) :]
-                body = f"{leading}POSITIONS{trailing}"
-            rendered.append(f"{body}{ending}")
-        return rendered
-
 
 def _sign_dignity_prefix(body: str, sign: str) -> str:
     """Return the dignity/debility glyph prefix for a body's zodiac sign."""
@@ -508,6 +481,7 @@ def _append_draconic_aspects(
         cross_aspects,
         sort_mode,
         planet_weights=dominant_planet_weights,
+        preserve_endpoint_order=True,
     )
 
     endpoint_labels: dict[tuple[str, str], str] = {}
@@ -1094,7 +1068,7 @@ def format_chart_text(
             # fallback: just show whatever it is
             lines.append(str(houses))
             lines.append("")
-            return _ChartSummaryText("\n".join(lines)), position_info_map, aspect_info_map, species_info_map
+            return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
 
         for i, v in enumerate(cusps):
             if isinstance(v, (int, float)):
@@ -1614,7 +1588,7 @@ def format_chart_text(
         aspect_info_map=aspect_info_map,
     )
 
-    return _ChartSummaryText("\n".join(lines)), position_info_map, aspect_info_map, species_info_map
+    return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
 
 
 
