@@ -61,7 +61,7 @@ jobs:
           path.write_text(text)
 
           # 2 + 3: update real popout callers explicitly. Both header forms remain valid;
-          # transit popouts stop before the natal-only Draconic sections.
+          # the transit popout stops before the natal-only Draconic sections.
           path = Path('ephemeraldaddy/gui/app.py')
           text = path.read_text()
           legacy_lookup = 'line.strip() == "POSITIONS"'
@@ -97,7 +97,7 @@ jobs:
               )
 
           text, transit_count = transit_pattern.subn(transit_replacement, text)
-          assert transit_count >= 2, f'expected duplicated transit blocks, found {transit_count}'
+          assert transit_count == 1, f'expected one transit summary block, found {transit_count}'
           path.write_text(text)
 
           # 4: register all qualified headers with the canonical Chart Data style.
@@ -132,7 +132,6 @@ jobs:
 
           Path('tests/test_draconic_output_regressions.py').write_text('''from ephemeraldaddy.gui.features.charts.aspect_sorting import sort_natal_aspects\nfrom ephemeraldaddy.gui.style import CHART_DATA_SECTION_HEADERS\n\n\ndef _directed_aspect() -> dict:\n    return {\n        "p1": "Mars",\n        "p2": "Sun",\n        "type": "trine",\n        "angle": 120.0,\n        "delta": 0.0,\n    }\n\n\ndef test_position_sort_can_preserve_directed_endpoints() -> None:\n    result = sort_natal_aspects(\n        [_directed_aspect()],\n        "Position",\n        preserve_endpoint_order=True,\n    )\n    assert result[0]["p1"] == "Mars"\n    assert result[0]["p2"] == "Sun"\n\n\ndef test_default_position_sort_still_normalizes_symmetric_natal_endpoints() -> None:\n    result = sort_natal_aspects([_directed_aspect()], "Position")\n    assert result[0]["p1"] == "Sun"\n    assert result[0]["p2"] == "Mars"\n\n\ndef test_draconic_and_tropical_headers_are_registered_for_chart_data_styling() -> None:\n    assert "POSITIONS" in CHART_DATA_SECTION_HEADERS\n    assert "POSITIONS (Tropical)" in CHART_DATA_SECTION_HEADERS\n    assert "POSITIONS (Draconic)" in CHART_DATA_SECTION_HEADERS\n    assert "ASPECTS (Draconic)" in CHART_DATA_SECTION_HEADERS\n''')
 
-          # Guard against accidentally retaining the nonstandard string behavior.
           assert '_ChartSummaryText' not in Path('ephemeraldaddy/gui/features/charts/text_summary.py').read_text()
           PY
 
