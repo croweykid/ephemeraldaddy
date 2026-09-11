@@ -1,9 +1,15 @@
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FACADE_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text(encoding="utf-8")
-CONTEXT_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_prediction_context.py").read_text(encoding="utf-8")
-PREDICTION_CONTEXT_SOURCE = (REPO_ROOT / "ephemeraldaddy/analysis/prediction_context.py").read_text(encoding="utf-8")
+FACADE_SOURCE = (
+    REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py"
+).read_text(encoding="utf-8")
+CONTEXT_SOURCE = (
+    REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_prediction_context.py"
+).read_text(encoding="utf-8")
+PREDICTION_CONTEXT_SOURCE = (
+    REPO_ROOT / "ephemeraldaddy/analysis/prediction_context.py"
+).read_text(encoding="utf-8")
 
 
 def test_trait_predictions_installs_effective_prediction_context():
