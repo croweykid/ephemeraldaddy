@@ -3011,6 +3011,117 @@ PLANET_KEYWORDS = {
         ],
         "polarity_partner": "Rahu",
     },
+    "Psyche": {
+        "nouns": [
+            "sensitivity", "receptivity", "inner life", "vulnerability", "trust", "recognition",
+            "understanding", "intimacy", "exposure", "self-knowledge", "depth", "emotional perception",
+        ],
+        "verbs": [
+            "being sensitive to", "opening to", "trusting", "being understood through", "recognizing",
+            "revealing", "receiving", "internalizing", "becoming vulnerable through", "perceiving",
+            "deepening through", "being affected by",
+        ],
+        "verbsonly": [
+            "sensing", "opening", "trusting", "recognizing", "revealing", "receiving",
+            "internalizing", "perceiving", "deepening", "being affected",
+        ],
+        "definition1":"especially sensitive to", #append SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition2":"opening up", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
+        "explanation": [
+            "Heightened sensitivity to being understood, known, and emotionally received",
+            "Strong concern with trust, vulnerability, and the private inner life",
+            "Tendency to internalize experiences deeply and search for their personal meaning",
+            "Shows where receptivity and exposure can produce greater self-understanding"
+        ],
+        "archetypes":[
+            "Psyche",
+        ],
+        "polarity_partner": "none",
+    },
+
+    "Eros": {
+        "nouns": [
+            "desire", "eroticism", "attraction", "arousal", "passion", "longing",
+            "magnetism", "fascination", "pursuit", "seduction", "pleasure", "consummation",
+        ],
+        "verbs": [
+            "desiring", "being attracted to", "longing for", "pursuing", "being aroused by",
+            "being fascinated by", "seducing", "seeking pleasure through", "hungering for",
+            "being magnetized toward", "intensifying desire for", "wanting to possess",
+        ],
+        "verbsonly": [
+            "desiring", "longing", "pursuing", "seducing", "hungering",
+            "being attracted", "being aroused", "being fascinated", "seeking pleasure",
+        ],
+        "definition1":"strongly attracted to", #append SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition2":"desiring", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
+        "explanation": [
+            "Shows what generates intense attraction, desire, and erotic charge",
+            "Describes the style of pursuit, fascination, and passionate involvement",
+            "Can indicate where ordinary interest develops into compelling personal desire",
+            "Concerned more with wanting and erotic magnetism than with affection or commitment"
+        ],
+        "archetypes":[
+            "Eros",
+            "Cupid",
+        ],
+        "polarity_partner": "none",
+    },
+    "Pholus": {
+        "nouns": [
+            "catalysis", "release", "chain reactions", "amplification", "spillover", "consequences",
+            "turning points", "acceleration", "uncontainment", "thresholds", "momentum", "aftereffects",
+        ],
+        "verbs": [
+            "setting off", "releasing", "amplifying", "accelerating", "uncorking",
+            "spilling into", "setting consequences in motion through", "passing a threshold in",
+            "allowing to spread", "making difficult to contain", "producing aftereffects through",
+        ],
+        "verbsonly": [
+            "triggering", "releasing", "amplifying", "accelerating", "uncorking",
+            "spreading", "crossing thresholds", "setting consequences in motion",
+        ],
+        "definition1":"where small causes can produce large consequences in", #append SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition2":"escalating", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
+        "explanation": [
+            "Associated with catalytic developments whose consequences exceed their apparent beginnings",
+            "Shows where something contained can be released and become difficult to reverse",
+            "Can describe rapid amplification, chain reactions, and consequential turning points",
+            "Often operates less as a stable trait than as a point of activation or acceleration"
+        ],
+        "archetypes":[
+            "Pholus",
+        ],
+        "polarity_partner": "none",
+    },
+    "Eris": {
+        "nouns": [
+            "discord", "rivalry", "exclusion", "competition", "provocation", "contention",
+            "outsiderhood", "status disputes", "recognition", "resentment", "disruption", "dissent",
+        ],
+        "verbs": [
+            "contesting", "challenging", "provoking", "competing for", "disputing",
+            "refusing exclusion from", "demanding recognition in", "disrupting consensus around",
+            "questioning who controls", "rivaling", "agitating around", "objecting to",
+        ],
+        "verbsonly": [
+            "contesting", "challenging", "provoking", "competing", "disputing",
+            "demanding recognition", "disrupting consensus", "rivaling", "objecting",
+        ],
+        "definition1":"likely to contest exclusion or status around", #append SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition2":"challenging", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
+        "explanation": [
+            "Strong sensitivity to exclusion, hierarchy, recognition, and contested belonging",
+            "Tendency to challenge arrangements perceived as unfair, closed, or illegitimate",
+            "Can generate rivalry, dissent, provocation, and competition for standing",
+            "Shows where conflict may arise over who is recognized, included, or allowed influence"
+        ],
+        "archetypes":[
+            "Eris",
+            "Discordia",
+        ],
+        "polarity_partner": "none",
+    },
     "Earth": {
         "nouns": [
             "grounding", "stability", "weight", "gravity", "anchoring", "embodiment",
