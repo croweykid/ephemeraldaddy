@@ -8,7 +8,6 @@ timezonefinder>=6.0
 geopy>=2.0
 pyswisseph>=2.10
 PySide6>=6.7
-tzdata>=2025.2
 requests>=2.32
 lunar-python>=1.4
 pyinstaller>=6.0
