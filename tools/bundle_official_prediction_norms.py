@@ -33,18 +33,27 @@ from ephemeraldaddy.analysis.theme_norms import (  # noqa: E402
     THEME_NORMS_AVAILABILITY_SCHEMA_VERSION,
     THEME_SUBTHEME_SHARE_AVERAGES_FIELD,
     THEME_SUBTHEME_SHARE_VALUES_FIELD,
+    theme_factor_distribution_key,
 )
 from ephemeraldaddy.analysis.traits import (  # noqa: E402
     DEFAULT_TRAITS_PATH,
     parse_trait_file,
     trait_uid_for_profile,
 )
-from ephemeraldaddy.core.theme_reference import THEMES, THEME_FAMILIES  # noqa: E402
+from ephemeraldaddy.core.theme_reference import (  # noqa: E402
+    THEMES,
+    THEME_FAMILIES,
+    WEIGHTED_THEME_PROPERTIES,
+)
 
 
 DEFAULT_SOURCE = Path.home() / ".ephemeraldaddy" / ".prediction_norms_snapshot.json"
 DEFAULT_DESTINATION = REPO_ROOT / "ephemeraldaddy" / "analysis" / "default_prediction_norms.json"
 DEFAULT_SOURCE_SELECTION = Path.home() / ".ephemeraldaddy" / ".prediction_norms_source.json"
+
+_HD_THEME_PROPERTIES = frozenset(
+    {"gates", "channels", "crosses", "centers", "profiles", "authorities"}
+)
 
 
 def _stable_hash(value: Any) -> str:
@@ -200,6 +209,43 @@ def _require_complete_sample_rows(
             )
 
 
+def _theme_availability_flags(availability_key: str) -> dict[str, bool]:
+    parts: dict[str, bool] = {}
+    for token in str(availability_key).split("|"):
+        name, separator, value = token.partition(":")
+        if not separator or name not in {"houses", "hd", "bazi"} or value not in {"0", "1"}:
+            raise ValueError(
+                f"Official prediction norms contain an invalid Theme availability key "
+                f"{availability_key!r}. Recalculate DB Norms before bundling."
+            )
+        parts[name] = value == "1"
+    if set(parts) != {"houses", "hd", "bazi"}:
+        raise ValueError(
+            f"Official prediction norms contain an incomplete Theme availability key "
+            f"{availability_key!r}. Recalculate DB Norms before bundling."
+        )
+    return parts
+
+
+def _configured_theme_factor_keys_for_availability(
+    availability_key: str,
+) -> tuple[str, ...]:
+    """Return every configured factor key the runtime can score in this stratum."""
+    availability = _theme_availability_flags(availability_key)
+    keys: set[str] = set()
+    for theme in THEMES.values():
+        for property_name in WEIGHTED_THEME_PROPERTIES:
+            if property_name == "houses" and not availability["houses"]:
+                continue
+            if property_name == "bazisigns" and not availability["bazi"]:
+                continue
+            if property_name in _HD_THEME_PROPERTIES and not availability["hd"]:
+                continue
+            for item in theme.get(property_name, []) or []:
+                keys.add(theme_factor_distribution_key(property_name, item))
+    return tuple(sorted(keys))
+
+
 def validate_theme_family_coverage(payload: Mapping[str, Any]) -> dict[str, float]:
     """Require complete runtime-compatible Theme norms for current definitions."""
     stored_signature = str(payload.get("theme_family_definition_signature", "") or "")
@@ -327,21 +373,15 @@ def validate_theme_family_coverage(payload: Mapping[str, Any]) -> dict[str, floa
             field_name=THEME_SUBTHEME_SHARE_VALUES_FIELD,
             availability_key=availability_key,
         )
-        if not isinstance(factor_values, Mapping) or not factor_values:
-            raise ValueError(
-                "Official prediction norms require non-empty Theme factor activation "
-                f"distributions for availability stratum {availability_key!r}. "
-                "Recalculate DB Norms before bundling."
-            )
-        for factor_key, samples in factor_values.items():
-            if not isinstance(samples, list) or not samples or any(
-                not _finite_number(value) for value in samples
-            ):
-                raise ValueError(
-                    "Official prediction norms contain an invalid Theme factor activation "
-                    f"distribution for {factor_key!r} in availability stratum "
-                    f"{availability_key!r}. Recalculate DB Norms before bundling."
-                )
+        expected_factor_keys = _configured_theme_factor_keys_for_availability(
+            availability_key
+        )
+        _require_complete_sample_rows(
+            factor_values,
+            expected_factor_keys,
+            field_name=THEME_FACTOR_ACTIVATION_VALUES_FIELD,
+            availability_key=availability_key,
+        )
     return averages
 
 
