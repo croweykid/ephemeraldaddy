@@ -26,10 +26,19 @@ def test_theme_runtime_uses_one_context_for_score_and_norm_stratum():
 
 
 def test_theme_runtime_injects_availability_strata_during_explicit_norm_rebuild():
-    assert "calculate_database_theme_family_baselines(charts)" in RUNTIME_SOURCE
+    assert "calculate_database_theme_norms(charts)" in RUNTIME_SOURCE
+    assert 'captured["extended_norms"] = extended' in RUNTIME_SOURCE
     assert "enrich_theme_snapshot_with_availability_baselines" in RUNTIME_SOURCE
+    assert "extended_norms=extended" in RUNTIME_SOURCE
     assert '"refresh_prediction_norms_snapshot"' in RUNTIME_SOURCE
     assert 'sys.modules.get("ephemeraldaddy.gui.features.controllers.db_info")' in RUNTIME_SOURCE
+
+
+def test_theme_runtime_sorts_vs_db_by_displayed_percentile():
+    assert "THEME_ROW_PERCENTILE_ROLE" in RUNTIME_SOURCE
+    assert "left.column() == 2 and right.column() == 2" in RUNTIME_SOURCE
+    assert "left_percentile" in RUNTIME_SOURCE
+    assert "right_percentile" in RUNTIME_SOURCE
 
 
 def test_theme_runtime_caches_scoring_context_for_chart_info():

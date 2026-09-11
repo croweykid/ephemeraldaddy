@@ -1,7 +1,7 @@
 # `app.py` Refactor Manifesto and Migration Plan
 
-**Status:** Approved architectural direction  
-**Last implementation audit:** 2026-09-11 (`a97a5d1`)
+**Status:** Approved architectural direction
+**Last implementation audit:** 2026-09-11 (`4e4c1fa`/`a97a5d1`)
 **Scope:** `ephemeraldaddy/gui/app.py` and the workflows currently coupled to it  
 **Audience:** Codex agents and human contributors  
 **Primary constraint:** Preserve every existing feature while measurably improving responsiveness, throughput, troubleshooting, and future development speed.

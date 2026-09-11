@@ -20,3 +20,47 @@ def test_tropical_qualifier_survives_standard_splitlines() -> None:
 
     assert "POSITIONS (Tropical)" in summary
     assert summary.splitlines()[1] == "POSITIONS (Tropical)"
+
+
+def test_position_row_coloring_accepts_qualified_position_sections() -> None:
+    from ephemeraldaddy.gui.features.charts.chart_data_output import _is_position_row_color_section
+
+    assert _is_position_row_color_section("POSITIONS")
+    assert _is_position_row_color_section("POSITIONS (Tropical)")
+    assert _is_position_row_color_section("POSITIONS (Draconic)")
+    assert _is_position_row_color_section("UNCERTAIN TIME VARIANTS")
+    assert not _is_position_row_color_section("ASPECTS")
+
+
+def test_draconic_node_refresh_uses_rectified_effective_datetime(monkeypatch) -> None:
+    import datetime
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.gui.features.charts import text_summary
+
+    official_dt = datetime.datetime(2000, 1, 2, 10, 15, tzinfo=datetime.timezone.utc)
+    chart = SimpleNamespace(
+        dt=official_dt,
+        lat=40.0,
+        lon=-74.0,
+        birthtime_unknown=False,
+        retcon_time_used=True,
+        retcon_hour=14,
+        retcon_minute=37,
+        use_birth_time_data=True,
+    )
+    captured = {}
+
+    def fake_planetary_positions(dt, lat, lon):
+        captured["dt"] = dt
+        captured["lat"] = lat
+        captured["lon"] = lon
+        return {"Rahu": 123.0}
+
+    monkeypatch.setattr(text_summary, "planetary_positions", fake_planetary_positions)
+    result = text_summary._planetary_positions_at_effective_chart_time(chart)
+
+    assert result == {"Rahu": 123.0}
+    assert captured["dt"] == official_dt.replace(hour=14, minute=37, second=0, microsecond=0)
+    assert captured["lat"] == 40.0
+    assert captured["lon"] == -74.0

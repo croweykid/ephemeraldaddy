@@ -23,7 +23,6 @@ from ephemeraldaddy.gui.features.chart_information.token_formatting import (
     ordinal_house_header,
 )
 
-
 @dataclass(frozen=True, slots=True)
 class DecanInformationModel:
     """Resolved, display-ready data for one zodiac decan."""

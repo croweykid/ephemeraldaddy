@@ -5,9 +5,23 @@ import pytest
 import tools.bundle_official_prediction_norms as bundler
 
 from ephemeraldaddy.analysis.theme_prominence import theme_definition_signature
-from ephemeraldaddy.analysis.theme_norms import THEME_NORMS_AVAILABILITY_SCHEMA_VERSION
-from ephemeraldaddy.core.theme_reference import THEME_FAMILIES
+from ephemeraldaddy.analysis.theme_norms import (
+    THEME_CHART_SHARE_SCHEMA_FIELD,
+    THEME_CHART_SHARE_SCHEMA_VERSION,
+    THEME_FACTOR_ACTIVATION_VALUES_FIELD,
+    THEME_FAMILY_AVAILABILITY_ROWS_FIELD,
+    THEME_FAMILY_SHARE_AVERAGES_FIELD,
+    THEME_FAMILY_SHARE_VALUES_FIELD,
+    THEME_NORMS_AVAILABILITY_SCHEMA_FIELD,
+    THEME_NORMS_AVAILABILITY_SCHEMA_VERSION,
+    THEME_SUBTHEME_SHARE_AVERAGES_FIELD,
+    THEME_SUBTHEME_SHARE_VALUES_FIELD,
+)
+from ephemeraldaddy.core.theme_reference import THEMES, THEME_FAMILIES
 from tools.bundle_official_prediction_norms import bundle_snapshot
+
+
+_AVAILABILITY = "houses:1|hd:1|bazi:1"
 
 
 @pytest.fixture(autouse=True)
@@ -20,19 +34,55 @@ def _isolate_theme_validation(monkeypatch):
     )
 
 
-def _theme_snapshot_fields() -> dict[str, object]:
+def _legacy_theme_snapshot_fields() -> dict[str, object]:
     return {
         "theme_family_definition_signature": theme_definition_signature(),
         "theme_family_raw_averages": {
             family_key: 50.0 for family_key in THEME_FAMILIES
         },
-        "theme_family_availability_schema_version": THEME_NORMS_AVAILABILITY_SCHEMA_VERSION,
-        "theme_family_raw_averages_by_availability": {
-            "houses:1|hd:1|bazi:1": {
+        THEME_NORMS_AVAILABILITY_SCHEMA_FIELD: THEME_NORMS_AVAILABILITY_SCHEMA_VERSION,
+        THEME_FAMILY_AVAILABILITY_ROWS_FIELD: {
+            _AVAILABILITY: {
                 family_key: 50.0 for family_key in THEME_FAMILIES
             }
         },
     }
+
+
+def _theme_snapshot_fields() -> dict[str, object]:
+    payload = _legacy_theme_snapshot_fields()
+    factor_rows = {
+        factor_key: [0.0, 0.5, 1.0]
+        for factor_key in bundler._configured_theme_factor_keys_for_availability(
+            _AVAILABILITY
+        )
+    }
+    payload.update(
+        {
+            THEME_CHART_SHARE_SCHEMA_FIELD: THEME_CHART_SHARE_SCHEMA_VERSION,
+            THEME_FAMILY_SHARE_AVERAGES_FIELD: {
+                _AVAILABILITY: {family_key: 10.0 for family_key in THEME_FAMILIES}
+            },
+            THEME_FAMILY_SHARE_VALUES_FIELD: {
+                _AVAILABILITY: {
+                    family_key: [9.0, 10.0, 11.0]
+                    for family_key in THEME_FAMILIES
+                }
+            },
+            THEME_SUBTHEME_SHARE_AVERAGES_FIELD: {
+                _AVAILABILITY: {theme_key: 1.0 for theme_key in THEMES}
+            },
+            THEME_SUBTHEME_SHARE_VALUES_FIELD: {
+                _AVAILABILITY: {
+                    theme_key: [0.5, 1.0, 1.5] for theme_key in THEMES
+                }
+            },
+            THEME_FACTOR_ACTIVATION_VALUES_FIELD: {
+                _AVAILABILITY: factor_rows
+            },
+        }
+    )
+    return payload
 
 
 def test_official_norm_catalog_is_packaged_with_analysis_assets():
@@ -117,7 +167,7 @@ def test_bundle_official_snapshot_rejects_missing_availability_strata(tmp_path):
         "trait_baselines": {"row": {"profile_hash": "x", "db_average": 1.0}},
         **_theme_snapshot_fields(),
     }
-    payload.pop("theme_family_raw_averages_by_availability")
+    payload.pop(THEME_FAMILY_AVAILABILITY_ROWS_FIELD)
     source = tmp_path / "snapshot.json"
     source.write_text(json.dumps(payload), encoding="utf-8")
 
@@ -133,11 +183,44 @@ def test_bundle_official_snapshot_rejects_incomplete_availability_stratum(tmp_pa
         **_theme_snapshot_fields(),
     }
     first_family = next(iter(THEME_FAMILIES))
-    del payload["theme_family_raw_averages_by_availability"][
-        "houses:1|hd:1|bazi:1"
-    ][first_family]
+    del payload[THEME_FAMILY_AVAILABILITY_ROWS_FIELD][_AVAILABILITY][first_family]
     source = tmp_path / "snapshot.json"
     source.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(ValueError, match="availability stratum"):
         bundle_snapshot(source, tmp_path / "official.json")
+
+
+def test_bundle_official_snapshot_rejects_pre_chart_share_theme_snapshot():
+    with pytest.raises(ValueError, match="chart-share schema"):
+        bundler.validate_theme_family_coverage(_legacy_theme_snapshot_fields())
+
+
+def test_bundle_official_snapshot_rejects_incomplete_chart_share_distribution():
+    payload = _theme_snapshot_fields()
+    first_theme = next(iter(THEMES))
+    del payload[THEME_SUBTHEME_SHARE_VALUES_FIELD][_AVAILABILITY][first_theme]
+
+    with pytest.raises(ValueError, match="distribution"):
+        bundler.validate_theme_family_coverage(payload)
+
+
+def test_bundle_official_snapshot_requires_every_applicable_factor_distribution():
+    payload = _theme_snapshot_fields()
+    expected_keys = bundler._configured_theme_factor_keys_for_availability(_AVAILABILITY)
+    assert expected_keys
+    missing_factor = expected_keys[0]
+    del payload[THEME_FACTOR_ACTIVATION_VALUES_FIELD][_AVAILABILITY][missing_factor]
+
+    with pytest.raises(ValueError, match="factor_activation_values_by_availability"):
+        bundler.validate_theme_family_coverage(payload)
+
+
+def test_bundle_official_snapshot_rejects_arbitrary_factor_key_in_place_of_runtime_keys():
+    payload = _theme_snapshot_fields()
+    payload[THEME_FACTOR_ACTIVATION_VALUES_FIELD][_AVAILABILITY] = {
+        'signs:"Aries"': [0.0, 0.5, 1.0]
+    }
+
+    with pytest.raises(ValueError, match="factor_activation_values_by_availability"):
+        bundler.validate_theme_family_coverage(payload)
