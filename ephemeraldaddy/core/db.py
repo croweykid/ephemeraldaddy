@@ -29,6 +29,26 @@ from ephemeraldaddy.core.chart_data_fields import (
     NonastralPatch,
     require_nonastral_data_fields,
 )
+from ephemeraldaddy.core.chart_types import (
+    CHART_TYPE_EVENT,
+    CHART_TYPE_HYPOTHETICAL,
+    CHART_TYPE_NONHUMAN_ENTITY,
+    CHART_TYPE_PARASOCIAL,
+    CHART_TYPE_PERSONAL,
+    CHART_TYPE_PERSONAL_TRANSIT,
+    CHART_TYPE_PUBLIC_DB,
+    CHART_TYPE_SYNASTRY,
+    SOURCE_EVENT,
+    SOURCE_HYPOTHETICAL,
+    SOURCE_NONHUMAN_ENTITY,
+    SOURCE_PARASOCIAL,
+    SOURCE_PERSONAL,
+    SOURCE_PERSONAL_TRANSIT,
+    SOURCE_PUBLIC_DB,
+    SOURCE_SYNASTRY,
+    SOURCE_USER_SUBMITTED,
+    normalize_chart_type,
+)
 from ephemeraldaddy.core.body_identity import CANONICAL_LILITH_BODIES
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
@@ -50,25 +70,6 @@ _SCHEMA_READY_DB_PATH: Path | None = None
 _SCHEMA_READY_LOCK = threading.Lock()
 _TABLE_COLUMNS_CACHE: dict[tuple[Path, str, int], set[str]] = {}
 _DB_SESSION_ID = uuid.uuid4().hex
-CHART_TYPE_PUBLIC_DB = "public_db"
-CHART_TYPE_PERSONAL = "personal"
-CHART_TYPE_PARASOCIAL = "parasocial"
-CHART_TYPE_EVENT = "event"
-CHART_TYPE_SYNASTRY = "synastry"
-CHART_TYPE_PERSONAL_TRANSIT = "personal_transit"
-CHART_TYPE_NONHUMAN_ENTITY = "nonhuman_entity"
-CHART_TYPE_HYPOTHETICAL = "hypothetical"
-SOURCE_USER_SUBMITTED = "user_submitted"  # legacy alias
-
-# Backwards-compatibility aliases for legacy `source` naming.
-SOURCE_PUBLIC_DB = CHART_TYPE_PUBLIC_DB
-SOURCE_PERSONAL = CHART_TYPE_PERSONAL
-SOURCE_PARASOCIAL = CHART_TYPE_PARASOCIAL
-SOURCE_EVENT = CHART_TYPE_EVENT
-SOURCE_SYNASTRY = CHART_TYPE_SYNASTRY
-SOURCE_PERSONAL_TRANSIT = CHART_TYPE_PERSONAL_TRANSIT
-SOURCE_NONHUMAN_ENTITY = CHART_TYPE_NONHUMAN_ENTITY
-SOURCE_HYPOTHETICAL = CHART_TYPE_HYPOTHETICAL
 
 BODY_DYNAMICS_ROLE_VALUES: set[str] = {"antagonist", "enabler", "escalator"}
 
@@ -248,27 +249,6 @@ def _ensure_sentiment_metrics_nullable(conn: sqlite3.Connection) -> None:
     )
     conn.execute("DROP TABLE charts_legacy_sentiment_metrics_not_null")
     _create_indexes(conn)
-
-
-def normalize_chart_type(value: Optional[str]) -> str:
-    normalized = (value or "").strip().lower().replace(" ", "_")
-    if normalized == CHART_TYPE_PUBLIC_DB:
-        return CHART_TYPE_PUBLIC_DB
-    if normalized == CHART_TYPE_PARASOCIAL:
-        return CHART_TYPE_PARASOCIAL
-    if normalized == CHART_TYPE_EVENT:
-        return CHART_TYPE_EVENT
-    if normalized == CHART_TYPE_SYNASTRY:
-        return CHART_TYPE_SYNASTRY
-    if normalized == CHART_TYPE_PERSONAL_TRANSIT:
-        return CHART_TYPE_PERSONAL_TRANSIT
-    if normalized == CHART_TYPE_NONHUMAN_ENTITY:
-        return CHART_TYPE_NONHUMAN_ENTITY
-    if normalized == CHART_TYPE_HYPOTHETICAL:
-        return CHART_TYPE_HYPOTHETICAL
-    if normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}:
-        return CHART_TYPE_PERSONAL
-    return CHART_TYPE_PERSONAL
 
 
 def _normalize_chart_type(value: Optional[str]) -> str:

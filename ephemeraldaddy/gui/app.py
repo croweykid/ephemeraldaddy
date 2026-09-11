@@ -674,6 +674,7 @@ from ephemeraldaddy.core.chart_data_fields import (
     NonastralPatch,
     astro_data_recalculation_token,
 )
+from ephemeraldaddy.core.chart_recalculation_policy import ChartRecalculationPolicy
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 from ephemeraldaddy.data.genpop import (
@@ -819,6 +820,11 @@ from ephemeraldaddy.gui.features.charts.collections import (
 )
 from ephemeraldaddy.gui.features.database_view.collection_labels import custom_collection_label
 from ephemeraldaddy.gui.features.database_view.chart_list import ChartListWidget
+from ephemeraldaddy.gui.features.database_view.selection import (
+    DatabaseSelectionController,
+    DatabaseSelectionModel,
+    normalize_chart_uid,
+)
 from ephemeraldaddy.gui.features.database_view.collections import (
     CollectionsListWidget,
     prompt_chart_selection_for_collection_add,
@@ -2350,11 +2356,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
         # Database View selection is UID-owned. Integer row IDs are resolved only
         # at persistence adapters and are never retained as parallel controller state.
-        self._selected_chart_uid_order: list[str] = []
-        self._selected_chart_uids_set: set[str] = set()
-        self._filter_navigation_anchor_chart_uid: str | None = None
+        self._database_selection = DatabaseSelectionController(DatabaseSelectionModel())
         self._selection_update_mode = "replace"
-        self._prior_deselected_selection: list[str] = []
         self._syncing_visible_selection = False
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
@@ -7181,7 +7184,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return []
 
         self._reconcile_persistent_selection_with_database()
-        selected_uids = set(getattr(self, "_selected_chart_uids_set", set()))
+        selected_uids = self._database_selection.model.selected_uid_set
         if not selected_uids:
             return _selected_chart_list_item_names(self.list_widget)
 
@@ -7203,7 +7206,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(
             getattr(self, "_chart_rows", [])
         )
-        for chart_uid in getattr(self, "_selected_chart_uid_order", []):
+        for chart_uid in self._database_selection.model.selected_uids:
             if chart_uid in copied_uids:
                 continue
             chart_id = self._local_row_id_by_chart_uid.get(chart_uid)
@@ -7223,8 +7226,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     @staticmethod
     def _normalized_chart_uid_key(chart_uid: str | None) -> str | None:
         """Return the canonical UID key used by Database View selection state."""
-        normalized_uid = str(chart_uid or "").strip().upper()
-        return normalized_uid or None
+        return normalize_chart_uid(chart_uid)
 
     def _current_local_row_id(self) -> int | None:
         """Resolve the UID-owned current chart at the SQLite boundary."""
@@ -7298,7 +7300,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     ) -> list[int]:
         if selected_items is None:
             self._reconcile_persistent_selection_with_database()
-            return self._local_row_ids_for_uids(self._selected_chart_uid_order)
+            return self._local_row_ids_for_uids(self._database_selection.model.selected_uids)
         return self._local_row_ids_for_uids(self._selected_chart_uids(selected_items))
 
     def _selected_chart_uids(
@@ -7307,7 +7309,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     ) -> list[str]:
         if selected_items is None:
             self._reconcile_persistent_selection_with_database()
-            return list(getattr(self, "_selected_chart_uid_order", []))
+            return list(self._database_selection.model.selected_uids)
         chart_uids: list[str] = []
         seen: set[str] = set()
         for item in selected_items:
@@ -7336,17 +7338,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 chart_uids.append(chart_uid)
         return chart_uids
 
-    def _replace_persistent_selection_by_uids(self, chart_uids: Iterable[str | None]) -> None:
-        ordered_uids: list[str] = []
-        seen_uids: set[str] = set()
-        for raw_uid in chart_uids:
-            chart_uid = self._normalized_chart_uid_key(raw_uid)
-            if not chart_uid or chart_uid in seen_uids:
-                continue
-            seen_uids.add(chart_uid)
-            ordered_uids.append(chart_uid)
-        self._selected_chart_uid_order = ordered_uids
-        self._selected_chart_uids_set = set(ordered_uids)
+    def _replace_persistent_selection_by_uids(
+        self,
+        chart_uids: Iterable[str | None],
+        *,
+        remember_deselection: bool = False,
+    ) -> None:
+        self._database_selection.model.replace(
+            chart_uids,
+            remember_deselection=remember_deselection,
+        )
+        ordered_uids = self._database_selection.model.selected_uids
 
         if hasattr(self, "_batch_selection_uid_order"):
             self._update_batch_selection_order_by_uids(ordered_uids)
@@ -7374,33 +7376,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._replace_persistent_selection_by_uids(ordered_uids)
 
     def _clear_persistent_selection(self) -> None:
-        previous_selection = list(getattr(self, "_selected_chart_uid_order", []))
-        self._remember_single_chart_deselection(previous_selection, [])
-        self._replace_persistent_selection_by_uids([])
+        self._replace_persistent_selection_by_uids([], remember_deselection=True)
         if self.list_widget is not None and self.list_widget.selectedItems():
             blocker = QSignalBlocker(self.list_widget)
             self.list_widget.clearSelection()
             blocker.unblock()
 
 
-    def _remember_single_chart_deselection(
-        self,
-        previous_selection: Iterable[str],
-        current_selection: Iterable[str],
-    ) -> None:
-        previous_uids = [uid for raw_uid in previous_selection if (uid := self._normalized_chart_uid_key(raw_uid))]
-        current_uids = [uid for raw_uid in current_selection if (uid := self._normalized_chart_uid_key(raw_uid))]
-        if len(previous_uids) == 1 and not current_uids:
-            self._prior_deselected_selection = previous_uids
-        elif current_uids:
-            self._prior_deselected_selection = []
-
     def _restore_prior_deselected_selection(self) -> bool:
-        prior_selection = list(getattr(self, "_prior_deselected_selection", []))
-        if len(prior_selection) != 1:
+        prior_selection = self._database_selection.model.restore_prior_single_selection()
+        if prior_selection is None:
             return False
-        self._prior_deselected_selection = []
-        self._replace_persistent_selection_by_uids(prior_selection)
         self._sync_visible_selection_from_persistent_selection()
         self._on_selection_changed(sync_persistent_selection=False)
         return True
@@ -7408,7 +7394,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _reconcile_persistent_selection_with_database(self) -> None:
         chart_rows = getattr(self, "_chart_rows", [])
         if not chart_rows:
-            if getattr(self, "_selected_chart_uid_order", []):
+            if self._database_selection.model.selected_uids:
                 self._replace_persistent_selection_by_uids([])
             return
         valid_uids = {
@@ -7417,15 +7403,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if (normalized := self._normalize_chart_row(row)) is not None
             and str(normalized[30] or "").strip()
         }
-        current = getattr(self, "_selected_chart_uid_order", [])
-        reconciled = [chart_uid for chart_uid in current if chart_uid in valid_uids]
-        if len(reconciled) != len(current):
-            self._replace_persistent_selection_by_uids(reconciled)
+        if self._database_selection.model.reconcile(valid_uids):
+            self._update_batch_selection_order_by_uids(
+                self._database_selection.model.selected_uids
+            )
 
     def _sync_visible_selection_from_persistent_selection(self) -> None:
         if self.list_widget is None:
             return
-        selected_uids = set(getattr(self, "_selected_chart_uids_set", set()))
+        selected_uids = self._database_selection.model.selected_uid_set
         self._syncing_visible_selection = True
         blocker = QSignalBlocker(self.list_widget)
         try:
@@ -7440,32 +7426,20 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._syncing_visible_selection = False
 
     def _merge_visible_selection_into_persistent_selection(self, *, replace: bool) -> None:
-        visible_uids = set(self._all_visible_chart_uids())
         selected_visible_uids = self._visible_selected_chart_uids()
-        if replace:
-            self._replace_persistent_selection_by_uids(selected_visible_uids)
-            return
-
-        selected_visible_set = set(selected_visible_uids)
-        merged: list[str] = []
-        seen: set[str] = set()
-        for chart_uid in getattr(self, "_selected_chart_uid_order", []):
-            if chart_uid in visible_uids and chart_uid not in selected_visible_set:
-                continue
-            if chart_uid in seen:
-                continue
-            seen.add(chart_uid)
-            merged.append(chart_uid)
-        for chart_uid in selected_visible_uids:
-            if chart_uid in seen:
-                continue
-            seen.add(chart_uid)
-            merged.append(chart_uid)
-        self._replace_persistent_selection_by_uids(merged)
+        ordered_uids = self._database_selection.merge_visible_selection(
+            visible_uids=self._all_visible_chart_uids(),
+            selected_visible_uids=selected_visible_uids,
+            replace=replace,
+        )
+        self._update_batch_selection_order_by_uids(ordered_uids)
 
     def _hidden_selected_chart_count(self) -> int:
         visible_selected = set(self._visible_selected_chart_uids())
-        return max(0, len(getattr(self, "_selected_chart_uids_set", set())) - len(visible_selected))
+        return max(
+            0,
+            len(self._database_selection.model.selected_uid_set) - len(visible_selected),
+        )
 
     def _refresh_similarities_chart_options(self) -> None:
         similarity_rows = [
@@ -14258,16 +14232,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         for chart_uid in selected_chart_uids:
             if chart_uid not in self._batch_selection_uid_order:
                 self._batch_selection_uid_order.append(chart_uid)
-
-
-    def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
-        chart_uid_map = get_chart_uid_map(selected_chart_ids)
-        self._update_batch_selection_order_by_uids([
-            str(chart_uid_map[chart_id]).strip().upper()
-            for chart_id in selected_chart_ids
-            if chart_uid_map.get(chart_id)
-        ])
-
     @staticmethod
     def _alignment_value_for_chart(chart: Chart) -> int:
         raw_value = getattr(chart, "alignment_score", 0)
@@ -17189,11 +17153,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         selected_chart_uids = self._visible_selected_chart_uids()
         if selected_chart_uids:
             return selected_chart_uids[-1]
-        selected_chart_uids = list(getattr(self, "_selected_chart_uid_order", []))
+        selected_chart_uids = list(self._database_selection.model.selected_uids)
         return selected_chart_uids[-1] if selected_chart_uids else None
 
     def _clear_filter_selection(self) -> None:
-        self._filter_navigation_anchor_chart_uid = self._current_filter_navigation_anchor_chart_uid()
+        self._database_selection.model.anchor_uid = (
+            self._current_filter_navigation_anchor_chart_uid()
+        )
         self._replace_persistent_selection_by_uids([])
         if self.list_widget is None:
             return
@@ -17205,7 +17171,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _select_filter_navigation_row(self, *, direction: int) -> bool:
         if self.list_widget is None or self.list_widget.count() <= 0:
             return False
-        anchor_uid = getattr(self, "_filter_navigation_anchor_chart_uid", None)
+        anchor_uid = self._database_selection.model.anchor_uid
         anchor_row: int | None = None
         for row in range(self.list_widget.count()):
             if self._chart_uid_from_list_item(self.list_widget.item(row)) == anchor_uid:
@@ -17657,18 +17623,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if self._syncing_visible_selection:
             return
-        previous_selection = list(getattr(self, "_selected_chart_uid_order", []))
         if sync_persistent_selection:
             replace_selection = getattr(self, "_selection_update_mode", "replace") == "replace"
             self._merge_visible_selection_into_persistent_selection(replace=replace_selection)
-            self._remember_single_chart_deselection(
-                previous_selection,
-                getattr(self, "_selected_chart_uid_order", []),
-            )
         selected_chart_uids = self._visible_selected_chart_uids()
         if selected_chart_uids:
             current_chart_uid = self._chart_uid_from_list_item(self.list_widget.currentItem())
-            self._filter_navigation_anchor_chart_uid = (
+            self._database_selection.model.anchor_uid = (
                 current_chart_uid if current_chart_uid in selected_chart_uids else selected_chart_uids[-1]
             )
         self._selection_update_mode = "replace"
@@ -36902,13 +36863,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         analytics should only be dirtied when birth data, place, birth-time /
         rectified-time state, or the derived chart_uses_houses flag changes.
         """
-        return astro_data_recalculation_token(
-            chart,
-            birth_place=birth_place,
-            chart_uses_houses_value=(
-                bool(chart_uses_houses(chart)) if chart is not None else None
-            ),
-        )
+        return ChartRecalculationPolicy.astro_data_token(chart, birth_place=birth_place)
 
     @staticmethod
     def _chart_metadata_changed_fields(
@@ -36917,60 +36872,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         *,
         birth_place: str | None = None,
     ) -> set[str] | None:
-        """Classify saved edits by the Database Analytics sections they affect."""
-        if previous_chart is None:
-            return None
-        changed_fields: set[str] = set()
-        if (
-            MainWindow._chart_astro_data_recalculation_token(previous_chart)
-            != MainWindow._chart_astro_data_recalculation_token(chart, birth_place)
-        ):
-            changed_fields.add("birth_data")
-        previous_chart_type = _normalize_gui_source(
-            getattr(previous_chart, "chart_type", None) or getattr(previous_chart, "source", None)
+        """Compatibility delegate to the window-independent change policy."""
+        return ChartRecalculationPolicy.changed_fields(
+            previous_chart,
+            chart,
+            birth_place=birth_place,
         )
-        current_chart_type = _normalize_gui_source(
-            getattr(chart, "chart_type", None) or getattr(chart, "source", None)
-        )
-        if previous_chart_type != current_chart_type:
-            changed_fields.add("chart_type")
-        if _chart_is_non_aggregable(previous_chart) != _chart_is_non_aggregable(chart):
-            changed_fields.add("aggregation_scope")
-
-        comparisons = {
-            "name": lambda value: str(getattr(value, "name", "") or "").strip(),
-            "alias": lambda value: str(getattr(value, "alias", "") or "").strip(),
-            "sentiments": lambda value: tuple(
-                sorted(
-                    str(item).casefold()
-                    for item in (getattr(value, "sentiments", []) or [])
-                )
-            ),
-            "relationship_types": lambda value: tuple(
-                sorted(
-                    str(item).casefold()
-                    for item in (getattr(value, "relationship_types", []) or [])
-                )
-            ),
-            "tags": lambda value: tuple(
-                tag.casefold()
-                for tag in normalize_tag_list(getattr(value, "tags", []) or [])
-            ),
-            "gender": lambda value: getattr(value, "gender", None),
-            "alignment": lambda value: getattr(value, "alignment_score", None),
-            "positive_sentiment_intensity": lambda value: getattr(
-                value, "positive_sentiment_intensity", None
-            ),
-            "negative_sentiment_intensity": lambda value: getattr(
-                value, "negative_sentiment_intensity", None
-            ),
-            "familiarity": lambda value: getattr(value, "familiarity", None),
-            "matched_expectations": lambda value: getattr(value, "matched_expectations", None),
-        }
-        for field, getter in comparisons.items():
-            if getter(previous_chart) != getter(chart):
-                changed_fields.add(field)
-        return changed_fields
 
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
         chart_id = self._current_local_row_id()
