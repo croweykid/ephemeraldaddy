@@ -674,6 +674,7 @@ from ephemeraldaddy.core.chart_data_fields import (
     NonastralPatch,
     astro_data_recalculation_token,
 )
+from ephemeraldaddy.core.chart_recalculation_policy import ChartRecalculationPolicy
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 from ephemeraldaddy.data.genpop import (
@@ -36902,13 +36903,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         analytics should only be dirtied when birth data, place, birth-time /
         rectified-time state, or the derived chart_uses_houses flag changes.
         """
-        return astro_data_recalculation_token(
-            chart,
-            birth_place=birth_place,
-            chart_uses_houses_value=(
-                bool(chart_uses_houses(chart)) if chart is not None else None
-            ),
-        )
+        return ChartRecalculationPolicy.astro_data_token(chart, birth_place=birth_place)
 
     @staticmethod
     def _chart_metadata_changed_fields(
@@ -36917,60 +36912,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         *,
         birth_place: str | None = None,
     ) -> set[str] | None:
-        """Classify saved edits by the Database Analytics sections they affect."""
-        if previous_chart is None:
-            return None
-        changed_fields: set[str] = set()
-        if (
-            MainWindow._chart_astro_data_recalculation_token(previous_chart)
-            != MainWindow._chart_astro_data_recalculation_token(chart, birth_place)
-        ):
-            changed_fields.add("birth_data")
-        previous_chart_type = _normalize_gui_source(
-            getattr(previous_chart, "chart_type", None) or getattr(previous_chart, "source", None)
+        """Compatibility delegate to the window-independent change policy."""
+        return ChartRecalculationPolicy.changed_fields(
+            previous_chart,
+            chart,
+            birth_place=birth_place,
         )
-        current_chart_type = _normalize_gui_source(
-            getattr(chart, "chart_type", None) or getattr(chart, "source", None)
-        )
-        if previous_chart_type != current_chart_type:
-            changed_fields.add("chart_type")
-        if _chart_is_non_aggregable(previous_chart) != _chart_is_non_aggregable(chart):
-            changed_fields.add("aggregation_scope")
-
-        comparisons = {
-            "name": lambda value: str(getattr(value, "name", "") or "").strip(),
-            "alias": lambda value: str(getattr(value, "alias", "") or "").strip(),
-            "sentiments": lambda value: tuple(
-                sorted(
-                    str(item).casefold()
-                    for item in (getattr(value, "sentiments", []) or [])
-                )
-            ),
-            "relationship_types": lambda value: tuple(
-                sorted(
-                    str(item).casefold()
-                    for item in (getattr(value, "relationship_types", []) or [])
-                )
-            ),
-            "tags": lambda value: tuple(
-                tag.casefold()
-                for tag in normalize_tag_list(getattr(value, "tags", []) or [])
-            ),
-            "gender": lambda value: getattr(value, "gender", None),
-            "alignment": lambda value: getattr(value, "alignment_score", None),
-            "positive_sentiment_intensity": lambda value: getattr(
-                value, "positive_sentiment_intensity", None
-            ),
-            "negative_sentiment_intensity": lambda value: getattr(
-                value, "negative_sentiment_intensity", None
-            ),
-            "familiarity": lambda value: getattr(value, "familiarity", None),
-            "matched_expectations": lambda value: getattr(value, "matched_expectations", None),
-        }
-        for field, getter in comparisons.items():
-            if getter(previous_chart) != getter(chart):
-                changed_fields.add(field)
-        return changed_fields
 
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
         chart_id = self._current_local_row_id()

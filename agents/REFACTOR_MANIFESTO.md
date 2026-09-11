@@ -41,10 +41,11 @@ do not infer completion merely because a destination directory exists.
 The refactor is **directionally aligned but not on track against the phased
 exit gates**. Useful bounded extractions have continued, especially under
 `chart_editor`, `database_view`, `transits`, and `settings`, but the prerequisite
-and ownership milestones have not been completed in order. Three initial
-bounded moves are now complete: `SegmentedTimeEdit`, `ChartListWidget`, and
-similarity-calculator settings persistence have canonical workflow owners and
-focused regression coverage. `app.py` is still 39,574 lines with 1,070
+and ownership milestones have not been completed in order. Four initial
+bounded moves are now complete: `SegmentedTimeEdit`, `ChartListWidget`,
+similarity-calculator settings persistence, and saved-chart change
+classification have canonical owners and focused regression coverage. `app.py`
+is still 39,521 lines with 1,070
 four-space-indented methods, and it still defines both legacy
 top-level window classes. The 5,000–8,000-line composition-root goal therefore
 remains distant.
@@ -55,7 +56,7 @@ remains distant.
 | 1 — UID migration | **Advanced, not complete** | Important selection, hidden-chart, refresh, duplicate, ranking, and worker state is UID-owned and guarded by source tests. Numeric row IDs and ID-shaped workflow APIs remain throughout `app.py`, including chart-picking, composite-chart, export, similarities, and tool-routing paths. Persistence-boundary conversion is not yet consistently narrow. |
 | 2 — top-level windows | **Not started at the class boundary** | `ManageChartsDialog` and `MainWindow` remain defined in `app.py`; neither canonical window class nor `AppwideWindowCoordinator` exists. Tests still parse the legacy class names, so renaming requires a coordinated characterization-test update rather than an alias-only claim of completion. |
 | 3 — explicit interfaces | **Not complete** | Sentiment tally behavior is still borrowed at class level, and `install_chart_view_right_panel_callbacks` still attaches `MethodType` methods at runtime. Some newer controllers use narrow callbacks, showing the intended pattern, but the phase exit gate is unmet. |
-| 4 — core workflows | **Early/partial** | `ChartEditSession` and a callback-based `ChartEditorController` exist and are used incrementally. The session does not yet own the full lifecycle promised in section 6.1. The canonical Database Selection, recalculation policy/coordinator, Database Search query/evaluator/controller, and non-Qt web-profile service modules do not yet exist. |
+| 4 — core workflows | **Early/partial** | `ChartEditSession` and a callback-based `ChartEditorController` exist and are used incrementally. The pure `ChartRecalculationPolicy` now owns saved-chart change classification behind temporary window delegates, but the coordinator is not implemented. The session does not yet own the full lifecycle promised in section 6.1. The canonical Database Selection, Database Search query/evaluator/controller, and non-Qt web-profile service modules do not yet exist. |
 | 5 — legacy package replacement | **Partial extraction, no retirement** | Correct workflow packages are growing; `SegmentedTimeEdit`, `ChartListWidget`, and similarity-settings persistence now live under `chart_editor`, `database_view`, and `similarities`, respectively. However, `gui/features/charts` still contains 80 Python modules and both generic controller staging modules remain. There is no appwide `chart_information` package. |
 | 6 — settings | **Partial** | `gui/settings/core.py` and `gui/settings/modules` now exist, but legacy settings implementations remain under `gui/` and `gui/features/settings`; additions should use the canonical home while touched legacy code is migrated deliberately. |
 | 7 — composition root | **Not started as an exit gate** | Imports and bounded helpers have moved out, but both primary windows and substantial workflow logic remain in `app.py`; it is not yet independently testable as a small composition root. |
