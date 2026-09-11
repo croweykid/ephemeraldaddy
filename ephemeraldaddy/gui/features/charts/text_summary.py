@@ -30,7 +30,7 @@ from ephemeraldaddy.core.chart import (
     rectification_range_minutes,
 )
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
-from ephemeraldaddy.core.draconic import calculate_draconic_positions
+from ephemeraldaddy.core.draconic import calculate_draconic_positions, find_draconic_natal_aspects
 from ephemeraldaddy.core.ephemeris import (
     get_lilith_display_name,
     planetary_positions,
@@ -71,6 +71,45 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     sign_for_longitude,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, format_chart_header
+
+
+POSITION_HEADER_ALIASES: tuple[str, ...] = ("POSITIONS", "POSITIONS (Tropical)")
+DRACONIC_POSITION_HEADER_ALIASES: tuple[str, ...] = (
+    "DRACONIC POSITIONS",
+    "POSITIONS (Draconic)",
+)
+
+
+def _header_matches(line: str, aliases: tuple[str, ...]) -> bool:
+    return line.strip() in aliases
+
+
+class _ChartSummaryText(str):
+    """String compatible with legacy split-line consumers of ``POSITIONS``.
+
+    Chart Data Output now renders ``POSITIONS (Tropical)``. Several legacy
+    popout paths still split the returned string and search for the historical
+    plain ``POSITIONS`` header. Preserve those paths without forcing every
+    surface to adopt the qualified label: direct display gets the new header,
+    while split-line consumers continue to receive the legacy form.
+    """
+
+    def splitlines(self, keepends: bool = False) -> list[str]:
+        rendered: list[str] = []
+        for raw_line in super().splitlines(keepends):
+            ending = ""
+            body = raw_line
+            if keepends:
+                if body.endswith("\r\n"):
+                    body, ending = body[:-2], "\r\n"
+                elif body.endswith(("\n", "\r")):
+                    body, ending = body[:-1], body[-1]
+            if body.strip() == "POSITIONS (Tropical)":
+                leading = body[: len(body) - len(body.lstrip())]
+                trailing = body[len(body.rstrip()) :]
+                body = f"{leading}POSITIONS{trailing}"
+            rendered.append(f"{body}{ending}")
+        return rendered
 
 
 def _sign_dignity_prefix(body: str, sign: str) -> str:
@@ -273,9 +312,9 @@ def _format_time_variant_signs(
 
 
 
-
 def _aspect_label(atype: str) -> str:
     return atype.replace("_", " ").title()
+
 
 def _aspect_body_with_sign(body: str, positions: dict[str, float]) -> str:
     axis_label = aspect_axis_display_label(body)
@@ -298,6 +337,7 @@ def _display_body_with_glyph(body: str, *, use_lilith_alias: bool = False) -> st
     if str(glyph).strip().casefold() == str(display_body).strip().casefold():
         return display_body
     return f"{glyph} {display_body}"
+
 
 #this is redundant from "Aliases" in chart_data_output
 def _display_body_name(body: str, *, use_lilith_alias: bool = False) -> str:
@@ -366,6 +406,7 @@ def _overlay_aspect_segments(aspect_hits: list[Any]) -> list[dict[str, float | s
 def _normalize_aspect_body(body: str) -> str:
     return ASPECT_BODY_ALIASES.get(body, body)
 
+
 def _aspect_pair_weight(p1: str, p2: str) -> float:
         return aspect_pair_weight(p1, p2)
 
@@ -410,6 +451,177 @@ def _synastry_pair_weight(
 
 def _is_structural_tautology(asp: dict) -> bool:
     return is_structural_aspect_tautology(asp)
+
+
+def _draconic_aspect_endpoint_label(
+    prefix: str,
+    body: str,
+    positions: dict[str, float],
+) -> str:
+    axis_label = aspect_axis_display_label(body)
+    display_body = axis_label or _display_body_name(body)
+    lon = positions.get(body)
+    if axis_label is not None or lon is None:
+        return f"{prefix} {display_body}"
+    return f"{prefix} {display_body} ({sign_for_longitude(lon)})"
+
+
+def _append_draconic_aspects(
+    *,
+    lines: list[str],
+    chart: Chart,
+    draconic_positions: dict[str, float],
+    natal_positions: dict[str, float],
+    use_houses: bool,
+    houses: object,
+    aspect_sort: str,
+    position_info_map: dict[int, list[dict[str, object]]],
+    aspect_info_map: dict[int, dict[str, object]],
+) -> None:
+    if lines and lines[-1] != "":
+        lines.append("")
+    lines.append(CHART_DATA_DIVIDER)
+    lines.append("ASPECTS (Draconic)")
+    lines.append(CHART_DATA_DIVIDER)
+
+    if not draconic_positions:
+        lines.append("Unavailable (North Node position unknown)")
+        return
+
+    cross_aspects = find_draconic_natal_aspects(draconic_positions, natal_positions)
+    if not use_houses:
+        cross_aspects = [
+            asp
+            for asp in cross_aspects
+            if asp["p1"] not in ASPECT_DISPLAY_ANGLE_BODIES
+            and asp["p2"] not in ASPECT_DISPLAY_ANGLE_BODIES
+        ]
+    if not cross_aspects:
+        lines.append("No aspects within configured orbs")
+        return
+
+    sort_mode = aspect_sort if aspect_sort in ASPECT_SORT_OPTIONS else "Priority"
+    dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+    if not dominant_planet_weights:
+        dominant_planet_weights = calculate_dominant_planet_weights(chart)
+    sorted_aspects = sort_natal_aspects(
+        cross_aspects,
+        sort_mode,
+        planet_weights=dominant_planet_weights,
+    )
+
+    endpoint_labels: dict[tuple[str, str], str] = {}
+    for asp in sorted_aspects:
+        p1 = str(asp["p1"])
+        p2 = str(asp["p2"])
+        endpoint_labels[("D", p1)] = _draconic_aspect_endpoint_label("D.", p1, draconic_positions)
+        endpoint_labels[("N", p2)] = _draconic_aspect_endpoint_label("N.", p2, natal_positions)
+    label_width = max((len(label) for label in endpoint_labels.values()), default=8)
+    label_width = max(label_width, 8)
+
+    for asp in sorted_aspects:
+        p1 = str(asp["p1"])
+        p2 = str(asp["p2"])
+        atype = str(asp["type"])
+        angle = float(asp["angle"])
+        delta = float(asp["delta"])
+        p1_label = endpoint_labels[("D", p1)]
+        p2_label = endpoint_labels[("N", p2)]
+        line = (
+            f"{p1_label:<{label_width}} {atype:<12} {p2_label:<{label_width}} "
+            f"{format_degree_minutes(angle, include_sign=False):>8}  (orb {format_degree_minutes(delta)})"
+        )
+        line = f"{line} ⓘ"
+
+        p1_axis_label = aspect_axis_display_label(p1)
+        p2_axis_label = aspect_axis_display_label(p2)
+        p1_body_label = p1_axis_label or _display_body_name(p1)
+        p2_body_label = p2_axis_label or _display_body_name(p2)
+        p1_body_start = line.find(p1_body_label)
+        p2_label_start = line.find(p2_label)
+        p2_body_start = line.find(p2_body_label, max(0, p2_label_start))
+        line_entries: list[dict[str, object]] = []
+        if p1_body_start != -1:
+            line_entries.append(
+                {
+                    "kind": "planet_keyword",
+                    "body": p1,
+                    "span_start": p1_body_start,
+                    "span_end": p1_body_start + len(p1_body_label),
+                }
+            )
+        if p2_body_start != -1:
+            line_entries.append(
+                {
+                    "kind": "planet_keyword",
+                    "body": p2,
+                    "span_start": p2_body_start,
+                    "span_end": p2_body_start + len(p2_body_label),
+                }
+            )
+
+        sign1 = sign_for_longitude(draconic_positions[p1]) if p1 in draconic_positions else None
+        sign2 = sign_for_longitude(natal_positions[p2]) if p2 in natal_positions else None
+        if sign1 and p1_axis_label is None:
+            sign1_start = line.find(sign1, p1_body_start + len(p1_body_label) if p1_body_start != -1 else 0)
+            if sign1_start != -1:
+                line_entries.append(
+                    {
+                        "kind": "sign_keyword",
+                        "sign": sign1,
+                        "span_start": sign1_start,
+                        "span_end": sign1_start + len(sign1),
+                    }
+                )
+        if sign2 and p2_axis_label is None:
+            sign2_start = line.find(sign2, p2_body_start + len(p2_body_label) if p2_body_start != -1 else 0)
+            if sign2_start != -1:
+                line_entries.append(
+                    {
+                        "kind": "sign_keyword",
+                        "sign": sign2,
+                        "span_start": sign2_start,
+                        "span_end": sign2_start + len(sign2),
+                    }
+                )
+
+        natal_p1_lon = natal_positions.get(p1)
+        natal_p2_lon = natal_positions.get(p2)
+        house1 = (
+            house_for_longitude(houses, natal_p1_lon)
+            if use_houses and houses and natal_p1_lon is not None
+            else None
+        )
+        house2 = (
+            house_for_longitude(houses, natal_p2_lon)
+            if use_houses and houses and natal_p2_lon is not None
+            else None
+        )
+        aspect_span_start = line.find(f" {atype:<12} ")
+        if aspect_span_start != -1:
+            aspect_span_start += 1
+            aspect_span_end = aspect_span_start + len(atype)
+        else:
+            aspect_span_start = None
+            aspect_span_end = None
+        aspect_info_map[len(lines)] = {
+            "p1": p1,
+            "p2": p2,
+            "type": atype,
+            "angle": angle,
+            "delta": delta,
+            "span_start": aspect_span_start,
+            "span_end": aspect_span_end,
+            "sign1": sign1,
+            "sign2": sign2,
+            "house1": house1,
+            "house2": house2,
+            "source1": "Draconic",
+            "source2": "Tropical",
+        }
+        if line_entries:
+            position_info_map[len(lines)] = line_entries
+        lines.append(line)
 
 
 def format_chart_text(
@@ -591,7 +803,7 @@ def format_chart_text(
 
     # Positions
     lines.append(CHART_DATA_DIVIDER)
-    lines.append("POSITIONS")
+    lines.append("POSITIONS (Tropical)")
     lines.append(CHART_DATA_DIVIDER)
     body_width = 10
     sign_width = 11
@@ -882,7 +1094,7 @@ def format_chart_text(
             # fallback: just show whatever it is
             lines.append(str(houses))
             lines.append("")
-            return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
+            return _ChartSummaryText("\n".join(lines)), position_info_map, aspect_info_map, species_info_map
 
         for i, v in enumerate(cusps):
             if isinstance(v, (int, float)):
@@ -1137,9 +1349,8 @@ def format_chart_text(
             lines.append(class_line_text)
 
     # Draconic Positions: rotate the zodiac so the natal North Node (Rahu) is 0° Aries.
-    # House placement is intentionally based on the natal/tropical longitude because the
-    # whole reference frame rotates together; the Draconic transformation does not move
-    # a body to a different natal house.
+    # House membership stays the same because house cusps rotate by the same offset;
+    # the cusps' zodiac signs/degrees change even though a body's house number does not.
     draconic_source_positions = dict(chart.positions)
     if draconic_source_positions.get("Rahu") is None:
         try:
@@ -1153,7 +1364,7 @@ def format_chart_text(
     if lines and lines[-1] != "":
         lines.append("")
     lines.append(CHART_DATA_DIVIDER)
-    lines.append("DRACONIC POSITIONS")
+    lines.append("POSITIONS (Draconic)")
     lines.append(CHART_DATA_DIVIDER)
     if use_houses:
         lines.append(
@@ -1391,7 +1602,19 @@ def format_chart_text(
                 ]
                 lines.append(line)
 
-    return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
+    _append_draconic_aspects(
+        lines=lines,
+        chart=chart,
+        draconic_positions=draconic_positions,
+        natal_positions=draconic_source_positions,
+        use_houses=use_houses,
+        houses=houses,
+        aspect_sort=aspect_sort,
+        position_info_map=position_info_map,
+        aspect_info_map=aspect_info_map,
+    )
+
+    return _ChartSummaryText("\n".join(lines)), position_info_map, aspect_info_map, species_info_map
 
 
 
@@ -1689,11 +1912,15 @@ def format_transit_chart_text(chart: Chart, location_label: str) -> str:
     summary, _, _, _ = format_chart_text(chart)
     lines = summary.splitlines()
     positions_start_index = next(
-        (idx for idx, line in enumerate(lines) if line.strip() == "POSITIONS"),
+        (idx for idx, line in enumerate(lines) if _header_matches(line, POSITION_HEADER_ALIASES)),
         0,
     )
     draconic_start_index = next(
-        (idx for idx, line in enumerate(lines) if line.strip() == "DRACONIC POSITIONS"),
+        (
+            idx
+            for idx, line in enumerate(lines)
+            if _header_matches(line, DRACONIC_POSITION_HEADER_ALIASES)
+        ),
         len(lines),
     )
     if (
