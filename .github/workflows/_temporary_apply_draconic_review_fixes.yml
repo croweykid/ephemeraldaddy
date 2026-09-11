@@ -66,7 +66,7 @@ jobs:
           text = path.read_text()
           legacy_lookup = 'line.strip() == "POSITIONS"'
           lookup_count = text.count(legacy_lookup)
-          assert lookup_count >= 4, f'expected legacy POSITIONS lookups, found {lookup_count}'
+          assert lookup_count == 2, f'expected two legacy POSITIONS lookups, found {lookup_count}'
           text = text.replace(
               legacy_lookup,
               'line.strip() in {"POSITIONS", "POSITIONS (Tropical)"}',
