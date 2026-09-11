@@ -1108,9 +1108,13 @@ from ephemeraldaddy.gui.features.chart_information.plugin_context import (
 from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (
     append_plugin_paragraphs,
 )
+from ephemeraldaddy.gui.features.chart_information.keyword_models import (
+    build_aspect_keyword_text,
+    build_house_keyword_text,
+    build_planet_keyword_text,
+)
 from ephemeraldaddy.gui.features.chart_information.token_formatting import (
     human_design_gate_header_suffix,
-    ordinal_house_header,
 )
 from ephemeraldaddy.gui.settings.modules.plugins import build_plugin_manager_panel
 from ephemeraldaddy.analysis.human_design_reference import (
@@ -31748,12 +31752,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     ) -> None:
         body_name = str(body or "").strip()
         display_body = str(display_body_label or "").strip() or _display_body_name(body_name)
-        verbs = PLANET_KEYWORDS.get(body_name, {}).get("verbs", [])
-        clean_verbs = [str(item).strip() for item in verbs if str(item).strip()]
-        if not clean_verbs:
-            self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
-            return
-        status_line = ""
         resolved_sign_name = str(sign_name or "").strip().title()
         resolved_house_num = house_num if isinstance(house_num, int) else None
         resolved_uses_houses = bool(chart_uses_houses) if chart_uses_houses is not None else None
@@ -31767,31 +31765,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if resolved_uses_houses is None and chart is not None:
             resolved_uses_houses = _chart_uses_houses(chart)
 
-        rulership_signs = PLANET_RULERSHIP.get(body_name, set())
-        exaltation = PLANET_EXALTATION.get(body_name, {})
-        detriment_signs = PLANET_DETRIMENT.get(body_name, set())
-        fall = PLANET_FALL.get(body_name, {})
-        if (
-            resolved_sign_name
-            and exaltation
-            and resolved_sign_name == str(exaltation.get("sign", "")).strip().title()
-        ):
-            status_line = f"Exalted in {resolved_sign_name}."
-        elif resolved_sign_name and resolved_sign_name in rulership_signs:
-            status_line = f"Ruler of {resolved_sign_name}."
-        elif resolved_sign_name and resolved_sign_name in detriment_signs:
-            status_line = f"Detriment in {resolved_sign_name}."
-        elif resolved_sign_name and fall and resolved_sign_name == str(fall.get("sign", "")).strip().title():
-            status_line = f"Fall in {resolved_sign_name}."
-        elif resolved_uses_houses:
-            joy_house = PLANETARY_JOYS.get(body_name)
-            if isinstance(joy_house, int) and resolved_house_num == joy_house:
-                status_line = f"With joy in house {joy_house}."
-        lines = [f"• {keyword}" for keyword in clean_verbs]
-        if status_line:
-            self.chart_info_output.setPlainText("\n".join([display_body, status_line, "", *lines]))
-            return
-        self.chart_info_output.setPlainText("\n".join([display_body, "", *lines]))
+        self.chart_info_output.setPlainText(
+            build_planet_keyword_text(
+                body_name,
+                display_body=display_body,
+                sign_name=resolved_sign_name,
+                house_number=resolved_house_num,
+                chart_uses_houses=bool(resolved_uses_houses),
+            )
+        )
 
     def _show_sign_keyword_info(
         self,
@@ -31939,16 +31921,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setPlainText("\n".join(self._element_definition_lines(element)))
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
-        aspect_label = str(atype or "").strip()
-        aspect_key = aspect_label.replace(" ", "_").lower()
-        aspect_keywords = ASPECT_KEYWORDS.get(aspect_key, [])
-        clean_keywords = [str(item).strip() for item in aspect_keywords if str(item).strip()]
-        header = f"{aspect_label or 'Aspect'} keywords"
-        if not clean_keywords:
-            self.chart_info_output.setPlainText(f"{header}\n\nNo keyword data available.")
-            return
-        lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
-        self.chart_info_output.setPlainText("\n".join(lines))
+        self.chart_info_output.setPlainText(build_aspect_keyword_text(atype))
 
 
     def _show_mode_keyword_info(self, mode: str) -> None:
@@ -31999,17 +31972,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
-        house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
-        clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
-        header = ordinal_house_header(house_num)
-        clean_joy_body = str(joy_body or "").strip()
-        if clean_joy_body:
-            header = f"{header} (planetary joy in {clean_joy_body})"
-        if not clean_keywords:
-            self.chart_info_output.setPlainText(f"{header}\n\nNo house keywords available.")
-            return
-        lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
-        self.chart_info_output.setPlainText("\n".join(lines))
+        self.chart_info_output.setPlainText(
+            build_house_keyword_text(house_num, joy_body=joy_body)
+        )
 
 
     def _show_human_design_gate_line_info(
