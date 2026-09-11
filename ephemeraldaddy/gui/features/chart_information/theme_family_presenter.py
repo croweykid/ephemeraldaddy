@@ -1,12 +1,9 @@
-"""Narrow Chart Information presenter for semantic Theme predictions.
+"""Chart Information presenter for semantic Theme predictions.
 
-A click on a macrotheme row opens the standard Chart Info! surface and shows:
-* the editable macrotheme label and optional family description,
-* every subtheme in the family with its chart score,
-* the positively active configured factors that produced that score.
-
-The Theme table stores stable family keys, so presentation labels and taxonomy
-membership can evolve without coupling click behavior to rendered text.
+Macrotheme clicks show the family and its subthemes. Subtheme clicks show only
+the selected subtheme. Numeric labels use chart-share percentages and empirical
+DB percentiles; the scorer's internal chart-normalized activations are never
+presented as percentages to the user.
 """
 
 from __future__ import annotations
@@ -18,6 +15,11 @@ from ephemeraldaddy.analysis.theme_evidence import (
     ThemeFactorEvidence,
     calculate_theme_family_factor_evidence,
     calculate_theme_factor_evidence_from_context,
+)
+from ephemeraldaddy.analysis.theme_norms import (
+    empirical_percentile,
+    format_theme_percentile,
+    theme_factor_distribution_key,
 )
 from ephemeraldaddy.analysis.theme_prominence import calculate_theme_subtheme_scores
 from ephemeraldaddy.analysis.weighted_chart_predictor import normalize_channel_value
@@ -38,7 +40,6 @@ def _score_color(value: float) -> str:
 
 def _factor_label(property_name: str, item: Any) -> str:
     """Return a concise human-facing label for one Theme evidence item."""
-
     if property_name == "signs":
         return f"Sign: {item}"
     if property_name == "houses":
@@ -71,41 +72,81 @@ def _factor_label(property_name: str, item: Any) -> str:
     return f"{property_name.replace('_', ' ').title()}: {item}"
 
 
-def _evidence_item_html(evidence: ThemeFactorEvidence) -> str:
-    activation = max(0.0, min(1.0, float(evidence.activation)))
-    activation_pct = activation * 100.0
-    color = _score_color(activation_pct)
+def _theme_description(theme: Mapping[str, Any]) -> str:
+    value = theme.get("description", "")
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (list, tuple)):
+        return " ".join(str(item).strip() for item in value if str(item).strip())
+    return ""
+
+
+def _factor_percentile(
+    evidence: ThemeFactorEvidence,
+    factor_values: Mapping[str, Any],
+) -> float | None:
+    key = theme_factor_distribution_key(evidence.property_name, evidence.item)
+    samples = factor_values.get(key, ())
+    if not isinstance(samples, (list, tuple)):
+        return None
+    return empirical_percentile(float(evidence.activation), samples)
+
+
+def _evidence_item_html(
+    evidence: ThemeFactorEvidence,
+    factor_values: Mapping[str, Any],
+) -> str:
+    percentile = _factor_percentile(evidence, factor_values)
     label = html.escape(_factor_label(evidence.property_name, evidence.item))
-    # ``set_chart_info_html`` subsequently applies canonical semantic colors to
-    # recognized signs, bodies, gates, authorities, etc. The activation color
-    # remains the fallback/list-marker color and communicates relative strength.
+    if percentile is None:
+        suffix = ""
+        color = COLOR_TEXT_SECONDARY
+    else:
+        color = _score_color(percentile)
+        suffix = (
+            " <span style='color:"
+            f"{color};'>({html.escape(format_theme_percentile(percentile))} vs DB)</span>"
+        )
+    return f"<li style='margin:2px 0; color:{color};'>{label}{suffix}</li>"
+
+
+def _share_percentile_html(
+    share: float | None,
+    samples: Any,
+) -> str:
+    if share is None:
+        return f"<span style='color:{COLOR_TEXT_MUTED};'>—</span>"
+    percentile = empirical_percentile(share, samples if isinstance(samples, (list, tuple)) else ())
+    share_text = f"{float(share):.1f}% of chart"
+    if percentile is None:
+        return f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};'>{share_text}</span>"
+    color = _score_color(percentile)
     return (
-        f"<li style='margin:2px 0; color:{color};'>"
-        f"{label}"
-        f" <span style='color:{color};'>({activation_pct:.0f}%)</span>"
-        "</li>"
+        f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};'>{share_text}</span>"
+        f" <span style='color:{COLOR_TEXT_SECONDARY};'>·</span> "
+        f"<span style='color:{color};'>{html.escape(format_theme_percentile(percentile))} vs DB</span>"
     )
 
 
 def _subtheme_html(
     theme_key: str,
-    score: float | None,
+    share: float | None,
     evidence: tuple[ThemeFactorEvidence, ...],
+    *,
+    share_samples: Any = (),
+    factor_values: Mapping[str, Any] | None = None,
+    heading: bool = False,
 ) -> str:
     theme = THEMES[theme_key]
     label = html.escape(str(theme.get("label", theme_key)).strip() or theme_key)
-    if score is None:
-        score_html = f"<span style='color:{COLOR_TEXT_MUTED};'>—</span>"
-    else:
-        bounded_score = max(0.0, min(100.0, float(score)))
-        score_html = (
-            f"<span style='color:{_score_color(bounded_score)};'>{bounded_score:.1f}%</span>"
-        )
+    description = _theme_description(theme)
+    metrics = _share_percentile_html(share, share_samples)
+    factor_rows = factor_values if isinstance(factor_values, Mapping) else {}
 
     if evidence:
         evidence_html = (
             "<ul style='margin-top:4px; margin-bottom:8px; padding-left:20px;'>"
-            + "".join(_evidence_item_html(item) for item in evidence)
+            + "".join(_evidence_item_html(item, factor_rows) for item in evidence)
             + "</ul>"
         )
     else:
@@ -116,49 +157,105 @@ def _subtheme_html(
             "</li></ul>"
         )
 
-    return (
-        "<div style='margin-top:12px;'>"
-        f"<span style='font-weight:700;'>{label}</span>"
-        f" <span style='color:{COLOR_TEXT_SECONDARY};'>—</span> {score_html}"
-        "</div>"
-        f"{evidence_html}"
-    )
+    if heading:
+        title_html = (
+            f"<div style='font-size:16px; font-weight:700; color:{CHART_DATA_HIGHLIGHT_COLOR};'>"
+            f"{label}</div>"
+            f"<div style='margin-top:4px;'>{metrics}</div>"
+        )
+    else:
+        title_html = (
+            "<div style='margin-top:12px;'>"
+            f"<span style='font-weight:700;'>{label}</span>"
+            f" <span style='color:{COLOR_TEXT_SECONDARY};'>—</span> {metrics}"
+            "</div>"
+        )
+
+    description_html = ""
+    if description:
+        description_html = (
+            f"<div style='margin-top:4px; color:{COLOR_TEXT_SECONDARY}; font-style:italic;'>"
+            f"{html.escape(description)}</div>"
+        )
+    return title_html + description_html + evidence_html
 
 
 def build_theme_family_chart_info_html(
     chart: Any,
     family_key: str,
     *,
+    theme_key: str | None = None,
     subtheme_scores: Mapping[str, float] | None = None,
+    subtheme_shares: Mapping[str, float] | None = None,
+    family_shares: Mapping[str, float] | None = None,
+    share_norms: Mapping[str, Any] | None = None,
     activation_context: Mapping[str, Any] | None = None,
     evidence_by_theme: Mapping[str, tuple[ThemeFactorEvidence, ...]] | None = None,
 ) -> str:
-    """Build the Chart Info HTML for one macrotheme family."""
-
+    """Build Chart Info HTML for one macrotheme or one selected subtheme."""
     if family_key not in THEME_FAMILIES:
         return ""
+    family_theme_keys = list(themes_in_family(family_key))
+    if theme_key is not None and theme_key not in family_theme_keys:
+        return ""
+
+    # Retain the legacy score input only as a source for determining which themes
+    # are scorable; raw prominence percentages are intentionally not displayed.
+    _ = dict(subtheme_scores or calculate_theme_subtheme_scores(chart))
+    shares = dict(subtheme_shares or {})
+    family_share_rows = dict(family_shares or {})
+    norms = dict(share_norms or {})
+    subtheme_values = norms.get("subtheme_values", {})
+    family_values = norms.get("family_values", {})
+    factor_values = norms.get("factor_values", {})
+    if not isinstance(subtheme_values, Mapping):
+        subtheme_values = {}
+    if not isinstance(family_values, Mapping):
+        family_values = {}
+    if not isinstance(factor_values, Mapping):
+        factor_values = {}
+
+    if evidence_by_theme is None:
+        requested = (theme_key,) if theme_key is not None else tuple(family_theme_keys)
+        if activation_context is not None:
+            evidence_by_theme = calculate_theme_factor_evidence_from_context(
+                activation_context, requested
+            )
+        elif theme_key is None:
+            evidence_by_theme = calculate_theme_family_factor_evidence(chart, family_key)
+        else:
+            from ephemeraldaddy.analysis.theme_evidence import calculate_theme_factor_evidence
+
+            evidence_by_theme = calculate_theme_factor_evidence(chart, requested)
+
+    if theme_key is not None:
+        return (
+            "<div>"
+            + _subtheme_html(
+                theme_key,
+                float(shares[theme_key]) if theme_key in shares else None,
+                evidence_by_theme.get(theme_key, ()),
+                share_samples=subtheme_values.get(theme_key, ()),
+                factor_values=factor_values,
+                heading=True,
+            )
+            + "</div>"
+        )
 
     family = THEME_FAMILIES[family_key]
     family_label = html.escape(str(family.get("label", family_key)).strip() or family_key)
     description = str(family.get("description", "") or "").strip()
-    scores = dict(subtheme_scores or calculate_theme_subtheme_scores(chart))
-    if evidence_by_theme is None:
-        theme_keys_for_evidence = tuple(themes_in_family(family_key))
-        if activation_context is not None:
-            evidence_by_theme = calculate_theme_factor_evidence_from_context(
-                activation_context, theme_keys_for_evidence
-            )
-        else:
-            evidence_by_theme = calculate_theme_family_factor_evidence(chart, family_key)
+    family_share = float(family_share_rows[family_key]) if family_key in family_share_rows else None
+    family_metrics = _share_percentile_html(
+        family_share,
+        family_values.get(family_key, ()),
+    )
 
-    theme_keys = list(themes_in_family(family_key))
-    # Strongest subthemes first. Missing/unscorable subthemes remain visible at
-    # the end, preserving the requirement that the drill-down shows every one.
-    definition_order = {theme_key: index for index, theme_key in enumerate(theme_keys)}
-    theme_keys.sort(
-        key=lambda theme_key: (
-            -(float(scores[theme_key]) if theme_key in scores else -1.0),
-            definition_order[theme_key],
+    definition_order = {key: index for index, key in enumerate(family_theme_keys)}
+    family_theme_keys.sort(
+        key=lambda key: (
+            -(float(shares[key]) if key in shares else -1.0),
+            definition_order[key],
         )
     )
 
@@ -166,6 +263,7 @@ def build_theme_family_chart_info_html(
         "<div>",
         f"<div style='font-size:16px; font-weight:700; color:{CHART_DATA_HIGHLIGHT_COLOR};'>"
         f"{family_label}</div>",
+        f"<div style='margin-top:4px;'>{family_metrics}</div>",
     ]
     if description:
         parts.append(
@@ -173,14 +271,14 @@ def build_theme_family_chart_info_html(
             f"{html.escape(description)}</div>"
         )
 
-    for theme_key in theme_keys:
-        raw_score = scores.get(theme_key)
-        score = float(raw_score) if raw_score is not None else None
+    for child_key in family_theme_keys:
         parts.append(
             _subtheme_html(
-                theme_key,
-                score,
-                evidence_by_theme.get(theme_key, ()),
+                child_key,
+                float(shares[child_key]) if child_key in shares else None,
+                evidence_by_theme.get(child_key, ()),
+                share_samples=subtheme_values.get(child_key, ()),
+                factor_values=factor_values,
             )
         )
     parts.append("</div>")
@@ -193,17 +291,25 @@ def present_theme_family_chart_info(
     family_key: str,
     output: Any,
     set_panel_mode: Any = None,
+    theme_key: str | None = None,
     subtheme_scores: Mapping[str, float] | None = None,
+    subtheme_shares: Mapping[str, float] | None = None,
+    family_shares: Mapping[str, float] | None = None,
+    share_norms: Mapping[str, Any] | None = None,
     activation_context: Mapping[str, Any] | None = None,
     evidence_by_theme: Mapping[str, tuple[ThemeFactorEvidence, ...]] | None = None,
 ) -> bool:
-    """Render one family through explicit Chart Information dependencies."""
+    """Render one family or selected subtheme through Chart Information."""
     if chart is None or family_key not in THEME_FAMILIES:
         return False
     rendered = build_theme_family_chart_info_html(
         chart,
         family_key,
+        theme_key=theme_key,
         subtheme_scores=subtheme_scores,
+        subtheme_shares=subtheme_shares,
+        family_shares=family_shares,
+        share_norms=share_norms,
         activation_context=activation_context,
         evidence_by_theme=evidence_by_theme,
     )

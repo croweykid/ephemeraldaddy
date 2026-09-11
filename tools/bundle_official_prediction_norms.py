@@ -23,21 +23,37 @@ if str(REPO_ROOT) not in sys.path:
 
 from ephemeraldaddy.analysis.theme_prominence import theme_definition_signature  # noqa: E402
 from ephemeraldaddy.analysis.theme_norms import (  # noqa: E402
+    THEME_CHART_SHARE_SCHEMA_FIELD,
+    THEME_CHART_SHARE_SCHEMA_VERSION,
+    THEME_FACTOR_ACTIVATION_VALUES_FIELD,
     THEME_FAMILY_AVAILABILITY_ROWS_FIELD,
+    THEME_FAMILY_SHARE_AVERAGES_FIELD,
+    THEME_FAMILY_SHARE_VALUES_FIELD,
     THEME_NORMS_AVAILABILITY_SCHEMA_FIELD,
     THEME_NORMS_AVAILABILITY_SCHEMA_VERSION,
+    THEME_SUBTHEME_SHARE_AVERAGES_FIELD,
+    THEME_SUBTHEME_SHARE_VALUES_FIELD,
+    theme_factor_distribution_key,
 )
 from ephemeraldaddy.analysis.traits import (  # noqa: E402
     DEFAULT_TRAITS_PATH,
     parse_trait_file,
     trait_uid_for_profile,
 )
-from ephemeraldaddy.core.theme_reference import THEME_FAMILIES  # noqa: E402
+from ephemeraldaddy.core.theme_reference import (  # noqa: E402
+    THEMES,
+    THEME_FAMILIES,
+    WEIGHTED_THEME_PROPERTIES,
+)
 
 
 DEFAULT_SOURCE = Path.home() / ".ephemeraldaddy" / ".prediction_norms_snapshot.json"
 DEFAULT_DESTINATION = REPO_ROOT / "ephemeraldaddy" / "analysis" / "default_prediction_norms.json"
 DEFAULT_SOURCE_SELECTION = Path.home() / ".ephemeraldaddy" / ".prediction_norms_source.json"
+
+_HD_THEME_PROPERTIES = frozenset(
+    {"gates", "channels", "crosses", "centers", "profiles", "authorities"}
+)
 
 
 def _stable_hash(value: Any) -> str:
@@ -140,8 +156,98 @@ def validate_default_trait_coverage(
     }
 
 
+def _finite_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
+def _require_complete_numeric_rows(
+    rows: Any,
+    keys: tuple[str, ...],
+    *,
+    field_name: str,
+    availability_key: str,
+) -> None:
+    if not isinstance(rows, Mapping):
+        raise ValueError(
+            f"Official prediction norms contain an invalid {field_name} stratum "
+            f"{availability_key!r}. Recalculate DB Norms before bundling."
+        )
+    for key in keys:
+        if not _finite_number(rows.get(key)):
+            raise ValueError(
+                f"Official prediction norms are missing a finite {field_name} value "
+                f"for {key!r} in availability stratum {availability_key!r}. "
+                "Recalculate DB Norms before bundling."
+            )
+
+
+def _require_complete_sample_rows(
+    rows: Any,
+    keys: tuple[str, ...],
+    *,
+    field_name: str,
+    availability_key: str,
+) -> None:
+    if not isinstance(rows, Mapping):
+        raise ValueError(
+            f"Official prediction norms contain an invalid {field_name} stratum "
+            f"{availability_key!r}. Recalculate DB Norms before bundling."
+        )
+    for key in keys:
+        samples = rows.get(key)
+        if not isinstance(samples, list) or not samples or any(
+            not _finite_number(value) for value in samples
+        ):
+            raise ValueError(
+                f"Official prediction norms are missing a non-empty finite {field_name} "
+                f"distribution for {key!r} in availability stratum {availability_key!r}. "
+                "Recalculate DB Norms before bundling."
+            )
+
+
+def _theme_availability_flags(availability_key: str) -> dict[str, bool]:
+    parts: dict[str, bool] = {}
+    for token in str(availability_key).split("|"):
+        name, separator, value = token.partition(":")
+        if not separator or name not in {"houses", "hd", "bazi"} or value not in {"0", "1"}:
+            raise ValueError(
+                f"Official prediction norms contain an invalid Theme availability key "
+                f"{availability_key!r}. Recalculate DB Norms before bundling."
+            )
+        parts[name] = value == "1"
+    if set(parts) != {"houses", "hd", "bazi"}:
+        raise ValueError(
+            f"Official prediction norms contain an incomplete Theme availability key "
+            f"{availability_key!r}. Recalculate DB Norms before bundling."
+        )
+    return parts
+
+
+def _configured_theme_factor_keys_for_availability(
+    availability_key: str,
+) -> tuple[str, ...]:
+    """Return every configured factor key the runtime can score in this stratum."""
+    availability = _theme_availability_flags(availability_key)
+    keys: set[str] = set()
+    for theme in THEMES.values():
+        for property_name in WEIGHTED_THEME_PROPERTIES:
+            if property_name == "houses" and not availability["houses"]:
+                continue
+            if property_name == "bazisigns" and not availability["bazi"]:
+                continue
+            if property_name in _HD_THEME_PROPERTIES and not availability["hd"]:
+                continue
+            for item in theme.get(property_name, []) or []:
+                keys.add(theme_factor_distribution_key(property_name, item))
+    return tuple(sorted(keys))
+
+
 def validate_theme_family_coverage(payload: Mapping[str, Any]) -> dict[str, float]:
-    """Require a complete Theme macrofamily baseline for current definitions."""
+    """Require complete runtime-compatible Theme norms for current definitions."""
     stored_signature = str(payload.get("theme_family_definition_signature", "") or "")
     current_signature = theme_definition_signature()
     if stored_signature != current_signature:
@@ -199,6 +305,83 @@ def validate_theme_family_coverage(payload: Mapping[str, Any]) -> dict[str, floa
                     f"Official prediction norms contain a non-finite Theme baseline "
                     f"for {family_key!r} in availability stratum {availability_key!r}."
                 )
+
+    if (
+        int(payload.get(THEME_CHART_SHARE_SCHEMA_FIELD, 0) or 0)
+        != THEME_CHART_SHARE_SCHEMA_VERSION
+    ):
+        raise ValueError(
+            "Official prediction norms require the current Theme chart-share schema. "
+            "Recalculate DB Norms before bundling."
+        )
+
+    chart_share_fields = {
+        THEME_FAMILY_SHARE_AVERAGES_FIELD: payload.get(THEME_FAMILY_SHARE_AVERAGES_FIELD),
+        THEME_FAMILY_SHARE_VALUES_FIELD: payload.get(THEME_FAMILY_SHARE_VALUES_FIELD),
+        THEME_SUBTHEME_SHARE_AVERAGES_FIELD: payload.get(THEME_SUBTHEME_SHARE_AVERAGES_FIELD),
+        THEME_SUBTHEME_SHARE_VALUES_FIELD: payload.get(THEME_SUBTHEME_SHARE_VALUES_FIELD),
+        THEME_FACTOR_ACTIVATION_VALUES_FIELD: payload.get(THEME_FACTOR_ACTIVATION_VALUES_FIELD),
+    }
+    for field_name, field_rows in chart_share_fields.items():
+        if not isinstance(field_rows, Mapping):
+            raise ValueError(
+                f"Official prediction norms require a {field_name} mapping. "
+                "Recalculate DB Norms before bundling."
+            )
+
+    family_keys = tuple(str(key) for key in THEME_FAMILIES)
+    subtheme_keys = tuple(str(key) for key in THEMES)
+    for raw_availability_key in strata:
+        availability_key = str(raw_availability_key)
+        family_means = chart_share_fields[THEME_FAMILY_SHARE_AVERAGES_FIELD].get(
+            availability_key
+        )
+        family_values = chart_share_fields[THEME_FAMILY_SHARE_VALUES_FIELD].get(
+            availability_key
+        )
+        subtheme_means = chart_share_fields[THEME_SUBTHEME_SHARE_AVERAGES_FIELD].get(
+            availability_key
+        )
+        subtheme_values = chart_share_fields[THEME_SUBTHEME_SHARE_VALUES_FIELD].get(
+            availability_key
+        )
+        factor_values = chart_share_fields[THEME_FACTOR_ACTIVATION_VALUES_FIELD].get(
+            availability_key
+        )
+
+        _require_complete_numeric_rows(
+            family_means,
+            family_keys,
+            field_name=THEME_FAMILY_SHARE_AVERAGES_FIELD,
+            availability_key=availability_key,
+        )
+        _require_complete_sample_rows(
+            family_values,
+            family_keys,
+            field_name=THEME_FAMILY_SHARE_VALUES_FIELD,
+            availability_key=availability_key,
+        )
+        _require_complete_numeric_rows(
+            subtheme_means,
+            subtheme_keys,
+            field_name=THEME_SUBTHEME_SHARE_AVERAGES_FIELD,
+            availability_key=availability_key,
+        )
+        _require_complete_sample_rows(
+            subtheme_values,
+            subtheme_keys,
+            field_name=THEME_SUBTHEME_SHARE_VALUES_FIELD,
+            availability_key=availability_key,
+        )
+        expected_factor_keys = _configured_theme_factor_keys_for_availability(
+            availability_key
+        )
+        _require_complete_sample_rows(
+            factor_values,
+            expected_factor_keys,
+            field_name=THEME_FACTOR_ACTIVATION_VALUES_FIELD,
+            availability_key=availability_key,
+        )
     return averages
 
 
