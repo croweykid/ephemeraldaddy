@@ -354,7 +354,10 @@ from ephemeraldaddy.gui.features.chart_editor.metric_canvas_layout import (
     MetricCanvasLayoutController,
 )
 from ephemeraldaddy.gui.features.chart_editor.controller import ChartEditorController
-from ephemeraldaddy.gui.features.chart_editor.session import ChartEditSession
+from ephemeraldaddy.gui.features.chart_editor.session import (
+    ChartEditSession,
+    ChartTimeContext,
+)
 from ephemeraldaddy.gui.features.database_view.close_progress import DatabaseCloseProgress
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
@@ -34820,6 +34823,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             changed_chart_data=save_changed_chart_data,
             prediction_flush_required=save_requires_prediction_flush,
         )
+        self._chart_edit_session.set_time_context(ChartTimeContext.from_chart(chart))
         refresh_database_metrics = self._database_refresh_requires_metrics(changed_fields)
         if refresh_database_metrics:
             self._update_sentiment_tally(
@@ -35540,7 +35544,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._update_time_input_text_colors()
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
-        self._chart_edit_session.begin(chart_uid=normalized_chart_uid)
+        self._chart_edit_session.begin(
+            chart_uid=normalized_chart_uid,
+            time_context=ChartTimeContext.from_chart(chart),
+        )
         self._loaded_birth_place = chart.birth_place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon

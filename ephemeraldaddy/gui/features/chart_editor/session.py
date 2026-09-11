@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping
 
+from ephemeraldaddy.core.chart import resolve_use_birth_time_data
+
 ChangeKind = Literal["authoritative", "lightweight"]
 
 
@@ -21,6 +23,36 @@ class ChartSaveResult:
     recalculated: bool
     changed_chart_data: bool
     prediction_flush_required: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ChartTimeContext:
+    """Reliability and house-availability state for the edited chart."""
+
+    birth_time_unknown: bool = False
+    rectified_time_enabled: bool = False
+    rectification_range_enabled: bool = False
+    chart_uses_houses: bool = True
+
+    @classmethod
+    def from_chart(cls, chart: object) -> ChartTimeContext:
+        """Capture time reliability from a chart without retaining the record."""
+        return cls(
+            birth_time_unknown=bool(getattr(chart, "birthtime_unknown", False)),
+            rectified_time_enabled=bool(getattr(chart, "retcon_time_used", False)),
+            rectification_range_enabled=bool(
+                getattr(chart, "rectification_range_used", False)
+            ),
+            chart_uses_houses=bool(resolve_use_birth_time_data(chart)),
+        )
+
+    @property
+    def uses_provisional_time(self) -> bool:
+        return self.rectified_time_enabled or self.rectification_range_enabled
+
+    @property
+    def has_authoritative_birth_time(self) -> bool:
+        return not self.birth_time_unknown and not self.uses_provisional_time
 
 
 @dataclass(slots=True)
@@ -40,6 +72,7 @@ class ChartEditSession:
     last_save_result: ChartSaveResult | None = None
     saved_changes_since_load: bool = False
     prediction_flush_pending: bool = False
+    time_context: ChartTimeContext = field(default_factory=ChartTimeContext)
 
     def __post_init__(self) -> None:
         self.active_chart_uid = _normalize_chart_uid(self.active_chart_uid)
@@ -68,6 +101,7 @@ class ChartEditSession:
         *,
         chart_uid: str | None,
         authoritative_values: Mapping[str, Any] | None = None,
+        time_context: ChartTimeContext | None = None,
     ) -> None:
         """Start a clean persisted-chart or new-chart editing session."""
         values = dict(authoritative_values or {})
@@ -79,10 +113,15 @@ class ChartEditSession:
         self.last_save_result = None
         self.saved_changes_since_load = False
         self.prediction_flush_pending = False
+        self.time_context = time_context or ChartTimeContext()
 
     def set_active_chart_uid(self, chart_uid: str | None) -> None:
         """Update only the persisted identity while preserving draft state."""
         self.active_chart_uid = _normalize_chart_uid(chart_uid)
+
+    def set_time_context(self, time_context: ChartTimeContext) -> None:
+        """Replace the calculation-reliability state with an explicit snapshot."""
+        self.time_context = time_context
 
     def mark_dirty(
         self,
