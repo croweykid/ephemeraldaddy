@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import math
+
+from ephemeraldaddy.core.decans import ZODIAC_DECANS
 from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.core.interpretations import (
     ASPECT_KEYWORDS,
     GRECOROMAN_ELEMENTS,
+    MODE_KEYWORDS,
+    MODES,
     PLANET_DETRIMENT,
     PLANET_EXALTATION,
     PLANET_FALL,
@@ -16,6 +22,91 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.chart_information.token_formatting import (
     ordinal_house_header,
 )
+
+@dataclass(frozen=True, slots=True)
+class DecanInformationModel:
+    """Resolved, display-ready data for one zodiac decan."""
+
+    sign_name: str
+    decan_number: int
+    ordinal_label: str
+    subsign_ruler: str
+    description: str
+    keywords: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ModeKeywordModel:
+    """Normalized mode label and its semantic keyword collections."""
+
+    key: str
+    label: str
+    keywords: tuple[str, ...]
+    signs: tuple[str, ...]
+
+    @property
+    def has_reference_data(self) -> bool:
+        return self.key in {"cardinal", "mutable", "fixed"} and bool(
+            self.keywords or self.signs
+        )
+
+
+def build_decan_information(
+    sign_name: str, longitude: object | None
+) -> DecanInformationModel | None:
+    """Resolve decan reference data without depending on a Chart Editor window."""
+    try:
+        longitude_value = float(longitude) if longitude is not None else None
+    except (TypeError, ValueError):
+        longitude_value = None
+    if longitude_value is None or not math.isfinite(longitude_value):
+        return None
+
+    sign_key = str(sign_name or "").strip().title()
+    decan_number = min(3, max(1, int((longitude_value % 30.0) // 10.0) + 1))
+    selected_decan = next(
+        (
+            entry
+            for entry in ZODIAC_DECANS.get(sign_key, [])
+            if int(entry.get("decan", 0)) == decan_number
+        ),
+        {},
+    )
+    return DecanInformationModel(
+        sign_name=sign_key,
+        decan_number=decan_number,
+        ordinal_label=("1st", "2nd", "3rd")[decan_number - 1],
+        subsign_ruler=str(selected_decan.get("subsign_ruler", "")).strip() or "Unknown",
+        description=str(selected_decan.get("description", "")).strip(),
+        keywords=tuple(
+            str(keyword).strip()
+            for keyword in selected_decan.get("keywords", [])
+            if str(keyword).strip()
+        ),
+    )
+
+
+def build_mode_keyword_model(mode: str) -> ModeKeywordModel:
+    """Normalize one astrological mode into immutable presentation data."""
+    mode_key = str(mode or "").strip().lower()
+    return ModeKeywordModel(
+        key=mode_key,
+        label=mode_key.title() if mode_key else "Mode",
+        keywords=tuple(
+            sorted(
+                str(keyword).strip()
+                for keyword in MODE_KEYWORDS.get(mode_key, set())
+                if str(keyword).strip()
+            )
+        ),
+        signs=tuple(
+            sorted(
+                str(sign).strip()
+                for sign in MODES.get(mode_key, set())
+                if str(sign).strip()
+            )
+        ),
+    )
 
 
 def build_element_definition_lines(element: str) -> list[str]:

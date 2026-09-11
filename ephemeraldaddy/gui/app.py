@@ -702,9 +702,7 @@ from ephemeraldaddy.core.interpretations import (
     NATURAL_HOUSE_SIGNS,
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_RANGES,
-    MODES,
     MODE_COLORS,
-    MODE_KEYWORDS,
     ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
@@ -759,7 +757,6 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_TYPES,
     #ENNEAGRAM,
 )
-from ephemeraldaddy.core.decans import ZODIAC_DECANS
 from ephemeraldaddy.analysis.enneagram import ENNEAGRAM
 from ephemeraldaddy.analysis.human_design_synastry import (
     HD_SYNASTRY_GENDER_METHOD_IDENTITY,
@@ -1110,8 +1107,10 @@ from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (
 )
 from ephemeraldaddy.gui.features.chart_information.keyword_models import (
     build_aspect_keyword_text,
+    build_decan_information,
     build_element_definition_lines,
     build_house_keyword_text,
+    build_mode_keyword_model,
     build_planet_keyword_text,
 )
 from ephemeraldaddy.gui.features.chart_information.token_formatting import (
@@ -31606,35 +31605,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_chart_info_lines_with_segments(header, unique_lines)
 
     def _show_decan_info(self, body: str, sign: str, longitude: object | None) -> None:
-        sign_key = str(sign or "").strip().title()
         body_key = str(body or "").strip()
         display_body = _display_body_name(body_key)
-        try:
-            lon_value = float(longitude) if longitude is not None else None
-        except (TypeError, ValueError):
-            lon_value = None
-        if lon_value is None:
+        decan = build_decan_information(sign, longitude)
+        if decan is None:
             self.chart_info_output.setPlainText(f"{display_body}: no decan data available.")
             return
-        degree_in_sign = lon_value % 30.0
-        decan_number = min(3, max(1, int(degree_in_sign // 10.0) + 1))
-        suffix = "th"
-        if decan_number == 1:
-            suffix = "st"
-        elif decan_number == 2:
-            suffix = "nd"
-        elif decan_number == 3:
-            suffix = "rd"
-        decan_entries = ZODIAC_DECANS.get(sign_key, [])
-        selected_decan = next(
-            (entry for entry in decan_entries if int(entry.get("decan", 0)) == decan_number),
-            {},
-        )
-        subsign_ruler = str(selected_decan.get("subsign_ruler", "")).strip() or "Unknown"
-        description = str(selected_decan.get("description", "")).strip()
-        keywords = [str(k).strip() for k in selected_decan.get("keywords", []) if str(k).strip()]
         title_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        decan_color = PLANET_COLORS.get(subsign_ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        decan_color = PLANET_COLORS.get(decan.subsign_ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))
 
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
@@ -31647,10 +31625,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         subheader_fmt.setFontItalic(True)
         plain_fmt = QTextCharFormat()
         plain_fmt.setFontWeight(QFont.Normal)
-        cursor.insertText(f"{display_body}: {decan_number}{suffix} decan of {sign_key}\n\n", title_fmt)
-        if description:
-            cursor.insertText(f"{description}\n\n", subheader_fmt)
-        for keyword in keywords:
+        cursor.insertText(f"{display_body}: {decan.ordinal_label} decan of {decan.sign_name}\n\n", title_fmt)
+        if decan.description:
+            cursor.insertText(f"{decan.description}\n\n", subheader_fmt)
+        for keyword in decan.keywords:
             cursor.insertText(f"• {keyword}\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
         reset_cursor = self.chart_info_output.textCursor()
@@ -31880,16 +31858,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
 
     def _show_mode_keyword_info(self, mode: str) -> None:
-        mode_key = str(mode or "").strip().lower()
-        mode_label = mode_key.title() if mode_key else "Mode"
-        keywords = sorted(
-            str(keyword).strip()
-            for keyword in MODE_KEYWORDS.get(mode_key, set())
-            if str(keyword).strip()
-        )
-        signs = sorted(str(sign).strip() for sign in MODES.get(mode_key, set()) if str(sign).strip())
-        if mode_key not in {"cardinal", "mutable", "fixed"} or not (keywords or signs):
-            self.chart_info_output.setPlainText(f"{mode_label}\n\nNo keyword data available.")
+        model = build_mode_keyword_model(mode)
+        if not model.has_reference_data:
+            self.chart_info_output.setPlainText(f"{model.label}\n\nNo keyword data available.")
             return
 
         self.chart_info_output.clear()
@@ -31897,7 +31868,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         cursor.movePosition(QTextCursor.Start)
 
         title_fmt = QTextCharFormat()
-        title_fmt.setForeground(QColor(MODE_COLORS.get(mode_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))))
+        title_fmt.setForeground(QColor(MODE_COLORS.get(model.key, CHART_THEME_COLORS.get("text", "#f5f5f5"))))
         title_fmt.setFontWeight(QFont.Bold)
         title_fmt.setFontPointSize(13)
         header_fmt = QTextCharFormat()
@@ -31907,18 +31878,18 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
-        cursor.insertText(f"{mode_label} Mode\n\n", title_fmt)
-        if keywords:
+        cursor.insertText(f"{model.label} Mode\n\n", title_fmt)
+        if model.keywords:
             cursor.insertText("Keywords:", header_fmt)
             cursor.insertText("\n", plain_fmt)
-            for keyword in keywords:
+            for keyword in model.keywords:
                 cursor.insertText(f"• {keyword}\n", plain_fmt)
-        if signs:
-            if keywords:
+        if model.signs:
+            if model.keywords:
                 cursor.insertText("\n", plain_fmt)
             cursor.insertText("Signs:", header_fmt)
             cursor.insertText("\n", plain_fmt)
-            for sign in signs:
+            for sign in model.signs:
                 cursor.insertText(f"• {sign}\n", plain_fmt)
 
         self.chart_info_output.setTextCursor(cursor)

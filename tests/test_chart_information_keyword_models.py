@@ -1,10 +1,41 @@
 from ephemeraldaddy.core.interpretations import PLANETARY_JOYS
 from ephemeraldaddy.gui.features.chart_information.keyword_models import (
     build_aspect_keyword_text,
+    build_decan_information,
     build_element_definition_lines,
     build_house_keyword_text,
+    build_mode_keyword_model,
     build_planet_keyword_text,
 )
+
+
+def test_decan_information_normalizes_longitude_and_reference_data():
+    decan = build_decan_information(" aries ", 375.0)
+
+    assert decan is not None
+    assert decan.sign_name == "Aries"
+    assert decan.decan_number == 2
+    assert decan.ordinal_label == "2nd"
+    assert decan.subsign_ruler != "Unknown"
+    assert decan.description
+    assert decan.keywords
+
+
+def test_decan_information_rejects_missing_or_invalid_longitudes():
+    assert build_decan_information("Aries", None) is None
+    assert build_decan_information("Aries", "unknown") is None
+    assert build_decan_information("Aries", float("nan")) is None
+
+
+def test_mode_keyword_model_normalizes_and_freezes_reference_data():
+    model = build_mode_keyword_model(" CARDINAL ")
+
+    assert model.key == "cardinal"
+    assert model.label == "Cardinal"
+    assert model.has_reference_data
+    assert model.keywords == tuple(sorted(model.keywords))
+    assert model.signs == tuple(sorted(model.signs))
+    assert not build_mode_keyword_model("").has_reference_data
 
 
 def test_element_definition_lines_are_reusable_by_panel_and_popout():
