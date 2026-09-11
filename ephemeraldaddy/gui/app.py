@@ -358,6 +358,9 @@ from ephemeraldaddy.gui.features.chart_editor.session import (
     ChartEditSession,
     ChartTimeContext,
 )
+from ephemeraldaddy.gui.features.import_export.chart_markdown import (
+    build_chart_export_markdown,
+)
 from ephemeraldaddy.gui.features.database_view.close_progress import DatabaseCloseProgress
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
@@ -30208,115 +30211,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         ):
             self._schedule_chart_render_for_active_right_panel()
 
-    def _build_chart_export_markdown(self, chart: Chart) -> str:
-        date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
-        time_label = (
-            "Unknown"
-            if getattr(chart, "birthtime_unknown", False)
-            else chart.dt.strftime("%H:%M %Z")
-        )
-        alias = getattr(chart, "alias", None) or ""
-        birth_place = getattr(chart, "birth_place", None) or "Unknown"
-        use_houses = _chart_uses_houses(chart)
-        houses = getattr(chart, "houses", None) if use_houses else None
-
-        lines = [
-            f"# Chart Export: {chart.name or 'Unnamed'}",
-            "",
-            "## Metadata",
-            "",
-            "| Field | Value |",
-            "| --- | --- |",
-            f"| Name | {chart.name or 'Unnamed'} |",
-            f"| Alias | {alias or '—'} |",
-            f"| 🐣Date | {date_label} |",
-            f"| 🐣Time | {time_label} |",
-            f"| 🐣Place | {birth_place} |",
-            f"| Latitude / Longitude | {chart.lat:.4f} / {chart.lon:.4f} |",
-            f"| 🐣Time unknown | {getattr(chart, 'birthtime_unknown', False)} |",
-            f"| Rectified 🐣Time used | {getattr(chart, 'retcon_time_used', False)} |",
-            f"| UTC fallback used | {getattr(chart, 'used_utc_fallback', False)} |",
-        ]
-
-        lines.extend([
-            "",
-            "## Positions",
-            "",
-            "| Body | Position | Sign | House |",
-            "| --- | --- | --- | --- |",
-        ])
-
-        ordered_bodies = [body for body in PLANET_ORDER if body in chart.positions]
-        extras = sorted(set(chart.positions).difference(ordered_bodies))
-        ordered_bodies.extend(extras)
-        for body in ordered_bodies:
-            lon = chart.positions.get(body)
-            if lon is None:
-                lines.append(f"| {body} | Unknown | Unknown | — |")
-                continue
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                lines.append(f"| {body} | Unknown (🐣Time unknown) | Unknown | — |")
-                continue
-            sign = _sign_for_longitude(lon)
-            pretty_position = _format_longitude(lon)
-            house_num = _house_for_longitude(houses, lon) if use_houses else None
-            house_label = str(house_num) if house_num else "—"
-            lines.append(f"| {body} | {pretty_position} | {sign} | {house_label} |")
-
-        if use_houses and houses:
-            lines.extend([
-                "",
-                "## House Cusps",
-                "",
-                "| House | Cusp |",
-                "| --- | --- |",
-            ])
-            for idx, cusp in enumerate(houses[:12], start=1):
-                lines.append(f"| {idx} | {_format_longitude(cusp)} |")
-
-        lines.extend([
-            "",
-            "## Aspects",
-            "",
-            "| Body A | Aspect | Body B | Exact Angle | Orb (Δ) | Score |",
-            "| --- | --- | --- | ---: | ---: | ---: |",
-        ])
-        aspects = getattr(chart, "aspects", None) or []
-        filtered_aspects = list(
-            iter_displayable_aspects(
-                aspects,
-                use_houses=use_houses,
-                known_positions=getattr(chart, "positions", {}) or {},
-            )
-        )
-        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
-        if not dominant_planet_weights:
-            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-        filtered_aspects.sort(
-            key=lambda asp: _aspect_score(asp, planet_weights=dominant_planet_weights),
-            reverse=True,
-        )
-        if not filtered_aspects:
-            lines.append("| — | — | — | — | — | — |")
-        for asp in filtered_aspects:
-            lines.append(
-                "| "
-                f"{asp.get('p1', '?')} | {_aspect_label(asp.get('type', ''))} | {asp.get('p2', '?')} | "
-                f"{_format_degree_minutes(float(asp.get('angle', 0.0)), include_sign=False)} | {_format_degree_minutes(float(asp.get('delta', 0.0)))} | "
-                f"{_aspect_score(asp, planet_weights=dominant_planet_weights):.2f} |"
-            )
-
-        lines.extend([
-            "",
-            "## Raw Chart Data (JSON)",
-            "",
-            "```json",
-            json.dumps(chart.as_dict(), indent=2, ensure_ascii=False),
-            "```",
-            "",
-        ])
-        return "\n".join(lines)
-
     def _export_chart(self, chart: Chart | None) -> None:
         if chart is None:
             QMessageBox.information(
@@ -30341,7 +30235,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if not file_path.lower().endswith(".md"):
             file_path = f"{file_path}.md"
 
-        markdown_text = self._build_chart_export_markdown(chart)
+        markdown_text = build_chart_export_markdown(chart)
         try:
             with open(file_path, "w", encoding="utf-8") as md_file:
                 md_file.write(markdown_text)
