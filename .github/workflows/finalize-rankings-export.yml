@@ -1,0 +1,52 @@
+name: Finalize rankings export patch
+
+on:
+  push:
+    branches:
+      - feature/rankings-export-visible-rows
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/rankings-export-visible-rows
+          fetch-depth: 0
+
+      - name: Fix ranking export icon path
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('ephemeraldaddy/gui/ranking_panel.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'Path(__file__).resolve().parents[2] / "graphics" / "share_icon2.png"'
+          new = 'Path(__file__).resolve().parent / "graphics" / "share_icon2.png"'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one icon path occurrence, found {count}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+
+          icon = Path('ephemeraldaddy/gui/graphics/share_icon2.png')
+          if not icon.is_file():
+              raise SystemExit(f'Expected packaged icon missing: {icon}')
+          PY
+
+      - name: Validate Python sources
+        run: python -m compileall -q ephemeraldaddy tests
+
+      - name: Commit production change and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/finalize-rankings-export.yml
+          git add ephemeraldaddy/gui/ranking_panel.py
+          git commit -m "Fix ranking export icon path"
+          git push origin HEAD:feature/rankings-export-visible-rows
