@@ -345,13 +345,14 @@ def theme_chart_share_norms_for_availability(
     snapshot: Mapping[str, Any] | None,
     availability_key: str,
 ) -> dict[str, Any]:
-    """Read chart-share means, samples, and factor samples for one stratum."""
+    """Read complete chart-share and factor distributions for one stratum."""
     payload = snapshot if isinstance(snapshot, Mapping) else {}
     if str(payload.get("theme_family_definition_signature", "") or "") != prominence.theme_definition_signature():
         return {}
     if int(payload.get(THEME_CHART_SHARE_SCHEMA_FIELD, 0) or 0) != THEME_CHART_SHARE_SCHEMA_VERSION:
         return {}
 
+    requested_key = str(availability_key)
     fields = (
         THEME_SUBTHEME_SHARE_AVERAGES_FIELD,
         THEME_SUBTHEME_SHARE_VALUES_FIELD,
@@ -362,12 +363,23 @@ def theme_chart_share_norms_for_availability(
     selected: dict[str, Mapping[str, Any]] = {}
     for field in fields:
         by_availability = payload.get(field, {})
-        if not isinstance(by_availability, Mapping):
+        if not isinstance(by_availability, Mapping) or requested_key not in by_availability:
             return {}
-        rows = by_availability.get(str(availability_key), {})
-        if not isinstance(rows, Mapping):
+        rows = by_availability[requested_key]
+        if not isinstance(rows, Mapping) or not rows:
             return {}
         selected[field] = rows
+
+    family_keys = set(prominence.THEME_FAMILIES)
+    subtheme_keys = set(prominence.THEMES)
+    if not family_keys.issubset(selected[THEME_FAMILY_SHARE_AVERAGES_FIELD]):
+        return {}
+    if not family_keys.issubset(selected[THEME_FAMILY_SHARE_VALUES_FIELD]):
+        return {}
+    if not subtheme_keys.issubset(selected[THEME_SUBTHEME_SHARE_AVERAGES_FIELD]):
+        return {}
+    if not subtheme_keys.issubset(selected[THEME_SUBTHEME_SHARE_VALUES_FIELD]):
+        return {}
 
     return {
         "subtheme_means": dict(selected[THEME_SUBTHEME_SHARE_AVERAGES_FIELD]),
