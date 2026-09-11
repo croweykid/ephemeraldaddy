@@ -1520,7 +1520,6 @@ from ephemeraldaddy.gui.style import (
     CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
     CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
     CHART_VIEW_TIME_INPUT_WIDTH,
-    CHART_VIEW_TIME_OVERWRITE_ENABLED,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE,
     COLLAPSIBLE_HEADER_LEVEL_SUBSECTION,
@@ -1681,6 +1680,7 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
+from ephemeraldaddy.gui.features.chart_editor.segmented_time_edit import SegmentedTimeEdit
 from ephemeraldaddy.gui.features.settings.traits import populate_traits_settings_layout
 from ephemeraldaddy.gui.settings.modules.ocean_predictor import (
     OceanPredictorSettingsController,
@@ -1728,84 +1728,6 @@ from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     format_dnd_species_info_text as _format_dnd_species_info_text,
     format_dnd_statblock_info_text as _format_dnd_statblock_info_text,
 )
-
-
-class SegmentedTimeEdit(QLineEdit):
-    """Compact HH:mm editor with overwrite behavior and colon-safe navigation."""
-
-    timeChanged = Signal(QTime)
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._current_time = QTime(12, 0)
-        self.setAlignment(Qt.AlignCenter)
-        self.setMaxLength(5)
-        self.setInputMask("99:99")
-        self.setTime(self._current_time)
-
-    def setDisplayFormat(self, _format: str) -> None:
-        """Compatibility shim with QTimeEdit API."""
-        return
-
-    def time(self) -> QTime:
-        return self._current_time
-
-    def setTime(self, value: QTime) -> None:
-        normalized = value if isinstance(value, QTime) and value.isValid() else QTime(12, 0)
-        self._current_time = normalized
-        self.setText(f"{normalized.hour():02d}:{normalized.minute():02d}")
-        if self.cursorPosition() == 2:
-            self.setCursorPosition(3)
-
-    def keyPressEvent(self, event) -> None:
-        key = event.key()
-        if key == Qt.Key_Backspace:
-            cursor = self.cursorPosition()
-            if cursor == 3:
-                self.setCursorPosition(1)
-            elif cursor == 2:
-                self.setCursorPosition(1)
-            super().keyPressEvent(event)
-            self._normalize_and_emit()
-            return
-        if key in (Qt.Key_Delete, Qt.Key_Left, Qt.Key_Right, Qt.Key_Home, Qt.Key_End):
-            super().keyPressEvent(event)
-            if self.cursorPosition() == 2:
-                if key == Qt.Key_Left:
-                    self.setCursorPosition(1)
-                else:
-                    self.setCursorPosition(3)
-            self._normalize_and_emit()
-            return
-        if event.text().isdigit() and CHART_VIEW_TIME_OVERWRITE_ENABLED:
-            super().keyPressEvent(event)
-            if self.cursorPosition() == 2:
-                self.setCursorPosition(3)
-            self._normalize_and_emit()
-            return
-        super().keyPressEvent(event)
-
-    def focusInEvent(self, event) -> None:
-        super().focusInEvent(event)
-        if self.cursorPosition() == 2:
-            self.setCursorPosition(3)
-
-    def _normalize_and_emit(self) -> None:
-        text = self.text()
-        digits = [char for char in text if char.isdigit()]
-        if len(digits) < 4:
-            return
-        hour = min(23, int("".join(digits[:2])))
-        minute = min(59, int("".join(digits[2:4])))
-        normalized = QTime(hour, minute)
-        normalized_text = f"{hour:02d}:{minute:02d}"
-        if text != normalized_text:
-            cursor_position = self.cursorPosition()
-            self.setText(normalized_text)
-            self.setCursorPosition(3 if cursor_position == 2 else min(cursor_position, len(normalized_text)))
-        if normalized != self._current_time:
-            self._current_time = normalized
-            self.timeChanged.emit(self._current_time)
 
 
 class ResizablePixmapLabel(QLabel):
