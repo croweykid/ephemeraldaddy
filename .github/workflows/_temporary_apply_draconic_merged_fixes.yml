@@ -51,9 +51,9 @@ jobs:
           assert text.count(helper_anchor) == 1, 'text-summary helper anchor changed'
           text = text.replace(helper_anchor, helper_replacement, 1)
 
-          old_fallback = '''    draconic_source_positions = dict(chart.positions)\n    if draconic_source_positions.get("Rahu") is None:\n        try:\n            refreshed_positions = planetary_positions(chart.dt, chart.lat, chart.lon)\n        except Exception:\n            refreshed_positions = {}\n        if isinstance(refreshed_positions, dict):\n            draconic_source_positions.update(refreshed_positions)\n'''
-          new_fallback = '''    draconic_source_positions = dict(chart.positions)\n    if draconic_source_positions.get("Rahu") is None:\n        try:\n            refreshed_positions = _planetary_positions_at_effective_chart_time(chart)\n        except Exception:\n            refreshed_positions = {}\n        if isinstance(refreshed_positions, dict):\n            draconic_source_positions.update(refreshed_positions)\n'''
-          assert text.count(old_fallback) == 1, 'Draconic Rahu fallback changed'
+          old_fallback = '''    draconic_source_positions = dict(chart.positions)\n    if draconic_source_positions.get("Rahu") is None:\n        try:\n            refreshed_positions = planetary_positions(chart.dt, chart.lat, chart.lon)\n        except Exception:\n            refreshed_positions = {}\n        if refreshed_positions.get("Rahu") is not None:\n            draconic_source_positions["Rahu"] = refreshed_positions["Rahu"]\n'''
+          new_fallback = '''    draconic_source_positions = dict(chart.positions)\n    if draconic_source_positions.get("Rahu") is None:\n        try:\n            refreshed_positions = _planetary_positions_at_effective_chart_time(chart)\n        except Exception:\n            refreshed_positions = {}\n        if refreshed_positions.get("Rahu") is not None:\n            draconic_source_positions["Rahu"] = refreshed_positions["Rahu"]\n'''
+          assert text.count(old_fallback) == 1, f'Draconic Rahu fallback changed ({text.count(old_fallback)})'
           text = text.replace(old_fallback, new_fallback, 1)
           path.write_text(text)
 
