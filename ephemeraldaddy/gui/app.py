@@ -41,7 +41,6 @@ from zoneinfo import ZoneInfo
 
 from ephemeraldaddy.gui.crash_diagnostics import install_crash_diagnostics
 from ephemeraldaddy.core.position_descriptions import get_position_description
-from ephemeraldaddy.semantics_formatting import format_ordinal
 
 
 logger = logging.getLogger(__name__)
@@ -1095,7 +1094,6 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     get_cross_theme_description,
     get_cross_type_description,
 )
-from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
 )
@@ -1110,6 +1108,10 @@ from ephemeraldaddy.gui.features.chart_information.plugin_context import (
 from ephemeraldaddy.gui.features.chart_information.plugin_renderer import (
     append_plugin_paragraphs,
 )
+from ephemeraldaddy.gui.features.chart_information.token_formatting import (
+    human_design_gate_header_suffix,
+    ordinal_house_header,
+)
 from ephemeraldaddy.gui.settings.modules.plugins import build_plugin_manager_panel
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
@@ -1117,7 +1119,6 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_CHANNELS,
     HD_COLORS,
     HD_BASES,
-    HD_CIRCUIT_GROUPS,
     HD_DIGESTION_NAMES,
     HD_ENVIRONMENT_COLORS,
     HD_ENVIRONMENTS,
@@ -31997,14 +31998,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         reset_cursor.movePosition(QTextCursor.Start)
         self.chart_info_output.setTextCursor(reset_cursor)
 
-    @staticmethod
-    def _ordinal_house_header(house_num: int) -> str:
-        return f"{format_ordinal(house_num)} House"
-
     def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
-        header = self._ordinal_house_header(house_num)
+        header = ordinal_house_header(house_num)
         clean_joy_body = str(joy_body or "").strip()
         if clean_joy_body:
             header = f"{header} (planetary joy in {clean_joy_body})"
@@ -32014,47 +32011,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
         self.chart_info_output.setPlainText("\n".join(lines))
 
-
-    @staticmethod
-    def _format_hd_zodiac_degree(longitude: float) -> str:
-        normalized = float(longitude) % 360.0
-        sign_index = int(normalized // 30) % 12
-        degree_in_sign = normalized - (sign_index * 30)
-        whole_degrees = int(degree_in_sign)
-        minutes = int(round((degree_in_sign - whole_degrees) * 60))
-        if minutes == 60:
-            whole_degrees += 1
-            minutes = 0
-        if whole_degrees == 30:
-            whole_degrees = 0
-            sign_index = (sign_index + 1) % 12
-        return f"{whole_degrees}°{minutes:02d}' {ZODIAC_NAMES[sign_index]}"
-
-    @classmethod
-    def _hd_gate_degree_range_text(cls, gate_number: int) -> str:
-        try:
-            gate_index = MANDALA_GATE_ORDER.index(int(gate_number))
-        except ValueError:
-            return "degree range unknown"
-        gate_width = 360.0 / 64.0
-        start_longitude = (MANDALA_START_DEGREE + (gate_index * gate_width)) % 360.0
-        end_longitude = (start_longitude + gate_width) % 360.0
-        return f"{cls._format_hd_zodiac_degree(start_longitude)}–{cls._format_hd_zodiac_degree(end_longitude)}"
-
-    @staticmethod
-    def _hd_gate_circuit_group(gate_number: int) -> str:
-        for group_name, group_data in HD_CIRCUIT_GROUPS.items():
-            gates = group_data.get("gates", ()) if isinstance(group_data, dict) else ()
-            try:
-                if int(gate_number) in {int(gate) for gate in gates}:
-                    return str(group_name).strip().lower()
-            except (TypeError, ValueError):
-                continue
-        return "circuit unknown"
-
-    @classmethod
-    def _hd_gate_header_suffix(cls, gate_number: int) -> str:
-        return f"{cls._hd_gate_circuit_group(gate_number)}, {cls._hd_gate_degree_range_text(gate_number)}"
 
     def _show_human_design_gate_line_info(
         self,
@@ -32092,7 +32048,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         gate_label = f"{gate_number}.{line_number}" if line_number is not None else f"{gate_number}"
         if fixing_label:
             gate_label = f"{gate_label} ({fixing_label})"
-        title = f"Gate {gate_label} • {gate_info['name']} ({self._hd_gate_header_suffix(gate_number)})"
+        title = f"Gate {gate_label} • {gate_info['name']} ({human_design_gate_header_suffix(gate_number)})"
 
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
