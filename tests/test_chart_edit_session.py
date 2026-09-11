@@ -111,3 +111,64 @@ def test_new_session_has_no_chart_uid():
     session = ChartEditSession(active_chart_uid="  ")
 
     assert session.active_chart_uid is None
+
+
+def test_successful_save_owns_result_and_accumulates_lifecycle_state():
+    session = ChartEditSession(authoritative_values={"notes": "Old"})
+    session.set_draft_value("notes", "New")
+
+    result = session.record_successful_save(
+        changed_fields={"notes"},
+        recalculated=False,
+        changed_chart_data=True,
+        prediction_flush_required=True,
+    )
+
+    assert result.changed_fields == frozenset({"notes"})
+    assert not result.recalculated
+    assert session.last_save_result is result
+    assert session.saved_changes_since_load
+    assert session.prediction_flush_pending
+    assert not session.is_dirty
+    assert session.authoritative_values == {"notes": "New"}
+
+
+def test_later_lightweight_save_does_not_clear_accumulated_save_impact():
+    session = ChartEditSession()
+    session.record_successful_save(
+        changed_fields=None,
+        recalculated=True,
+        changed_chart_data=True,
+        prediction_flush_required=True,
+    )
+
+    session.record_successful_save(
+        changed_fields=set(),
+        recalculated=False,
+        changed_chart_data=False,
+        prediction_flush_required=False,
+    )
+
+    assert session.last_save_result is not None
+    assert session.last_save_result.changed_fields == frozenset()
+    assert session.saved_changes_since_load
+    assert session.prediction_flush_pending
+
+
+def test_begin_resets_save_lifecycle_and_prediction_flush_can_complete():
+    session = ChartEditSession()
+    session.record_successful_save(
+        changed_fields={"birth_data"},
+        recalculated=True,
+        changed_chart_data=True,
+        prediction_flush_required=True,
+    )
+    session.mark_prediction_flush_complete()
+
+    assert not session.prediction_flush_pending
+
+    session.begin(chart_uid="next-chart")
+
+    assert session.last_save_result is None
+    assert not session.saved_changes_since_load
+    assert not session.prediction_flush_pending

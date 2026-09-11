@@ -13,6 +13,16 @@ def _normalize_chart_uid(chart_uid: str | None) -> str | None:
     return normalized or None
 
 
+@dataclass(frozen=True, slots=True)
+class ChartSaveResult:
+    """Describe the downstream impact of one successful chart save."""
+
+    changed_fields: frozenset[str] | None
+    recalculated: bool
+    changed_chart_data: bool
+    prediction_flush_required: bool
+
+
 @dataclass(slots=True)
 class ChartEditSession:
     """Own identity and dirty state without depending on Qt widgets.
@@ -27,6 +37,9 @@ class ChartEditSession:
     draft_values: dict[str, Any] = field(default_factory=dict)
     dirty_fields: set[str] = field(default_factory=set)
     authoritative_dirty_fields: set[str] = field(default_factory=set)
+    last_save_result: ChartSaveResult | None = None
+    saved_changes_since_load: bool = False
+    prediction_flush_pending: bool = False
 
     def __post_init__(self) -> None:
         self.active_chart_uid = _normalize_chart_uid(self.active_chart_uid)
@@ -43,6 +56,13 @@ class ChartEditSession:
     def recalculation_required(self) -> bool:
         return bool(self.authoritative_dirty_fields)
 
+    @property
+    def last_changed_fields(self) -> frozenset[str] | None:
+        """Return the latest save change set, preserving unknown classification."""
+        if self.last_save_result is None:
+            return None
+        return self.last_save_result.changed_fields
+
     def begin(
         self,
         *,
@@ -56,6 +76,9 @@ class ChartEditSession:
         self.draft_values = dict(values)
         self.dirty_fields.clear()
         self.authoritative_dirty_fields.clear()
+        self.last_save_result = None
+        self.saved_changes_since_load = False
+        self.prediction_flush_pending = False
 
     def set_active_chart_uid(self, chart_uid: str | None) -> None:
         """Update only the persisted identity while preserving draft state."""
@@ -106,6 +129,33 @@ class ChartEditSession:
         self.authoritative_values = dict(self.draft_values)
         self.dirty_fields.clear()
         self.authoritative_dirty_fields.clear()
+
+    def record_successful_save(
+        self,
+        *,
+        changed_fields: set[str] | frozenset[str] | None,
+        recalculated: bool,
+        changed_chart_data: bool,
+        prediction_flush_required: bool,
+    ) -> ChartSaveResult:
+        """Record a save result and accumulate lifecycle-level refresh state."""
+        result = ChartSaveResult(
+            changed_fields=(
+                None if changed_fields is None else frozenset(changed_fields)
+            ),
+            recalculated=bool(recalculated),
+            changed_chart_data=bool(changed_chart_data),
+            prediction_flush_required=bool(prediction_flush_required),
+        )
+        self.last_save_result = result
+        self.saved_changes_since_load |= result.changed_chart_data
+        self.prediction_flush_pending |= result.prediction_flush_required
+        self.mark_clean()
+        return result
+
+    def mark_prediction_flush_complete(self) -> None:
+        """Clear pending prediction work after a successful synchronous flush."""
+        self.prediction_flush_pending = False
 
     def discard(self) -> None:
         """Restore the authoritative snapshot and clear pending impact."""

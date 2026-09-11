@@ -25164,10 +25164,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._metadata_autosave_timer.setSingleShot(True)
         self._metadata_autosave_timer.timeout.connect(self._flush_pending_metadata_save)
         self._metadata_autosave_requires_recalculation = False
-        self._last_chart_save_changed_fields: set[str] | None = None
-        self._last_chart_save_recalculated = False
-        self._chart_view_saved_changes_since_load = False
-        self._chart_view_prediction_flush_pending = False
         self._timing_preview_update_timer = QTimer(self)
         self._timing_preview_update_timer.setSingleShot(True)
         self._timing_preview_update_timer.timeout.connect(
@@ -34802,17 +34798,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             chart,
             birth_place=place,
         )
-        self._last_chart_save_changed_fields = None if changed_fields is None else set(changed_fields)
-        self._last_chart_save_recalculated = bool(chart_recalculated)
         save_changed_chart_data = bool(
             is_new_chart
             or chart_recalculated
             or changed_fields is None
             or bool(changed_fields)
-        )
-        self._chart_view_saved_changes_since_load = (
-            bool(getattr(self, "_chart_view_saved_changes_since_load", False))
-            or save_changed_chart_data
         )
         save_requires_prediction_flush = bool(
             not is_placeholder
@@ -34824,9 +34814,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 or "birth_data" in changed_fields
             )
         )
-        self._chart_view_prediction_flush_pending = (
-            bool(getattr(self, "_chart_view_prediction_flush_pending", False))
-            or save_requires_prediction_flush
+        self._chart_edit_session.record_successful_save(
+            changed_fields=changed_fields,
+            recalculated=chart_recalculated,
+            changed_chart_data=save_changed_chart_data,
+            prediction_flush_required=save_requires_prediction_flush,
         )
         refresh_database_metrics = self._database_refresh_requires_metrics(changed_fields)
         if refresh_database_metrics:
@@ -34847,7 +34839,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._loaded_birth_place = place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
-        self._set_lucygoosey(False)
         self._apply_chart_type_ui_state(getattr(chart, "chart_type", None))
         if is_new_chart:
             self.update_button.setText("Update Chart")
@@ -34897,6 +34888,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._schedule_chart_render(chart, sections={"wheel"})
 
     def _reset_new_chart_form(self) -> None:
+        self._chart_edit_session.begin(chart_uid=None)
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._clear_current_chart_uid()
@@ -35301,7 +35293,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
         if replacing_current_chart and self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
-            self._chart_view_prediction_flush_pending = False
+            self._chart_edit_session.mark_prediction_flush_complete()
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = current_chart_uid == normalized_chart_uid
         if not from_chart_link and not is_same_chart_request:
@@ -35548,10 +35540,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._update_time_input_text_colors()
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
-        self._last_chart_save_changed_fields = set()
-        self._last_chart_save_recalculated = False
-        self._chart_view_saved_changes_since_load = False
-        self._chart_view_prediction_flush_pending = False
+        self._chart_edit_session.begin(chart_uid=normalized_chart_uid)
         self._loaded_birth_place = chart.birth_place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
@@ -35637,7 +35626,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._cancel_pending_chart_render()
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
-            self._chart_view_prediction_flush_pending = False
+            self._chart_edit_session.mark_prediction_flush_complete()
         if self.load_chart_by_uid(
             previous_chart_uid,
             from_chart_link=True,
@@ -35865,10 +35854,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         state = getattr(self, "_chart_right_panel_state", None)
         active_panel = getattr(state, "active_tab", None)
         return should_block_database_view_open_for_prediction_flush(
-            pending_prediction_flush=bool(
-                getattr(self, "_chart_view_prediction_flush_pending", False)
-            ),
-            changed_fields=getattr(self, "_last_chart_save_changed_fields", None),
+            pending_prediction_flush=self._chart_edit_session.prediction_flush_pending,
+            changed_fields=self._chart_edit_session.last_changed_fields,
             active_right_panel=active_panel,
         )
 
@@ -35895,12 +35882,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._flush_pending_sentiment_metrics_save()
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
-            self._chart_view_prediction_flush_pending = False
+            self._chart_edit_session.mark_prediction_flush_complete()
         elif should_defer_prediction_flush_until_prediction_view(
-            pending_prediction_flush=bool(
-                getattr(self, "_chart_view_prediction_flush_pending", False)
-            ),
-            changed_fields=getattr(self, "_last_chart_save_changed_fields", None),
+            pending_prediction_flush=self._chart_edit_session.prediction_flush_pending,
+            changed_fields=self._chart_edit_session.last_changed_fields,
         ):
             logger.info(
                 "Deferred Chart Editor prediction cache flush until Predictions are requested."
@@ -38982,7 +38967,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
-            self._chart_view_prediction_flush_pending = False
+            self._chart_edit_session.mark_prediction_flush_complete()
         _stop_background_prediction_render(self)
         _stop_traits_prediction_refresh_workers(self)
         if self._size_checker_popup is not None:
