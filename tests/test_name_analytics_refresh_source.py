@@ -3,9 +3,6 @@ from pathlib import Path
 
 
 APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
-POLICY_SOURCE = Path(
-    "ephemeraldaddy/core/chart_recalculation_policy.py"
-).read_text(encoding="utf-8")
 ANALYTICS_SOURCE = Path(
     "ephemeraldaddy/gui/features/charts/database_analytics.py"
 ).read_text(encoding="utf-8")
@@ -58,7 +55,9 @@ def test_name_chart_height_scales_with_every_rendered_label_without_a_cap():
 
 
 def test_chart_view_classifies_name_and_alias_edits_for_metrics_refresh():
-    classifier = POLICY_SOURCE.split("def changed_fields", 1)[1]
+    classifier = APP_SOURCE.split("def _chart_metadata_changed_fields", 1)[1].split(
+        "def _chart_analytics_cache_token", 1
+    )[0]
     refresh_gate = APP_SOURCE.split("def _database_refresh_requires_metrics", 1)[1].split(
         "def _refresh_manage_charts_in_background", 1
     )[0]
@@ -108,7 +107,9 @@ def test_social_score_inputs_refresh_the_name_ranking():
 
 
 def test_chart_and_batch_edit_paths_emit_social_score_input_changes():
-    classifier = POLICY_SOURCE.split("def changed_fields", 1)[1]
+    classifier = APP_SOURCE.split("def _chart_metadata_changed_fields", 1)[1].split(
+        "def _chart_analytics_cache_token", 1
+    )[0]
     batch_assign = APP_SOURCE.split(
         "def _on_batch_sentiment_metric_assign", 1
     )[1].split("def _on_batch_metric_field_lucygoosey", 1)[0]
