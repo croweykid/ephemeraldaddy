@@ -886,8 +886,8 @@ def format_chart_text(
         sign_label = sign_for_longitude(lon)
         degree_text = _degree_in_sign_text(lon)
         if retrogrades.get(body):
-            pretty = f"{pretty} (Я)"
-            degree_text = f"{degree_text} (Я)"
+            pretty = f"{pretty}r"
+            degree_text = f"{degree_text}r"
         nakshatra = get_nakshatra(lon)
         #nakshatra_with_info = f"{nakshatra} ⓘ"
 
@@ -1423,7 +1423,7 @@ def format_chart_text(
             sign_label = sign_for_longitude(lon)
             degree_text = _degree_in_sign_text(lon)
             if retrogrades.get(body):
-                degree_text = f"{degree_text} (Я)"
+                degree_text = f"{degree_text}r"
             nakshatra = get_nakshatra(lon)
 
             if use_houses:
@@ -1714,7 +1714,7 @@ def format_compact_transit_chart_text(
         sign_glyph = _zodiac_glyph(sign_label)
         degree_text = _degree_in_sign_text(lon)
         if retrogrades.get(body):
-            degree_text = f"{degree_text} (Я)"
+            degree_text = f"{degree_text}r" #was using (Я) previously.
         nakshatra = get_nakshatra(lon)
         columns = [
             _pad_display_column(glyph, body_width),
