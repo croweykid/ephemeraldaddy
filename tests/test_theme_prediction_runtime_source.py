@@ -28,7 +28,8 @@ def test_theme_runtime_uses_one_context_for_score_and_norm_stratum():
 def test_theme_runtime_injects_availability_strata_during_explicit_norm_rebuild():
     assert "calculate_database_theme_norms(charts)" in RUNTIME_SOURCE
     assert 'captured["extended_norms"] = extended' in RUNTIME_SOURCE
-    assert "enrich_theme_snapshot_with_norms" in RUNTIME_SOURCE
+    assert "enrich_theme_snapshot_with_availability_baselines" in RUNTIME_SOURCE
+    assert "extended_norms=extended" in RUNTIME_SOURCE
     assert '"refresh_prediction_norms_snapshot"' in RUNTIME_SOURCE
     assert 'sys.modules.get("ephemeraldaddy.gui.features.controllers.db_info")' in RUNTIME_SOURCE
 
