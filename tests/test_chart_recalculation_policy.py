@@ -76,6 +76,14 @@ def test_rectified_time_state_is_authoritative_even_when_birth_time_is_unknown()
     assert ChartRecalculationPolicy.changed_fields(previous, current) == {"birth_data"}
 
 
+def test_astro_data_token_does_not_mutate_house_availability_metadata():
+    chart = _chart(birthtime_unknown=True, use_birth_time_data=True)
+
+    ChartRecalculationPolicy.astro_data_token(chart)
+
+    assert chart.use_birth_time_data is True
+
+
 def test_chart_type_change_reports_membership_and_type_impacts():
     previous = _chart()
     current = deepcopy(previous)
