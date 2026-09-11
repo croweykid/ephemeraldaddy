@@ -1,0 +1,144 @@
+name: Apply Draconic review fixes
+
+on:
+  push:
+    branches:
+      - feature/draconic-positions-output
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/draconic-positions-output
+          fetch-depth: 0
+
+      - name: Apply asserted source fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # 1 + 2: directed aspect sorting call and removal of the splitlines string hack.
+          path = Path('ephemeraldaddy/gui/features/charts/text_summary.py')
+          text = path.read_text()
+
+          class_pattern = re.compile(
+              r'\nclass _ChartSummaryText\(str\):\n.*?\n\ndef _sign_dignity_prefix',
+              re.S,
+          )
+          text, class_count = class_pattern.subn('\n\ndef _sign_dignity_prefix', text, count=1)
+          assert class_count == 1, f'expected one _ChartSummaryText class, found {class_count}'
+
+          wrapped_return = '_ChartSummaryText("\\n".join(lines))'
+          wrapped_count = text.count(wrapped_return)
+          assert wrapped_count >= 1, 'expected _ChartSummaryText return wrappers'
+          text = text.replace(wrapped_return, '"\\n".join(lines)')
+
+          old_sort = '''    sorted_aspects = sort_natal_aspects(
+              cross_aspects,
+              sort_mode,
+              planet_weights=dominant_planet_weights,
+          )'''
+          new_sort = '''    sorted_aspects = sort_natal_aspects(
+              cross_aspects,
+              sort_mode,
+              planet_weights=dominant_planet_weights,
+              preserve_endpoint_order=True,
+          )'''
+          assert text.count(old_sort) == 1, f'expected one Draconic sort call, found {text.count(old_sort)}'
+          text = text.replace(old_sort, new_sort, 1)
+          path.write_text(text)
+
+          # 2 + 3: update actual legacy/popout callers explicitly; transit popouts stop at Draconic sections.
+          path = Path('ephemeraldaddy/gui/app.py')
+          text = path.read_text()
+          legacy_lookup = 'line.strip() == "POSITIONS"'
+          lookup_count = text.count(legacy_lookup)
+          assert lookup_count >= 4, f'expected legacy POSITIONS lookups, found {lookup_count}'
+          text = text.replace(
+              legacy_lookup,
+              'line.strip() in {"POSITIONS", "POSITIONS (Tropical)"}',
+          )
+
+          transit_block = '''            visible_summary_lines = summary_lines_local[positions_start_index:]
+              transit_visible_lines: list[str] = []'''
+          transit_replacement = '''            draconic_start_index = next(
+              (
+                  idx
+                  for idx, line in enumerate(summary_lines_local)
+                  if line.strip() in {"DRACONIC POSITIONS", "POSITIONS (Draconic)"}
+              ),
+              len(summary_lines_local),
+          )
+          visible_summary_lines = summary_lines_local[
+              positions_start_index:draconic_start_index
+          ]
+          transit_visible_lines: list[str] = []'''
+          transit_count = text.count(transit_block)
+          assert transit_count >= 2, f'expected duplicated transit blocks, found {transit_count}'
+          text = text.replace(transit_block, transit_replacement)
+          path.write_text(text)
+
+          # 4: register qualified position/aspect sections with the canonical output style.
+          path = Path('ephemeraldaddy/gui/style.py')
+          text = path.read_text()
+          old_headers = '''CHART_DATA_SECTION_HEADERS = (
+              "CHART INFO",
+              "CORE DESIGNATION",
+              "POSITIONS",
+              "HOUSES",
+              "ASPECTS",'''
+          new_headers = '''CHART_DATA_SECTION_HEADERS = (
+              "CHART INFO",
+              "CORE DESIGNATION",
+              "POSITIONS",
+              "POSITIONS (Tropical)",
+              "POSITIONS (Draconic)",
+              "HOUSES",
+              "ASPECTS",
+              "ASPECTS (Draconic)",'''
+          assert text.count(old_headers) == 1, 'canonical Chart Data header tuple shape changed'
+          text = text.replace(old_headers, new_headers, 1)
+          path.write_text(text)
+
+          # Update header regression coverage to require ordinary str.splitlines behavior.
+          path = Path('tests/test_chart_data_position_headers.py')
+          text = path.read_text()
+          text = text.replace('    _ChartSummaryText,\n', '')
+          old_test = '''def test_chart_summary_displays_tropical_but_preserves_legacy_splitline_header() -> None:
+              summary = _ChartSummaryText("HEADER\\nPOSITIONS (Tropical)\\nBody  Sign")
+
+              assert "POSITIONS (Tropical)" in summary
+              assert summary.splitlines()[1] == "POSITIONS"
+          '''
+          new_test = '''def test_tropical_qualifier_survives_standard_splitlines() -> None:
+              summary = "HEADER\\nPOSITIONS (Tropical)\\nBody  Sign"
+
+              assert "POSITIONS (Tropical)" in summary
+              assert summary.splitlines()[1] == "POSITIONS (Tropical)"
+          '''
+          assert text.count(old_test) == 1, 'header splitlines regression test shape changed'
+          text = text.replace(old_test, new_test, 1)
+          path.write_text(text)
+
+          # Add focused sorter/style regression tests.
+          Path('tests/test_draconic_output_regressions.py').write_text('''from ephemeraldaddy.gui.features.charts.aspect_sorting import sort_natal_aspects\nfrom ephemeraldaddy.gui.style import CHART_DATA_SECTION_HEADERS\n\n\ndef _directed_aspect() -> dict:\n    return {\n        "p1": "Mars",\n        "p2": "Sun",\n        "type": "trine",\n        "angle": 120.0,\n        "delta": 0.0,\n    }\n\n\ndef test_position_sort_can_preserve_directed_endpoints() -> None:\n    result = sort_natal_aspects(\n        [_directed_aspect()],\n        "Position",\n        preserve_endpoint_order=True,\n    )\n    assert result[0]["p1"] == "Mars"\n    assert result[0]["p2"] == "Sun"\n\n\ndef test_default_position_sort_still_normalizes_symmetric_natal_endpoints() -> None:\n    result = sort_natal_aspects([_directed_aspect()], "Position")\n    assert result[0]["p1"] == "Sun"\n    assert result[0]["p2"] == "Mars"\n\n\ndef test_draconic_and_tropical_headers_are_registered_for_chart_data_styling() -> None:\n    assert "POSITIONS" in CHART_DATA_SECTION_HEADERS\n    assert "POSITIONS (Tropical)" in CHART_DATA_SECTION_HEADERS\n    assert "POSITIONS (Draconic)" in CHART_DATA_SECTION_HEADERS\n    assert "ASPECTS (Draconic)" in CHART_DATA_SECTION_HEADERS\n''')
+          PY
+
+      - name: Remove temporary workflow and commit fixes
+        shell: bash
+        run: |
+          rm .github/workflows/_temporary_apply_draconic_review_fixes.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Address Draconic Chart Data review fixes"
+          git push origin HEAD:feature/draconic-positions-output
