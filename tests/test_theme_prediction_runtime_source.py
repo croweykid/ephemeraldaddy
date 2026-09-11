@@ -34,6 +34,13 @@ def test_theme_runtime_injects_availability_strata_during_explicit_norm_rebuild(
     assert 'sys.modules.get("ephemeraldaddy.gui.features.controllers.db_info")' in RUNTIME_SOURCE
 
 
+def test_theme_runtime_sorts_vs_db_by_displayed_percentile():
+    assert "THEME_ROW_PERCENTILE_ROLE" in RUNTIME_SOURCE
+    assert "left.column() == 2 and right.column() == 2" in RUNTIME_SOURCE
+    assert "left_percentile" in RUNTIME_SOURCE
+    assert "right_percentile" in RUNTIME_SOURCE
+
+
 def test_theme_runtime_caches_scoring_context_for_chart_info():
     assert "owner._theme_prediction_activation_context = context" in RUNTIME_SOURCE
     assert "owner._theme_prediction_evidence_by_family = {}" in RUNTIME_SOURCE
