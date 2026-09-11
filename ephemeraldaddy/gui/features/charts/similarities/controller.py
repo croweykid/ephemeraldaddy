@@ -179,7 +179,10 @@ class SimilaritiesController:
             tooltip="Export Similarities Analysis data as Python",
             share_icon_path=share_icon_path,
         )
-        json_export_button.clicked.connect(self.host._export_similarities_analysis_json)
+        # Resolve the callback through the controller so extensions can add
+        # export metadata without having to find and rewire this button after
+        # the panel has been built.
+        json_export_button.clicked.connect(self.export_json)
         title_layout.addWidget(json_export_button, alignment=Qt.AlignRight)
 
         export_button = QPushButton()

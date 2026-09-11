@@ -10,8 +10,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from PySide6.QtWidgets import QPushButton
-
 from ephemeraldaddy.core import db
 from ephemeraldaddy.gui.features.charts.exporters import (
     export_similarities_analysis_json_dialog,
@@ -32,9 +30,6 @@ from .cohort_metadata import (
 from .controller import SimilaritiesController as _BaseSimilaritiesController
 
 
-_PYTHON_EXPORT_TOOLTIP = "Export Similarities Analysis data as Python"
-
-
 class SimilaritiesController(_BaseSimilaritiesController):
     """Similarities controller with trait-cohort provenance and gender analysis."""
 
@@ -47,7 +42,6 @@ class SimilaritiesController(_BaseSimilaritiesController):
 
     def build_panel(self):
         panel = super().build_panel()
-        self._wire_python_export_button(panel)
         layout = panel.layout()
         if layout is None:
             return panel
@@ -72,15 +66,6 @@ class SimilaritiesController(_BaseSimilaritiesController):
         if trailing_item is not None:
             layout.addItem(trailing_item)
         return panel
-
-    def _wire_python_export_button(self, panel: Any) -> None:
-        """Route the Python data button to the cohort-aware export entry point."""
-        for button in panel.findChildren(QPushButton):
-            if button.toolTip() != _PYTHON_EXPORT_TOOLTIP:
-                continue
-            button.clicked.disconnect()
-            button.clicked.connect(self.export_json)
-            return
 
     def _guarded_update_analysis(self, chart_ids: list[int]) -> None:
         if not self.autocalculate_enabled and not self._force_calculation:
