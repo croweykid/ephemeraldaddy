@@ -135,20 +135,28 @@ def _birth_time_policy(chart: Any) -> tuple[str, tuple[int, int] | None]:
     return "exact_time", None
 
 
-def _default_metric_calculators() -> tuple[WeightCalculator, WeightCalculator, WeightCalculator, WeightCalculator]:
-    from ephemeraldaddy.gui.features.charts.metrics import (
-        calculate_dominant_house_weights,
-        calculate_dominant_nakshatra_weights,
-        calculate_dominant_planet_weights,
-        calculate_dominant_sign_weights,
-    )
+def _default_sign_weight_calculator() -> WeightCalculator:
+    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_sign_weights
 
-    return (
-        calculate_dominant_sign_weights,
-        calculate_dominant_planet_weights,
-        calculate_dominant_house_weights,
-        calculate_dominant_nakshatra_weights,
-    )
+    return calculate_dominant_sign_weights
+
+
+def _default_body_weight_calculator() -> WeightCalculator:
+    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_planet_weights
+
+    return calculate_dominant_planet_weights
+
+
+def _default_house_weight_calculator() -> WeightCalculator:
+    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_house_weights
+
+    return calculate_dominant_house_weights
+
+
+def _default_nakshatra_weight_calculator() -> WeightCalculator:
+    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
+
+    return calculate_dominant_nakshatra_weights
 
 
 def build_effective_prediction_context(
@@ -168,20 +176,36 @@ def build_effective_prediction_context(
     Chart View object. Dominance/HD caches are cleared before derivation.
     """
     source_token = _chart_context_token(chart)
-    if not force_rebuild:
+    has_context_overrides = (
+        calculate_sign_weights is not None
+        or calculate_body_weights is not None
+        or calculate_house_weights is not None
+        or calculate_nakshatra_weights is not None
+        or uses_houses is not chart_uses_houses
+    )
+    if not force_rebuild and not has_context_overrides:
         cached = getattr(chart, "_effective_prediction_context_cache", None)
         if isinstance(cached, EffectivePredictionContext) and cached.source_token == source_token:
             return cached
 
-    defaults = _default_metric_calculators()
-    sign_calculator = calculate_sign_weights or defaults[0]
-    body_calculator = calculate_body_weights or defaults[1]
-    house_calculator = calculate_house_weights or defaults[2]
-    nakshatra_calculator = calculate_nakshatra_weights or defaults[3]
-
     effective = _copy_chart_for_prediction(chart)
     apply_time_specific_metadata_policy(effective)
     use_houses = bool(uses_houses(effective))
+
+    # Resolve GUI-backed defaults only for callbacks the caller did not inject.
+    # This keeps dependency injection usable in headless analysis/test contexts.
+    sign_calculator = calculate_sign_weights
+    if sign_calculator is None:
+        sign_calculator = _default_sign_weight_calculator()
+    body_calculator = calculate_body_weights
+    if body_calculator is None:
+        body_calculator = _default_body_weight_calculator()
+    house_calculator = calculate_house_weights
+    if use_houses and house_calculator is None:
+        house_calculator = _default_house_weight_calculator()
+    nakshatra_calculator = calculate_nakshatra_weights
+    if nakshatra_calculator is None:
+        nakshatra_calculator = _default_nakshatra_weight_calculator()
 
     # Unknown-time/range policy can replace planetary positions without rebuilding
     # natal aspects. Rebuild them here from the resolved effective positions so
@@ -194,7 +218,7 @@ def build_effective_prediction_context(
     body_weights = {str(key): float(value) for key, value in body_calculator(effective).items()}
     house_weights = (
         {int(key): float(value) for key, value in house_calculator(effective).items()}
-        if use_houses
+        if use_houses and house_calculator is not None
         else {}
     )
     nakshatra_weights = {
@@ -219,10 +243,14 @@ def build_effective_prediction_context(
         house_weights=house_weights,
         nakshatra_weights=nakshatra_weights,
     )
-    try:
-        setattr(chart, "_effective_prediction_context_cache", context)
-    except Exception:
-        pass
+    # Only the default scoring policy is safe to retain as a chart-level cache.
+    # Explicit calculators/house policies are caller-specific and must not leak
+    # into later calls that request different scoring semantics.
+    if not has_context_overrides:
+        try:
+            setattr(chart, "_effective_prediction_context_cache", context)
+        except Exception:
+            pass
     return context
 
 
