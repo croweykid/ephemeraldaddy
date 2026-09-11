@@ -358,6 +358,9 @@ from ephemeraldaddy.gui.features.chart_editor.session import (
     ChartEditSession,
     ChartTimeContext,
 )
+from ephemeraldaddy.gui.features.chart_information.aspect_sentences import (
+    build_aspect_sentence_segments,
+)
 from ephemeraldaddy.gui.features.import_export.chart_markdown import (
     build_chart_export_markdown,
 )
@@ -757,7 +760,6 @@ from ephemeraldaddy.core.interpretations import (
     get_blended_color,
     GENERATIONAL_COHORTS,
     GENERATION_COLORS,
-    ASPECT_COLORS,
     ASPECT_FRICTION,
     ASPECT_SCORE_WEIGHTS,
     ASPECT_TYPES,
@@ -32463,115 +32465,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             return
 
-        line_segments = self._build_aspect_line_segments(
-            p1=p1,
-            p2=p2,
-            atype=atype,
-            p1_nouns=p1_nouns,
-            p2_nouns=p2_nouns,
+        line_segments = build_aspect_sentence_segments(
+            first_body=p1,
+            second_body=p2,
+            aspect_type=atype,
+            first_body_nouns=p1_nouns,
+            second_body_nouns=p2_nouns,
             aspect_keywords=aspect_keywords,
-            sign1=sign1,
-            sign2=sign2,
-            house1=house1,
-            house2=house2,
+            first_sign=sign1,
+            second_sign=sign2,
+            first_house=house1,
+            second_house=house2,
+            default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
         self._set_chart_info_lines_with_segments(header, line_segments)
-
-    def _build_aspect_line_segments(
-        self,
-        *,
-        p1: str,
-        p2: str,
-        atype: str,
-        p1_nouns: list[str],
-        p2_nouns: list[str],
-        aspect_keywords: list[str],
-        sign1: str | None,
-        sign2: str | None,
-        house1: int | None,
-        house2: int | None,
-        line_count: int = 6,
-        max_attempts: int = 300,
-    ) -> list[list[tuple[str, str | None]]]:
-        sign1_key = str(sign1 or "").strip().title()
-        sign2_key = str(sign2 or "").strip().title()
-        sign1_keywords = SIGN_KEYWORDS.get(sign1_key, {})
-        sign2_keywords = SIGN_KEYWORDS.get(sign2_key, {})
-        sign1_adjectives = [
-            str(token).strip()
-            for token in [*sign1_keywords.get("best", []), *sign1_keywords.get("worst", [])]
-            if str(token).strip()
-        ]
-        sign2_adjectives = [
-            str(token).strip()
-            for token in [*sign2_keywords.get("best", []), *sign2_keywords.get("worst", [])]
-            if str(token).strip()
-        ]
-        house1_keywords = HOUSE_DEFINITIONS.get(house1, {}).get("core_domains", []) if house1 else []
-        house2_keywords = HOUSE_DEFINITIONS.get(house2, {}).get("core_domains", []) if house2 else []
-
-        p1_color = PLANET_COLORS.get(p1, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        p2_color = PLANET_COLORS.get(p2, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        sign1_color = SIGN_COLORS.get(sign1_key, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        sign2_color = SIGN_COLORS.get(sign2_key, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        house1_color = HOUSE_COLORS.get(str(house1), CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        house2_color = HOUSE_COLORS.get(str(house2), CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        aspect_color = ASPECT_COLORS.get(atype, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-
-        line_segments: list[list[tuple[str, str | None]]] = []
-        seen: set[tuple[str, str, str, str, str, str, str]] = set()
-        attempts = 0
-
-        while len(line_segments) < line_count and attempts < max_attempts:
-            noun1 = str(random.choice(p1_nouns)).strip()
-            noun2 = str(random.choice(p2_nouns)).strip()
-            keyword = str(random.choice(aspect_keywords)).strip()
-            sign1_adj = str(random.choice(sign1_adjectives)).strip() if sign1_adjectives else ""
-            sign2_adj = str(random.choice(sign2_adjectives)).strip() if sign2_adjectives else ""
-            house_noun1 = str(random.choice(house1_keywords)).strip() if house1_keywords else ""
-            house_noun2 = str(random.choice(house2_keywords)).strip() if house2_keywords else ""
-
-            combo = (sign1_adj, noun1, keyword, sign2_adj, noun2, house_noun1, house_noun2)
-            if combo in seen:
-                attempts += 1
-                continue
-            seen.add(combo)
-
-            segments: list[tuple[str, str | None]] = [("• ", None)]
-            if house_noun1 and house_noun2:
-                segments.extend(
-                    [
-                        ("(", None),
-                        (house_noun1, house1_color),
-                        (" & ", None),
-                        (house_noun2, house2_color),
-                        ("): ", None),
-                    ]
-                )
-
-            sentence_tokens: list[tuple[str, str | None]] = []
-            if sign1_adj:
-                sentence_tokens.append((sign1_adj, sign1_color))
-            if noun1:
-                sentence_tokens.append((noun1, p1_color))
-            if keyword:
-                sentence_tokens.append((keyword, aspect_color))
-            if sign2_adj:
-                sentence_tokens.append((sign2_adj, sign2_color))
-            if noun2:
-                sentence_tokens.append((noun2, p2_color))
-
-            for index, (text, color) in enumerate(sentence_tokens):
-                if index > 0:
-                    segments.append((" ", None))
-                segments.append((text, color))
-
-            line_segments.append(segments)
-            attempts += 1
-
-        return line_segments
 
     def _current_unsaved_change_summary_lines(self) -> list[str]:
         """Read the view boundary and delegate draft comparison to its workflow."""
