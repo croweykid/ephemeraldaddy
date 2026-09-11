@@ -7010,10 +7010,20 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             summary_lines_local = chart_summary_text.splitlines()
             positions_start_index = next(
-                (idx for idx, line in enumerate(summary_lines_local) if line.strip() == "POSITIONS"),
+                (idx for idx, line in enumerate(summary_lines_local) if line.strip() in {"POSITIONS", "POSITIONS (Tropical)"}),
                 0,
             )
-            visible_summary_lines = summary_lines_local[positions_start_index:]
+            draconic_start_index = next(
+                (
+                    idx
+                    for idx, line in enumerate(summary_lines_local)
+                    if line.strip() in {"DRACONIC POSITIONS", "POSITIONS (Draconic)"}
+                ),
+                len(summary_lines_local),
+            )
+            visible_summary_lines = summary_lines_local[
+                positions_start_index:draconic_start_index
+            ]
             transit_visible_lines: list[str] = []
             for line in visible_summary_lines:
                 stripped = line.strip()
@@ -38968,7 +38978,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             summary_lines_local = chart_summary_text.splitlines()
             positions_start_index = next(
-                (idx for idx, line in enumerate(summary_lines_local) if line.strip() == "POSITIONS"),
+                (idx for idx, line in enumerate(summary_lines_local) if line.strip() in {"POSITIONS", "POSITIONS (Tropical)"}),
                 0,
             )
             visible_summary_lines = summary_lines_local[positions_start_index:]

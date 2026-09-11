@@ -30,11 +30,13 @@ from ephemeraldaddy.core.chart import (
     rectification_range_minutes,
 )
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
+from ephemeraldaddy.core.draconic import calculate_draconic_positions, find_draconic_natal_aspects
 from ephemeraldaddy.core.ephemeris import (
     get_lilith_display_name,
     planetary_positions,
     planetary_retrogrades,
 )
+from ephemeraldaddy.core.human_design_system import _mandala_components
 from ephemeraldaddy.core.interpretations import (
     ASPECT_BODY_ALIASES,
     ASPECT_GLYPHS,
@@ -69,6 +71,18 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     sign_for_longitude,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, format_chart_header
+
+
+POSITION_HEADER_ALIASES: tuple[str, ...] = ("POSITIONS", "POSITIONS (Tropical)")
+DRACONIC_POSITION_HEADER_ALIASES: tuple[str, ...] = (
+    "DRACONIC POSITIONS",
+    "POSITIONS (Draconic)",
+)
+
+
+def _header_matches(line: str, aliases: tuple[str, ...]) -> bool:
+    return line.strip() in aliases
+
 
 
 def _sign_dignity_prefix(body: str, sign: str) -> str:
@@ -160,7 +174,11 @@ def _personality_gate_line_map(chart: Chart) -> dict[str, str]:
 #     ]
 
 
-def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
+def _format_time_variant_signs(
+    chart: Chart,
+    *,
+    draconic: bool = False,
+) -> dict[str, dict[str, object]]:
     # Chart Data Output should treat rectified time as canonical when enabled.
     if bool(getattr(chart, "retcon_time_used", False)):
         return {}
@@ -199,7 +217,10 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
             minute % 60,
             tzinfo=tzinfo,
         )
-        sampled_positions.append((label, planetary_positions(sample_dt, chart.lat, chart.lon)))
+        sample_positions = planetary_positions(sample_dt, chart.lat, chart.lon)
+        if draconic:
+            sample_positions = calculate_draconic_positions(sample_positions)
+        sampled_positions.append((label, sample_positions))
 
     if not sampled_positions:
         return {}
@@ -216,7 +237,7 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
     ordered_names.extend(extras)
     lines: dict[str, dict[str, object]] = {}
     for body in ordered_names:
-        if body not in set(getattr(chart, "unknown_signs", []) or []):
+        if not draconic and body not in set(getattr(chart, "unknown_signs", []) or []):
             continue
         samples = [
             (label, positions[body], sign_for_longitude(positions[body]))
@@ -264,10 +285,9 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
 
 
 
-
-
 def _aspect_label(atype: str) -> str:
     return atype.replace("_", " ").title()
+
 
 def _aspect_body_with_sign(body: str, positions: dict[str, float]) -> str:
     axis_label = aspect_axis_display_label(body)
@@ -290,6 +310,7 @@ def _display_body_with_glyph(body: str, *, use_lilith_alias: bool = False) -> st
     if str(glyph).strip().casefold() == str(display_body).strip().casefold():
         return display_body
     return f"{glyph} {display_body}"
+
 
 #this is redundant from "Aliases" in chart_data_output
 def _display_body_name(body: str, *, use_lilith_alias: bool = False) -> str:
@@ -358,6 +379,7 @@ def _overlay_aspect_segments(aspect_hits: list[Any]) -> list[dict[str, float | s
 def _normalize_aspect_body(body: str) -> str:
     return ASPECT_BODY_ALIASES.get(body, body)
 
+
 def _aspect_pair_weight(p1: str, p2: str) -> float:
         return aspect_pair_weight(p1, p2)
 
@@ -402,6 +424,178 @@ def _synastry_pair_weight(
 
 def _is_structural_tautology(asp: dict) -> bool:
     return is_structural_aspect_tautology(asp)
+
+
+def _draconic_aspect_endpoint_label(
+    prefix: str,
+    body: str,
+    positions: dict[str, float],
+) -> str:
+    axis_label = aspect_axis_display_label(body)
+    display_body = axis_label or _display_body_name(body)
+    lon = positions.get(body)
+    if axis_label is not None or lon is None:
+        return f"{prefix} {display_body}"
+    return f"{prefix} {display_body} ({sign_for_longitude(lon)})"
+
+
+def _append_draconic_aspects(
+    *,
+    lines: list[str],
+    chart: Chart,
+    draconic_positions: dict[str, float],
+    natal_positions: dict[str, float],
+    use_houses: bool,
+    houses: object,
+    aspect_sort: str,
+    position_info_map: dict[int, list[dict[str, object]]],
+    aspect_info_map: dict[int, dict[str, object]],
+) -> None:
+    if lines and lines[-1] != "":
+        lines.append("")
+    lines.append(CHART_DATA_DIVIDER)
+    lines.append("ASPECTS (Draconic)")
+    lines.append(CHART_DATA_DIVIDER)
+
+    if not draconic_positions:
+        lines.append("Unavailable (North Node position unknown)")
+        return
+
+    cross_aspects = find_draconic_natal_aspects(draconic_positions, natal_positions)
+    if not use_houses:
+        cross_aspects = [
+            asp
+            for asp in cross_aspects
+            if asp["p1"] not in ASPECT_DISPLAY_ANGLE_BODIES
+            and asp["p2"] not in ASPECT_DISPLAY_ANGLE_BODIES
+        ]
+    if not cross_aspects:
+        lines.append("No aspects within configured orbs")
+        return
+
+    sort_mode = aspect_sort if aspect_sort in ASPECT_SORT_OPTIONS else "Priority"
+    dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+    if not dominant_planet_weights:
+        dominant_planet_weights = calculate_dominant_planet_weights(chart)
+    sorted_aspects = sort_natal_aspects(
+        cross_aspects,
+        sort_mode,
+        planet_weights=dominant_planet_weights,
+        preserve_endpoint_order=True,
+    )
+
+    endpoint_labels: dict[tuple[str, str], str] = {}
+    for asp in sorted_aspects:
+        p1 = str(asp["p1"])
+        p2 = str(asp["p2"])
+        endpoint_labels[("D", p1)] = _draconic_aspect_endpoint_label("D.", p1, draconic_positions)
+        endpoint_labels[("N", p2)] = _draconic_aspect_endpoint_label("N.", p2, natal_positions)
+    label_width = max((len(label) for label in endpoint_labels.values()), default=8)
+    label_width = max(label_width, 8)
+
+    for asp in sorted_aspects:
+        p1 = str(asp["p1"])
+        p2 = str(asp["p2"])
+        atype = str(asp["type"])
+        angle = float(asp["angle"])
+        delta = float(asp["delta"])
+        p1_label = endpoint_labels[("D", p1)]
+        p2_label = endpoint_labels[("N", p2)]
+        line = (
+            f"{p1_label:<{label_width}} {atype:<12} {p2_label:<{label_width}} "
+            f"{format_degree_minutes(angle, include_sign=False):>8}  (orb {format_degree_minutes(delta)})"
+        )
+        line = f"{line} ⓘ"
+
+        p1_axis_label = aspect_axis_display_label(p1)
+        p2_axis_label = aspect_axis_display_label(p2)
+        p1_body_label = p1_axis_label or _display_body_name(p1)
+        p2_body_label = p2_axis_label or _display_body_name(p2)
+        p1_body_start = line.find(p1_body_label)
+        p2_label_start = line.find(p2_label)
+        p2_body_start = line.find(p2_body_label, max(0, p2_label_start))
+        line_entries: list[dict[str, object]] = []
+        if p1_body_start != -1:
+            line_entries.append(
+                {
+                    "kind": "planet_keyword",
+                    "body": p1,
+                    "span_start": p1_body_start,
+                    "span_end": p1_body_start + len(p1_body_label),
+                }
+            )
+        if p2_body_start != -1:
+            line_entries.append(
+                {
+                    "kind": "planet_keyword",
+                    "body": p2,
+                    "span_start": p2_body_start,
+                    "span_end": p2_body_start + len(p2_body_label),
+                }
+            )
+
+        sign1 = sign_for_longitude(draconic_positions[p1]) if p1 in draconic_positions else None
+        sign2 = sign_for_longitude(natal_positions[p2]) if p2 in natal_positions else None
+        if sign1 and p1_axis_label is None:
+            sign1_start = line.find(sign1, p1_body_start + len(p1_body_label) if p1_body_start != -1 else 0)
+            if sign1_start != -1:
+                line_entries.append(
+                    {
+                        "kind": "sign_keyword",
+                        "sign": sign1,
+                        "span_start": sign1_start,
+                        "span_end": sign1_start + len(sign1),
+                    }
+                )
+        if sign2 and p2_axis_label is None:
+            sign2_start = line.find(sign2, p2_body_start + len(p2_body_label) if p2_body_start != -1 else 0)
+            if sign2_start != -1:
+                line_entries.append(
+                    {
+                        "kind": "sign_keyword",
+                        "sign": sign2,
+                        "span_start": sign2_start,
+                        "span_end": sign2_start + len(sign2),
+                    }
+                )
+
+        natal_p1_lon = natal_positions.get(p1)
+        natal_p2_lon = natal_positions.get(p2)
+        house1 = (
+            house_for_longitude(houses, natal_p1_lon)
+            if use_houses and houses and natal_p1_lon is not None
+            else None
+        )
+        house2 = (
+            house_for_longitude(houses, natal_p2_lon)
+            if use_houses and houses and natal_p2_lon is not None
+            else None
+        )
+        aspect_span_start = line.find(f" {atype:<12} ")
+        if aspect_span_start != -1:
+            aspect_span_start += 1
+            aspect_span_end = aspect_span_start + len(atype)
+        else:
+            aspect_span_start = None
+            aspect_span_end = None
+        aspect_info_map[len(lines)] = {
+            "p1": p1,
+            "p2": p2,
+            "type": atype,
+            "angle": angle,
+            "delta": delta,
+            "span_start": aspect_span_start,
+            "span_end": aspect_span_end,
+            "sign1": sign1,
+            "sign2": sign2,
+            "house1": house1,
+            "house2": house2,
+            "source1": "Draconic",
+            "source2": "Tropical",
+        }
+        if line_entries:
+            position_info_map[len(lines)] = line_entries
+        lines.append(line)
 
 
 def format_chart_text(
@@ -583,7 +777,7 @@ def format_chart_text(
 
     # Positions
     lines.append(CHART_DATA_DIVIDER)
-    lines.append("POSITIONS")
+    lines.append("POSITIONS (Tropical)")
     lines.append(CHART_DATA_DIVIDER)
     body_width = 10
     sign_width = 11
@@ -1128,6 +1322,272 @@ def format_chart_text(
             ]
             lines.append(class_line_text)
 
+    # Draconic Positions: rotate the zodiac so the natal North Node (Rahu) is 0° Aries.
+    # House membership stays the same because house cusps rotate by the same offset;
+    # the cusps' zodiac signs/degrees change even though a body's house number does not.
+    draconic_source_positions = dict(chart.positions)
+    if draconic_source_positions.get("Rahu") is None:
+        try:
+            refreshed_positions = planetary_positions(chart.dt, chart.lat, chart.lon)
+        except Exception:
+            refreshed_positions = {}
+        if refreshed_positions.get("Rahu") is not None:
+            draconic_source_positions["Rahu"] = refreshed_positions["Rahu"]
+    draconic_positions = calculate_draconic_positions(draconic_source_positions)
+
+    if lines and lines[-1] != "":
+        lines.append("")
+    lines.append(CHART_DATA_DIVIDER)
+    lines.append("POSITIONS (Draconic)")
+    lines.append(CHART_DATA_DIVIDER)
+    if use_houses:
+        lines.append(
+            "  ".join(
+                [
+                    _pad_display_column("Body", body_width),
+                    _pad_display_column("Sign", sign_width),
+                    _pad_display_column("Degree", degree_width),
+                    _pad_display_column("Nakshatra", nakshatra_width),
+                    _pad_display_column("House", house_width),
+                    _pad_display_column("G.L", gl_width),
+                ]
+            )
+        )
+    else:
+        lines.append(
+            "  ".join(
+                [
+                    _pad_display_column("Body", body_width),
+                    _pad_display_column("Sign", sign_width),
+                    _pad_display_column("Degree", degree_width),
+                    _pad_display_column("Nakshatra", nakshatra_width),
+                ]
+            )
+        )
+    lines.append("")
+
+    if not draconic_positions:
+        lines.append("Unavailable (North Node position unknown)")
+    else:
+        draconic_time_variant_lines = _format_time_variant_signs(chart, draconic=True)
+        draconic_gate_lines: dict[str, str] = {}
+        for body, longitude in draconic_positions.items():
+            gate, line, _color, _tone, _base = _mandala_components(longitude)
+            draconic_gate_lines[body] = f"{gate}.{line}"
+
+        for body in ordered_bodies:
+            display_body = _display_body_with_glyph(body, use_lilith_alias=True)
+            lon = draconic_positions.get(body)
+            natal_lon = draconic_source_positions.get(body)
+            if lon is None:
+                lines.append(f"{display_body:<9} Unknown")
+                continue
+            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
+                line = f"{display_body:<9} Unknown (birth time unknown)"
+                position_info_map[len(lines)] = [
+                    {
+                        "kind": "planet_keyword",
+                        "body": body,
+                        "span_start": 0,
+                        "span_end": len(display_body),
+                    }
+                ]
+                lines.append(line)
+                continue
+            if body in draconic_time_variant_lines:
+                time_variant = draconic_time_variant_lines[body]
+                line = str(time_variant["text"])
+                entry_list = list(time_variant["info"])
+                body_start = line.find(display_body)
+                if body_start != -1:
+                    entry_list.append(
+                        {
+                            "kind": "planet_keyword",
+                            "body": body,
+                            "span_start": body_start,
+                            "span_end": body_start + len(display_body),
+                        }
+                    )
+                position_info_map[len(lines)] = entry_list
+                lines.append(line)
+                continue
+
+            sign_label = sign_for_longitude(lon)
+            degree_text = _degree_in_sign_text(lon)
+            if retrogrades.get(body):
+                degree_text = f"{degree_text} (Я)"
+            nakshatra = get_nakshatra(lon)
+
+            if use_houses:
+                house_num = (
+                    house_for_longitude(houses, natal_lon)
+                    if natal_lon is not None
+                    else None
+                )
+                gl_text = draconic_gate_lines.get(body, "")
+                house_label = f"H{house_num}" if house_num is not None else "-"
+                sign_display = f"{_sign_dignity_prefix(body, sign_label)}{sign_label}"
+                joy_house_prefix = _joy_house_prefix(
+                    body,
+                    house_num,
+                    include_joys=use_houses or use_rectified_time,
+                )
+                house_display = f"{joy_house_prefix}{house_label}"
+                body_column = _pad_display_column(display_body, body_width)
+                sign_column = _pad_display_column(sign_display, sign_width)
+                degree_column = _pad_display_column(degree_text, degree_width)
+                nakshatra_column = _pad_display_column(nakshatra, nakshatra_width)
+                house_column = _pad_display_column(house_display, house_width)
+                gl_column = _pad_display_column(gl_text, gl_width)
+                columns = [body_column, sign_column, degree_column, nakshatra_column, house_column, gl_column]
+                column_offsets: list[int] = []
+                line_cursor = 0
+                for index, column in enumerate(columns):
+                    column_offsets.append(line_cursor)
+                    line_cursor += len(column)
+                    if index < len(columns) - 1:
+                        line_cursor += 2
+                line = "  ".join(columns)
+                entry_list = [
+                    {
+                        "kind": "planet_keyword",
+                        "body": body,
+                        "column": 0,
+                        "span_start": column_offsets[0],
+                        "span_end": column_offsets[0] + len(display_body),
+                    },
+                    {
+                        "kind": "sign_keyword",
+                        "sign": sign_label,
+                        "body": body,
+                        "column": 1,
+                        "span_start": column_offsets[1],
+                        "span_end": column_offsets[1] + len(sign_display),
+                    },
+                    {
+                        "kind": "decan_keyword",
+                        "sign": sign_label,
+                        "body": body,
+                        "longitude": float(lon),
+                        "column": 2,
+                        "span_start": column_offsets[2],
+                        "span_end": column_offsets[2] + len(degree_text),
+                    },
+                    {
+                        "kind": "nakshatra",
+                        "nakshatra": nakshatra,
+                        "column": 3,
+                        "span_start": column_offsets[3],
+                        "span_end": column_offsets[3] + len(nakshatra),
+                    },
+                ]
+                if house_num is not None:
+                    entry_list.append(
+                        {
+                            "kind": "house_keyword",
+                            "house": house_num,
+                            "joy_body": body if joy_house_prefix else "",
+                            "column": 4,
+                            "span_start": column_offsets[4],
+                            "span_end": column_offsets[4] + len(house_display),
+                        }
+                    )
+                if gl_text:
+                    gate_text, line_text = gl_text.split(".", 1)
+                    entry_list.append(
+                        {
+                            "kind": "hd_gate_line",
+                            "gate": int(gate_text),
+                            "line": int(line_text),
+                            "column": 5,
+                            "span_start": column_offsets[5],
+                            "span_end": column_offsets[5] + len(gl_text),
+                        }
+                    )
+                line = f"{line} ⓘ"
+                entry_list.append(
+                    {
+                        "kind": "position",
+                        "body": body,
+                        "sign": sign_label,
+                        "house": house_num,
+                        "column": 4,
+                        "icon_index": line.rfind("ⓘ"),
+                    }
+                )
+                position_info_map[len(lines)] = entry_list
+                lines.append(line)
+            else:
+                sign_display = f"{_sign_dignity_prefix(body, sign_label)}{sign_label}"
+                body_column = _pad_display_column(display_body, body_width)
+                sign_column = _pad_display_column(sign_display, sign_width)
+                degree_column = _pad_display_column(degree_text, degree_width)
+                nakshatra_column = _pad_display_column(nakshatra, nakshatra_width)
+                columns = [body_column, sign_column, degree_column, nakshatra_column]
+                column_offsets: list[int] = []
+                line_cursor = 0
+                for index, column in enumerate(columns):
+                    column_offsets.append(line_cursor)
+                    line_cursor += len(column)
+                    if index < len(columns) - 1:
+                        line_cursor += 2
+                line = "  ".join(columns)
+                line = f"{line} ⓘ"
+                position_info_map[len(lines)] = [
+                    {
+                        "kind": "planet_keyword",
+                        "body": body,
+                        "column": 0,
+                        "span_start": column_offsets[0],
+                        "span_end": column_offsets[0] + len(display_body),
+                    },
+                    {
+                        "kind": "sign_keyword",
+                        "sign": sign_label,
+                        "body": body,
+                        "column": 1,
+                        "span_start": column_offsets[1],
+                        "span_end": column_offsets[1] + len(sign_display),
+                    },
+                    {
+                        "kind": "decan_keyword",
+                        "sign": sign_label,
+                        "body": body,
+                        "longitude": float(lon),
+                        "column": 2,
+                        "span_start": column_offsets[2],
+                        "span_end": column_offsets[2] + len(degree_text),
+                    },
+                    {
+                        "kind": "nakshatra",
+                        "nakshatra": nakshatra,
+                        "column": 3,
+                        "span_start": column_offsets[3],
+                        "span_end": column_offsets[3] + len(nakshatra),
+                    },
+                    {
+                        "kind": "position",
+                        "body": body,
+                        "sign": sign_label,
+                        "house": None,
+                        "column": 3,
+                        "icon_index": line.rfind("ⓘ"),
+                    },
+                ]
+                lines.append(line)
+
+    _append_draconic_aspects(
+        lines=lines,
+        chart=chart,
+        draconic_positions=draconic_positions,
+        natal_positions=draconic_source_positions,
+        use_houses=use_houses,
+        houses=houses,
+        aspect_sort=aspect_sort,
+        position_info_map=position_info_map,
+        aspect_info_map=aspect_info_map,
+    )
+
     return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
 
 
@@ -1426,11 +1886,25 @@ def format_transit_chart_text(chart: Chart, location_label: str) -> str:
     summary, _, _, _ = format_chart_text(chart)
     lines = summary.splitlines()
     positions_start_index = next(
-        (idx for idx, line in enumerate(lines) if line.strip() == "POSITIONS"),
+        (idx for idx, line in enumerate(lines) if _header_matches(line, POSITION_HEADER_ALIASES)),
         0,
     )
+    draconic_start_index = next(
+        (
+            idx
+            for idx, line in enumerate(lines)
+            if _header_matches(line, DRACONIC_POSITION_HEADER_ALIASES)
+        ),
+        len(lines),
+    )
+    if (
+        draconic_start_index < len(lines)
+        and draconic_start_index > 0
+        and lines[draconic_start_index - 1].strip() == CHART_DATA_DIVIDER.strip()
+    ):
+        draconic_start_index -= 1
     cleaned_lines: list[str] = []
-    for line in lines[positions_start_index:]:
+    for line in lines[positions_start_index:draconic_start_index]:
         if _starts_with_any_prefix(line, TRANSIT_HEADER_ALIASES["name"]) or _starts_with_any_prefix(
             line,
             TRANSIT_HEADER_ALIASES["alias"],
