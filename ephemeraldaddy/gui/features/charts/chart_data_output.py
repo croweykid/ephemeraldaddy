@@ -306,6 +306,8 @@ class ChartDataTableOutput(QPlainTextEdit):
         while block.isValid():
             block_text = block.text().strip()
             next_block = block.next()
+            if block_text == "POSITIONS (Tropical)":
+                break
             if block_text == "POSITIONS":
                 break
             block.setVisible(not collapsed)
