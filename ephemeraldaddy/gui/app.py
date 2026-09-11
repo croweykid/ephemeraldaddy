@@ -49,7 +49,6 @@ logger = logging.getLogger(__name__)
 OUTLINED_PLANET_KEYS = frozenset({"Neptune", "Pluto", "Rahu", "Ketu"})
 SETTINGS_KEY_LILITH_CALCULATION_METHOD = "chart_calculation/lilith_method"
 SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE = "similar_charts/algorithm_mode"
-SETTINGS_KEY_SIMILAR_CALCULATOR = "similar_charts/similarities_calculator"
 SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE = "enneagram_predictor/mode"
 SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS = "enneagram_predictor/category_weights"
 SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS = "enneagram_predictor/scoring_options"
@@ -149,133 +148,6 @@ def _resolve_supported_lilith_calculation_method(value: object) -> str:
     return normalized
 
 
-def _similarity_calculator_settings_defaults() -> SimilarityCalculatorSettings:
-    return SimilarityCalculatorSettings.defaults_for_default_mode()
-
-
-def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettings:
-    defaults = _similarity_calculator_settings_defaults()
-    payload = settings.value(SETTINGS_KEY_SIMILAR_CALCULATOR, {})
-    if not isinstance(payload, dict):
-        payload = {}
-    def _as_bool(value: object, fallback: bool) -> bool:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            normalized = value.strip().lower()
-            if normalized in {"1", "true", "yes", "on"}:
-                return True
-            if normalized in {"0", "false", "no", "off"}:
-                return False
-        if isinstance(value, (int, float)):
-            return bool(value)
-        return fallback
-    legacy_combined_weight = float(payload.get("weight_combined_dominance", defaults.weight_combined_dominance))
-    legacy_combined_enabled = _as_bool(
-        payload.get("use_combined_dominance", defaults.use_combined_dominance),
-        defaults.use_combined_dominance,
-    )
-    has_granular_dominance_payload = any(
-        f"use_{key}" in payload or f"weight_{key}" in payload
-        for key in DOMINANCE_COMPONENT_KEYS
-    )
-
-    def _dominance_enabled(key: str, fallback: bool) -> bool:
-        if has_granular_dominance_payload:
-            return _as_bool(payload.get(f"use_{key}", fallback), fallback)
-        return legacy_combined_enabled
-
-    def _dominance_weight(key: str, fallback: float) -> float:
-        if has_granular_dominance_payload:
-            return float(payload.get(f"weight_{key}", fallback))
-        return legacy_combined_weight / len(DOMINANCE_COMPONENT_KEYS)
-    values = {
-        "use_placement": _as_bool(payload.get("use_placement", defaults.use_placement), defaults.use_placement),
-        "weight_placement": float(payload.get("weight_placement", defaults.weight_placement)),
-        "use_aspect": _as_bool(payload.get("use_aspect", defaults.use_aspect), defaults.use_aspect),
-        "weight_aspect": float(payload.get("weight_aspect", defaults.weight_aspect)),
-        "use_distribution": _as_bool(payload.get("use_distribution", defaults.use_distribution), defaults.use_distribution),
-        "weight_distribution": float(payload.get("weight_distribution", defaults.weight_distribution)),
-        "use_combined_dominance": legacy_combined_enabled,
-        "weight_combined_dominance": legacy_combined_weight,
-        "use_dominant_bodies": _dominance_enabled("dominant_bodies", defaults.use_dominant_bodies),
-        "weight_dominant_bodies": _dominance_weight("dominant_bodies", defaults.weight_dominant_bodies),
-        "use_dominant_houses": _dominance_enabled("dominant_houses", defaults.use_dominant_houses),
-        "weight_dominant_houses": _dominance_weight("dominant_houses", defaults.weight_dominant_houses),
-        "use_dominant_signs": _dominance_enabled("dominant_signs", defaults.use_dominant_signs),
-        "weight_dominant_signs": _dominance_weight("dominant_signs", defaults.weight_dominant_signs),
-        "use_dominant_nakshatras": _dominance_enabled("dominant_nakshatras", defaults.use_dominant_nakshatras),
-        "weight_dominant_nakshatras": _dominance_weight("dominant_nakshatras", defaults.weight_dominant_nakshatras),
-        "use_nakshatra_placement": _as_bool(payload.get("use_nakshatra_placement", defaults.use_nakshatra_placement), defaults.use_nakshatra_placement),
-        "weight_nakshatra_placement": float(payload.get("weight_nakshatra_placement", defaults.weight_nakshatra_placement)),
-        "use_nakshatra_dominance": _as_bool(payload.get("use_nakshatra_dominance", defaults.use_nakshatra_dominance), defaults.use_nakshatra_dominance),
-        "weight_nakshatra_dominance": float(payload.get("weight_nakshatra_dominance", defaults.weight_nakshatra_dominance)),
-        "use_defined_centers": _as_bool(payload.get("use_defined_centers", defaults.use_defined_centers), defaults.use_defined_centers),
-        "weight_defined_centers": float(payload.get("weight_defined_centers", defaults.weight_defined_centers)),
-        "use_human_design_gates": _as_bool(payload.get("use_human_design_gates", defaults.use_human_design_gates), defaults.use_human_design_gates),
-        "weight_human_design_gates": float(payload.get("weight_human_design_gates", defaults.weight_human_design_gates)),
-        "use_human_design_channels": _as_bool(payload.get("use_human_design_channels", defaults.use_human_design_channels), defaults.use_human_design_channels),
-        "weight_human_design_channels": float(payload.get("weight_human_design_channels", defaults.weight_human_design_channels)),
-        "use_inner_planet_placement": _as_bool(payload.get("use_inner_planet_placement", defaults.use_inner_planet_placement), defaults.use_inner_planet_placement),
-        "weight_inner_planet_placement": float(payload.get("weight_inner_planet_placement", defaults.weight_inner_planet_placement)),
-        "use_outer_planet_placement": _as_bool(payload.get("use_outer_planet_placement", defaults.use_outer_planet_placement), defaults.use_outer_planet_placement),
-        "weight_outer_planet_placement": float(payload.get("weight_outer_planet_placement", defaults.weight_outer_planet_placement)),
-        "use_big_3": _as_bool(payload.get("use_big_3", defaults.use_big_3), defaults.use_big_3),
-        "weight_big_3": float(payload.get("weight_big_3", defaults.weight_big_3)),
-        "placement_weighting_mode": _normalize_placement_weighting_mode(
-            payload.get("placement_weighting_mode", defaults.placement_weighting_mode)
-        ),
-        "all_or_nothing_component": _normalize_all_or_nothing_component(
-            payload.get("all_or_nothing_component", defaults.all_or_nothing_component)
-        ),
-        "demographic_match_mode": _normalize_astro_twin_demographic_match_mode(
-            payload.get("demographic_match_mode", defaults.demographic_match_mode)
-        ),
-    }
-    return SimilarityCalculatorSettings(**values)
-
-
-def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSettings) -> None:
-    settings.setValue(
-        SETTINGS_KEY_SIMILAR_CALCULATOR,
-        {
-            "use_placement": bool(value.use_placement),
-            "weight_placement": float(value.weight_placement),
-            "use_aspect": bool(value.use_aspect),
-            "weight_aspect": float(value.weight_aspect),
-            "use_distribution": bool(value.use_distribution),
-            "weight_distribution": float(value.weight_distribution),
-            "use_combined_dominance": bool(value.use_combined_dominance),
-            "weight_combined_dominance": float(value.weight_combined_dominance),
-            "use_dominant_bodies": bool(value.use_dominant_bodies),
-            "weight_dominant_bodies": float(value.weight_dominant_bodies),
-            "use_dominant_houses": bool(value.use_dominant_houses),
-            "weight_dominant_houses": float(value.weight_dominant_houses),
-            "use_dominant_signs": bool(value.use_dominant_signs),
-            "weight_dominant_signs": float(value.weight_dominant_signs),
-            "use_dominant_nakshatras": bool(value.use_dominant_nakshatras),
-            "weight_dominant_nakshatras": float(value.weight_dominant_nakshatras),
-            "use_nakshatra_placement": bool(value.use_nakshatra_placement),
-            "weight_nakshatra_placement": float(value.weight_nakshatra_placement),
-            "use_nakshatra_dominance": bool(value.use_nakshatra_dominance),
-            "weight_nakshatra_dominance": float(value.weight_nakshatra_dominance),
-            "use_defined_centers": bool(value.use_defined_centers),
-            "weight_defined_centers": float(value.weight_defined_centers),
-            "use_human_design_gates": bool(value.use_human_design_gates),
-            "weight_human_design_gates": float(value.weight_human_design_gates),
-            "use_human_design_channels": bool(value.use_human_design_channels),
-            "weight_human_design_channels": float(value.weight_human_design_channels),
-            "use_inner_planet_placement": bool(value.use_inner_planet_placement),
-            "weight_inner_planet_placement": float(value.weight_inner_planet_placement),
-            "use_outer_planet_placement": bool(value.use_outer_planet_placement),
-            "weight_outer_planet_placement": float(value.weight_outer_planet_placement),
-            "use_big_3": bool(value.use_big_3),
-            "weight_big_3": float(value.weight_big_3),
-            "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
-            "all_or_nothing_component": _normalize_all_or_nothing_component(value.all_or_nothing_component),
-            "demographic_match_mode": _normalize_astro_twin_demographic_match_mode(value.demographic_match_mode),
-        },
-    )
 
 
 def _load_astrotwin_granular_explanation(settings, *, fallback: bool = False) -> bool:
@@ -403,7 +275,6 @@ from PySide6.QtCore import (
     QTimer,
     QSettings,
     QEvent,
-    QEventLoop,
     QSignalBlocker,
     QThread,
     Signal,
@@ -699,6 +570,11 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
 )
+from ephemeraldaddy.gui.features.similarities.settings import (
+    load_similarity_calculator_settings as _load_similarity_calculator_settings,
+    save_similarity_calculator_settings as _save_similarity_calculator_settings,
+    similarity_calculator_settings_defaults as _similarity_calculator_settings_defaults,
+)
 from ephemeraldaddy.core.ephemeris import (
     LILITH_CALCULATION_MEAN,
     LILITH_CALCULATION_TRUE,
@@ -942,9 +818,9 @@ from ephemeraldaddy.gui.features.charts.collections import (
     sanitize_collection_name,
 )
 from ephemeraldaddy.gui.features.database_view.collection_labels import custom_collection_label
+from ephemeraldaddy.gui.features.database_view.chart_list import ChartListWidget
 from ephemeraldaddy.gui.features.database_view.collections import (
     CollectionsListWidget,
-    chart_drag_mime_data,
     prompt_chart_selection_for_collection_add,
     show_collection_confirmation,
 )
@@ -1520,7 +1396,6 @@ from ephemeraldaddy.gui.style import (
     CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
     CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
     CHART_VIEW_TIME_INPUT_WIDTH,
-    CHART_VIEW_TIME_OVERWRITE_ENABLED,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE,
     COLLAPSIBLE_HEADER_LEVEL_SUBSECTION,
@@ -1681,6 +1556,7 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
+from ephemeraldaddy.gui.features.chart_editor.segmented_time_edit import SegmentedTimeEdit
 from ephemeraldaddy.gui.features.settings.traits import populate_traits_settings_layout
 from ephemeraldaddy.gui.settings.modules.ocean_predictor import (
     OceanPredictorSettingsController,
@@ -1728,84 +1604,6 @@ from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     format_dnd_species_info_text as _format_dnd_species_info_text,
     format_dnd_statblock_info_text as _format_dnd_statblock_info_text,
 )
-
-
-class SegmentedTimeEdit(QLineEdit):
-    """Compact HH:mm editor with overwrite behavior and colon-safe navigation."""
-
-    timeChanged = Signal(QTime)
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._current_time = QTime(12, 0)
-        self.setAlignment(Qt.AlignCenter)
-        self.setMaxLength(5)
-        self.setInputMask("99:99")
-        self.setTime(self._current_time)
-
-    def setDisplayFormat(self, _format: str) -> None:
-        """Compatibility shim with QTimeEdit API."""
-        return
-
-    def time(self) -> QTime:
-        return self._current_time
-
-    def setTime(self, value: QTime) -> None:
-        normalized = value if isinstance(value, QTime) and value.isValid() else QTime(12, 0)
-        self._current_time = normalized
-        self.setText(f"{normalized.hour():02d}:{normalized.minute():02d}")
-        if self.cursorPosition() == 2:
-            self.setCursorPosition(3)
-
-    def keyPressEvent(self, event) -> None:
-        key = event.key()
-        if key == Qt.Key_Backspace:
-            cursor = self.cursorPosition()
-            if cursor == 3:
-                self.setCursorPosition(1)
-            elif cursor == 2:
-                self.setCursorPosition(1)
-            super().keyPressEvent(event)
-            self._normalize_and_emit()
-            return
-        if key in (Qt.Key_Delete, Qt.Key_Left, Qt.Key_Right, Qt.Key_Home, Qt.Key_End):
-            super().keyPressEvent(event)
-            if self.cursorPosition() == 2:
-                if key == Qt.Key_Left:
-                    self.setCursorPosition(1)
-                else:
-                    self.setCursorPosition(3)
-            self._normalize_and_emit()
-            return
-        if event.text().isdigit() and CHART_VIEW_TIME_OVERWRITE_ENABLED:
-            super().keyPressEvent(event)
-            if self.cursorPosition() == 2:
-                self.setCursorPosition(3)
-            self._normalize_and_emit()
-            return
-        super().keyPressEvent(event)
-
-    def focusInEvent(self, event) -> None:
-        super().focusInEvent(event)
-        if self.cursorPosition() == 2:
-            self.setCursorPosition(3)
-
-    def _normalize_and_emit(self) -> None:
-        text = self.text()
-        digits = [char for char in text if char.isdigit()]
-        if len(digits) < 4:
-            return
-        hour = min(23, int("".join(digits[:2])))
-        minute = min(59, int("".join(digits[2:4])))
-        normalized = QTime(hour, minute)
-        normalized_text = f"{hour:02d}:{minute:02d}"
-        if text != normalized_text:
-            cursor_position = self.cursorPosition()
-            self.setText(normalized_text)
-            self.setCursorPosition(3 if cursor_position == 2 else min(cursor_position, len(normalized_text)))
-        if normalized != self._current_time:
-            self._current_time = normalized
-            self.timeChanged.emit(self._current_time)
 
 
 class ResizablePixmapLabel(QLabel):
@@ -2255,77 +2053,6 @@ def _selected_chart_list_item_names(list_widget: QListWidget) -> list[str]:
                 selected_names.append(name)
     return selected_names
 
-
-class ChartListWidget(QListWidget):
-    """List widget with single-letter navigation, drag support, and open feedback."""
-
-    _OPEN_FEEDBACK_DURATION_MS = 360
-    _OPEN_FEEDBACK_INTERVAL_MS = 30
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._open_feedback_item: QListWidgetItem | None = None
-        self._open_feedback_step = 0
-        self._open_feedback_steps = max(
-            1,
-            self._OPEN_FEEDBACK_DURATION_MS // self._OPEN_FEEDBACK_INTERVAL_MS,
-        )
-        self._open_feedback_timer = QTimer(self)
-        self._open_feedback_timer.setInterval(self._OPEN_FEEDBACK_INTERVAL_MS)
-        self._open_feedback_timer.timeout.connect(self._advance_open_feedback)
-        self.setDragEnabled(True)
-
-    def mimeData(self, items: list[QListWidgetItem]):
-        return chart_drag_mime_data(super().mimeData(items), items)
-
-    def keyPressEvent(self, event) -> None:
-        if self._handle_letter_jump(event):
-            return
-        super().keyPressEvent(event)
-
-    def mouseDoubleClickEvent(self, event) -> None:
-        item = self.itemAt(event.position().toPoint())
-        if item is not None:
-            self.start_open_feedback(item)
-        super().mouseDoubleClickEvent(event)
-
-    def start_open_feedback(self, item: QListWidgetItem) -> None:
-        """Immediately pulse a row so double-click acknowledgement precedes loading."""
-        self._clear_open_feedback()
-        self._open_feedback_item = item
-        self._open_feedback_step = 0
-        item.setData(CHART_ROW_OPEN_FEEDBACK_ROLE, 1.0)
-        index = self.indexFromItem(item)
-        if index.isValid():
-            self.viewport().repaint(self.visualRect(index))
-        self._open_feedback_timer.start()
-        QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
-
-    def _advance_open_feedback(self) -> None:
-        item = self._open_feedback_item
-        if item is None:
-            self._open_feedback_timer.stop()
-            return
-        self._open_feedback_step += 1
-        progress = max(0.0, 1.0 - (self._open_feedback_step / self._open_feedback_steps))
-        item.setData(CHART_ROW_OPEN_FEEDBACK_ROLE, progress)
-        index = self.indexFromItem(item)
-        if index.isValid():
-            self.viewport().update(self.visualRect(index))
-        if progress <= 0.0:
-            self._clear_open_feedback()
-
-    def _clear_open_feedback(self) -> None:
-        if self._open_feedback_item is not None:
-            self._open_feedback_item.setData(CHART_ROW_OPEN_FEEDBACK_ROLE, None)
-            index = self.indexFromItem(self._open_feedback_item)
-            if index.isValid():
-                self.viewport().update(self.visualRect(index))
-        self._open_feedback_item = None
-        self._open_feedback_timer.stop()
-
-    def _handle_letter_jump(self, event) -> bool:
-        return _handle_list_letter_jump(self, event)
 
 # Database View / Manage Charts Window
 class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
