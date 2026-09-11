@@ -171,9 +171,12 @@ def _install_theme_table_semantics(theme_predictions: Any) -> None:
         return
 
     model_class = theme_predictions._ThemePredictionRowsModel
+    proxy_class = theme_predictions._ThemePredictionFilterModel
     model_class._HEADERS = ("Theme", "% of chart", "vs DB")
     scope_role = int(theme_predictions.Qt.UserRole) + 34
+    percentile_role = int(theme_predictions.Qt.UserRole) + 35
     theme_predictions.THEME_ROW_SCOPE_ROLE = scope_role
+    theme_predictions.THEME_ROW_PERCENTILE_ROLE = percentile_role
 
     def data(self: Any, index: Any, role: int = theme_predictions.Qt.DisplayRole) -> Any:
         if not index.isValid() or not (0 <= index.row() < len(self._rows)):
@@ -230,6 +233,11 @@ def _install_theme_table_semantics(theme_predictions: Any) -> None:
                 "theme_key": row.get("theme_key"),
                 "kind": str(row.get("kind", "family")),
             }
+        if role == percentile_role:
+            try:
+                return float(percentile) if percentile is not None else None
+            except (TypeError, ValueError):
+                return None
         if role == theme_predictions.THEME_ROW_DEVIATION_ROLE:
             return deviation
         if role == theme_predictions.THEME_ROW_DIRECTION_ROLE:
@@ -237,6 +245,22 @@ def _install_theme_table_semantics(theme_predictions: Any) -> None:
         return None
 
     model_class.data = data
+    original_less_than = proxy_class.lessThan
+
+    def lessThan(self: Any, left: Any, right: Any) -> bool:  # noqa: N802
+        source = self.sourceModel()
+        if source is not None and left.column() == 2 and right.column() == 2:
+            left_percentile = source.data(
+                source.index(left.row(), 0), percentile_role
+            )
+            right_percentile = source.data(
+                source.index(right.row(), 0), percentile_role
+            )
+            if left_percentile is not None and right_percentile is not None:
+                return float(left_percentile) < float(right_percentile)
+        return original_less_than(self, left, right)
+
+    proxy_class.lessThan = lessThan
 
     original_refresh = theme_predictions._refresh_theme_prediction_filter
 
