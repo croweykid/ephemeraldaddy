@@ -41,14 +41,14 @@ do not infer completion merely because a destination directory exists.
 The refactor is **directionally aligned but not on track against the phased
 exit gates**. Useful bounded extractions have continued, especially under
 `chart_editor`, `database_view`, `transits`, and `settings`, but the prerequisite
-and ownership milestones have not been completed in order. Nine initial
+and ownership milestones have not been completed in order. Ten initial
 bounded moves are now complete: `SegmentedTimeEdit`, `ChartListWidget`,
 similarity-calculator settings persistence, saved-chart change classification,
 Database View logical-selection state, the first pure Chart Information
 keyword, token, decan, and mode model family, Chart Editor save-result/time
-reliability lifecycle state, single-chart Markdown rendering, and aspect
-sentence models have canonical owners and focused regression coverage. `app.py`
-is still 39,133 lines with 1,059
+reliability lifecycle state, single-chart Markdown rendering, and aspect and
+position sentence models have canonical owners and focused regression coverage.
+`app.py` is still 39,055 lines with 1,059
 four-space-indented methods, and it still defines both legacy
 top-level window classes. The 5,000–8,000-line composition-root goal therefore
 remains distant.
@@ -60,7 +60,7 @@ remains distant.
 | 2 — top-level windows | **Not started at the class boundary** | `ManageChartsDialog` and `MainWindow` remain defined in `app.py`; neither canonical window class nor `AppwideWindowCoordinator` exists. Tests still parse the legacy class names, so renaming requires a coordinated characterization-test update rather than an alias-only claim of completion. |
 | 3 — explicit interfaces | **Not complete** | Sentiment tally behavior is still borrowed at class level, and `install_chart_view_right_panel_callbacks` still attaches `MethodType` methods at runtime. Some newer controllers use narrow callbacks, showing the intended pattern, but the phase exit gate is unmet. |
 | 4 — core workflows | **Early/partial** | `ChartEditSession` and a callback-based `ChartEditorController` exist and are used incrementally. The session now owns normalized identity, authoritative-versus-draft values, dirty fields, field-specific recalculation reasons, explicit birth-time/rectification/house-availability context, the latest typed save result, and accumulated save/prediction-flush state, but it does not yet own the full lifecycle promised in section 6.1. The pure `ChartRecalculationPolicy` owns saved-chart change classification behind temporary window delegates, but the coordinator is not implemented. `DatabaseSelectionModel` and `DatabaseSelectionController` own ordered logical UID selection, the navigation anchor, filtered-view merging, reconciliation, and one-step deselection restoration; Qt item mapping and persistence-boundary conversion remain in the window adapter. The canonical Database Search query/evaluator/controller and non-Qt web-profile service modules do not yet exist. |
-| 5 — legacy package replacement | **Partial extraction, no retirement** | Correct workflow packages are growing; `SegmentedTimeEdit`, `ChartListWidget`, similarity-settings persistence, and single-chart Markdown rendering now live under `chart_editor`, `database_view`, `similarities`, and `import_export`, respectively. The appwide `chart_information` package now owns initial pure keyword/token/decan/mode and colorized aspect-sentence models plus narrow presenters, but substantial Chart Information rendering remains in `app.py`. `gui/features/charts` still contains 80 Python modules and both generic controller staging modules remain. |
+| 5 — legacy package replacement | **Partial extraction, no retirement** | Correct workflow packages are growing; `SegmentedTimeEdit`, `ChartListWidget`, similarity-settings persistence, and single-chart Markdown rendering now live under `chart_editor`, `database_view`, `similarities`, and `import_export`, respectively. The appwide `chart_information` package now owns initial pure keyword/token/decan/mode and colorized aspect/position-sentence models plus narrow presenters, but substantial Chart Information rendering remains in `app.py`. `gui/features/charts` still contains 80 Python modules and both generic controller staging modules remain. |
 | 6 — settings | **Partial** | `gui/settings/core.py` and `gui/settings/modules` now exist, but legacy settings implementations remain under `gui/` and `gui/features/settings`; additions should use the canonical home while touched legacy code is migrated deliberately. |
 | 7 — composition root | **Not started as an exit gate** | Imports and bounded helpers have moved out, but both primary windows and substantial workflow logic remain in `app.py`; it is not yet independently testable as a small composition root. |
 

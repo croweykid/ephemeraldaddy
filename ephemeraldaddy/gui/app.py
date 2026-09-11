@@ -361,6 +361,9 @@ from ephemeraldaddy.gui.features.chart_editor.session import (
 from ephemeraldaddy.gui.features.chart_information.aspect_sentences import (
     build_aspect_sentence_segments,
 )
+from ephemeraldaddy.gui.features.chart_information.position_sentences import (
+    build_position_sentence_model,
+)
 from ephemeraldaddy.gui.features.import_export.chart_markdown import (
     build_chart_export_markdown,
 )
@@ -31404,100 +31407,19 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
-        sign_key = sign.title()
-        sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
-        adverbs = sign_keywords.get("best_adverbs", []) + sign_keywords.get(
-            "worst_adverbs", []
+        model = build_position_sentence_model(
+            body,
+            sign,
+            house_num,
+            default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )
-        planet_keywords = PLANET_KEYWORDS.get(body, {})
-        verbs = planet_keywords.get("verbs", [])
-        verbs_only = planet_keywords.get("verbsonly", [])
-        planet_nouns = planet_keywords.get("nouns", [])
-        if house_num is None:
-            verb_choices = verbs_only or verbs
-            if not (adverbs and verb_choices):
-                self.chart_info_output.setPlainText(
-                    f"No interpretation data available for {body} in {sign}."
-                )
-                return
-        else:
-            sign_verbs = sign_keywords.get("verbs", [])
-            house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
-            if not (adverbs and verbs and house_keywords and sign_verbs and planet_nouns):
-                self.chart_info_output.setPlainText(
-                    f"No interpretation data available for {body} in {sign}, house {house_num}."
-                )
-                return
-        
-        unique_lines: list[list[tuple[str, str | None]]] = []
-        seen: set[tuple[str, str, str]] = set()
-        
-        def add_unique_lines(
-            target_count: int,
-            verb_options: list[str],
-            noun_options: list[str],
-            adverb_options: list[str],
-            verb_color: str | None = None,
-            noun_color: str | None = None,
-            adverb_color: str | None = None,
-            max_attempts: int = 200,
-        ) -> None:
-            attempts = 0
-            while len(unique_lines) < target_count and attempts < max_attempts:
-                noun = random.choice(noun_options)
-                verb = random.choice(verb_options)
-                adverb = random.choice(adverb_options)
-                combo = (noun, verb, adverb)
-                if combo in seen:
-                    attempts += 1
-                    continue
-                seen.add(combo)
-                line_segments: list[tuple[str, str | None]] = [("• ", None)]
-                if str(verb).strip():
-                    line_segments.append((str(verb).strip(), verb_color))
-                if str(noun).strip():
-                    if len(line_segments) > 1:
-                        line_segments.append((" ", None))
-                    line_segments.append((str(noun).strip(), noun_color))
-                if str(adverb).strip():
-                    if len(line_segments) > 1:
-                        line_segments.append((" ", None))
-                    line_segments.append((str(adverb).strip(), adverb_color))
-                unique_lines.append(line_segments)
-                attempts += 1
-        if house_num is None:
-            verb_choices = verbs_only or verbs
-            add_unique_lines(
-                6,
-                verb_choices,
-                [""],
-                adverbs,
-                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
+        if model is None:
+            location = f", house {house_num}" if house_num is not None else ""
+            self.chart_info_output.setPlainText(
+                f"No interpretation data available for {body} in {sign}{location}."
             )
-            header = f"{body} in {sign}"
-        else:
-            house_of_keywords = [f"of {house}" for house in house_keywords]
-            add_unique_lines(
-                3,
-                verbs,
-                house_keywords,
-                adverbs,
-                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                noun_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-            )
-            add_unique_lines(
-                6,
-                sign_verbs,
-                planet_nouns,
-                house_of_keywords,
-                verb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                noun_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                adverb_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-            )
-            header = f"{body} in {sign} • House {house_num}"
-        self._set_chart_info_lines_with_segments(header, unique_lines)
+            return
+        self._set_chart_info_lines_with_segments(model.header, model.lines)
 
     def _show_decan_info(self, body: str, sign: str, longitude: object | None) -> None:
         body_key = str(body or "").strip()
