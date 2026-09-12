@@ -487,6 +487,15 @@ from ephemeraldaddy.gui.features.controllers.db_info import (
     add_prediction_norms_recalculation_tool,
 )
 from ephemeraldaddy.gui.features.transits import TransitPanelController
+from ephemeraldaddy.gui.features.transits.popout_layout import build_transit_popout_scaffold
+from ephemeraldaddy.gui.features.transits.personal_timeline_generation import (
+    generate_personal_transit_range,
+)
+from ephemeraldaddy.gui.features.transits.theme_view import (
+    format_global_transit_theme_view,
+    format_transit_range_table,
+    format_transit_theme_view,
+)
 from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
 from ephemeraldaddy.gui.features.chart_editor.exit_performance import (
     should_block_database_view_open_for_prediction_flush,
@@ -5733,6 +5742,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout = QHBoxLayout()
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
+        transit_scaffold = build_transit_popout_scaffold(layout)
 
         all_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
         all_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
@@ -5754,15 +5764,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
 
         chart_info_output = self._build_popout_left_panel(
-            layout,
+            transit_scaffold.aspects_layout,
             chart_info_placeholder="Personal Transit Chart: natal houses with transit planet overlay.",
             aspect_entries=all_hits,
             export_file_stem=f"{_sanitize_export_token(natal_chart.name)}-transit_aspect_distribution",
             weighted_score_for_entry=_weighted_personal_transit_score,
         )
 
-        right_layout = QVBoxLayout()
-        layout.addLayout(right_layout, 3)
+        right_layout = transit_scaffold.table_layout
 
         controls_layout = QGridLayout()
         controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -5819,7 +5828,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         figure = Figure(figsize=(10.9, 10.9))
         canvas = FigureCanvas(figure)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        right_layout.addWidget(canvas, 7)
+        transit_scaffold.chart_drawing_layout.addWidget(canvas, 1)
 
         # Keep the Chart Data Output header row aligned with the left
         # popout panel's "Chart Info!" label so both text panels begin on
@@ -5852,6 +5861,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
 
+        theme_output = QPlainTextEdit()
+        theme_output.setReadOnly(True)
+        theme_output.setPlaceholderText("Calculating major transits for the surrounding 60 days…")
+        transit_scaffold.theme_layout.addWidget(theme_output, 1)
+
         transit_timestamp = transit_chart.dt.strftime("%Y-%m-%d_%H%M") if transit_chart.dt else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
         transit_file_stem = self._build_transit_export_file_stem(
             transit_chart,
@@ -5874,6 +5888,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "share_button": summary_share_button,
         }
         self._popout_summary_contexts[popout_context_key] = popout_context
+        surrounding_major_windows: list[Any] = []
 
         def _summary_header_lines() -> list[str]:
             return build_personal_transit_header_lines(
@@ -5883,6 +5898,33 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 include_time=include_time,
                 local_tz=local_tz,
             )
+
+        def _refresh_theme_view() -> None:
+            center = transit_chart.dt or datetime.datetime.now(datetime.timezone.utc)
+            chart_uid = str(
+                getattr(natal_chart, "chart_uid", None)
+                or getattr(natal_chart, "uid", None)
+                or ""
+            )
+            if not chart_uid:
+                theme_output.setPlainText(
+                    "Theme View needs the natal chart's permanent Chart UID. Save the chart first."
+                )
+                return
+            try:
+                windows = generate_personal_transit_range(
+                    chart_uid,
+                    natal_chart,
+                    start=center - datetime.timedelta(days=30),
+                    end=center + datetime.timedelta(days=30),
+                )
+            except Exception:
+                logger.exception("Failed to build the Personal Transit Theme View.")
+                theme_output.setPlainText("Theme View could not calculate this transit range.")
+                return
+            surrounding_major_windows[:] = windows
+            theme_output.setPlainText(format_transit_theme_view(windows))
+            _refresh_summary()
 
         def _redraw_chart_wheel() -> None:
             header_left.setText("\n".join(_summary_header_lines()[2:4]))
@@ -6479,6 +6521,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 else:
                     lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
                 lines.append("")
+            lines.extend(["", format_transit_range_table(surrounding_major_windows)])
             return "\n".join(lines)
 
         def _handle_calendar_click(cursor) -> bool:
@@ -6574,6 +6617,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             preload_queue.clear()
             _redraw_chart_wheel()
             _refresh_summary()
+            _refresh_theme_view()
             preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
             QTimer.singleShot(0, _drain_preload_queue)
 
@@ -6583,6 +6627,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         update_button.clicked.connect(_on_update_chart)
         _redraw_chart_wheel()
         _refresh_summary()
+        _refresh_theme_view()
         preload_queue[:] = [key for key, state in transit_ranges.items() if not state.get("resolved")]
         QTimer.singleShot(0, _drain_preload_queue)
 
@@ -6604,9 +6649,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout = QHBoxLayout()
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
+        transit_scaffold = build_transit_popout_scaffold(layout)
 
         chart_info_output = self._build_popout_left_panel(
-            layout,
+            transit_scaffold.aspects_layout,
             chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
             aspect_entries=list(
                 iter_displayable_aspects(
@@ -6632,8 +6678,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             else max(0.0, float(getattr(entry, "exactness", 0.0)) * float(getattr(entry, "weight", 0.0))),
         )
 
-        right_layout = QVBoxLayout()
-        layout.addLayout(right_layout, 3)
+        right_layout = transit_scaffold.table_layout
 
         controls_layout = QGridLayout()
         controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -6667,7 +6712,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         figure = Figure(figsize=(10.9, 10.9))
         canvas = FigureCanvas(figure)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        right_layout.addWidget(canvas, 7)
+        transit_scaffold.chart_drawing_layout.addWidget(canvas, 1)
 
         # Keep the Chart Data Output header row aligned with the left
         # popout panel's "Chart Info!" label so both text panels begin on
@@ -6699,6 +6744,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
+
+        theme_output = QPlainTextEdit()
+        theme_output.setReadOnly(True)
+        transit_scaffold.theme_layout.addWidget(theme_output, 1)
 
         state: dict[str, object] = {
             "chart": chart,
@@ -6794,6 +6843,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             popout_context["aspect_info_map"] = aspect_info_map
             popout_context["species_info_map"] = species_info_map
             popout_context["summary_block_offset"] = positions_start_index
+            theme_output.setPlainText(
+                format_global_transit_theme_view(
+                    iter_displayable_aspects(
+                        getattr(active_chart, "aspects", []) or [],
+                        use_houses=_chart_uses_houses(active_chart),
+                        known_positions=getattr(active_chart, "positions", {}) or {},
+                    ),
+                    active_chart.dt,
+                )
+            )
 
         def _redraw() -> None:
             active_chart = state["chart"]

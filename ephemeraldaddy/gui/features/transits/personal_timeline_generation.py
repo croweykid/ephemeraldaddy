@@ -378,3 +378,62 @@ def generate_personal_timeline(
 
     results.sort(key=lambda item: (item.start, item.end, item.transit.label))
     return results
+
+
+def generate_personal_transit_range(
+    chart_uid: str,
+    chart: Any,
+    *,
+    start: datetime.datetime,
+    end: datetime.datetime,
+    step_days: int = 1,
+) -> list[PersonalTimelineWindow]:
+    """Generate major transit windows inside an explicit, short date range."""
+    normalized_uid = str(chart_uid or "").strip().upper()
+    if not normalized_uid:
+        raise ValueError("Personal Transit range generation requires a Chart UID.")
+    if start.tzinfo is None or end.tzinfo is None:
+        raise ValueError("Transit range bounds must be timezone-aware.")
+    if end <= start or step_days <= 0:
+        raise ValueError("Transit range end and scan step must be greater than start and zero.")
+
+    definitions = _build_transit_definitions(chart)
+    definition_lookup = {definition.key: definition for definition in definitions}
+    definitions_by_body: dict[str, list[TimelineTransitDefinition]] = {}
+    for definition in definitions:
+        definitions_by_body.setdefault(definition.transiting_body, []).append(definition)
+
+    step = datetime.timedelta(days=step_days)
+    active_starts: dict[tuple[str, str, str], tuple[datetime.datetime, bool]] = {}
+    previous_active: set[tuple[str, str, str]] = set()
+    previous_dt = start
+    current_dt = start
+    results: list[PersonalTimelineWindow] = []
+    while current_dt <= end:
+        current_active: set[tuple[str, str, str]] = set()
+        for transit_body, body_definitions in definitions_by_body.items():
+            longitude = planetary_longitude(current_dt, transit_body)
+            if longitude is None:
+                continue
+            for definition in body_definitions:
+                if _aspect_orb(float(longitude), definition) <= definition.orb_deg:
+                    current_active.add(definition.key)
+        for key in current_active.difference(previous_active):
+            active_starts[key] = (
+                (start if current_dt == start else _refine_boundary(previous_dt, current_dt, definition_lookup[key])),
+                current_dt == start,
+            )
+        for key in previous_active.difference(current_active):
+            window_start, start_truncated = active_starts.pop(key)
+            boundary = _refine_boundary(current_dt, previous_dt, definition_lookup[key])
+            if boundary >= window_start:
+                results.append(PersonalTimelineWindow(normalized_uid, definition_lookup[key], window_start, boundary, start_truncated))
+        previous_active = current_active
+        previous_dt = current_dt
+        if current_dt >= end:
+            break
+        current_dt = min(end, current_dt + step)
+    for key, (window_start, start_truncated) in active_starts.items():
+        results.append(PersonalTimelineWindow(normalized_uid, definition_lookup[key], window_start, end, start_truncated, True))
+    results.sort(key=lambda item: (item.start, item.end, item.transit.label))
+    return results

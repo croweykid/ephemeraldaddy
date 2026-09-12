@@ -1,0 +1,80 @@
+import datetime
+from types import SimpleNamespace
+
+import pytest
+
+from ephemeraldaddy.gui.features.transits.personal_timeline_generation import (
+    PersonalTimelineWindow,
+    TimelineTransitDefinition,
+    generate_personal_transit_range,
+)
+from ephemeraldaddy.gui.features.transits.theme_view import (
+    format_global_transit_theme_view,
+    format_transit_range_table,
+    format_transit_theme_view,
+    themes_for_aspect_bodies,
+)
+
+
+UTC = datetime.timezone.utc
+
+
+def test_theme_view_groups_aspect_under_reference_theme_with_dates():
+    definition = TimelineTransitDefinition("Saturn", "Sun", 10.0, "square", 90.0, 3.0)
+    window = PersonalTimelineWindow(
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        definition,
+        datetime.datetime(2026, 8, 13, tzinfo=UTC),
+        datetime.datetime(2026, 9, 20, tzinfo=UTC),
+    )
+
+    text = format_transit_theme_view([window])
+
+    assert "2026-08-13 – 2026-09-20" in text
+    assert "Saturn square natal Sun" in text
+    assert themes_for_aspect_bodies("Saturn", "Sun")
+    assert "SURROUNDING MAJOR TRANSITS (±30 DAYS)" in format_transit_range_table([window])
+
+
+def test_global_theme_view_groups_aspects_for_chart_date():
+    aspect = {"body1": "Saturn", "body2": "Sun", "aspect": "square"}
+
+    text = format_global_transit_theme_view(
+        [aspect], datetime.datetime(2026, 9, 12, tzinfo=UTC)
+    )
+
+    assert "2026-09-12  Saturn square Sun" in text
+
+
+def test_short_range_generator_includes_approaching_and_recent_windows(monkeypatch):
+    chart = SimpleNamespace(positions={"Sun": 0.0})
+    start = datetime.datetime(2026, 8, 13, tzinfo=UTC)
+    end = datetime.datetime(2026, 10, 12, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.transits.personal_timeline_generation._build_transit_definitions",
+        lambda _chart: (TimelineTransitDefinition("Saturn", "Sun", 0.0, "conjunction", 0.0, 1.0),),
+    )
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.transits.personal_timeline_generation.planetary_longitude",
+        lambda when, _body: 0.0 if 10 <= (when - start).days <= 50 else 20.0,
+    )
+
+    windows = generate_personal_transit_range(
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV", chart, start=start, end=end
+    )
+
+    assert len(windows) == 1
+    assert start < windows[0].start < datetime.datetime(2026, 9, 12, tzinfo=UTC)
+    assert datetime.datetime(2026, 9, 12, tzinfo=UTC) < windows[0].end < end
+
+
+@pytest.mark.parametrize("chart_uid", ["", "   "])
+def test_short_range_generator_requires_permanent_chart_uid(chart_uid):
+    with pytest.raises(ValueError, match="Chart UID"):
+        generate_personal_transit_range(
+            chart_uid,
+            SimpleNamespace(positions={}),
+            start=datetime.datetime(2026, 8, 13, tzinfo=UTC),
+            end=datetime.datetime(2026, 10, 12, tzinfo=UTC),
+        )
