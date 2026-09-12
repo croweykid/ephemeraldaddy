@@ -350,7 +350,10 @@ def configure_metric_popout_info(owner: Owner, title: str, canvas: Canvas, info_
         spec.configure_info(owner, canvas, info_panel, chart)
 
 
-# The controller already has a single owner-hook installation seam for Quadrants.
-# Extend that seam so the common New Chart/placeholder display reset also clears
-# the Quadrants canvas without duplicating MainWindow's large reset routine.
-install_quadrants_controller_bridge()
+# The GUI imports this registry before ChartAnalysisSectionsController instances are
+# constructed. In headless environments PySide6 may be intentionally unavailable,
+# so keep the registry itself importable while installing the bridge when possible.
+try:
+    install_quadrants_controller_bridge()
+except ImportError:
+    pass
