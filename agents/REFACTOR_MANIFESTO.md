@@ -793,7 +793,8 @@ Move one class at a time, with its constructor callers and behavior tests:
 
 - `SegmentedTimeEdit` to `features/chart_editor/`;
 - `ChartListWidget` to `features/database_view/`, near the future list adapter;
-- `_GlobalCloseShortcutFilter` to `features/windowing/`;
+- **Complete:** Move `_GlobalCloseShortcutFilter` to `features/windowing/` as
+  `GlobalCloseShortcutFilter`;
 - `_PlanetDynamicsWorker` to its analytics/rendering workflow;
 - `ResizablePixmapLabel` to its photo-gallery or presentation owner; and
 - `_ComboItemColorDelegate` to the concrete workflow that uses it, unless a
