@@ -364,8 +364,9 @@ from ephemeraldaddy.gui.features.chart_information.aspect_sentences import (
 from ephemeraldaddy.gui.features.chart_information.position_sentences import (
     build_position_sentence_model,
 )
-from ephemeraldaddy.gui.features.import_export.chart_markdown import (
-    build_chart_export_markdown,
+from ephemeraldaddy.gui.features.import_export.chart_markdown_controller import (
+    ChartMarkdownExportCallbacks,
+    ChartMarkdownExportController,
 )
 from ephemeraldaddy.gui.features.database_view.close_progress import DatabaseCloseProgress
 from matplotlib.figure import Figure
@@ -25143,6 +25144,19 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # - Chart Edit Window: current_chart_uid is set (editing existing chart).
         self.current_chart_uid: str | None = None
         self._chart_edit_session = ChartEditSession()
+        self._chart_markdown_export_controller = ChartMarkdownExportController(
+            ChartMarkdownExportCallbacks(
+                choose_destination=lambda title, default, file_filter: QFileDialog.getSaveFileName(
+                    self, title, default, file_filter
+                )[0],
+                show_information=lambda title, message: QMessageBox.information(
+                    self, title, message
+                ),
+                show_error=lambda title, message: QMessageBox.critical(
+                    self, title, message
+                ),
+            )
+        )
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
         self._loaded_birth_place = None
         self._loaded_lat = None
@@ -30216,50 +30230,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         ):
             self._schedule_chart_render_for_active_right_panel()
 
-    def _export_chart(self, chart: Chart | None) -> None:
-        if chart is None:
-            QMessageBox.information(
-                self,
-                "incomplete birthdate",
-                "Generate or load a chart before exporting.",
-            )
-            return
-
-        chart_title = (chart.name or "chart").strip() or "chart"
-        safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", chart_title).strip("_") or "birthchart"
-        export_date = datetime.date.today().isoformat()
-        default_filename = f"ephemeraldaddy_{safe_title}_chart-{export_date}.md"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export chart analysis (MD)",
-            default_filename,
-            "Markdown Files (*.md)",
-        )
-        if not file_path:
-            return
-        if not file_path.lower().endswith(".md"):
-            file_path = f"{file_path}.md"
-
-        markdown_text = build_chart_export_markdown(chart)
-        try:
-            with open(file_path, "w", encoding="utf-8") as md_file:
-                md_file.write(markdown_text)
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export failed",
-                f"Could not export chart markdown:\n{e}",
-            )
-            return
-
-        QMessageBox.information(
-            self,
-            "Export complete",
-            f"Saved chart markdown to:\n{file_path}",
-        )
-
     def on_export_chart(self) -> None:
-        self._export_chart(self._latest_chart)
+        self._chart_markdown_export_controller.export(self._latest_chart)
 
     def _selected_chart_id_from_manage_view(self) -> int | None:
         manage_dialog = self._manage_charts_dialog
