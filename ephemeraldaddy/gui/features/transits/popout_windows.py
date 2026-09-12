@@ -54,7 +54,7 @@ from ephemeraldaddy.gui.features.transits.range_worker import (
     PersonalTransitRangeWorker,
 )
 from ephemeraldaddy.gui.features.transits.theme_view import (
-    format_transit_range_table, theme_entries_grouped_by_time,
+    format_transit_range_table, theme_entries_grouped_by_time, transit_aspect_event_name,
 )
 from ephemeraldaddy.gui.features.transits.theme_table import build_theme_aspect_table
 from ephemeraldaddy.gui.features.retcon.transit_window import (
@@ -125,6 +125,9 @@ class TransitPopoutController:
                         "p1": entry.transiting_body,
                         "p2": entry.natal_body,
                         "type": entry.aspect_type,
+                        "event_name": transit_aspect_event_name(
+                            entry.transiting_body, entry.aspect_type, entry.natal_body
+                        ),
                     })
                 sections.append((heading, rows))
             table = build_theme_aspect_table(
@@ -169,6 +172,7 @@ class TransitPopoutController:
                     "p1": left,
                     "type": aspect_type,
                     "p2": right,
+                    "event_name": transit_aspect_event_name(left, aspect_type, right),
                 }
                 for left, aspect_type, right in grouped[theme_label]
             ]

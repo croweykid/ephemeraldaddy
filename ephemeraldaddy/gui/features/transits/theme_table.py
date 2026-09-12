@@ -52,17 +52,16 @@ def build_theme_aspect_table(
     row_activated: Callable[[dict[str, Any]], None],
 ) -> QTableWidget:
     """Build a Traits-style table whose entire data rows activate Chart Info."""
-    table = QTableWidget(0, 4)
-    table.setHorizontalHeaderLabels(("Date Range", "Transit", "Aspect", "Natal"))
+    table = QTableWidget(0, 3)
+    table.setHorizontalHeaderLabels(("Aspect Name", "Aspect", "Date Range"))
     table.setEditTriggers(QAbstractItemView.NoEditTriggers)
     table.setSelectionBehavior(QAbstractItemView.SelectRows)
     table.setSelectionMode(QAbstractItemView.SingleSelection)
     table.setAlternatingRowColors(True)
     table.verticalHeader().setVisible(False)
-    table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+    table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
     table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-    table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-    table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+    table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
     table.setStyleSheet(
         "QTableWidget { color:#f5f5f5; background:rgba(255,255,255,0.03); "
         "border:1px solid rgba(255,255,255,0.12); gridline-color:rgba(255,255,255,0.08); }"
@@ -81,14 +80,14 @@ def build_theme_aspect_table(
         header_item.setFont(font)
         header_item.setFlags(Qt.ItemIsEnabled)
         table.setItem(header_row, 0, header_item)
-        table.setSpan(header_row, 0, 1, 4)
+        table.setSpan(header_row, 0, 1, 3)
         if not entries:
             empty_row = table.rowCount()
             table.insertRow(empty_row)
             empty_item = QTableWidgetItem("None")
             empty_item.setFlags(Qt.ItemIsEnabled)
             table.setItem(empty_row, 0, empty_item)
-            table.setSpan(empty_row, 0, 1, 4)
+            table.setSpan(empty_row, 0, 1, 3)
             continue
         for entry in entries:
             row = table.rowCount()
@@ -105,16 +104,20 @@ def build_theme_aspect_table(
                 )
             else:
                 date_markup = html.escape(str(entry.get("date_label", "Unknown date")))
-            _rich_cell(table, row, 0, date_markup)
+            _rich_cell(table, row, 0, html.escape(str(entry.get("event_name", "Transit event"))))
             # _rich_cell replaces column zero's item, so retain activation data there.
             table.item(row, 0).setData(THEME_ASPECT_ROLE, entry)
             body_a = str(entry.get("p1", ""))
             body_b = str(entry.get("p2", ""))
             aspect = str(entry.get("type", "aspect"))
             aspect_key = aspect.lower().replace("-", "").replace("_", "").replace(" ", "")
-            _rich_cell(table, row, 1, f'<span style="color:{PLANET_COLORS.get(body_a, "#f5f5f5")}">{html.escape(body_a)}</span>')
-            _rich_cell(table, row, 2, f'<span style="color:{ASPECT_COLORS.get(aspect_key, "#f5f5f5")}">{html.escape(aspect.title())}</span>')
-            _rich_cell(table, row, 3, f'<span style="color:{PLANET_COLORS.get(body_b, "#f5f5f5")}">{html.escape(body_b)}</span>')
+            technical_aspect = (
+                f'<span style="color:{PLANET_COLORS.get(body_a, "#f5f5f5")}">{html.escape(body_a)}</span> '
+                f'<span style="color:{ASPECT_COLORS.get(aspect_key, "#f5f5f5")}">{html.escape(aspect.lower())}</span> '
+                f'<span style="color:{PLANET_COLORS.get(body_b, "#f5f5f5")}">{html.escape(body_b)}</span>'
+            )
+            _rich_cell(table, row, 1, technical_aspect)
+            _rich_cell(table, row, 2, date_markup)
 
     def _activate(row: int, _column: int) -> None:
         item = table.item(row, 0)

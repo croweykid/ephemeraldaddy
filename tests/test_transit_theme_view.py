@@ -14,11 +14,16 @@ from ephemeraldaddy.gui.features.transits.theme_view import (
     format_transit_range_table,
     format_transit_theme_view,
     theme_entries_grouped_by_time,
+    transit_aspect_event_name,
     themes_for_aspect_bodies,
 )
 
 
 UTC = datetime.timezone.utc
+
+
+def test_transit_aspect_event_name_is_distinct_from_technical_aspect_label():
+    assert transit_aspect_event_name("Saturn", "square", "Sun") == "Hard times with ego and identity"
 
 
 def test_theme_view_groups_aspect_under_reference_theme_with_dates():

@@ -64,8 +64,8 @@ def test_theme_tabs_use_rich_row_selectable_tables_with_semantic_colors():
         ROOT / "ephemeraldaddy/gui/features/transits/theme_table.py"
     ).read_text(encoding="utf-8")
 
-    assert "QTableWidget(0, 4)" in source
-    assert '("Date Range", "Transit", "Aspect", "Natal")' in source
+    assert "QTableWidget(0, 3)" in source
+    assert '("Aspect Name", "Aspect", "Date Range")' in source
     assert "QAbstractItemView.SelectRows" in source
     assert "table.cellClicked.connect(_activate)" in source
     assert "PLANET_COLORS.get(" in source

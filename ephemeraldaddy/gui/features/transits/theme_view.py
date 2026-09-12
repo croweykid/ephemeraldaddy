@@ -10,6 +10,50 @@ from typing import Any, Iterable
 from ephemeraldaddy.core.theme_reference import THEMES
 
 
+_ASPECT_EVENT_PHRASES = {
+    "conjunction": "Intensified {topic}",
+    "opposition": "Push and pull with {topic}",
+    "square": "Hard times with {topic}",
+    "trine": "Easy flow with {topic}",
+    "sextile": "Opportunities with {topic}",
+    "quincunx": "Adjustments around {topic}",
+    "semisextile": "Small changes around {topic}",
+    "semisquare": "Friction with {topic}",
+    "sesquiquadrate": "Escalation around {topic}",
+    "quintile": "Creative solutions with {topic}",
+    "biquintile": "Creative development with {topic}",
+}
+
+_BODY_EVENT_TOPICS = {
+    "Sun": "ego and identity",
+    "Moon": "feelings and needs",
+    "Mercury": "thoughts and communication",
+    "Venus": "love and values",
+    "Mars": "action and assertion",
+    "Jupiter": "growth and opportunity",
+    "Saturn": "limits and responsibility",
+    "Uranus": "freedom and change",
+    "Neptune": "ideals and uncertainty",
+    "Pluto": "power and transformation",
+    "Rahu": "future direction",
+    "Ketu": "the past and release",
+    "AS": "identity and presentation",
+    "MC": "career and reputation",
+    "DS": "partnerships",
+    "IC": "home and foundations",
+}
+
+
+def transit_aspect_event_name(
+    transiting_body: str, aspect_type: str, natal_body: str
+) -> str:
+    """Return a concise human title distinct from the technical aspect label."""
+    aspect_key = str(aspect_type).lower().replace("-", "").replace("_", "").replace(" ", "")
+    topic = _BODY_EVENT_TOPICS.get(str(natal_body), str(natal_body).lower())
+    template = _ASPECT_EVENT_PHRASES.get(aspect_key, "Activity around {topic}")
+    return template.format(topic=topic)
+
+
 @dataclass(frozen=True, slots=True)
 class TransitThemeEntry:
     theme_key: str
