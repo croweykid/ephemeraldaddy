@@ -11,13 +11,14 @@ import html
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QObject, QPoint, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -419,19 +420,27 @@ class RankingsPanelMixin:
         )
         original_size = label.size()
         painter = None
+        save_succeeded = False
         try:
             label.resize(export_width, export_height)
             pixmap = QPixmap(export_width, export_height)
             pixmap.fill(QColor("#17191d"))
             painter = QPainter(pixmap)
-            label.render(painter)
+            label.render(painter, QPoint())
             painter.end()
             painter = None
-            pixmap.save(save_path, "PNG")
+            save_succeeded = pixmap.save(save_path, "PNG")
         finally:
             if painter is not None and painter.isActive():
                 painter.end()
             label.resize(original_size)
+
+        if not save_succeeded:
+            QMessageBox.critical(
+                self,
+                "Export failed",
+                f"Could not save the ranking PNG to:\n{save_path}",
+            )
 
     def _on_rankings_section_toggled(self, section: str, expanded: bool) -> None:
         """Refresh a Rankings section only when it becomes visible."""
