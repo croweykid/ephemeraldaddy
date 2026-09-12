@@ -305,6 +305,7 @@ class TransitPopoutController:
             transit_file_stem,
             export_text_provider=lambda: _build_personal_transit_export_text(),
         )
+        summary_share_ready_tooltip = summary_share_button.toolTip()
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
@@ -323,6 +324,7 @@ class TransitPopoutController:
         range_worker: PersonalTransitRangeWorker | None = None
         range_relay: PersonalTransitRangeRelay | None = None
         range_loading = False
+        range_error: str | None = None
 
         def _summary_header_lines() -> list[str]:
             return build_personal_transit_header_lines(
@@ -334,7 +336,7 @@ class TransitPopoutController:
             )
 
         def _refresh_theme_view() -> None:
-            nonlocal range_generation, range_thread, range_worker, range_relay, range_loading
+            nonlocal range_generation, range_thread, range_worker, range_relay, range_loading, range_error
             center = transit_chart.dt or datetime.datetime.now(datetime.timezone.utc)
             chart_uid = str(
                 getattr(natal_chart, "chart_uid", None)
@@ -342,19 +344,28 @@ class TransitPopoutController:
                 or ""
             )
             if not chart_uid:
+                range_loading = False
+                range_error = "The natal chart must be saved with a permanent Chart UID."
                 theme_output.setPlainText(
                     "Theme View needs the natal chart's permanent Chart UID. Save the chart first."
                 )
+                summary_share_button.setEnabled(True)
+                summary_share_button.setToolTip(summary_share_ready_tooltip)
                 _refresh_summary()
                 return
             range_generation += 1
             generation = range_generation
             range_loading = True
+            range_error = None
             if range_thread is not None and range_thread.isRunning():
                 range_thread.requestInterruption()
                 range_thread.quit()
 
             theme_output.setPlainText("Calculating major transits for the surrounding 60 days…")
+            summary_share_button.setEnabled(False)
+            summary_share_button.setToolTip(
+                "Export will be available when the surrounding transit scan finishes."
+            )
             surrounding_major_windows.clear()
             _refresh_summary()
 
@@ -373,22 +384,30 @@ class TransitPopoutController:
             worker.failed.connect(relay.forward_failed, Qt.QueuedConnection)
 
             def _range_ready(completed_generation: int, payload: object) -> None:
-                nonlocal range_loading
+                nonlocal range_loading, range_error
                 if completed_generation != range_generation:
                     return
                 range_loading = False
+                range_error = None
                 windows = list(payload) if isinstance(payload, (list, tuple)) else []
                 surrounding_major_windows[:] = windows
-                theme_output.setPlainText(format_transit_theme_view(windows))
+                theme_output.setPlainText(
+                    format_transit_theme_view(windows, display_timezone=local_tz)
+                )
+                summary_share_button.setEnabled(True)
+                summary_share_button.setToolTip(summary_share_ready_tooltip)
                 _refresh_summary()
 
             def _range_failed(failed_generation: int, error_text: str) -> None:
-                nonlocal range_loading
+                nonlocal range_loading, range_error
                 if failed_generation != range_generation or error_text == "Cancelled":
                     return
                 range_loading = False
+                range_error = error_text or "Unknown range calculation error"
                 logger.warning("Personal Transit range calculation failed: %s", error_text)
                 theme_output.setPlainText("Theme View could not calculate this transit range.")
+                summary_share_button.setEnabled(True)
+                summary_share_button.setToolTip(summary_share_ready_tooltip)
                 _refresh_summary()
 
             def _range_thread_finished(finished_thread: QThread = thread) -> None:
@@ -1013,11 +1032,18 @@ class TransitPopoutController:
                 else:
                     lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
                 lines.append("")
-            range_text = (
-                "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n- Calculating…"
-                if range_loading
-                else format_transit_range_table(surrounding_major_windows)
-            )
+            if range_loading:
+                range_text = "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n- Calculating…"
+            elif range_error:
+                range_text = (
+                    "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n"
+                    f"- Unavailable ({range_error})"
+                )
+            else:
+                range_text = format_transit_range_table(
+                    surrounding_major_windows,
+                    display_timezone=local_tz,
+                )
             lines.extend(["", range_text])
             return "\n".join(lines)
 
@@ -1350,6 +1376,7 @@ class TransitPopoutController:
                         known_positions=getattr(active_chart, "positions", {}) or {},
                     ),
                     active_chart.dt,
+                    display_timezone=self._host.transit_panel_controller.display_timezone,
                 )
             )
 

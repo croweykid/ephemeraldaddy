@@ -65,6 +65,27 @@ def test_truncated_personal_windows_do_not_claim_clipped_dates_are_boundaries():
     assert "before 2026-08-13 – after 2026-10-12" in table_text
 
 
+def test_transit_views_convert_dates_to_display_timezone():
+    display_tz = datetime.timezone(datetime.timedelta(hours=-5))
+    definition = TimelineTransitDefinition("Pluto", "Sun", 10.0, "square", 90.0, 3.0)
+    window = PersonalTimelineWindow(
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        definition,
+        datetime.datetime(2026, 9, 12, 0, 30, tzinfo=UTC),
+        datetime.datetime(2026, 9, 13, 0, 30, tzinfo=UTC),
+    )
+
+    table_text = format_transit_range_table([window], display_timezone=display_tz)
+    global_text = format_global_transit_theme_view(
+        [{"p1": "Pluto", "p2": "Sun", "type": "square"}],
+        datetime.datetime(2026, 9, 12, 0, 30, tzinfo=UTC),
+        display_timezone=display_tz,
+    )
+
+    assert "2026-09-11 – 2026-09-12" in table_text
+    assert "2026-09-11  Pluto square Sun" in global_text
+
+
 def test_short_range_candidates_match_personal_transit_mode_rules():
     definitions = _build_personal_transit_range_definitions(
         SimpleNamespace(positions={"Sun": 0.0, "Pluto": 10.0})

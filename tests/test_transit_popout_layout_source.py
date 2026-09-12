@@ -51,3 +51,6 @@ def test_personal_range_runs_in_cancellable_worker_not_gui_thread():
     assert "worker.moveToThread(thread)" in windows_source
     assert "thread.requestInterruption()" in windows_source
     assert "cancelled=thread.isInterruptionRequested" in worker_source
+    assert "summary_share_button.setEnabled(False)" in windows_source
+    assert "elif range_error:" in windows_source
+    assert 'f"- Unavailable ({range_error})"' in windows_source

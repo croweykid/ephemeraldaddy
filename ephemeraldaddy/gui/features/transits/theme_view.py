@@ -27,8 +27,12 @@ def _format_window_dates(
     *,
     start_truncated: bool,
     end_truncated: bool,
+    display_timezone: datetime.tzinfo | None = None,
 ) -> str:
     """Make clipped scan boundaries visibly different from resolved dates."""
+    if display_timezone is not None:
+        start = start.astimezone(display_timezone)
+        end = end.astimezone(display_timezone)
     start_text = f"before {start:%Y-%m-%d}" if start_truncated else f"{start:%Y-%m-%d}"
     end_text = f"after {end:%Y-%m-%d}" if end_truncated else f"{end:%Y-%m-%d}"
     return f"{start_text} – {end_text}"
@@ -66,7 +70,11 @@ def theme_entries_for_windows(windows: Iterable[Any]) -> tuple[TransitThemeEntry
     return tuple(sorted(entries, key=lambda entry: (entry.theme_label, entry.start, entry.aspect_label)))
 
 
-def format_transit_theme_view(windows: Iterable[Any]) -> str:
+def format_transit_theme_view(
+    windows: Iterable[Any],
+    *,
+    display_timezone: datetime.tzinfo | None = None,
+) -> str:
     """Format aspect windows under Theme Reference headings with their dates."""
     grouped: dict[str, list[TransitThemeEntry]] = defaultdict(list)
     for entry in theme_entries_for_windows(windows):
@@ -83,28 +91,40 @@ def format_transit_theme_view(windows: Iterable[Any]) -> str:
                 entry.end,
                 start_truncated=entry.start_truncated,
                 end_truncated=entry.end_truncated,
+                display_timezone=display_timezone,
             )
             lines.append(f"- {dates}  {entry.aspect_label}")
         lines.append("")
     return "\n".join(lines).rstrip()
 
 
-def format_transit_range_table(windows: Iterable[Any]) -> str:
+def format_transit_range_table(
+    windows: Iterable[Any],
+    *,
+    display_timezone: datetime.tzinfo | None = None,
+) -> str:
     """Format recent and approaching major windows for the Table View."""
     ordered = sorted(windows, key=lambda window: (window.start, window.end, window.transit.label))
     if not ordered:
         return "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n- None within configured major-transit orbs."
     lines = ["SURROUNDING MAJOR TRANSITS (±30 DAYS)"]
     lines.extend(
-        f"- {_format_window_dates(window.start, window.end, start_truncated=window.start_truncated, end_truncated=window.end_truncated)}  {window.transit.label}"
+        f"- {_format_window_dates(window.start, window.end, start_truncated=window.start_truncated, end_truncated=window.end_truncated, display_timezone=display_timezone)}  {window.transit.label}"
         for window in ordered
     )
     return "\n".join(lines)
 
 
-def format_global_transit_theme_view(aspects: Iterable[Any], when: datetime.datetime | None) -> str:
+def format_global_transit_theme_view(
+    aspects: Iterable[Any],
+    when: datetime.datetime | None,
+    *,
+    display_timezone: datetime.tzinfo | None = None,
+) -> str:
     """Group a global chart's aspects by Theme Reference body memberships."""
     grouped: dict[str, list[str]] = defaultdict(list)
+    if when is not None and display_timezone is not None:
+        when = when.astimezone(display_timezone)
     date_label = f"{when:%Y-%m-%d}" if when is not None else "Unknown date"
     for aspect in aspects:
         if isinstance(aspect, dict):
