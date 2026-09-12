@@ -88,6 +88,20 @@ def _configure_nakshatra(owner: Owner, canvas: Canvas, info_panel: InfoPanel, ch
     canvas.mpl_connect("pick_event", _on_pick)
 
 
+def _configure_quadrants(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
+    del owner, chart
+    from ephemeraldaddy.gui.features.charts.quadrants import build_quadrant_info_html
+
+    def _on_pick(event: object) -> None:
+        artist_gid = _artist_gid(event)
+        if artist_gid is None or not artist_gid.startswith("quadrant:"):
+            return
+        _, quadrant = artist_gid.split(":", 1)
+        info_panel.setHtml(build_quadrant_info_html(quadrant))
+
+    canvas.mpl_connect("pick_event", _on_pick)
+
+
 def _configure_enneagram(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
     from ephemeraldaddy.gui.features.charts.enneagram_predictions import connect_enneagram_popout_pick_handler
 
@@ -194,6 +208,14 @@ METRIC_PANEL_SPECS: tuple[MetricPanelSpec, ...] = (
             int_keys={"house"},
         ),
         cache_key="chart-analysis:dominant_houses",
+    ),
+    MetricPanelSpec(
+        key="quadrants",
+        title="Quadrants",
+        draw=_call_draw("_draw_quadrants"),
+        popout_size=(8.5, 4.2),
+        placeholder="Click a quadrant bar or label to view its interpretation.",
+        configure_info=_configure_quadrants,
     ),
     MetricPanelSpec(
         key="enneagram",
