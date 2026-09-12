@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from ephemeraldaddy.gui.features.charts.metric_popout_registry import (
     METRIC_PANEL_SPECS_BY_TITLE,
     build_metric_popout_figure,
@@ -9,14 +11,11 @@ from ephemeraldaddy.gui.features.charts.metric_popout_registry import (
 class DummyOwner:
     def __init__(self):
         self.drawn = []
+        self._chart_analysis_chart_dropdowns = {}
 
     def _draw_house_tally(self, ax, chart):
         self.drawn.append(("houses", chart))
         ax.set_title("houses")
-
-    def _draw_quadrants(self, ax, chart):
-        self.drawn.append(("quadrants", chart))
-        ax.set_title("quadrants")
 
 
 class DummyCanvas:
@@ -53,6 +52,22 @@ class DummyPickEvent:
         self.artist = DummyArtist(gid)
 
 
+def _timed_chart():
+    return SimpleNamespace(
+        birthtime_unknown=False,
+        retcon_time_used=False,
+        houses=[float(degree) for degree in range(0, 360, 30)],
+        positions={
+            "Sun": 15.0,
+            "Moon": 45.0,
+            "Mercury": 105.0,
+            "Venus": 195.0,
+            "Mars": 285.0,
+        },
+        aspects=[],
+    )
+
+
 def test_metric_panel_spec_aliases_resolve_to_same_spec():
     assert metric_panel_spec_for_title("Modes") is metric_panel_spec_for_title("Dominant Modes")
     assert metric_panel_spec_for_title("Nakshatra Prevalence") is metric_panel_spec_for_title("Dominant Nakshatras")
@@ -75,23 +90,37 @@ def test_registered_metric_popout_figure_uses_spec_size_and_draw_callback():
     assert figure.axes[0].get_title() == "houses"
 
 
-def test_quadrants_popout_is_registered_and_uses_owner_draw_callback():
+def test_quadrants_popout_is_registered_and_draws_pickable_quadrants():
     owner = DummyOwner()
-    chart = object()
+    chart = _timed_chart()
 
     spec = metric_panel_spec_for_title("Quadrants")
     figure = build_metric_popout_figure(owner, "Quadrants", chart, background_color="#101010")
+    ax = figure.axes[0]
 
     assert spec is not None
     assert spec.key == "quadrants"
     assert spec.configure_info is not None
-    assert owner.drawn == [("quadrants", chart)]
-    assert figure.axes[0].get_title() == "quadrants"
+    assert ax.get_title() == "Quadrants — Object Count"
+    assert [bar.get_gid() for bar in ax.patches] == [
+        "quadrant:I",
+        "quadrant:II",
+        "quadrant:III",
+        "quadrant:IV",
+    ]
+    assert all(bar.get_picker() is True for bar in ax.patches)
+    assert [label.get_gid() for label in ax.get_xticklabels()] == [
+        "quadrant:I",
+        "quadrant:II",
+        "quadrant:III",
+        "quadrant:IV",
+    ]
+    assert all(label.get_picker() is True for label in ax.get_xticklabels())
 
 
 def test_quadrants_popout_pick_updates_interpretation_panel():
     owner = DummyOwner()
-    chart = object()
+    chart = _timed_chart()
     canvas = DummyCanvas()
     info_panel = DummyInfoPanel()
 
