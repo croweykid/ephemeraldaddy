@@ -21,6 +21,7 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 
 SAMPLE_UIDS_KEY = "sample_uids"
 LEGACY_SAMPLE_UIDS_KEY = "chartUIDs"
+ANTISAMPLE_UIDS_KEY = "antisample_uids"
 UNSPECIFIED_GENDER_LABEL = "Unspecified"
 
 
@@ -188,14 +189,30 @@ def sample_uids_for_profile(profile: Mapping[str, Any]) -> tuple[object, ...]:
     return tuple(raw_uids)
 
 
-def chart_uid_is_ascribed(profile: Mapping[str, Any], chart_uid: object) -> bool:
-    """Return whether a chart UID belongs to the trait's original source sample."""
+def antisample_uids_for_profile(profile: Mapping[str, Any]) -> tuple[object, ...]:
+    """Return canonical anti-trait source-sample provenance values."""
+    raw_uids = profile.get(ANTISAMPLE_UIDS_KEY, ())
+    if not isinstance(raw_uids, (list, tuple, set, frozenset)):
+        return ()
+    return tuple(raw_uids)
+
+
+def _uid_is_in_values(values: Iterable[object], chart_uid: object) -> bool:
     target = normalize_chart_uid(chart_uid)
     if not target:
         return False
-    raw_uids = sample_uids_for_profile(profile)
     return target in {
-        normalize_chart_uid(value)
-        for value in raw_uids
-        if normalize_chart_uid(value)
+        normalized
+        for value in values
+        if (normalized := normalize_chart_uid(value))
     }
+
+
+def chart_uid_is_ascribed(profile: Mapping[str, Any], chart_uid: object) -> bool:
+    """Return whether a chart UID belongs to the trait's original source sample."""
+    return _uid_is_in_values(sample_uids_for_profile(profile), chart_uid)
+
+
+def chart_uid_is_anti_ascribed(profile: Mapping[str, Any], chart_uid: object) -> bool:
+    """Return whether a chart UID belongs to an imported anti-trait source sample."""
+    return _uid_is_in_values(antisample_uids_for_profile(profile), chart_uid)

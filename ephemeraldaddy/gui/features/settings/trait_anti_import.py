@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -11,6 +11,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QPushButton
 
 from ephemeraldaddy.analysis import traits as trait_store
+from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
+    ANTISAMPLE_UIDS_KEY,
+    normalize_chart_uid,
+    sample_uids_for_profile,
+)
 
 
 NORMAL_TO_ANTI_PROPERTY_KEYS: dict[str, str] = {
@@ -49,19 +54,43 @@ def anti_properties_from_profile(profile: Mapping[str, Any]) -> dict[str, dict[A
     return imported
 
 
-def load_anti_properties_from_file(path: str | Path) -> dict[str, dict[Any, Any]]:
-    """Parse a trait/Similarities Analysis export and return ordinary properties as anti data."""
+def _normalized_sample_uids(values: Iterable[object]) -> list[str]:
+    """Normalize provenance UIDs while preserving first-seen order."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        uid = normalize_chart_uid(value)
+        if not uid or uid in seen:
+            continue
+        seen.add(uid)
+        normalized.append(uid)
+    return normalized
+
+
+def load_anti_trait_from_file(
+    path: str | Path,
+) -> tuple[dict[str, dict[Any, Any]], tuple[str, ...]]:
+    """Return anti-property data plus the source trait's positive sample provenance."""
     profiles = trait_store.parse_trait_file(path)
     source_profile = next(iter(profiles.values()))
     imported = anti_properties_from_profile(source_profile)
     if not imported:
         raise ValueError("The selected file does not contain any ordinary weighted trait properties.")
+    source_sample_uids = tuple(_normalized_sample_uids(sample_uids_for_profile(source_profile)))
+    return imported, source_sample_uids
+
+
+def load_anti_properties_from_file(path: str | Path) -> dict[str, dict[Any, Any]]:
+    """Parse a trait/Similarities Analysis export and return ordinary properties as anti data."""
+    imported, _source_sample_uids = load_anti_trait_from_file(path)
     return imported
 
 
 def trait_profile_has_anti_properties(profile: Mapping[str, Any]) -> bool:
-    """Return whether any recognized anti-property bucket currently contains data."""
-    return any(bool(profile.get(key)) for key in ANTI_PROPERTY_KEYS)
+    """Return whether recognized anti-property or anti-sample provenance data exists."""
+    return any(bool(profile.get(key)) for key in ANTI_PROPERTY_KEYS) or bool(
+        profile.get(ANTISAMPLE_UIDS_KEY)
+    )
 
 
 def apply_anti_properties_to_trait(
@@ -69,12 +98,14 @@ def apply_anti_properties_to_trait(
     imported_anti_properties: Mapping[str, Mapping[Any, Any]],
     *,
     replace: bool,
+    source_sample_uids: Iterable[object] | None = None,
 ) -> Path:
-    """Append or replace anti-property buckets in one installed trait file.
+    """Append or replace anti-property buckets and optional anti-sample provenance.
 
     In append mode, imported values win only when the same criterion already exists
-    in the same anti bucket. In replace mode, every recognized anti bucket is first
-    cleared, so categories omitted by the new file do not survive from the old data.
+    in the same anti bucket, while incoming source-sample UIDs are appended with
+    stable de-duplication. In replace mode, every recognized anti bucket is first
+    cleared and anti-sample provenance is replaced when it was supplied by the caller.
     """
     clean_import: dict[str, dict[Any, Any]] = {}
     for anti_key, values in imported_anti_properties.items():
@@ -89,7 +120,7 @@ def apply_anti_properties_to_trait(
     profiles = trait_store.parse_trait_file(target)
     _target_name, target_profile = next(iter(profiles.items()))
 
-    updates: dict[str, dict[Any, Any]] = {}
+    updates: dict[str, Any] = {}
     if replace:
         updates.update({anti_key: {} for anti_key in ANTI_PROPERTY_KEYS})
 
@@ -101,6 +132,18 @@ def apply_anti_properties_to_trait(
         merged = dict(current) if isinstance(current, Mapping) else {}
         merged.update(incoming)
         updates[anti_key] = merged
+
+    if source_sample_uids is not None:
+        incoming_uids = _normalized_sample_uids(source_sample_uids)
+        if replace:
+            updates[ANTISAMPLE_UIDS_KEY] = incoming_uids
+        else:
+            current_uids = target_profile.get(ANTISAMPLE_UIDS_KEY, ())
+            if not isinstance(current_uids, (list, tuple, set, frozenset)):
+                current_uids = ()
+            updates[ANTISAMPLE_UIDS_KEY] = _normalized_sample_uids(
+                [*current_uids, *incoming_uids]
+            )
 
     # Use the Trait store's canonical rewrite path so tuple channel keys, JSON-safe
     # conversion, and preserved source comments behave exactly like other Trait edits.
@@ -224,7 +267,7 @@ def on_trait_append_anti_clicked(core: ModuleType, owner: Any) -> None:
         return
 
     try:
-        imported = load_anti_properties_from_file(file_path)
+        imported, source_sample_uids = load_anti_trait_from_file(file_path)
         target_profiles = trait_store.parse_trait_file(item.data(Qt.UserRole))
         _target_name, target_profile = next(iter(target_profiles.items()))
     except Exception as exc:
@@ -247,6 +290,7 @@ def on_trait_append_anti_clicked(core: ModuleType, owner: Any) -> None:
             item.data(Qt.UserRole),
             imported,
             replace=replace,
+            source_sample_uids=source_sample_uids,
         )
     except Exception as exc:
         QMessageBox.warning(
