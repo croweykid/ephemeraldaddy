@@ -18,7 +18,7 @@ jobs:
           ref: feature/rankings-export-visible-rows
           fetch-depth: 0
 
-      - name: Fix ranking export icon path
+      - name: Finalize ranking export implementation
         shell: bash
         run: |
           python - <<'PY'
@@ -26,14 +26,37 @@ jobs:
 
           path = Path('ephemeraldaddy/gui/ranking_panel.py')
           text = path.read_text(encoding='utf-8')
-          old = 'Path(__file__).resolve().parents[2] / "graphics" / "share_icon2.png"'
-          new = 'Path(__file__).resolve().parent / "graphics" / "share_icon2.png"'
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f'Expected exactly one icon path occurrence, found {count}')
-          path.write_text(text.replace(old, new), encoding='utf-8')
 
-          icon = Path('ephemeraldaddy/gui/graphics/share_icon2.png')
+          old_import = 'from PySide6.QtCore import QEvent, QObject, Qt, QThread, QTimer, Signal'
+          new_import = 'from PySide6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QThread, QTimer, Signal'
+          if text.count(old_import) != 1:
+              raise SystemExit(f'Expected one QtCore import anchor, found {text.count(old_import)}')
+          text = text.replace(old_import, new_import)
+
+          old_icon = 'Path(__file__).resolve().parents[2] / "graphics" / "share_icon2.png"'
+          new_icon = 'Path(__file__).resolve().parents[1] / "graphics" / "share_icon2.png"'
+          if text.count(old_icon) != 1:
+              raise SystemExit(f'Expected one icon path anchor, found {text.count(old_icon)}')
+          text = text.replace(old_icon, new_icon)
+
+          required = (
+              'rankings_most_sign_limit = 10',
+              'rankings_least_sign_limit = 10',
+              'QPushButton("Show next 10")',
+              '_show_more_most_dominant_signs',
+              '_show_more_least_dominant_signs',
+              '_rankings_export_full_label_png',
+              '_export_rankings_traits_png',
+              '_export_rankings_most_sign_png',
+              '_export_rankings_least_sign_png',
+          )
+          missing = [token for token in required if token not in text]
+          if missing:
+              raise SystemExit(f'Missing expected ranking feature tokens: {missing}')
+
+          path.write_text(text, encoding='utf-8')
+
+          icon = Path('ephemeraldaddy/graphics/share_icon2.png')
           if not icon.is_file():
               raise SystemExit(f'Expected packaged icon missing: {icon}')
           PY
@@ -48,5 +71,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/finalize-rankings-export.yml
           git add ephemeraldaddy/gui/ranking_panel.py
-          git commit -m "Fix ranking export icon path"
+          git commit -m "Fix ranking export runtime dependencies"
           git push origin HEAD:feature/rankings-export-visible-rows
