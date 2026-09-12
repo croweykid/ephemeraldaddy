@@ -364,6 +364,11 @@ from ephemeraldaddy.gui.features.chart_information.aspect_sentences import (
 from ephemeraldaddy.gui.features.chart_information.position_sentences import (
     build_position_sentence_model,
 )
+from ephemeraldaddy.gui.features.chart_information.rich_text import (
+    ChartInformationDocument,
+    build_decan_document,
+    build_mode_document,
+)
 from ephemeraldaddy.gui.features.import_export.chart_markdown_controller import (
     ChartMarkdownExportCallbacks,
     ChartMarkdownExportController,
@@ -31400,25 +31405,31 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if decan is None:
             self.chart_info_output.setPlainText(f"{display_body}: no decan data available.")
             return
-        title_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        decan_color = PLANET_COLORS.get(decan.subsign_ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        self._render_chart_information_document(
+            build_decan_document(
+                decan,
+                body_name=body_key,
+                display_body=display_body,
+                default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+            )
+        )
 
+    def _render_chart_information_document(
+        self, document: ChartInformationDocument
+    ) -> None:
+        """Render a toolkit-neutral Chart Information document into the Qt panel."""
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
         cursor.movePosition(QTextCursor.Start)
-        title_fmt = QTextCharFormat()
-        title_fmt.setForeground(QColor(title_color))
-        title_fmt.setFontWeight(QFont.Bold)
-        subheader_fmt = QTextCharFormat()
-        subheader_fmt.setForeground(QColor(decan_color))
-        subheader_fmt.setFontItalic(True)
-        plain_fmt = QTextCharFormat()
-        plain_fmt.setFontWeight(QFont.Normal)
-        cursor.insertText(f"{display_body}: {decan.ordinal_label} decan of {decan.sign_name}\n\n", title_fmt)
-        if decan.description:
-            cursor.insertText(f"{decan.description}\n\n", subheader_fmt)
-        for keyword in decan.keywords:
-            cursor.insertText(f"• {keyword}\n", plain_fmt)
+        for run in document.runs:
+            text_format = QTextCharFormat()
+            if run.style.color:
+                text_format.setForeground(QColor(run.style.color))
+            text_format.setFontWeight(QFont.Bold if run.style.bold else QFont.Normal)
+            text_format.setFontItalic(run.style.italic)
+            if run.style.point_size is not None:
+                text_format.setFontPointSize(run.style.point_size)
+            cursor.insertText(run.text, text_format)
         self.chart_info_output.setTextCursor(cursor)
         reset_cursor = self.chart_info_output.textCursor()
         reset_cursor.movePosition(QTextCursor.Start)
@@ -31652,39 +31663,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.chart_info_output.setPlainText(f"{model.label}\n\nNo keyword data available.")
             return
 
-        self.chart_info_output.clear()
-        cursor = self.chart_info_output.textCursor()
-        cursor.movePosition(QTextCursor.Start)
-
-        title_fmt = QTextCharFormat()
-        title_fmt.setForeground(QColor(MODE_COLORS.get(model.key, CHART_THEME_COLORS.get("text", "#f5f5f5"))))
-        title_fmt.setFontWeight(QFont.Bold)
-        title_fmt.setFontPointSize(13)
-        header_fmt = QTextCharFormat()
-        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
-        header_fmt.setFontWeight(QFont.Bold)
-        plain_fmt = QTextCharFormat()
-        plain_fmt.setFontWeight(QFont.Normal)
-        plain_fmt.setFontItalic(False)
-
-        cursor.insertText(f"{model.label} Mode\n\n", title_fmt)
-        if model.keywords:
-            cursor.insertText("Keywords:", header_fmt)
-            cursor.insertText("\n", plain_fmt)
-            for keyword in model.keywords:
-                cursor.insertText(f"• {keyword}\n", plain_fmt)
-        if model.signs:
-            if model.keywords:
-                cursor.insertText("\n", plain_fmt)
-            cursor.insertText("Signs:", header_fmt)
-            cursor.insertText("\n", plain_fmt)
-            for sign in model.signs:
-                cursor.insertText(f"• {sign}\n", plain_fmt)
-
-        self.chart_info_output.setTextCursor(cursor)
-        reset_cursor = self.chart_info_output.textCursor()
-        reset_cursor.movePosition(QTextCursor.Start)
-        self.chart_info_output.setTextCursor(reset_cursor)
+        self._render_chart_information_document(
+            build_mode_document(
+                model,
+                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+            )
+        )
 
     def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
         self.chart_info_output.setPlainText(
