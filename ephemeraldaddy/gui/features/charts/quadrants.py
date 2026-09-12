@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from html import escape
 
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_house_weights,
@@ -15,6 +16,20 @@ QUADRANT_DEFINITIONS: tuple[tuple[str, str, tuple[int, int, int]], ...] = (
     ("III", "Social Identity", (7, 8, 9)),
     ("IV", "Social Expression", (10, 11, 12)),
 )
+
+QUADRANT_AXES: dict[str, tuple[str, str]] = {
+    "I": ("Personal / Private", "Self-Directed"),
+    "II": ("Personal / Private", "Other-Responsive"),
+    "III": ("Social / Public", "Other-Responsive"),
+    "IV": ("Social / Public", "Self-Directed"),
+}
+
+QUADRANT_EXPLANATIONS: dict[str, str] = {
+    "I": "Developing, defining, and asserting the individual self through Houses 1–3.",
+    "II": "Expressing personal life through roots, creativity, work, and the immediate environment in Houses 4–6.",
+    "III": "Developing social identity through partners, other people, and wider perspectives in Houses 7–9.",
+    "IV": "Expressing the self publicly through vocation, collective participation, and social contribution in Houses 10–12.",
+}
 
 
 def quadrant_for_house(house: object) -> str | None:
@@ -67,3 +82,29 @@ def quadrant_percentages(values: Mapping[str, object] | None) -> dict[str, float
     if total <= 0:
         return {quadrant: 0.0 for quadrant in normalized}
     return {quadrant: (value / total) * 100.0 for quadrant, value in normalized.items()}
+
+
+def build_quadrant_info_html(quadrant: str) -> str:
+    """Build the Chart Analytics popout description for one quadrant."""
+    normalized = str(quadrant or "").strip().upper()
+    definition = next(
+        (
+            (meaning, houses)
+            for key, meaning, houses in QUADRANT_DEFINITIONS
+            if key == normalized
+        ),
+        None,
+    )
+    if definition is None:
+        return "<b>Quadrant</b><br>No interpretation is available."
+
+    meaning, houses = definition
+    vertical_axis, horizontal_axis = QUADRANT_AXES[normalized]
+    explanation = QUADRANT_EXPLANATIONS[normalized]
+    house_range = f"Houses {houses[0]}–{houses[-1]}"
+    return (
+        f"<b>Quadrant {escape(normalized)} — {escape(meaning)}</b><br>"
+        f"{escape(house_range)}<br><br>"
+        f"<b>Orientation:</b> {escape(vertical_axis)} × {escape(horizontal_axis)}<br><br>"
+        f"{escape(explanation)}"
+    )
