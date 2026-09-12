@@ -52,8 +52,11 @@ def test_personal_range_runs_in_cancellable_worker_not_gui_thread():
     assert "thread.requestInterruption()" in windows_source
     assert "cancelled=thread.isInterruptionRequested" in worker_source
     assert "summary_share_button.setEnabled(False)" in windows_source
-    assert "elif range_error:" in windows_source
+    assert "if range_error:" in windows_source
     assert 'f"- Unavailable ({range_error})"' in windows_source
+    assert 'lines.extend(["", _range_status_text()])' in windows_source
+    assert "transit_location," in windows_source
+    assert "transit_location=self._transit_location" in worker_source
 
 
 def test_failed_chart_update_does_not_cancel_the_current_range_worker():

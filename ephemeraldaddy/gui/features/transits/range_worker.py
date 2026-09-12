@@ -34,6 +34,7 @@ class PersonalTransitRangeWorker(QObject):
         chart: Any,
         start: datetime.datetime,
         end: datetime.datetime,
+        transit_location: tuple[float, float],
     ) -> None:
         super().__init__()
         self._generation = generation
@@ -41,6 +42,7 @@ class PersonalTransitRangeWorker(QObject):
         self._chart = chart
         self._start = start
         self._end = end
+        self._transit_location = transit_location
 
     @Slot()
     def run(self) -> None:
@@ -52,6 +54,7 @@ class PersonalTransitRangeWorker(QObject):
                 start=self._start,
                 end=self._end,
                 cancelled=thread.isInterruptionRequested,
+                transit_location=self._transit_location,
             )
         except Exception as exc:
             self.failed.emit(self._generation, str(exc))

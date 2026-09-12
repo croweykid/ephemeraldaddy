@@ -335,6 +335,19 @@ class TransitPopoutController:
                 local_tz=local_tz,
             )
 
+        def _range_status_text() -> str:
+            if range_loading:
+                return "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n- Calculating…"
+            if range_error:
+                return (
+                    "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n"
+                    f"- Unavailable ({range_error})"
+                )
+            return format_transit_range_table(
+                surrounding_major_windows,
+                display_timezone=local_tz,
+            )
+
         def _refresh_theme_view() -> None:
             nonlocal range_generation, range_thread, range_worker, range_relay, range_loading, range_error
             center = transit_chart.dt or datetime.datetime.now(datetime.timezone.utc)
@@ -376,6 +389,7 @@ class TransitPopoutController:
                 natal_chart,
                 center - datetime.timedelta(days=30),
                 center + datetime.timedelta(days=30),
+                transit_location,
             )
             relay = PersonalTransitRangeRelay(dialog)
             worker.moveToThread(thread)
@@ -732,6 +746,7 @@ class TransitPopoutController:
                 else:
                     lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
                 lines.append("")
+            lines.extend(["", _range_status_text()])
             summary_output.setPlainText("\n".join(lines))
             popout_context["aspect_info_map"] = aspect_info_map
             def _restore_scroll_positions() -> None:
@@ -1032,19 +1047,7 @@ class TransitPopoutController:
                 else:
                     lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
                 lines.append("")
-            if range_loading:
-                range_text = "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n- Calculating…"
-            elif range_error:
-                range_text = (
-                    "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n"
-                    f"- Unavailable ({range_error})"
-                )
-            else:
-                range_text = format_transit_range_table(
-                    surrounding_major_windows,
-                    display_timezone=local_tz,
-                )
-            lines.extend(["", range_text])
+            lines.extend(["", _range_status_text()])
             return "\n".join(lines)
 
         def _handle_calendar_click(cursor) -> bool:

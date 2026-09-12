@@ -16,11 +16,12 @@ from ephemeraldaddy.core.composite import (
     PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
     PERSONAL_TRANSIT_MAX_ORB_DEG,
     angular_distance,
+    compute_chart,
     personal_transit_rules_for_mode,
 )
 from ephemeraldaddy.core.ephemeris import planetary_longitude
 from ephemeraldaddy.core.interpretations import (
-    ASTEROIDS, BLACK_MOON_LILITH, EPHEMERIS_MAX_DATE, EPHEMERIS_MIN_DATE,
+    ANGLES, ASTEROIDS, BLACK_MOON_LILITH, EPHEMERIS_MAX_DATE, EPHEMERIS_MIN_DATE,
     FAST_TRANSIT_BODIES, NODES, OUTER_PLANETS, VERY_FAST_TRANSIT_BODIES,
 )
 
@@ -162,7 +163,11 @@ def _build_personal_transit_range_definitions(
     positions = dict(getattr(chart, "positions", {}) or {})
     transit_bodies = list(_timeline_transiting_bodies())
     transit_bodies.extend(
-        sorted((FAST_TRANSIT_BODIES | VERY_FAST_TRANSIT_BODIES).difference(transit_bodies))
+        sorted(
+            (FAST_TRANSIT_BODIES | VERY_FAST_TRANSIT_BODIES | ANGLES).difference(
+                transit_bodies
+            )
+        )
     )
     definitions: dict[tuple[str, str, str], TimelineTransitDefinition] = {}
     seen_axis_events: set[tuple[object, ...]] = set()
@@ -462,6 +467,7 @@ def generate_personal_transit_range(
     end: datetime.datetime,
     step_hours: float = 6.0,
     cancelled: Callable[[], bool] | None = None,
+    transit_location: tuple[float, float] | None = None,
 ) -> list[PersonalTimelineWindow]:
     """Generate major transit windows inside an explicit, short date range."""
     normalized_uid = str(chart_uid or "").strip().upper()
@@ -481,11 +487,26 @@ def generate_personal_transit_range(
         definitions_by_body.setdefault(definition.transiting_body, []).append(definition)
 
     longitude_cache: dict[tuple[datetime.datetime, str], float | None] = {}
+    chart_positions_cache: dict[datetime.datetime, dict[str, float]] = {}
 
     def longitude_at(when: datetime.datetime, body: str) -> float | None:
         key = (when, body)
         if key not in longitude_cache:
-            longitude_cache[key] = planetary_longitude(when, body)
+            if transit_location is not None:
+                positions = chart_positions_cache.get(when)
+                if positions is None:
+                    positions = dict(
+                        compute_chart(
+                            when,
+                            transit_location,
+                            name="Personal Transit range probe",
+                        ).positions
+                    )
+                    chart_positions_cache[when] = positions
+                value = positions.get(body)
+                longitude_cache[key] = float(value) if value is not None else None
+            else:
+                longitude_cache[key] = planetary_longitude(when, body)
         return longitude_cache[key]
 
     step = datetime.timedelta(hours=step_hours)

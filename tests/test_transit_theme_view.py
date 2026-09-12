@@ -93,6 +93,7 @@ def test_short_range_candidates_match_personal_transit_mode_rules():
     keys = {definition.key for definition in definitions}
 
     assert ("Sun", "Sun", "square") in keys  # Daily Vibe fast-body major aspect.
+    assert ("AS", "Sun", "square") in keys  # Location-dependent Daily Vibe angle.
     assert ("Pluto", "Sun", "quincunx") in keys  # Allowed Life Forecast minor aspect.
     assert ("Ceres", "Pluto", "quincunx") not in keys
 
@@ -189,6 +190,32 @@ def test_short_range_generator_honors_cancellation(monkeypatch):
 
     assert windows == []
     assert calls == 2
+
+
+def test_short_range_generator_uses_location_dependent_angle_positions(monkeypatch):
+    start = datetime.datetime(2026, 9, 1, tzinfo=UTC)
+    definition = TimelineTransitDefinition("AS", "Sun", 0.0, "conjunction", 0.0, 1.0)
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.transits.personal_timeline_generation._build_personal_transit_range_definitions",
+        lambda _chart: (definition,),
+    )
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.transits.personal_timeline_generation.compute_chart",
+        lambda when, _location, **_kwargs: SimpleNamespace(
+            positions={"AS": 0.0 if when == start else 20.0}
+        ),
+    )
+
+    windows = generate_personal_transit_range(
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        SimpleNamespace(positions={"Sun": 0.0}),
+        start=start,
+        end=start + datetime.timedelta(hours=6),
+        transit_location=(40.7128, -74.0060),
+    )
+
+    assert len(windows) == 1
+    assert windows[0].transit.transiting_body == "AS"
 
 
 @pytest.mark.parametrize("chart_uid", ["", "   "])
