@@ -6,6 +6,7 @@ import pytest
 from ephemeraldaddy.gui.features.transits.personal_timeline_generation import (
     PersonalTimelineWindow,
     TimelineTransitDefinition,
+    _build_personal_transit_range_definitions,
     generate_personal_transit_range,
 )
 from ephemeraldaddy.gui.features.transits.theme_view import (
@@ -46,13 +47,42 @@ def test_global_theme_view_groups_aspects_for_chart_date():
     assert "2026-09-12  Saturn square Sun" in text
 
 
+def test_truncated_personal_windows_do_not_claim_clipped_dates_are_boundaries():
+    definition = TimelineTransitDefinition("Pluto", "Sun", 10.0, "square", 90.0, 3.0)
+    window = PersonalTimelineWindow(
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        definition,
+        datetime.datetime(2026, 8, 13, tzinfo=UTC),
+        datetime.datetime(2026, 10, 12, tzinfo=UTC),
+        start_truncated=True,
+        end_truncated=True,
+    )
+
+    theme_text = format_transit_theme_view([window])
+    table_text = format_transit_range_table([window])
+
+    assert "before 2026-08-13 – after 2026-10-12" in theme_text
+    assert "before 2026-08-13 – after 2026-10-12" in table_text
+
+
+def test_short_range_candidates_match_personal_transit_mode_rules():
+    definitions = _build_personal_transit_range_definitions(
+        SimpleNamespace(positions={"Sun": 0.0, "Pluto": 10.0})
+    )
+    keys = {definition.key for definition in definitions}
+
+    assert ("Sun", "Sun", "square") in keys  # Daily Vibe fast-body major aspect.
+    assert ("Pluto", "Sun", "quincunx") in keys  # Allowed Life Forecast minor aspect.
+    assert ("Ceres", "Pluto", "quincunx") not in keys
+
+
 def test_short_range_generator_includes_approaching_and_recent_windows(monkeypatch):
     chart = SimpleNamespace(positions={"Sun": 0.0})
     start = datetime.datetime(2026, 8, 13, tzinfo=UTC)
     end = datetime.datetime(2026, 10, 12, tzinfo=UTC)
 
     monkeypatch.setattr(
-        "ephemeraldaddy.gui.features.transits.personal_timeline_generation._build_transit_definitions",
+        "ephemeraldaddy.gui.features.transits.personal_timeline_generation._build_personal_transit_range_definitions",
         lambda _chart: (TimelineTransitDefinition("Saturn", "Sun", 0.0, "conjunction", 0.0, 1.0),),
     )
     monkeypatch.setattr(

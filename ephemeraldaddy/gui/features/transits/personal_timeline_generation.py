@@ -9,14 +9,18 @@ from dataclasses import dataclass
 from typing import Any
 
 from ephemeraldaddy.core.composite import (
+    BodyPosition,
     COMPOSITE_ASPECT_TYPES,
+    PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+    PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
     PERSONAL_TRANSIT_MAX_ORB_DEG,
     angular_distance,
+    personal_transit_rules_for_mode,
 )
 from ephemeraldaddy.core.ephemeris import planetary_longitude
 from ephemeraldaddy.core.interpretations import (
     ASTEROIDS, BLACK_MOON_LILITH, EPHEMERIS_MAX_DATE, EPHEMERIS_MIN_DATE,
-    NODES, OUTER_PLANETS,
+    FAST_TRANSIT_BODIES, NODES, OUTER_PLANETS, VERY_FAST_TRANSIT_BODIES,
 )
 
 DEFAULT_TIMELINE_YEARS = 120
@@ -147,6 +151,56 @@ def _build_transit_definitions(chart: Any) -> tuple[TimelineTransitDefinition, .
                 )
                 definitions[definition.key] = definition
 
+    return tuple(definitions.values())
+
+
+def _build_personal_transit_range_definitions(
+    chart: Any,
+) -> tuple[TimelineTransitDefinition, ...]:
+    """Build exactly the candidates accepted by the two Personal Transit modes."""
+    positions = dict(getattr(chart, "positions", {}) or {})
+    transit_bodies = _TIMELINE_TRANSITING_BODIES | FAST_TRANSIT_BODIES | VERY_FAST_TRANSIT_BODIES
+    definitions: dict[tuple[str, str, str], TimelineTransitDefinition] = {}
+
+    for mode in (
+        PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+        PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+    ):
+        rules = personal_transit_rules_for_mode(mode)
+        for transit_name in transit_bodies:
+            transit_position = BodyPosition(name=transit_name, lon_deg=0.0)
+            for natal_name_raw, natal_longitude_raw in positions.items():
+                if natal_longitude_raw is None:
+                    continue
+                try:
+                    natal_longitude = float(natal_longitude_raw) % 360.0
+                except (TypeError, ValueError):
+                    continue
+                natal_name = str(natal_name_raw)
+                natal_position = BodyPosition(name=natal_name, lon_deg=natal_longitude)
+                if rules.pair_filter and not rules.pair_filter(
+                    transit_position, natal_position, rules.context
+                ):
+                    continue
+                for aspect in rules.aspect_types:
+                    allowed_orb = (
+                        rules.orb_table(
+                            transit_position, natal_position, aspect, rules.context
+                        )
+                        if rules.orb_table
+                        else aspect.orb_deg
+                    )
+                    if allowed_orb <= 0:
+                        continue
+                    definition = TimelineTransitDefinition(
+                        transiting_body=transit_name,
+                        natal_body=natal_name,
+                        natal_longitude=natal_longitude,
+                        aspect_name=aspect.name,
+                        aspect_angle=float(aspect.angle_deg),
+                        orb_deg=float(allowed_orb),
+                    )
+                    definitions[definition.key] = definition
     return tuple(definitions.values())
 
 
@@ -386,7 +440,7 @@ def generate_personal_transit_range(
     *,
     start: datetime.datetime,
     end: datetime.datetime,
-    step_days: int = 1,
+    step_hours: float = 6.0,
 ) -> list[PersonalTimelineWindow]:
     """Generate major transit windows inside an explicit, short date range."""
     normalized_uid = str(chart_uid or "").strip().upper()
@@ -394,16 +448,18 @@ def generate_personal_transit_range(
         raise ValueError("Personal Transit range generation requires a Chart UID.")
     if start.tzinfo is None or end.tzinfo is None:
         raise ValueError("Transit range bounds must be timezone-aware.")
-    if end <= start or step_days <= 0:
-        raise ValueError("Transit range end and scan step must be greater than start and zero.")
+    if end <= start or step_hours <= 0:
+        raise ValueError(
+            "Transit range end must be after start and scan step hours must be positive."
+        )
 
-    definitions = _build_transit_definitions(chart)
+    definitions = _build_personal_transit_range_definitions(chart)
     definition_lookup = {definition.key: definition for definition in definitions}
     definitions_by_body: dict[str, list[TimelineTransitDefinition]] = {}
     for definition in definitions:
         definitions_by_body.setdefault(definition.transiting_body, []).append(definition)
 
-    step = datetime.timedelta(days=step_days)
+    step = datetime.timedelta(hours=step_hours)
     active_starts: dict[tuple[str, str, str], tuple[datetime.datetime, bool]] = {}
     previous_active: set[tuple[str, str, str]] = set()
     previous_dt = start

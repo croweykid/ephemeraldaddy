@@ -17,6 +17,21 @@ class TransitThemeEntry:
     aspect_label: str
     start: datetime.datetime
     end: datetime.datetime
+    start_truncated: bool = False
+    end_truncated: bool = False
+
+
+def _format_window_dates(
+    start: datetime.datetime,
+    end: datetime.datetime,
+    *,
+    start_truncated: bool,
+    end_truncated: bool,
+) -> str:
+    """Make clipped scan boundaries visibly different from resolved dates."""
+    start_text = f"before {start:%Y-%m-%d}" if start_truncated else f"{start:%Y-%m-%d}"
+    end_text = f"after {end:%Y-%m-%d}" if end_truncated else f"{end:%Y-%m-%d}"
+    return f"{start_text} – {end_text}"
 
 
 def themes_for_aspect_bodies(transiting_body: str, natal_body: str) -> tuple[tuple[str, str], ...]:
@@ -44,6 +59,8 @@ def theme_entries_for_windows(windows: Iterable[Any]) -> tuple[TransitThemeEntry
                     aspect_label=transit.label,
                     start=window.start,
                     end=window.end,
+                    start_truncated=bool(window.start_truncated),
+                    end_truncated=bool(window.end_truncated),
                 )
             )
     return tuple(sorted(entries, key=lambda entry: (entry.theme_label, entry.start, entry.aspect_label)))
@@ -61,7 +78,13 @@ def format_transit_theme_view(windows: Iterable[Any]) -> str:
     for theme_label in sorted(grouped, key=str.casefold):
         lines.append(theme_label.upper())
         for entry in grouped[theme_label]:
-            lines.append(f"- {entry.start:%Y-%m-%d} – {entry.end:%Y-%m-%d}  {entry.aspect_label}")
+            dates = _format_window_dates(
+                entry.start,
+                entry.end,
+                start_truncated=entry.start_truncated,
+                end_truncated=entry.end_truncated,
+            )
+            lines.append(f"- {dates}  {entry.aspect_label}")
         lines.append("")
     return "\n".join(lines).rstrip()
 
@@ -73,7 +96,7 @@ def format_transit_range_table(windows: Iterable[Any]) -> str:
         return "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n- None within configured major-transit orbs."
     lines = ["SURROUNDING MAJOR TRANSITS (±30 DAYS)"]
     lines.extend(
-        f"- {window.start:%Y-%m-%d} – {window.end:%Y-%m-%d}  {window.transit.label}"
+        f"- {_format_window_dates(window.start, window.end, start_truncated=window.start_truncated, end_truncated=window.end_truncated)}  {window.transit.label}"
         for window in ordered
     )
     return "\n".join(lines)
