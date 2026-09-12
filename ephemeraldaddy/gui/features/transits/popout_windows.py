@@ -48,6 +48,9 @@ from ephemeraldaddy.gui.features.charts.transit_workers import (
     ManagedTransitPopoutDialog, TransitAspectWindowRelay, TransitAspectWindowWorker,
 )
 from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
+from ephemeraldaddy.gui.features.transits.intensity import (
+    TransitAspectInput, calculate_transit_intensities, format_body_activation_summary,
+)
 from ephemeraldaddy.gui.features.transits.popout_layout import build_transit_popout_scaffold
 from ephemeraldaddy.gui.features.transits.range_worker import (
     PersonalTransitRangeRelay,
@@ -268,7 +271,7 @@ class TransitPopoutController:
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
         summary_sort_combo = QComboBox()
-        summary_sort_combo.addItems(ASPECT_SORT_OPTIONS)
+        summary_sort_combo.addItems([*ASPECT_SORT_OPTIONS, "Intensity"])
         summary_sort_combo.setCurrentText("Priority")
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
@@ -335,6 +338,36 @@ class TransitPopoutController:
                 local_tz=local_tz,
             )
 
+        def _current_intensity_result():
+            inputs: list[TransitAspectInput] = []
+            for mode_name, mode_hits in aspect_hits_by_mode.items():
+                for hit in mode_hits:
+                    orb_cap = personal_transit_orb_cap(
+                        mode_name,
+                        hit.a.name,
+                        hit.b.name,
+                        hit.aspect,
+                    )
+                    inputs.append(
+                        TransitAspectInput(
+                            source=str(hit.a.name),
+                            aspect=str(hit.aspect),
+                            target=str(hit.b.name),
+                            orb=float(hit.orb_deg),
+                            orb_cap=float(orb_cap),
+                        )
+                    )
+            return calculate_transit_intensities(inputs, natal_planet_weights)
+
+        def _intensity_display_score(hit: Any, intensity_result: Any) -> float:
+            score = intensity_result.score_for(hit.a.name, hit.aspect, hit.b.name)
+            return float(score.display_score) if score is not None else 0.0
+
+        def _current_activation_text() -> str:
+            return format_body_activation_summary(
+                _current_intensity_result().body_activations,
+            )
+
         def _range_status_text() -> str:
             if range_loading:
                 return "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n- Calculating…"
@@ -356,10 +389,12 @@ class TransitPopoutController:
                 or getattr(natal_chart, "uid", None)
                 or ""
             )
+            activation_text = _current_activation_text()
             if not chart_uid:
                 range_loading = False
                 range_error = "The natal chart must be saved with a permanent Chart UID."
                 theme_output.setPlainText(
+                    f"{activation_text}\n\n"
                     "Theme View needs the natal chart's permanent Chart UID. Save the chart first."
                 )
                 summary_share_button.setEnabled(True)
@@ -374,7 +409,9 @@ class TransitPopoutController:
                 range_thread.requestInterruption()
                 range_thread.quit()
 
-            theme_output.setPlainText("Calculating major transits for the surrounding 60 days…")
+            theme_output.setPlainText(
+                f"{activation_text}\n\nCalculating major transits for the surrounding 60 days…"
+            )
             summary_share_button.setEnabled(False)
             summary_share_button.setToolTip(
                 "Export will be available when the surrounding transit scan finishes."
@@ -406,7 +443,8 @@ class TransitPopoutController:
                 windows = list(payload) if isinstance(payload, (list, tuple)) else []
                 surrounding_major_windows[:] = windows
                 theme_output.setPlainText(
-                    format_transit_theme_view(windows, display_timezone=local_tz)
+                    f"{_current_activation_text()}\n\n"
+                    f"{format_transit_theme_view(windows, display_timezone=local_tz)}"
                 )
                 summary_share_button.setEnabled(True)
                 summary_share_button.setToolTip(summary_share_ready_tooltip)
@@ -419,7 +457,10 @@ class TransitPopoutController:
                 range_loading = False
                 range_error = error_text or "Unknown range calculation error"
                 logger.warning("Personal Transit range calculation failed: %s", error_text)
-                theme_output.setPlainText("Theme View could not calculate this transit range.")
+                theme_output.setPlainText(
+                    f"{_current_activation_text()}\n\n"
+                    "Theme View could not calculate this transit range."
+                )
                 summary_share_button.setEnabled(True)
                 summary_share_button.setToolTip(summary_share_ready_tooltip)
                 _refresh_summary()
@@ -511,7 +552,27 @@ class TransitPopoutController:
                 str(hit_obj.b.name),
             )
 
-        def _build_personal_transit_sections(sort_mode: str) -> list[tuple[str, str, list[tuple[Any, str]], str]]:
+        def _build_personal_transit_sections(
+            sort_mode: str,
+            intensity_result: Any | None = None,
+        ) -> list[tuple[str, str, list[tuple[Any, str]], str]]:
+            if intensity_result is None:
+                intensity_result = _current_intensity_result()
+
+            def _sort_hits(hits: list[Any], mode: str) -> list[Any]:
+                if sort_mode == "Intensity":
+                    return sorted(
+                        hits,
+                        key=lambda hit: _intensity_display_score(hit, intensity_result),
+                        reverse=True,
+                    )
+                return self._sort_personal_transit_mode_aspects(
+                    hits,
+                    sort_mode,
+                    mode,
+                    natal_planet_weights=natal_planet_weights,
+                )
+
             daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
                 aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, [])
             )
@@ -521,11 +582,9 @@ class TransitPopoutController:
                     "(Short-term 1-3 day personal transits)",
                     [
                         (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
-                        for hit in self._sort_personal_transit_mode_aspects(
+                        for hit in _sort_hits(
                             daily_hits,
-                            sort_mode,
                             PERSONAL_TRANSIT_MODE_DAILY_VIBE,
-                            natal_planet_weights=natal_planet_weights,
                         )
                     ],
                     PERSONAL_TRANSIT_MODE_DAILY_VIBE,
@@ -535,20 +594,16 @@ class TransitPopoutController:
                     "(Longer-term and structural transits)",
                     [
                         (hit, PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
-                        for hit in self._sort_personal_transit_mode_aspects(
+                        for hit in _sort_hits(
                             aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []),
-                            sort_mode,
                             PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
-                            natal_planet_weights=natal_planet_weights,
                         )
                     ]
                     + [
                         (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
-                        for hit in self._sort_personal_transit_mode_aspects(
+                        for hit in _sort_hits(
                             rollover_hits,
-                            sort_mode,
                             PERSONAL_TRANSIT_MODE_DAILY_VIBE,
-                            natal_planet_weights=natal_planet_weights,
                         )
                     ],
                     PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
@@ -673,7 +728,8 @@ class TransitPopoutController:
             lines = _summary_header_lines()
             aspect_info_map: dict[int, dict[str, object]] = {}
             calendar_info_map.clear()
-            sections = _build_personal_transit_sections(sort_mode)
+            intensity_result = _current_intensity_result()
+            sections = _build_personal_transit_sections(sort_mode, intensity_result)
             for _section_title, _section_subtitle, entries, empty_mode in sections:
                 lines.extend([_section_title, _section_subtitle, ""])
                 if entries:
@@ -719,9 +775,11 @@ class TransitPopoutController:
                             )
                         left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
                         right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
+                        intensity_score = _intensity_display_score(hit, intensity_result)
                         line = (
                             f"- {left_label:<26} {hit.aspect:<14} {right_label:<30} "
-                            f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False):<8}  ⓘ {suffix}"
+                            f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False):<8}  "
+                            f"intensity {intensity_score:>6.1f}  ⓘ {suffix}"
                         )
                         aspect_type = str(hit.aspect).replace(" ", "_").lower()
                         angle = float(ASPECT_DEFS.get(aspect_type, {}).get("angle", 0.0))
@@ -971,7 +1029,8 @@ class TransitPopoutController:
         def _build_personal_transit_export_text() -> str:
             lines = _summary_header_lines()
             sort_mode = summary_sort_combo.currentText()
-            sections = _build_personal_transit_sections(sort_mode)
+            intensity_result = _current_intensity_result()
+            sections = _build_personal_transit_sections(sort_mode, intensity_result)
             for section_title, section_subtitle, entries, empty_mode in sections:
                 lines.extend([section_title, section_subtitle, ""])
                 if entries:
@@ -1039,10 +1098,11 @@ class TransitPopoutController:
 
                         left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
                         right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
+                        intensity_score = _intensity_display_score(hit, intensity_result)
                         lines.append(
                             f"- {left_label:<26} {hit.aspect:<14} {right_label:<30} "
                             f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False):<8}  "
-                            f"window {window_text}"
+                            f"intensity {intensity_score:>6.1f}  window {window_text}"
                         )
                 else:
                     lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
