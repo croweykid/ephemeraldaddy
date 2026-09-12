@@ -1112,7 +1112,6 @@ class TransitPopoutController:
                 tzinfo=local_tz,
             )
             raw_location_text = popout_location_input.text()
-            _arrest_transit_window_loads_for_update()
 
             try:
                 recalculated = recalculate_personal_transit(
@@ -1131,6 +1130,10 @@ class TransitPopoutController:
                 _refresh_summary()
                 return
 
+            # Keep the current chart's range worker and export state intact if
+            # recalculation fails. Only invalidate it once replacement chart
+            # data has been produced successfully.
+            _arrest_transit_window_loads_for_update()
             transit_chart = recalculated.transit_chart
             transit_positions_in_natal_houses = recalculated.transit_positions_in_natal_houses
             aspect_hits_by_mode = recalculated.aspect_hits_by_mode

@@ -54,3 +54,16 @@ def test_personal_range_runs_in_cancellable_worker_not_gui_thread():
     assert "summary_share_button.setEnabled(False)" in windows_source
     assert "elif range_error:" in windows_source
     assert 'f"- Unavailable ({range_error})"' in windows_source
+
+
+def test_failed_chart_update_does_not_cancel_the_current_range_worker():
+    source = (
+        ROOT / "ephemeraldaddy/gui/features/transits/popout_windows.py"
+    ).read_text(encoding="utf-8")
+    update_handler = source.split("def _on_update_chart()", 1)[1].split(
+        'popout_context["custom_click_handler"]', 1
+    )[0]
+
+    assert update_handler.index("recalculate_personal_transit(") < update_handler.index(
+        "_arrest_transit_window_loads_for_update()"
+    )

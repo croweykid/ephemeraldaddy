@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from ephemeraldaddy.core.aspect_display import axis_aspect_redundancy_key
 from ephemeraldaddy.core.composite import (
     BodyPosition,
     COMPOSITE_ASPECT_TYPES,
@@ -159,8 +160,12 @@ def _build_personal_transit_range_definitions(
 ) -> tuple[TimelineTransitDefinition, ...]:
     """Build exactly the candidates accepted by the two Personal Transit modes."""
     positions = dict(getattr(chart, "positions", {}) or {})
-    transit_bodies = _TIMELINE_TRANSITING_BODIES | FAST_TRANSIT_BODIES | VERY_FAST_TRANSIT_BODIES
+    transit_bodies = list(_timeline_transiting_bodies())
+    transit_bodies.extend(
+        sorted((FAST_TRANSIT_BODIES | VERY_FAST_TRANSIT_BODIES).difference(transit_bodies))
+    )
     definitions: dict[tuple[str, str, str], TimelineTransitDefinition] = {}
+    seen_axis_events: set[tuple[object, ...]] = set()
 
     for mode in (
         PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
@@ -192,6 +197,18 @@ def _build_personal_transit_range_definitions(
                     )
                     if allowed_orb <= 0:
                         continue
+                    axis_key = axis_aspect_redundancy_key(
+                        transit_name,
+                        natal_name,
+                        aspect.name,
+                        directed=True,
+                        layer1="TRANSIT",
+                        layer2="NATAL",
+                    )
+                    if axis_key is not None:
+                        if axis_key in seen_axis_events:
+                            continue
+                        seen_axis_events.add(axis_key)
                     definition = TimelineTransitDefinition(
                         transiting_body=transit_name,
                         natal_body=natal_name,

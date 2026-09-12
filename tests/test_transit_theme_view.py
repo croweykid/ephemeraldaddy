@@ -97,6 +97,16 @@ def test_short_range_candidates_match_personal_transit_mode_rules():
     assert ("Ceres", "Pluto", "quincunx") not in keys
 
 
+def test_short_range_candidates_collapse_complementary_node_axis_halves():
+    definitions = _build_personal_transit_range_definitions(
+        SimpleNamespace(positions={"Sun": 0.0})
+    )
+    keys = {definition.key for definition in definitions}
+
+    assert ("Rahu", "Sun", "conjunction") in keys
+    assert ("Ketu", "Sun", "opposition") not in keys
+
+
 def test_short_range_generator_includes_approaching_and_recent_windows(monkeypatch):
     chart = SimpleNamespace(positions={"Sun": 0.0})
     start = datetime.datetime(2026, 8, 13, tzinfo=UTC)
