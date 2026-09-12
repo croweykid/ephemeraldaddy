@@ -85,6 +85,25 @@ def test_global_theme_rows_preserve_actual_aspect_geometry():
     assert 'delta = float(aspect.get("delta", angle - exact_angle))' in source
     assert 'float(entry.get("angle", definition.get("angle", 0.0)))' in source
     assert 'float(entry.get("delta", 0.0))' in source
+    assert 'geometry_known=bool(entry.get("geometry_known", False))' in source
+
+
+def test_personal_theme_rows_do_not_fabricate_exact_geometry_and_keep_truncation():
+    source = (
+        ROOT / "ephemeraldaddy/gui/features/transits/popout_windows.py"
+    ).read_text(encoding="utf-8")
+    table_source = (
+        ROOT / "ephemeraldaddy/gui/features/transits/theme_table.py"
+    ).read_text(encoding="utf-8")
+    app_source = (ROOT / "ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+
+    assert '"geometry_known": False' in source
+    assert '"start_truncated": entry.start_truncated' in source
+    assert '"end_truncated": entry.end_truncated' in source
+    assert 'start_markup = "…" if entry.get("start_truncated")' in table_source
+    assert 'f"after {_date_html(end)}" if entry.get("end_truncated")' in table_source
+    assert "geometry_known: bool = True" in app_source
+    assert 'else f"{p1} {atype} {p2} • active during the listed date range"' in app_source
 
 
 def test_personal_range_runs_in_cancellable_worker_not_gui_thread():

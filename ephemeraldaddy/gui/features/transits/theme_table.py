@@ -96,10 +96,16 @@ def build_theme_aspect_table(
             table.item(row, 0).setData(THEME_ASPECT_ROLE, entry)
             start, end = entry.get("start"), entry.get("end")
             if isinstance(start, datetime.datetime) and isinstance(end, datetime.datetime):
+                start_markup = "…" if entry.get("start_truncated") else _date_html(start)
+                end_markup = (
+                    f"after {_date_html(end)}" if entry.get("end_truncated") else _date_html(end)
+                )
                 date_markup = (
-                    _date_html(start)
+                    start_markup
                     if start == end
-                    else f"{_date_html(start)} &ndash; {_date_html(end)}"
+                    and not entry.get("start_truncated")
+                    and not entry.get("end_truncated")
+                    else f"{start_markup} &ndash; {end_markup}"
                 )
             else:
                 date_markup = html.escape(str(entry.get("date_label", "Unknown date")))

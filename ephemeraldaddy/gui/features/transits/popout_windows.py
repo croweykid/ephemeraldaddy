@@ -130,6 +130,9 @@ class TransitPopoutController:
                         ),
                         "angle": float(ASPECT_DEFS.get(entry.aspect_type, {}).get("angle", 0.0)),
                         "delta": 0.0,
+                        "geometry_known": False,
+                        "start_truncated": entry.start_truncated,
+                        "end_truncated": entry.end_truncated,
                     })
                 sections.append((heading, rows))
             table = build_theme_aspect_table(
@@ -169,6 +172,7 @@ class TransitPopoutController:
                 "angle": angle,
                 "delta": delta,
                 "event_name": transit_aspect_event_name(left, aspect_type, right),
+                "geometry_known": True,
             }
             for _key, label in themes_for_aspect_bodies(left, right):
                 grouped.setdefault(label, []).append(projected)
@@ -213,6 +217,7 @@ class TransitPopoutController:
                 aspect_type,
                 float(entry.get("angle", definition.get("angle", 0.0))),
                 float(entry.get("delta", 0.0)),
+                geometry_known=bool(entry.get("geometry_known", False)),
             )
 
         self._host._run_with_chart_info_output(chart_info_output, render)
