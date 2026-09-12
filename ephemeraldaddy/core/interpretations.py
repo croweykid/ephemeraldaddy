@@ -4096,14 +4096,17 @@ ASPECT_FRICTION = {
     "harmonious": { #enabling
         "color": "#3333ff", #blue
         "aspects": {"sextile", "trine", "quintile", "biquintile"},
+        "emoji":"🧁️", #a cupcake - nice but eat too much & get fat
     },
     "conflicted": { #antagonizing
         "color": "#ff0000", #murdery red
         "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
+        "emoji":"🧗", #a climber; sure you might die but you also might get jacked
     },
     "neutral/variable": { #ambiguous
         "color": "#ffff66", #chill yellow
         "aspects": {"conjunction", "semisextile"},
+        "emoji":"🚰", #a faucet: it's just coming out, and lots of it. what you do with it is your business.
     },
 }
 
