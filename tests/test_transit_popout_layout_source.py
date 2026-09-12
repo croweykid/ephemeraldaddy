@@ -53,8 +53,25 @@ def test_theme_view_uses_clickable_per_theme_tabs_and_persistent_chart_info():
     assert '("past", "🌖Past")' in source
     assert '("present", "🌕Present")' in source
     assert '("future", "🌒Future")' in source
-    assert '"aspect_info_map": aspect_info_map' in source
+    assert "build_theme_aspect_table(" in source
+    assert "row_activated=lambda entry" in source
+    assert "def _show_theme_aspect_info" in source
     assert "chart_info_layout=transit_scaffold.chart_info_layout" in source
+
+
+def test_theme_tabs_use_rich_row_selectable_tables_with_semantic_colors():
+    source = (
+        ROOT / "ephemeraldaddy/gui/features/transits/theme_table.py"
+    ).read_text(encoding="utf-8")
+
+    assert "QTableWidget(0, 4)" in source
+    assert '("Date Range", "Transit", "Aspect", "Natal")' in source
+    assert "QAbstractItemView.SelectRows" in source
+    assert "table.cellClicked.connect(_activate)" in source
+    assert "PLANET_COLORS.get(" in source
+    assert "ASPECT_COLORS.get(" in source
+    assert "RELATIVE_YEAR_COLORS[label]" in source
+    assert "Qt.RichText" in source
 
 
 def test_personal_range_runs_in_cancellable_worker_not_gui_thread():

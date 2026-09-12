@@ -11,7 +11,6 @@ from typing import Any, Callable, Protocol
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PySide6.QtCore import QDate, QThread, QTime, QTimer, Qt
-from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDateEdit, QDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QTabWidget, QTimeEdit, QWidget,
@@ -57,13 +56,11 @@ from ephemeraldaddy.gui.features.transits.range_worker import (
 from ephemeraldaddy.gui.features.transits.theme_view import (
     format_transit_range_table, theme_entries_grouped_by_time,
 )
+from ephemeraldaddy.gui.features.transits.theme_table import build_theme_aspect_table
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     resolve_transit_window_scan_config, resolve_transit_window_scan_config_for_transit_body,
 )
-from ephemeraldaddy.gui.style import (
-    CHART_DATA_HIGHLIGHT_COLOR, CHART_DATA_MONOSPACE_FONT_FAMILY,
-    CHART_DATA_POPOUT_HEADER_STYLE,
-)
+from ephemeraldaddy.gui.style import CHART_DATA_MONOSPACE_FONT_FAMILY, CHART_DATA_POPOUT_HEADER_STYLE
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
 
 logger = logging.getLogger(__name__)
@@ -84,6 +81,8 @@ class TransitPopoutHost(Protocol):
     def _chart_data_visibility_options(self) -> dict[str, Any]: ...
     def _register_popout_shortcuts(self, dialog: Any) -> None: ...
     def _sort_popout_aspects(self, aspect_hits: list[Any], sort_mode: str) -> list[Any]: ...
+    def _run_with_chart_info_output(self, target: Any, callback: Callable[[], Any]) -> Any: ...
+    def _show_aspect_info(self, *args: Any, **kwargs: Any) -> None: ...
 
 
 class TransitPopoutController:
@@ -102,7 +101,7 @@ class TransitPopoutController:
         chart_info_output: QPlainTextEdit,
         display_timezone: datetime.tzinfo | None,
     ) -> None:
-        """Render one clickable, chart-data-formatted tab per transit theme."""
+        """Render one clickable, rich table tab per transit theme."""
         while tabs.count():
             old = tabs.widget(0)
             self._host._popout_summary_contexts.pop(old.viewport(), None)
@@ -116,57 +115,29 @@ class TransitPopoutController:
             return
         headings = (("past", "🌖Past"), ("present", "🌕Present"), ("future", "🌒Future"))
         for theme_label, buckets in grouped.items():
-            output = ChartDataTableOutput()
-            output.setReadOnly(True)
-            lines: list[str] = []
-            aspect_info_map: dict[int, dict[str, object]] = {}
-            header_rows: list[int] = []
+            sections = []
             for bucket, heading in headings:
-                header_rows.append(len(lines))
-                lines.append(heading)
-                entries = buckets[bucket]
-                if not entries:
-                    lines.append("None")
-                    lines.append("")
-                    continue
-                for entry in entries:
-                    start = entry.start.astimezone(display_timezone) if display_timezone else entry.start
-                    end = entry.end.astimezone(display_timezone) if display_timezone else entry.end
-                    line = f"{start:%Y-%m-%d} – {end:%Y-%m-%d}  {entry.aspect_label}  ⓘ"
-                    aspect_info_map[len(lines)] = {
-                        "p1": entry.transiting_body, "p2": entry.natal_body,
+                rows = []
+                for entry in buckets[bucket]:
+                    rows.append({
+                        "start": entry.start.astimezone(display_timezone) if display_timezone else entry.start,
+                        "end": entry.end.astimezone(display_timezone) if display_timezone else entry.end,
+                        "p1": entry.transiting_body,
+                        "p2": entry.natal_body,
                         "type": entry.aspect_type,
-                        "angle": float(ASPECT_DEFS.get(entry.aspect_type.replace(" ", "_").lower(), {}).get("angle", 0.0)),
-                        "delta": 0.0,
-                    }
-                    lines.append(line)
-                lines.append("")
-            output.setPlainText("\n".join(lines).rstrip())
-            apply_chart_data_highlighter(output)
-            header_format = QTextCharFormat()
-            header_format.setFontWeight(QFont.Bold)
-            header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
-            document = output.document()
-            for row in header_rows:
-                cursor = QTextCursor(document.findBlockByNumber(row))
-                cursor.select(QTextCursor.BlockUnderCursor)
-                cursor.mergeCharFormat(header_format)
-            output.viewport().installEventFilter(self._host)
-            self._host._popout_summary_contexts[output.viewport()] = {
-                "output_widget": output, "chart_info_output": chart_info_output,
-                "position_info_map": {}, "aspect_info_map": aspect_info_map,
-                "species_info_map": {}, "summary_block_offset": 0,
-            }
-            output.viewport().destroyed.connect(
-                lambda _=None, key=output.viewport(): self._host._popout_summary_contexts.pop(key, None)
+                    })
+                sections.append((heading, rows))
+            table = build_theme_aspect_table(
+                sections,
+                row_activated=lambda entry, target=chart_info_output: self._show_theme_aspect_info(entry, target),
             )
-            tabs.addTab(output, theme_label)
+            tabs.addTab(table, theme_label)
 
     def _set_global_theme_tabs(
         self, tabs: QTabWidget, aspects: list[Any], when: datetime.datetime | None,
         chart_info_output: QPlainTextEdit, display_timezone: datetime.tzinfo | None,
     ) -> None:
-        """Render global aspects in the same per-theme, clickable tab contract."""
+        """Render global aspects in the same per-theme rich-table contract."""
         from ephemeraldaddy.gui.features.transits.theme_view import themes_for_aspect_bodies
 
         grouped: dict[str, list[tuple[str, str, str]]] = {}
@@ -190,41 +161,45 @@ class TransitPopoutController:
         shown_when = when.astimezone(display_timezone) if when and display_timezone else when
         date_label = f"{shown_when:%Y-%m-%d}" if shown_when else "Unknown date"
         for theme_label in sorted(grouped, key=str.casefold):
-            output = ChartDataTableOutput()
-            output.setReadOnly(True)
-            lines = ["🌖Past", "None", "", "🌕Present"]
-            aspect_map: dict[int, dict[str, object]] = {}
-            for left, aspect_type, right in grouped[theme_label]:
-                aspect_map[len(lines)] = {
-                    "p1": left, "p2": right, "type": aspect_type,
-                    "angle": float(ASPECT_DEFS.get(aspect_type.replace(" ", "_").lower(), {}).get("angle", 0.0)),
-                    "delta": 0.0,
+            present_rows = [
+                {
+                    "start": shown_when,
+                    "end": shown_when,
+                    "date_label": date_label,
+                    "p1": left,
+                    "type": aspect_type,
+                    "p2": right,
                 }
-                lines.append(f"{date_label}  {left} {aspect_type} {right}  ⓘ")
-            lines.extend(["", "🌒Future", "None"])
-            output.setPlainText("\n".join(lines))
-            apply_chart_data_highlighter(output)
-            fmt = QTextCharFormat()
-            fmt.setFontWeight(QFont.Bold)
-            fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
-            for row in (0, 3, len(lines) - 2):
-                cursor = QTextCursor(output.document().findBlockByNumber(row))
-                cursor.select(QTextCursor.BlockUnderCursor)
-                cursor.mergeCharFormat(fmt)
-            output.viewport().installEventFilter(self._host)
-            self._host._popout_summary_contexts[output.viewport()] = {
-                "output_widget": output, "chart_info_output": chart_info_output,
-                "position_info_map": {}, "aspect_info_map": aspect_map,
-                "species_info_map": {}, "summary_block_offset": 0,
-            }
-            output.viewport().destroyed.connect(
-                lambda _=None, key=output.viewport(): self._host._popout_summary_contexts.pop(key, None)
+                for left, aspect_type, right in grouped[theme_label]
+            ]
+            table = build_theme_aspect_table(
+                (("🌖Past", ()), ("🌕Present", present_rows), ("🌒Future", ())),
+                row_activated=lambda entry, target=chart_info_output: self._show_theme_aspect_info(entry, target),
             )
-            tabs.addTab(output, theme_label)
+            tabs.addTab(table, theme_label)
         if not grouped:
             empty = QPlainTextEdit(f"No themed global transit aspects occur on {date_label}.")
             empty.setReadOnly(True)
             tabs.addTab(empty, "No Themes")
+
+    def _show_theme_aspect_info(
+        self, entry: dict[str, Any], chart_info_output: QPlainTextEdit
+    ) -> None:
+        """Populate persistent Chart Info when any Theme table cell is clicked."""
+        aspect_type = str(entry.get("type", "aspect"))
+        aspect_key = aspect_type.lower().replace("-", "").replace("_", "").replace(" ", "")
+        definition = ASPECT_DEFS.get(aspect_key, {})
+
+        def render() -> None:
+            self._host._show_aspect_info(
+                str(entry.get("p1", "")),
+                str(entry.get("p2", "")),
+                aspect_type,
+                float(definition.get("angle", 0.0)),
+                0.0,
+            )
+
+        self._host._run_with_chart_info_output(chart_info_output, render)
 
     def action_chart(self) -> Chart | None:
         """Return the chart belonging to the active or most recent visible popout."""
