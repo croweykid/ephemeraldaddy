@@ -7,7 +7,26 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from ephemeraldaddy.core.interpretations import ASPECT_KEYWORDS, PLANET_KEYWORDS
 from ephemeraldaddy.core.theme_reference import THEMES
+
+
+def qt_theme_tab_label(theme_label: str) -> str:
+    """Escape literal ampersands so Qt does not turn themes into mnemonics."""
+    return str(theme_label).replace("&", "&&")
+
+
+def transit_aspect_event_name(
+    transiting_body: str, aspect_type: str, natal_body: str
+) -> str:
+    """Return a concise human title distinct from the technical aspect label."""
+    aspect_key = str(aspect_type).lower().replace("-", "").replace("_", "").replace(" ", "")
+    first = PLANET_KEYWORDS.get(str(transiting_body), {})
+    second = PLANET_KEYWORDS.get(str(natal_body), {})
+    first_summary = str(first.get("summary") or next(iter(first.get("nouns", ())), transiting_body))
+    second_summary = str(second.get("summary") or next(iter(second.get("nouns", ())), natal_body))
+    aspect_phrase = str(next(iter(ASPECT_KEYWORDS.get(aspect_key, ())), aspect_type))
+    return f"{first_summary} {aspect_phrase} {second_summary}".capitalize()
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +38,9 @@ class TransitThemeEntry:
     end: datetime.datetime
     start_truncated: bool = False
     end_truncated: bool = False
+    transiting_body: str = ""
+    natal_body: str = ""
+    aspect_type: str = ""
 
 
 def _format_window_dates(
@@ -65,9 +87,36 @@ def theme_entries_for_windows(windows: Iterable[Any]) -> tuple[TransitThemeEntry
                     end=window.end,
                     start_truncated=bool(window.start_truncated),
                     end_truncated=bool(window.end_truncated),
+                    transiting_body=str(transit.transiting_body),
+                    natal_body=str(transit.natal_body),
+                    aspect_type=str(transit.aspect_name),
                 )
             )
     return tuple(sorted(entries, key=lambda entry: (entry.theme_label, entry.start, entry.aspect_label)))
+
+
+def temporal_bucket(entry: TransitThemeEntry, center: datetime.datetime) -> str:
+    """Classify a transit window relative to the chart instant."""
+    if entry.end < center:
+        return "past"
+    if entry.start > center:
+        return "future"
+    return "present"
+
+
+def theme_entries_grouped_by_time(
+    windows: Iterable[Any], center: datetime.datetime
+) -> dict[str, dict[str, tuple[TransitThemeEntry, ...]]]:
+    """Project windows into theme tabs and stable Past/Present/Future sections."""
+    grouped: dict[str, dict[str, list[TransitThemeEntry]]] = defaultdict(
+        lambda: {"past": [], "present": [], "future": []}
+    )
+    for entry in theme_entries_for_windows(windows):
+        grouped[entry.theme_label][temporal_bucket(entry, center)].append(entry)
+    return {
+        theme: {bucket: tuple(entries) for bucket, entries in buckets.items()}
+        for theme, buckets in sorted(grouped.items(), key=lambda item: item[0].casefold())
+    }
 
 
 def format_transit_theme_view(
@@ -93,6 +142,7 @@ def format_transit_theme_view(
                 end_truncated=entry.end_truncated,
                 display_timezone=display_timezone,
             )
+            dates = dates.replace("before ", "")
             lines.append(f"- {dates}  {entry.aspect_label}")
         lines.append("")
     return "\n".join(lines).rstrip()

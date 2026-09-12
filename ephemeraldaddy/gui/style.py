@@ -332,6 +332,22 @@ CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
 CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
 
+TRANSIT_THEME_TABLE_STYLE = f"""
+QTableWidget {{
+    color: {COLOR_TEXT_PRIMARY};
+    background: {COLOR_BG_SURFACE};
+    border: 1px solid {COLOR_BORDER_STRONG};
+    gridline-color: {COLOR_BORDER_SUBTLE};
+}}
+QHeaderView::section {{
+    color: {COLOR_TEXT_PRIMARY};
+    background: {COLOR_BG_ELEVATED};
+    border: 0;
+    padding: 3px 6px;
+}}
+QTableWidget::item {{ padding: 2px 6px; }}
+"""
+
 
 def set_chart_info_contrast_background(widget: QWidget, text_color: str | None = None) -> None:
     """Select a readable Chart Info surface for a semantic foreground color."""

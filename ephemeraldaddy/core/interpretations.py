@@ -2591,6 +2591,7 @@ SIGN_KEYWORDS = {str(sign).title(): value for sign, value in SIGN_KEYWORDS.items
 
 PLANET_KEYWORDS = {
     "Sun": {
+        "summary": "ego and identity",
         "nouns": [
             "authority", "sovereignty", "identity", "will", "purpose", "presence",
             "leadership", "distinction", "recognition", "direction", "conviction", "visibility",
@@ -2616,6 +2617,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "Earth", #only count Sun, not Earth as secondary evidence of the same thing
     },
     "Moon": {
+        "summary": "feelings and needs",
         "nouns": [
             "reactivity", "instinct", "feelings", "moods", "comfort", "needs", "memory", "care",
             "safety", "support", "familiarity", "nourishment", "recovery", "rest",
@@ -2641,6 +2643,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Mercury": {
+        "summary": "thoughts and communication",
         "nouns": [
             "thoughts","mental processes","words", "questions", "data", "messages", "information","language",
             "writing", "reading", "notes", "details","communication", "curiosity", "interpretation",
@@ -2667,6 +2670,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Venus": {
+        "summary": "love and values",
         "nouns": [
             "attraction", "pleasure", "taste", "affection", "charm", "style", "beauty", #"relationships","enjoyments",
             "harmony", "preference", "connection", "romance", "appreciation", "allure", "values",
@@ -2694,6 +2698,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Mars": {
+        "summary": "action and assertion",
         "nouns": [
             "drive", "energy", "assertion", "action", "effort", "movement", "conflict",
             "competition", "courage", "risk", "urgency", "pursuit", "anger", "force",
@@ -2721,6 +2726,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Jupiter": {
+        "summary": "growth and opportunity",
         "nouns": [
             "growth", "expansion", "learning", "teaching", "wisdom", "belief","trust", #omitted "faith" to avoid dragging church furniture into the room
             "conviction", "opportunity", "abundance", "generosity", "travel", "exploration","hope",
@@ -2747,6 +2753,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Saturn": { #If you're just printing a list of keywords, you're going to want to dial back the synonyms. But as long as you're generating phrases, this is cool & keeps things spicy and varied, poetic.
+        "summary": "limits and responsibility",
         "nouns": [
             "limitations","burdens", "commitments", "duties", "responsibilities", "discipline","elders","practice","rules","institutions","orthodoxy","status quo","continuity","existing structures",
             "structure", "time", "endurance", "obligations","inertia","entropy","restrictions","bureaucracy","entrenched order","consequence","precedent","sanctioned order","accumulated dust", #dust is the residue of time, the cross we all bear, entropy incarnate
@@ -2775,6 +2782,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Uranus": {
+        "summary": "freedom and change",
         "nouns": [
             "iconoclasm", "unpredictability", "novelty", "experiments", "rebellion", "futurism","deviation","disruption",
             "pattern breaks", "innovation", "heresy", "counterculture","discontinuity","anomalies","rule challenges", 
@@ -2804,6 +2812,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Neptune": {
+        "summary": "ideals and uncertainty",
         "nouns": [
             "imagination", "idealization", "escapism", "illusion", "yearning", "dreams","vast immersion in the primordial unknown",
             "music", "glamour", "diffusion", "dissolution", "longing", "mysticism","l'appel du vide","vastness","lack of boundaries",
@@ -2834,6 +2843,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Pluto": {
+        "summary": "power and transformation",
         "nouns": [
             "control", "compulsion", "obsession", "fixations", "metamorphosis", "power dynamics","power struggle",
             "subterranean motives", "purge", "eradication", "exposure", "confrontation","battle-tested bonds","excavation of hidden motives",
@@ -2861,6 +2871,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Chiron": {
+        "summary": "wounds and healing",
         "nouns": [
             "trigger points", "sensitivities", "difficulty", "lessons", "adaptation", "recovery paths",
             "mistakes", "compensatory skills", "instructive failures", "awkwardness",
@@ -2885,6 +2896,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Ceres": {
+        "summary": "care and nourishment",
         "nouns": [
             "nourishment", "care", "food", "provisioning", "support", "cultivation",
             "gardens", "lunches",  "budgeting","momming",
@@ -2909,6 +2921,7 @@ PLANET_KEYWORDS = {
 
     },
     "Pallas": {
+        "summary": "strategy and pattern recognition",
         "nouns": [
             "strategy", "pattern recognition", "solutions", "design", "engineering", "tactics",
             "foresight", "maps", "discernment", "negotiation", "intelligence", "system architecture",
@@ -2932,6 +2945,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Juno": {
+        "summary": "commitment and partnership",
         "nouns": [
             "commitment", "marriage", "partnership", "vows", "agreements", "mutuality",
             "fairness", "expectations", "loyalty", "reciprocity", "accountability", "fidelity",
@@ -2955,6 +2969,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Vesta": {
+        "summary": "devotion and focus",
         "nouns": [
             "focus", "devotion", "dedication", "practice", "study", "solitude","asceticism","purification","rejection of distraction",
             "discipline", "consecration", "containment", "standards", "sacred focus", "inner flame",
@@ -2978,6 +2993,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Rahu": {
+        "summary": "future direction",
         "nouns": [
             "hunger", "craving", "obsession", "fixation", "ambition", "insatiability",
             "amplification", "fascination", "taboo attraction", "worldly appetite", "restlessness",
@@ -3001,6 +3017,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "Ketu",
     },
     "Ketu": {
+        "summary": "the past and release",
         "nouns": [
             "detachment", "severance", "release", "renunciation", "withdrawal", "distance","disenchantment", "spent appetite",
             "negation", "disinterest", "letting go", "emptiness", "endings", "dissolution", "end of an era","hollow victories",
@@ -3024,6 +3041,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "Rahu",
     },
     "Psyche": {
+        "summary": "soul and sensitivity",
         "nouns": [
             "sensitivity", "receptivity", "inner life", "vulnerability", "trust", "recognition",
             "understanding", "intimacy", "exposure", "self-knowledge", "depth", "emotional perception",
@@ -3052,6 +3070,7 @@ PLANET_KEYWORDS = {
     },
 
     "Eros": {
+        "summary": "desire and erotic connection",
         "nouns": [
             "desire", "eroticism", "attraction", "arousal", "passion", "longing",
             "magnetism", "fascination", "pursuit", "seduction", "pleasure", "consummation",
@@ -3080,6 +3099,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Pholus": {
+        "summary": "catalysts and consequences",
         "nouns": [
             "catalysis", "release", "chain reactions", "amplification", "spillover", "consequences",
             "turning points", "acceleration", "uncontainment", "thresholds", "momentum", "aftereffects",
@@ -3107,6 +3127,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Eris": {
+        "summary": "discord and exclusion",
         "nouns": [
             "discord", "rivalry", "exclusion", "competition", "provocation", "contention",
             "outsiderhood", "status disputes", "recognition", "resentment", "disruption", "dissent",
@@ -3135,6 +3156,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Earth": {
+        "summary": "grounding and embodiment",
         "nouns": [
             "grounding", "stability", "weight", "gravity", "anchoring", "embodiment",
             "support", "containment", "orientation", "footing", "balance", "limits",
@@ -3172,6 +3194,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "Sun",
 },
     "Osculating Lilith": {
+        "summary": "autonomy and taboo",
         "nouns": [
             "refusal", "defiance", "taboo", "exile", "noncompliance", "provocation",
             "untamed desire", "erotic autonomy", "rejection", "social punishment", "subversion", "disowned hunger",
@@ -3197,6 +3220,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Part of Fortune": {
+        "summary": "ease and opportunity",
         "nouns": [
             "luck", "ease", "flow", "wellbeing", "prosperity", "fruitfulness", "timing","tao",
             "advantages", "support", "natural fit", "coherence", "rhythm", "thriving",
@@ -3221,6 +3245,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "AS": {
+        "summary": "identity and presentation",
         "nouns": [
             "introductions", "arrival", "beginnings", "first impressions", "initiative",
             "reactions", "approaches", "style", "tone",
@@ -3241,6 +3266,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "DS",
     },
     "MC": {
+        "summary": "career and reputation",
         "nouns": [
             "work", "leadership", "management", "presentations", "deliverables", "promotions",
             "reputation", "responsibility", "decisions", "targets", "visibility", "outcomes",
@@ -3261,6 +3287,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "IC",
     },
     "DS": {
+        "summary": "partnerships",
         "nouns": [
             "dating", "partnership", "listening", "compromise", "negotiation", "collaboration",
             "sharing", "matching", "terms", "arguments", "reconciliation", "commitment",
@@ -3281,6 +3308,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "AS",
     },
     "IC": {
+        "summary": "home and foundations",
         "nouns": [
             "rest", "home", "staying in", "recovery", "nesting", "meals",
             "cleaning", "family time", "memory", "reflection", "savings", "recharge",
