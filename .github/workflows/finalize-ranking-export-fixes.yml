@@ -27,59 +27,52 @@ jobs:
           path = Path('ephemeraldaddy/gui/ranking_panel.py')
           text = path.read_text(encoding='utf-8')
 
-          old_core = 'from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot'
-          new_core = 'from PySide6.QtCore import QObject, QPoint, QThread, QTimer, Qt, Signal, Slot'
-          if text.count(old_core) != 1:
-              raise SystemExit(f'Expected one QtCore import anchor, found {text.count(old_core)}')
-          text = text.replace(old_core, new_core)
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one {label} anchor, found {count}')
+              text = text.replace(old, new)
 
-          old_widgets = '    QLabel,\n    QPushButton,\n'
-          new_widgets = '    QLabel,\n    QMessageBox,\n    QPushButton,\n'
-          if text.count(old_widgets) != 1:
-              raise SystemExit(f'Expected one widget import anchor, found {text.count(old_widgets)}')
-          text = text.replace(old_widgets, new_widgets)
-
-          old_block = '''        painter = None
-          try:
-              label.resize(export_width, export_height)
-              pixmap = QPixmap(export_width, export_height)
-              pixmap.fill(QColor("#17191d"))
-              painter = QPainter(pixmap)
-              label.render(painter)
-              painter.end()
-              painter = None
-              pixmap.save(save_path, "PNG")
-          finally:
-              if painter is not None and painter.isActive():
-                  painter.end()
-              label.resize(original_size)
-          '''
-          new_block = '''        painter = None
-          save_succeeded = False
-          try:
-              label.resize(export_width, export_height)
-              pixmap = QPixmap(export_width, export_height)
-              pixmap.fill(QColor("#17191d"))
-              painter = QPainter(pixmap)
-              label.render(painter, QPoint())
-              painter.end()
-              painter = None
-              save_succeeded = pixmap.save(save_path, "PNG")
-          finally:
-              if painter is not None and painter.isActive():
-                  painter.end()
-              label.resize(original_size)
-
-          if not save_succeeded:
-              QMessageBox.critical(
-                  self,
-                  "Export failed",
-                  f"Could not save the ranking PNG to:\\n{save_path}",
-              )
-          '''
-          if text.count(old_block) != 1:
-              raise SystemExit(f'Expected one export render/save block, found {text.count(old_block)}')
-          text = text.replace(old_block, new_block)
+          replace_once(
+              'from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot',
+              'from PySide6.QtCore import QObject, QPoint, QThread, QTimer, Qt, Signal, Slot',
+              'QtCore import',
+          )
+          replace_once(
+              '    QLabel,\n    QPushButton,\n',
+              '    QLabel,\n    QMessageBox,\n    QPushButton,\n',
+              'QMessageBox import',
+          )
+          replace_once(
+              '        painter = None\n        try:\n',
+              '        painter = None\n        save_succeeded = False\n        try:\n',
+              'save state',
+          )
+          replace_once(
+              '            label.render(painter)\n',
+              '            label.render(painter, QPoint())\n',
+              'render call',
+          )
+          replace_once(
+              '            pixmap.save(save_path, "PNG")\n',
+              '            save_succeeded = pixmap.save(save_path, "PNG")\n',
+              'PNG save call',
+          )
+          marker = '            label.resize(original_size)\n\n    def _on_rankings_section_toggled'
+          replacement = (
+              '            label.resize(original_size)\n'
+              '\n'
+              '        if not save_succeeded:\n'
+              '            QMessageBox.critical(\n'
+              '                self,\n'
+              '                "Export failed",\n'
+              '                f"Could not save the ranking PNG to:\\n{save_path}",\n'
+              '            )\n'
+              '\n'
+              '    def _on_rankings_section_toggled'
+          )
+          replace_once(marker, replacement, 'export failure message')
 
           required = (
               'from PySide6.QtCore import QObject, QPoint, QThread, QTimer, Qt, Signal, Slot',
