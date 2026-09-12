@@ -14,7 +14,7 @@ from typing import Any
 from ephemeraldaddy.analysis.traits import calculate_trait_scores, trait_possible_score
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
-from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import chart_uid_is_ascribed
+from ephemeraldaddy.gui.features.similarities.cohort_metadata import chart_uid_is_ascribed
 from ephemeraldaddy.gui.settings.core import (
     load_predictions_exclude_ascribed_trait_charts,
     load_predictions_use_trait_gender_distribution,

@@ -44,7 +44,7 @@ from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
     similarity_prevalence_comparison,
 )
-from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+from ephemeraldaddy.gui.features.similarities.analysis.calculations import (
     build_similarity_factor_counts_for_charts,
     resize_similarities_list_to_contents,
 )

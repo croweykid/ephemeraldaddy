@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from ephemeraldaddy.gui.features.charts.similarities.cohort_controller import (
+from ephemeraldaddy.gui.features.similarities.analysis.cohort_controller import (
     SimilaritiesController,
 )
-from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
+from ephemeraldaddy.gui.features.similarities.cohort_metadata import (
     UNSPECIFIED_GENDER_LABEL,
     build_gender_distribution,
     gender_counts,

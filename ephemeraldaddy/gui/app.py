@@ -41,6 +41,7 @@ from zoneinfo import ZoneInfo
 
 from ephemeraldaddy.gui.crash_diagnostics import install_crash_diagnostics
 from ephemeraldaddy.core.position_descriptions import get_position_description
+from ephemeraldaddy.gui.features.windowing import GlobalCloseShortcutFilter
 
 
 logger = logging.getLogger(__name__)
@@ -305,23 +306,6 @@ class _PlanetDynamicsWorker(QObject):
             self.finished.emit(self._request_id, self._signature, scores)
         except Exception as exc:  # pragma: no cover - defensive GUI worker path
             self.failed.emit(self._request_id, self._signature, str(exc))
-
-
-class _GlobalCloseShortcutFilter(QObject):
-    """Ensures Ctrl/Cmd+W closes the currently active top-level window."""
-
-    def eventFilter(self, _obj: QObject, event: QEvent) -> bool:
-        if event.type() != QEvent.KeyPress:
-            return False
-        if not event.matches(QKeySequence.Close):
-            return False
-
-        target = QApplication.activeModalWidget() or QApplication.activeWindow()
-        if target is None:
-            return False
-
-        target.close()
-        return True
 
 
 class _ComboItemColorDelegate(QStyledItemDelegate):
@@ -1235,11 +1219,11 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_matc
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
 )
-from ephemeraldaddy.gui.features.charts.similarities import SimilaritiesController
+from ephemeraldaddy.gui.features.similarities.analysis import SimilaritiesController
 from ephemeraldaddy.gui.features.charts.perceived_similarity_predictors_panel import (
     PerceivedSimilarityPredictorsPanel,
 )
-from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+from ephemeraldaddy.gui.features.similarities.analysis.calculations import (
     build_common_dominant_elements as _build_common_dominant_elements,
     build_common_dominant_modes as _build_common_dominant_modes,
     build_dissimilarity_export_sections,
@@ -1912,7 +1896,7 @@ def _get_qapp():
 
     configure_application_identity(app)
     if not hasattr(app, "_edd_global_close_filter"):
-        app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
+        app._edd_global_close_filter = GlobalCloseShortcutFilter(app)
         app.installEventFilter(app._edd_global_close_filter)
     _apply_global_dropdown_and_menu_styles(app)
     install_app_tooltip_style(app)
@@ -5692,9 +5676,6 @@ class ManageChartsDialog(
             if callable(metric_payloads):
                 return metric_payloads
         raise AttributeError(name)
-
-    def _build_similarities_analysis_panel(self) -> QWidget:
-        return self.similarities_controller.build_panel()
 
     def _build_perceived_similarity_predictors_panel(self) -> QWidget:
         panel = PerceivedSimilarityPredictorsPanel(

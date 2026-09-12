@@ -78,7 +78,7 @@ style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first
 style_stub.format_chart_header = lambda *_args, **_kwargs: ""
 sys.modules.setdefault("ephemeraldaddy.gui.style", style_stub)
 
-from ephemeraldaddy.gui.features.charts.similarities_analysis import (  # noqa: E402
+from ephemeraldaddy.gui.features.similarities.analysis.calculations import (  # noqa: E402
     build_dissimilarity_export_sections,
 )
 
@@ -190,7 +190,7 @@ def test_dissimilarity_export_sections_include_unique_bazi_signs():
 
 
 def test_similarity_factor_counts_prefer_house_cusp_labels_for_angle_sign_tautologies():
-    from ephemeraldaddy.gui.features.charts.similarities_analysis import _build_similarity_factor_counts
+    from ephemeraldaddy.gui.features.similarities.analysis.calculations import _build_similarity_factor_counts
 
     chart = _chart(
         birthtime_unknown=False,
@@ -214,7 +214,7 @@ def test_similarity_factor_counts_prefer_house_cusp_labels_for_angle_sign_tautol
 
 
 def test_dissimilarity_factor_counts_use_shared_aspect_display_rules():
-    from ephemeraldaddy.gui.features.charts.similarities_analysis import _build_similarity_factor_counts
+    from ephemeraldaddy.gui.features.similarities.analysis.calculations import _build_similarity_factor_counts
 
     chart = _chart(
         birthtime_unknown=False,
@@ -236,7 +236,7 @@ def test_dissimilarity_factor_counts_use_shared_aspect_display_rules():
 
 
 def test_collection_factor_counts_exclude_uncertain_bodies_from_derived_factors():
-    from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+    from ephemeraldaddy.gui.features.similarities.analysis.calculations import (
         build_similarity_factor_counts_for_charts,
     )
 

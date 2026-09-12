@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from ephemeraldaddy.gui.features.charts.similarities import cohort_controller
+from ephemeraldaddy.gui.features.similarities.analysis import cohort_controller
 
 
 def test_export_json_snapshots_current_selected_chart_uids(monkeypatch) -> None:

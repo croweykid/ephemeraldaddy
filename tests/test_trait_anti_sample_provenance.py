@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
+from ephemeraldaddy.gui.features.similarities.cohort_metadata import (
     antisample_uids_for_profile,
     chart_uid_is_anti_ascribed,
     sample_uids_for_profile,

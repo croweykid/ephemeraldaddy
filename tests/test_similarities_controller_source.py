@@ -2,20 +2,33 @@ from pathlib import Path
 
 
 APP_SOURCE = Path("ephemeraldaddy/gui/app.py")
-CONTROLLER_SOURCE = Path("ephemeraldaddy/gui/features/charts/similarities/controller.py")
+CONTROLLER_SOURCE = Path("ephemeraldaddy/gui/features/similarities/analysis/controller.py")
+CALCULATIONS_SOURCE = Path(
+    "ephemeraldaddy/gui/features/similarities/analysis/calculations.py"
+)
 
 
-def test_manage_charts_delegates_similarities_panel_construction_to_controller():
+def test_manage_charts_constructs_similarities_panel_through_canonical_controller():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     controller_source = CONTROLLER_SOURCE.read_text(encoding="utf-8")
 
     assert "def _build_similarities_analysis_panel_contents" not in app_source
-    app_panel_method = app_source.split("def _build_similarities_analysis_panel", 1)[1].split(
-        "def _set_similarities_db_info_panel_visible", 1
-    )[0]
-    assert "return self.similarities_controller.build_panel()" in app_panel_method
+    assert "def _build_similarities_analysis_panel(" not in app_source
+    assert (
+        "self.similarities_analysis_panel = self.similarities_controller.build_panel()"
+        in app_source
+    )
     assert "title = QLabel(\"Similarities Analysis\")" in controller_source
     assert "self.db_info_panel = DBInfoPanel()" in controller_source
+
+
+def test_similarities_analysis_has_no_legacy_charts_package_owner():
+    assert CONTROLLER_SOURCE.is_file()
+    assert CALCULATIONS_SOURCE.is_file()
+    assert not Path(
+        "ephemeraldaddy/gui/features/charts/similarities_analysis.py"
+    ).exists()
+    assert not Path("ephemeraldaddy/gui/features/charts/similarities").exists()
 
 
 def test_data_export_button_dispatches_through_cohort_aware_controller():
