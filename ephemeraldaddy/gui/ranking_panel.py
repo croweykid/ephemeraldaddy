@@ -8,11 +8,14 @@ This module keeps the Rankings left-panel UI and ranking refresh logic outside
 from __future__ import annotations
 
 import html
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -119,6 +122,7 @@ class RankingsPanelMixin:
         # initial refresh pending until the panel is actually visible.
         self._rankings_data_dirty = True
         self._rankings_trait_visible_limits: dict[str, int] = {}
+        self._rankings_sign_visible_limits: dict[tuple[bool, str], int] = {}
         self._rankings_traits_sorted_order_cache: dict[
             tuple[object, ...], tuple[int, tuple[dict[str, Any], ...]]
         ] = {}
@@ -146,6 +150,11 @@ class RankingsPanelMixin:
             lambda _index: self._refresh_rankings_panel({"traits"})
         )
         trait_row_layout.addWidget(self.rankings_trait_combo, 1)
+        self.rankings_traits_export_button = QPushButton()
+        self._configure_rankings_export_button(
+            self.rankings_traits_export_button, "traits"
+        )
+        trait_row_layout.addWidget(self.rankings_traits_export_button)
         traits_layout.addWidget(trait_row)
         self.rankings_traits_label = QLabel("")
         self.rankings_traits_label.setTextFormat(Qt.RichText)
@@ -219,6 +228,11 @@ class RankingsPanelMixin:
             lambda _index: self._refresh_rankings_panel({"sign_dominance"})
         )
         sign_row_layout.addWidget(self.rankings_sign_combo, 1)
+        self.rankings_signs_export_button = QPushButton()
+        self._configure_rankings_export_button(
+            self.rankings_signs_export_button, "most_sign"
+        )
+        sign_row_layout.addWidget(self.rankings_signs_export_button)
         most_sign_layout.addWidget(sign_row)
         self.rankings_signs_label = QLabel("")
         self.rankings_signs_label.setTextFormat(Qt.RichText)
@@ -239,6 +253,21 @@ class RankingsPanelMixin:
             "color: #d8d8d8; padding: 2px 0 6px 0;"
         )
         most_sign_layout.addWidget(self.rankings_signs_label)
+        most_sign_more_row = QWidget()
+        most_sign_more_row_layout = QHBoxLayout(most_sign_more_row)
+        most_sign_more_row_layout.setContentsMargins(0, 0, 0, 0)
+        most_sign_more_row_layout.setSpacing(6)
+        most_sign_more_row_layout.addStretch(1)
+        self.rankings_signs_more_button = QPushButton("show next 10")
+        self.rankings_signs_more_button.setToolTip(
+            "Append the next 10 charts to this sign ranking."
+        )
+        self.rankings_signs_more_button.clicked.connect(
+            lambda: self._on_rankings_sign_show_next_clicked(least=False)
+        )
+        self.rankings_signs_more_button.setVisible(False)
+        most_sign_more_row_layout.addWidget(self.rankings_signs_more_button)
+        most_sign_layout.addWidget(most_sign_more_row)
 
         least_sign_layout = self._add_left_panel_collapsible_section(
             panel,
@@ -262,6 +291,11 @@ class RankingsPanelMixin:
             lambda _index: self._refresh_rankings_panel({"sign_dominance"})
         )
         least_sign_row_layout.addWidget(self.rankings_least_sign_combo, 1)
+        self.rankings_least_signs_export_button = QPushButton()
+        self._configure_rankings_export_button(
+            self.rankings_least_signs_export_button, "least_sign"
+        )
+        least_sign_row_layout.addWidget(self.rankings_least_signs_export_button)
         least_sign_layout.addWidget(least_sign_row)
         self.rankings_least_signs_label = QLabel("")
         self.rankings_least_signs_label.setTextFormat(Qt.RichText)
@@ -284,8 +318,120 @@ class RankingsPanelMixin:
             "color: #d8d8d8; padding: 2px 0 6px 0;"
         )
         least_sign_layout.addWidget(self.rankings_least_signs_label)
+        least_sign_more_row = QWidget()
+        least_sign_more_row_layout = QHBoxLayout(least_sign_more_row)
+        least_sign_more_row_layout.setContentsMargins(0, 0, 0, 0)
+        least_sign_more_row_layout.setSpacing(6)
+        least_sign_more_row_layout.addStretch(1)
+        self.rankings_least_signs_more_button = QPushButton("show next 10")
+        self.rankings_least_signs_more_button.setToolTip(
+            "Append the next 10 charts to this sign ranking."
+        )
+        self.rankings_least_signs_more_button.clicked.connect(
+            lambda: self._on_rankings_sign_show_next_clicked(least=True)
+        )
+        self.rankings_least_signs_more_button.setVisible(False)
+        least_sign_more_row_layout.addWidget(self.rankings_least_signs_more_button)
+        least_sign_layout.addWidget(least_sign_more_row)
         layout.addStretch(1)
         return panel
+
+    @staticmethod
+    def _rankings_export_icon_path() -> str:
+        return str(
+            Path(__file__).resolve().parents[1] / "graphics" / "share_icon2.png"
+        )
+
+    def _configure_rankings_export_button(
+        self, button: QPushButton, section: str
+    ) -> None:
+        button.setIcon(QIcon(self._rankings_export_icon_path()))
+        button.setFlat(True)
+        button.setFixedSize(26, 26)
+        button.setToolTip("Export the currently revealed ranking as PNG.")
+        button.clicked.connect(
+            lambda _checked=False, section=section: self._export_rankings_section_png(
+                section
+            )
+        )
+
+    def _export_rankings_section_png(self, section: str) -> None:
+        targets = {
+            "traits": (
+                "rankings_traits_label",
+                "rankings_trait_combo",
+                "trait-ranking",
+            ),
+            "most_sign": (
+                "rankings_signs_label",
+                "rankings_sign_combo",
+                "most-dominant-sign",
+            ),
+            "least_sign": (
+                "rankings_least_signs_label",
+                "rankings_least_sign_combo",
+                "least-dominant-sign",
+            ),
+        }
+        target_spec = targets.get(section)
+        if target_spec is None:
+            return
+        label_name, combo_name, filename_prefix = target_spec
+        label = getattr(self, label_name, None)
+        combo = getattr(self, combo_name, None)
+        if not isinstance(label, QLabel):
+            return
+
+        context_name = "ranking"
+        if isinstance(combo, QComboBox):
+            context_name = str(combo.currentData() or combo.currentText() or "ranking")
+        filename_token = "-".join(
+            part
+            for part in "".join(
+                char if char.isalnum() else " " for char in context_name
+            ).lower().split()
+            if part
+        ) or "ranking"
+        default_name = f"{filename_prefix}-{filename_token}.png"
+        save_path, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export ranking as PNG",
+            default_name,
+            "PNG images (*.png)",
+        )
+        if not save_path:
+            return
+        if not save_path.lower().endswith(".png"):
+            save_path += ".png"
+
+        label.ensurePolished()
+        export_width = max(1, int(label.width()), int(label.sizeHint().width()))
+        try:
+            content_height = int(label.heightForWidth(export_width))
+        except (TypeError, ValueError):
+            content_height = int(label.sizeHint().height())
+        export_height = max(
+            1,
+            int(label.height()),
+            int(label.minimumHeight()),
+            int(label.sizeHint().height()),
+            content_height,
+        )
+        original_size = label.size()
+        painter = None
+        try:
+            label.resize(export_width, export_height)
+            pixmap = QPixmap(export_width, export_height)
+            pixmap.fill(QColor("#17191d"))
+            painter = QPainter(pixmap)
+            label.render(painter)
+            painter.end()
+            painter = None
+            pixmap.save(save_path, "PNG")
+        finally:
+            if painter is not None and painter.isActive():
+                painter.end()
+            label.resize(original_size)
 
     def _on_rankings_section_toggled(self, section: str, expanded: bool) -> None:
         """Refresh a Rankings section only when it becomes visible."""
@@ -342,6 +488,40 @@ class RankingsPanelMixin:
         current_limit = max(10, current_limit)
         limits[trait_name] = current_limit
         return current_limit
+
+    def _rankings_sign_visible_limit(self, selected_sign: str, *, least: bool) -> int:
+        key = (bool(least), str(selected_sign or "").strip())
+        if not key[1]:
+            return 10
+        limits = getattr(self, "_rankings_sign_visible_limits", None)
+        if not isinstance(limits, dict):
+            limits = {}
+            self._rankings_sign_visible_limits = limits
+        try:
+            current_limit = int(limits.get(key, 10))
+        except (TypeError, ValueError):
+            current_limit = 10
+        current_limit = max(10, current_limit)
+        limits[key] = current_limit
+        return current_limit
+
+    def _on_rankings_sign_show_next_clicked(self, *, least: bool) -> None:
+        combo_name = "rankings_least_sign_combo" if least else "rankings_sign_combo"
+        combo = getattr(self, combo_name, None)
+        if not isinstance(combo, QComboBox):
+            return
+        selected_sign = str(combo.currentText() or "").strip()
+        if selected_sign not in ZODIAC_NAMES:
+            return
+        limits = getattr(self, "_rankings_sign_visible_limits", None)
+        if not isinstance(limits, dict):
+            limits = {}
+            self._rankings_sign_visible_limits = limits
+        key = (bool(least), selected_sign)
+        limits[key] = self._rankings_sign_visible_limit(
+            selected_sign, least=least
+        ) + 10
+        self._refresh_rankings_panel({"sign_dominance"})
 
     def _sync_rankings_traits_scroll_height(self) -> None:
         scroll = getattr(self, "rankings_traits_scroll", None)
@@ -1433,10 +1613,18 @@ class RankingsPanelMixin:
         label_name = "rankings_least_signs_label" if least else "rankings_signs_label"
         combo = getattr(self, combo_name, None)
         label = getattr(self, label_name, None)
+        more_button_name = (
+            "rankings_least_signs_more_button"
+            if least
+            else "rankings_signs_more_button"
+        )
+        more_button = getattr(self, more_button_name, None)
         if not isinstance(combo, QComboBox) or not isinstance(label, QLabel):
             return
         selected_sign = str(combo.currentText() or "").strip()
         if selected_sign not in ZODIAC_NAMES:
+            if isinstance(more_button, QPushButton):
+                more_button.setVisible(False)
             label.setText(
                 "<span style='color:#9a9a9a;'>Select a sign to rank chart dominance.</span>"
             )
@@ -1585,20 +1773,12 @@ class RankingsPanelMixin:
                 if chart_key:
                     sign_top_20_memberships.setdefault(chart_key, []).append(sign)
 
-        selected_top_20_keys = [
-            str(row.get("chart_uid") or row.get("name") or "").strip()
-            for row in rows[:20]
-        ]
-        shared_top_20_ranks = [
-            rank
-            for rank, chart_key in enumerate(selected_top_20_keys, start=1)
-            if len(sign_top_20_memberships.get(chart_key, ())) >= 2
-        ]
-        shared_top_20_count = len(shared_top_20_ranks)
-        deepest_shared_rank = max(shared_top_20_ranks, default=0)
-        display_limit = min(20, max(10 + shared_top_20_count, deepest_shared_rank))
-        if least:
-            display_limit = min(20, len(rows))
+        display_limit = min(
+            len(rows),
+            self._rankings_sign_visible_limit(selected_sign, least=least),
+        )
+        if isinstance(more_button, QPushButton):
+            more_button.setVisible(len(rows) > display_limit)
 
         table_rows = []
         for rank, row in enumerate(rows[:display_limit], start=1):
@@ -1658,6 +1838,8 @@ class RankingsPanelMixin:
             )
         safe_sign = html.escape(selected_sign)
         if not table_rows:
+            if isinstance(more_button, QPushButton):
+                more_button.setVisible(False)
             label.setText(
                 f"<span style='color:#9a9a9a;'>No charts are available to rank for <b>{safe_sign}</b>.</span>"
             )
