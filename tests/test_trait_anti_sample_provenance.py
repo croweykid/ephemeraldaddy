@@ -7,7 +7,10 @@ from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
     chart_uid_is_anti_ascribed,
     sample_uids_for_profile,
 )
-from ephemeraldaddy.gui.features.charts.trait_sample_markers import _marked_name
+from ephemeraldaddy.gui.features.charts.trait_sample_markers import (
+    _marked_name,
+    _rankings_rows_with_sample_markers,
+)
 from ephemeraldaddy.gui.features.settings import trait_anti_import
 
 
@@ -26,6 +29,50 @@ def test_trait_sample_marker_combinations():
     assert _marked_name("Trait", {"Trait"}) == "🧚 Trait"
     assert _marked_name("Trait", set(), {"Trait"}) == "👹 Trait"
     assert _marked_name("Trait", {"Trait"}, {"Trait"}) == "🧚👹 Trait"
+
+
+def test_rankings_chart_names_show_sample_provenance_without_mutating_rows():
+    traits = [
+        {
+            "name": "Trait",
+            "profile": {
+                "sample_uids": ["POSITIVE", "BOTH"],
+                "antisample_uids": ["ANTI", "BOTH"],
+            },
+        }
+    ]
+    rows = [
+        {"chart_uid": "positive", "name": "Positive", "likelihood": 90.0},
+        {"chart_uid": "anti", "name": "Anti", "likelihood": 80.0},
+        {"chart_uid": "both", "name": "Both", "likelihood": 70.0},
+        {"chart_uid": "neither", "name": "Neither", "likelihood": 60.0},
+    ]
+
+    displayed = _rankings_rows_with_sample_markers("Trait", rows, traits)
+
+    assert [row["name"] for row in displayed] == [
+        "🧚 Positive",
+        "👹 Anti",
+        "🧚👹 Both",
+        "Neither",
+    ]
+    assert [row["chart_uid"] for row in displayed] == [
+        "positive",
+        "anti",
+        "both",
+        "neither",
+    ]
+    assert [row["name"] for row in rows] == ["Positive", "Anti", "Both", "Neither"]
+
+
+def test_rankings_chart_name_marker_accepts_legacy_positive_chart_uids():
+    traits = [{"name": "Legacy", "chartUIDs": [" legacy-uid "]}]
+    rows = [{"chart_uid": "LEGACY-UID", "name": "Legacy Chart"}]
+
+    displayed = _rankings_rows_with_sample_markers("Legacy", rows, traits)
+
+    assert displayed[0]["name"] == "🧚 Legacy Chart"
+    assert rows[0]["name"] == "Legacy Chart"
 
 
 def test_load_anti_trait_uses_only_source_positive_samples(monkeypatch, tmp_path):
