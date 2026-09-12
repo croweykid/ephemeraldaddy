@@ -695,6 +695,20 @@ def _json_safe_trait_value(value: Any) -> Any:
         return [_json_safe_trait_value(child) for child in sorted(value, key=str)]
     return value
 
+
+def _normalize_trait_sample_uids(value: object) -> list[str]:
+    """Keep source-cohort UIDs as a canonical JSON array during conversion."""
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return []
+    return sorted(
+        {
+            normalized
+            for raw_uid in value
+            if (normalized := str(raw_uid or "").strip().upper())
+        }
+    )
+
+
 def save_trait(
     name: str,
     profile: Mapping[str, Any],
@@ -720,6 +734,11 @@ def save_trait(
         stored.get("description", "") if description is None else description
     ).strip()
     stored["samples"] = normalize_trait_samples(stored.get("samples"), trait_name=clean_name)
+    # Add Trait converts Python exports to JSON.  Make this provenance field an
+    # explicit part of that conversion contract rather than relying on the
+    # generic recursive serializer to happen to retain it.
+    if "sample_uids" in stored:
+        stored["sample_uids"] = _normalize_trait_sample_uids(stored["sample_uids"])
     preserved_comments = _extract_hash_comments(str(profile.get("_source_text", "")))
     stored.pop("_source_text", None)
     destination.write_text(

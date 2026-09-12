@@ -8,7 +8,17 @@ from ephemeraldaddy.gui.features.charts.similarities import cohort_controller
 def test_export_json_snapshots_current_selected_chart_uids(monkeypatch) -> None:
     captured: dict[str, object] = {}
     host = SimpleNamespace(
-        _selected_chart_uids=lambda: [" uid-b ", "UID-A", "uid-a", ""],
+        # The visible/persistent UID accessor can lag the row selection that
+        # actually drove Similarities Analysis; export must use the latter.
+        _selected_chart_uids=lambda: ["UID-A"],
+        _selected_local_row_ids=lambda: [3, 1, 2, 99],
+        _exclude_similarities_placeholder_local_row_ids=lambda ids: [
+            chart_id for chart_id in ids if chart_id != 99
+        ],
+        _chart_uids_by_local_row_id=lambda ids: {
+            chart_id: {1: " uid-b ", 2: "UID-A", 3: "uid-a"}[chart_id]
+            for chart_id in ids
+        },
         _reactivate_database_view=None,
     )
     controller = object.__new__(cohort_controller.SimilaritiesController)

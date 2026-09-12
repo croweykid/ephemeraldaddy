@@ -80,17 +80,21 @@ class SimilaritiesController(_BaseSimilaritiesController):
         self._refresh_cohort_metadata(self.host._selected_local_row_ids())
 
     def _refresh_export_sample_uids(self) -> None:
-        """Snapshot the persistent chart selection immediately before export."""
-        selected_chart_uids = getattr(self.host, "_selected_chart_uids", None)
-        if not callable(selected_chart_uids):
+        """Snapshot every selected chart UID immediately before export.
+
+        Similarities is calculated from local row IDs.  Reading the UI-facing
+        UID selection here used a different state path and could consequently
+        produce an empty or partial cohort in the exported profile.  Resolve
+        the same selected rows used by the analysis through the database-backed
+        UID map instead, while still excluding non-chart placeholders.
+        """
+        selected_local_row_ids = getattr(self.host, "_selected_local_row_ids", None)
+        uid_map_for_rows = getattr(self.host, "_chart_uids_by_local_row_id", None)
+        if not callable(selected_local_row_ids) or not callable(uid_map_for_rows):
+            self._cohort_chart_uids = []
             return
-        self._cohort_chart_uids = sorted(
-            {
-                uid
-                for raw_uid in selected_chart_uids()
-                if (uid := normalize_chart_uid(raw_uid))
-            }
-        )
+        selected_ids = self._selected_cohort_ids(list(selected_local_row_ids()))
+        self._cohort_chart_uids = chart_uids_from_mapping(uid_map_for_rows(selected_ids))
 
     def export_json(self) -> None:
         """Export reusable Trait data with its source cohort metadata."""

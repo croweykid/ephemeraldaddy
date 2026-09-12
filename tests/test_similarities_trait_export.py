@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
+from ephemeraldaddy.analysis import traits
 from ephemeraldaddy.analysis.traits import parse_trait_file
 from ephemeraldaddy.gui.features.charts import exporters
 from ephemeraldaddy.gui.features.charts.similarities.trait_export import (
@@ -135,3 +136,24 @@ def test_python_export_dialog_writes_source_sample_metadata(tmp_path, monkeypatc
 
     parsed = parse_trait_file(export_path)["Dialog Trait"]
     assert parsed["sample_uids"] == ["UID-1", "UID-2"]
+
+
+def test_add_trait_conversion_retains_sample_uids_as_json_array(tmp_path, monkeypatch) -> None:
+    source = tmp_path / "export.py"
+    source.write_text(
+        format_similarities_json_export_payload(
+            build_similarities_trait_export_payload(
+                "Exported", _export_sections(), sample_uids=[" uid-2 ", "UID-1", "uid-1"]
+            )
+        ),
+        encoding="utf-8",
+    )
+    trait_dir = tmp_path / "installed"
+    trait_dir.mkdir()
+    monkeypatch.setattr(traits, "TRAITS_DIR", trait_dir)
+
+    installed = traits.install_trait_file(source, "Installed")
+
+    stored_text = installed.read_text(encoding="utf-8")
+    assert '"sample_uids": [' in stored_text
+    assert parse_trait_file(installed)["Installed"]["sample_uids"] == ["UID-1", "UID-2"]
