@@ -309,6 +309,15 @@ def _aspect_body_with_sign(body: str, positions: dict[str, float]) -> str:
 
 
 def _display_body_with_glyph(body: str, *, use_lilith_alias: bool = False) -> str:
+    if use_lilith_alias:
+        lilith_alias = {
+            "Lilith": "⚸🌝 M. Lilith",
+            "Mean Lilith": "⚸🌝 M. Lilith",
+            "Osculating Lilith": "⚸🌚 O. Lilith",
+            "Natural Lilith": "⚸🌜 N. Lilith",
+        }.get(str(body).strip())
+        if lilith_alias is not None:
+            return lilith_alias
     display_body = _display_body_name(body, use_lilith_alias=use_lilith_alias)
     glyph = PLANET_GLYPHS.get(body) or PLANET_GLYPHS.get(display_body)
     if not glyph:
