@@ -444,6 +444,7 @@ def generate_personal_transit_range(
     start: datetime.datetime,
     end: datetime.datetime,
     step_hours: float = 6.0,
+    cancelled: Callable[[], bool] | None = None,
 ) -> list[PersonalTimelineWindow]:
     """Generate major transit windows inside an explicit, short date range."""
     normalized_uid = str(chart_uid or "").strip().upper()
@@ -477,6 +478,8 @@ def generate_personal_transit_range(
     current_dt = start
     results: list[PersonalTimelineWindow] = []
     while current_dt <= end:
+        if cancelled is not None and cancelled():
+            return []
         current_active: set[tuple[str, str, str]] = set()
         for transit_body, body_definitions in definitions_by_body.items():
             longitude = longitude_at(current_dt, transit_body)

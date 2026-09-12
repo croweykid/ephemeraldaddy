@@ -33,3 +33,17 @@ def test_shared_scaffolding_owns_requested_tabs_and_defaults():
     assert '("Chart Drawing", "Aspects")' in source
     assert '("Table View", "Theme View")' in source
     assert "default_index=1" in source
+
+
+def test_personal_range_runs_in_cancellable_worker_not_gui_thread():
+    windows_source = (
+        ROOT / "ephemeraldaddy/gui/features/transits/popout_windows.py"
+    ).read_text(encoding="utf-8")
+    worker_source = (
+        ROOT / "ephemeraldaddy/gui/features/transits/range_worker.py"
+    ).read_text(encoding="utf-8")
+
+    assert "PersonalTransitRangeWorker(" in windows_source
+    assert "worker.moveToThread(thread)" in windows_source
+    assert "thread.requestInterruption()" in windows_source
+    assert "cancelled=thread.isInterruptionRequested" in worker_source

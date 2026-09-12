@@ -47,8 +47,11 @@ from ephemeraldaddy.gui.features.charts.transit_workers import (
     ManagedTransitPopoutDialog, TransitAspectWindowRelay, TransitAspectWindowWorker,
 )
 from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
-from ephemeraldaddy.gui.features.transits.personal_timeline_generation import generate_personal_transit_range
 from ephemeraldaddy.gui.features.transits.popout_layout import build_transit_popout_scaffold
+from ephemeraldaddy.gui.features.transits.range_worker import (
+    PersonalTransitRangeRelay,
+    PersonalTransitRangeWorker,
+)
 from ephemeraldaddy.gui.features.transits.theme_view import (
     format_global_transit_theme_view, format_transit_range_table, format_transit_theme_view,
 )
@@ -231,6 +234,11 @@ class TransitPopoutMixin:
         }
         self._popout_summary_contexts[popout_context_key] = popout_context
         surrounding_major_windows: list[Any] = []
+        range_generation = 0
+        range_thread: QThread | None = None
+        range_worker: PersonalTransitRangeWorker | None = None
+        range_relay: PersonalTransitRangeRelay | None = None
+        range_loading = False
 
         def _summary_header_lines() -> list[str]:
             return build_personal_transit_header_lines(
@@ -242,6 +250,7 @@ class TransitPopoutMixin:
             )
 
         def _refresh_theme_view() -> None:
+            nonlocal range_generation, range_thread, range_worker, range_relay, range_loading
             center = transit_chart.dt or datetime.datetime.now(datetime.timezone.utc)
             chart_uid = str(
                 getattr(natal_chart, "chart_uid", None)
@@ -254,21 +263,71 @@ class TransitPopoutMixin:
                 )
                 _refresh_summary()
                 return
-            try:
-                windows = generate_personal_transit_range(
-                    chart_uid,
-                    natal_chart,
-                    start=center - datetime.timedelta(days=30),
-                    end=center + datetime.timedelta(days=30),
-                )
-            except Exception:
-                logger.exception("Failed to build the Personal Transit Theme View.")
+            range_generation += 1
+            generation = range_generation
+            range_loading = True
+            if range_thread is not None and range_thread.isRunning():
+                range_thread.requestInterruption()
+                range_thread.quit()
+
+            theme_output.setPlainText("Calculating major transits for the surrounding 60 days…")
+            surrounding_major_windows.clear()
+            _refresh_summary()
+
+            thread = QThread()
+            worker = PersonalTransitRangeWorker(
+                generation,
+                chart_uid,
+                natal_chart,
+                center - datetime.timedelta(days=30),
+                center + datetime.timedelta(days=30),
+            )
+            relay = PersonalTransitRangeRelay(dialog)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.finished.connect(relay.forward_ready, Qt.QueuedConnection)
+            worker.failed.connect(relay.forward_failed, Qt.QueuedConnection)
+
+            def _range_ready(completed_generation: int, payload: object) -> None:
+                nonlocal range_loading
+                if completed_generation != range_generation:
+                    return
+                range_loading = False
+                windows = list(payload) if isinstance(payload, (list, tuple)) else []
+                surrounding_major_windows[:] = windows
+                theme_output.setPlainText(format_transit_theme_view(windows))
+                _refresh_summary()
+
+            def _range_failed(failed_generation: int, error_text: str) -> None:
+                nonlocal range_loading
+                if failed_generation != range_generation or error_text == "Cancelled":
+                    return
+                range_loading = False
+                logger.warning("Personal Transit range calculation failed: %s", error_text)
                 theme_output.setPlainText("Theme View could not calculate this transit range.")
                 _refresh_summary()
-                return
-            surrounding_major_windows[:] = windows
-            theme_output.setPlainText(format_transit_theme_view(windows))
-            _refresh_summary()
+
+            def _range_thread_finished(finished_thread: QThread = thread) -> None:
+                nonlocal range_thread, range_worker, range_relay
+                if finished_thread in transit_retired_threads:
+                    transit_retired_threads.remove(finished_thread)
+                if range_thread is finished_thread:
+                    range_thread = None
+                    range_worker = None
+                    range_relay = None
+
+            relay.ready.connect(_range_ready)
+            relay.failed.connect(_range_failed)
+            worker.finished.connect(thread.quit)
+            worker.failed.connect(thread.quit)
+            thread.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            transit_retired_threads.append(thread)
+            thread.finished.connect(_range_thread_finished)
+            range_thread = thread
+            range_worker = worker
+            range_relay = relay
+            thread.start()
 
         def _redraw_chart_wheel() -> None:
             header_left.setText("\n".join(_summary_header_lines()[2:4]))
@@ -464,6 +523,11 @@ class TransitPopoutMixin:
                     )
                     transit_workers.pop(key, None)
                     continue
+            for thread in list(transit_retired_threads):
+                if thread.isRunning():
+                    thread.finished.connect(_finalize_transit_worker_shutdown)
+                    thread.requestInterruption()
+                    thread.quit()
             _finalize_transit_worker_shutdown()
             logger.debug(
                 "Transit worker shutdown requests sent (id=%s active_workers=%s).",
@@ -865,7 +929,12 @@ class TransitPopoutMixin:
                 else:
                     lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
                 lines.append("")
-            lines.extend(["", format_transit_range_table(surrounding_major_windows)])
+            range_text = (
+                "SURROUNDING MAJOR TRANSITS (±30 DAYS)\n- Calculating…"
+                if range_loading
+                else format_transit_range_table(surrounding_major_windows)
+            )
+            lines.extend(["", range_text])
             return "\n".join(lines)
 
         def _handle_calendar_click(cursor) -> bool:
@@ -885,9 +954,10 @@ class TransitPopoutMixin:
             return True
 
         def _arrest_transit_window_loads_for_update() -> None:
-            nonlocal transit_generation
+            nonlocal transit_generation, range_generation
 
             transit_generation += 1
+            range_generation += 1
             preload_queue.clear()
             for key, (thread, _worker, _relay) in list(transit_workers.items()):
                 try:
@@ -899,6 +969,9 @@ class TransitPopoutMixin:
                         key,
                     )
             transit_workers.clear()
+            if range_thread is not None and range_thread.isRunning():
+                range_thread.requestInterruption()
+                range_thread.quit()
 
         def _on_update_chart() -> None:
             nonlocal transit_chart, transit_positions_in_natal_houses, aspect_hits_by_mode, transit_location, include_time, location_label, raw_location

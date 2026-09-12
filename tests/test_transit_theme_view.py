@@ -134,6 +134,32 @@ def test_short_range_generator_reuses_longitudes_during_boundary_refinement(monk
     assert calls <= 36  # Shared body/timestamp probes are calculated only once.
 
 
+def test_short_range_generator_honors_cancellation(monkeypatch):
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.transits.personal_timeline_generation._build_personal_transit_range_definitions",
+        lambda _chart: (
+            TimelineTransitDefinition("Saturn", "Sun", 0.0, "conjunction", 0.0, 1.0),
+        ),
+    )
+    calls = 0
+
+    def cancelled():
+        nonlocal calls
+        calls += 1
+        return calls > 1
+
+    windows = generate_personal_transit_range(
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        SimpleNamespace(positions={"Sun": 0.0}),
+        start=datetime.datetime(2026, 9, 1, tzinfo=UTC),
+        end=datetime.datetime(2026, 10, 1, tzinfo=UTC),
+        cancelled=cancelled,
+    )
+
+    assert windows == []
+    assert calls == 2
+
+
 @pytest.mark.parametrize("chart_uid", ["", "   "])
 def test_short_range_generator_requires_permanent_chart_uid(chart_uid):
     with pytest.raises(ValueError, match="Chart UID"):
