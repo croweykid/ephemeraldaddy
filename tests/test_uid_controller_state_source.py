@@ -139,7 +139,7 @@ def test_charts_controller_has_no_legacy_pending_id_callbacks():
 def test_high_similarity_and_worker_callers_pass_hidden_uids():
     app_source = _class_source("MainWindow")
     similarities_source = Path(
-        "ephemeraldaddy/gui/features/charts/similarities_analysis.py"
+        "ephemeraldaddy/gui/features/similarities/analysis/calculations.py"
     ).read_text(encoding="utf-8")
 
     high_similarity_call = APP_SOURCE[

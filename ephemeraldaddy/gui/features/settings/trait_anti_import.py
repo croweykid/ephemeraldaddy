@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QPushButton
 
 from ephemeraldaddy.analysis import traits as trait_store
-from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
+from ephemeraldaddy.gui.features.similarities.cohort_metadata import (
     ANTISAMPLE_UIDS_KEY,
     normalize_chart_uid,
     sample_uids_for_profile,

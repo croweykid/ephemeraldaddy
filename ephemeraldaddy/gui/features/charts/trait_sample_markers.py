@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from types import ModuleType
 from typing import Any
 
-from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
+from ephemeraldaddy.gui.features.similarities.cohort_metadata import (
     chart_uid_is_anti_ascribed,
     chart_uid_is_ascribed,
     normalize_chart_uid,

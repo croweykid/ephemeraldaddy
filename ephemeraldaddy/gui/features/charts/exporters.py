@@ -170,7 +170,7 @@ def export_similarities_analysis_json_dialog(
 
     # Imported lazily to avoid importing the Similarities controller package while
     # the shared exporters module itself is still being initialized.
-    from ephemeraldaddy.gui.features.charts.similarities.trait_export import (
+    from ephemeraldaddy.gui.features.similarities.trait_export import (
         build_similarities_trait_export_payload,
     )
 

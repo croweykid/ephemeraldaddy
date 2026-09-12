@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 from ephemeraldaddy.analysis.traits import parse_trait_file
 from ephemeraldaddy.gui.features.charts import exporters
-from ephemeraldaddy.gui.features.charts.similarities.trait_export import (
+from ephemeraldaddy.gui.features.similarities.trait_export import (
     build_similarities_trait_export_payload,
     compact_gender_distribution_weights,
 )

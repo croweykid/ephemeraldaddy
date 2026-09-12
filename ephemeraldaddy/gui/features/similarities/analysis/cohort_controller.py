@@ -1,6 +1,6 @@
-"""Cohort provenance extension for the Similarities Analysis controller.
+"""Cohort provenance extension for the Similarities Analysis panel controller.
 
-The legacy calculation entry points still live on ManageChartsDialog.  This
+The legacy calculation entry points still live on Database View. This
 controller keeps cohort policy out of ``app.py`` and passes export metadata
 explicitly into the reusable Trait export path.
 """
@@ -22,7 +22,7 @@ from ephemeraldaddy.gui.features.charts.similarities_export import (
     similarities_match_clears_delta_threshold,
 )
 
-from .cohort_metadata import (
+from ..cohort_metadata import (
     build_gender_distribution,
     chart_uids_from_mapping,
     normalize_chart_uid,

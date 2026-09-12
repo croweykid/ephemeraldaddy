@@ -1219,11 +1219,11 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_matc
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
 )
-from ephemeraldaddy.gui.features.charts.similarities import SimilaritiesController
+from ephemeraldaddy.gui.features.similarities.analysis import SimilaritiesController
 from ephemeraldaddy.gui.features.charts.perceived_similarity_predictors_panel import (
     PerceivedSimilarityPredictorsPanel,
 )
-from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+from ephemeraldaddy.gui.features.similarities.analysis.calculations import (
     build_common_dominant_elements as _build_common_dominant_elements,
     build_common_dominant_modes as _build_common_dominant_modes,
     build_dissimilarity_export_sections,
@@ -5676,9 +5676,6 @@ class ManageChartsDialog(
             if callable(metric_payloads):
                 return metric_payloads
         raise AttributeError(name)
-
-    def _build_similarities_analysis_panel(self) -> QWidget:
-        return self.similarities_controller.build_panel()
 
     def _build_perceived_similarity_predictors_panel(self) -> QWidget:
         panel = PerceivedSimilarityPredictorsPanel(
