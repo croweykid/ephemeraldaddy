@@ -13,7 +13,7 @@ from ephemeraldaddy.gui.features.predictions.trait_factor_explanations import (
 
 
 def install_trait_factor_sections(core: ModuleType) -> None:
-    """Replace the legacy three-bucket Trait evidence block with six signed buckets."""
+    """Replace the legacy three-bucket Trait evidence block with signed buckets."""
     if bool(getattr(core, "_ephemeraldaddy_trait_factor_sections_installed", False)):
         return
 
@@ -113,6 +113,11 @@ def install_trait_factor_sections(core: ModuleType) -> None:
             heading_color="#d8c27a",
         )
         evidence_html += section(
+            "Positive Indicators Unknown",
+            factor_list(evidence.positive_unknown, "#c8c8c8", dominance=set()),
+            heading_color="#b8b8b8",
+        )
+        evidence_html += section(
             "Inverse Correlations Present",
             factor_list(evidence.inverse_present, "#f0d3d3", dominance=normal_dominance),
             heading_color="#e1a1a1",
@@ -122,10 +127,17 @@ def install_trait_factor_sections(core: ModuleType) -> None:
             missing_list(evidence.inverse_missing, "#c8c8c8"),
             heading_color="#b8b8b8",
         )
+        evidence_html += section(
+            "Inverse Correlations Unknown",
+            factor_list(evidence.inverse_unknown, "#c8c8c8", dominance=set()),
+            heading_color="#b8b8b8",
+        )
 
         has_negative_indicators = bool(
-            evidence.negative_indicators_present
+            evidence.has_negative_definitions
+            or evidence.negative_indicators_present
             or evidence.negative_indicators_missing
+            or evidence.negative_indicators_unknown
         )
         if has_negative_indicators:
             evidence_html += section(
@@ -140,6 +152,15 @@ def install_trait_factor_sections(core: ModuleType) -> None:
             evidence_html += section(
                 "Missing Negative Indicators",
                 missing_list(evidence.negative_indicators_missing, "#c8c8c8"),
+                heading_color="#b8b8b8",
+            )
+            evidence_html += section(
+                "Negative Indicators Unknown",
+                factor_list(
+                    evidence.negative_indicators_unknown,
+                    "#c8c8c8",
+                    dominance=set(),
+                ),
                 heading_color="#b8b8b8",
             )
         else:
