@@ -54,7 +54,8 @@ from ephemeraldaddy.gui.features.transits.range_worker import (
     PersonalTransitRangeWorker,
 )
 from ephemeraldaddy.gui.features.transits.theme_view import (
-    format_transit_range_table, theme_entries_grouped_by_time, transit_aspect_event_name,
+    format_transit_range_table, qt_theme_tab_label, theme_entries_grouped_by_time,
+    transit_aspect_event_name,
 )
 from ephemeraldaddy.gui.features.transits.theme_table import build_theme_aspect_table
 from ephemeraldaddy.gui.features.retcon.transit_window import (
@@ -139,7 +140,7 @@ class TransitPopoutController:
                 sections,
                 row_activated=lambda entry, target=chart_info_output: self._show_theme_aspect_info(entry, target),
             )
-            tabs.addTab(table, theme_label)
+            tabs.addTab(table, qt_theme_tab_label(theme_label))
 
     def _set_global_theme_tabs(
         self, tabs: QTabWidget, aspects: list[Any], when: datetime.datetime | None,
@@ -196,7 +197,7 @@ class TransitPopoutController:
                 (("🌖Past", ()), ("🌕Present", present_rows), ("🌒Future", ())),
                 row_activated=lambda entry, target=chart_info_output: self._show_theme_aspect_info(entry, target),
             )
-            tabs.addTab(table, theme_label)
+            tabs.addTab(table, qt_theme_tab_label(theme_label))
         if not grouped:
             empty = QPlainTextEdit(f"No themed global transit aspects occur on {date_label}.")
             empty.setReadOnly(True)

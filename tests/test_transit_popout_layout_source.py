@@ -56,6 +56,7 @@ def test_theme_view_uses_clickable_per_theme_tabs_and_persistent_chart_info():
     assert "build_theme_aspect_table(" in source
     assert "row_activated=lambda entry" in source
     assert "def _show_theme_aspect_info" in source
+    assert source.count("tabs.addTab(table, qt_theme_tab_label(theme_label))") == 2
     assert "chart_info_layout=transit_scaffold.chart_info_layout" in source
 
 

@@ -11,6 +11,11 @@ from ephemeraldaddy.core.interpretations import ASPECT_KEYWORDS, PLANET_KEYWORDS
 from ephemeraldaddy.core.theme_reference import THEMES
 
 
+def qt_theme_tab_label(theme_label: str) -> str:
+    """Escape literal ampersands so Qt does not turn themes into mnemonics."""
+    return str(theme_label).replace("&", "&&")
+
+
 def transit_aspect_event_name(
     transiting_body: str, aspect_type: str, natal_body: str
 ) -> str:

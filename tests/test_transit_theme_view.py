@@ -13,6 +13,7 @@ from ephemeraldaddy.gui.features.transits.theme_view import (
     format_global_transit_theme_view,
     format_transit_range_table,
     format_transit_theme_view,
+    qt_theme_tab_label,
     theme_entries_grouped_by_time,
     transit_aspect_event_name,
     themes_for_aspect_bodies,
@@ -20,6 +21,11 @@ from ephemeraldaddy.gui.features.transits.theme_view import (
 
 
 UTC = datetime.timezone.utc
+
+
+def test_qt_theme_tab_label_preserves_literal_ampersands():
+    assert qt_theme_tab_label("Identity & Selfhood") == "Identity && Selfhood"
+    assert qt_theme_tab_label("No Ampersand") == "No Ampersand"
 
 
 def test_transit_aspect_event_name_is_distinct_from_technical_aspect_label():
