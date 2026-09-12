@@ -99,6 +99,41 @@ def test_short_range_generator_includes_approaching_and_recent_windows(monkeypat
     assert datetime.datetime(2026, 9, 12, tzinfo=UTC) < windows[0].end < end
 
 
+def test_short_range_generator_reuses_longitudes_during_boundary_refinement(monkeypatch):
+    start = datetime.datetime(2026, 9, 1, tzinfo=UTC)
+    definitions = tuple(
+        TimelineTransitDefinition("Saturn", natal, 0.0, "conjunction", 0.0, 1.0)
+        for natal in ("Sun", "Moon")
+    )
+    calls = 0
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.transits.personal_timeline_generation._build_personal_transit_range_definitions",
+        lambda _chart: definitions,
+    )
+
+    def longitude(when, _body):
+        nonlocal calls
+        calls += 1
+        elapsed_hours = (when - start).total_seconds() / 3600.0
+        return 0.0 if 6.0 <= elapsed_hours <= 12.0 else 20.0
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.transits.personal_timeline_generation.planetary_longitude",
+        longitude,
+    )
+
+    windows = generate_personal_transit_range(
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        SimpleNamespace(positions={"Sun": 0.0, "Moon": 0.0}),
+        start=start,
+        end=start + datetime.timedelta(hours=18),
+    )
+
+    assert len(windows) == 2
+    assert calls <= 36  # Shared body/timestamp probes are calculated only once.
+
+
 @pytest.mark.parametrize("chart_uid", ["", "   "])
 def test_short_range_generator_requires_permanent_chart_uid(chart_uid):
     with pytest.raises(ValueError, match="Chart UID"):

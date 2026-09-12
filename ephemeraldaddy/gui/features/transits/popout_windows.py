@@ -252,6 +252,7 @@ class TransitPopoutMixin:
                 theme_output.setPlainText(
                     "Theme View needs the natal chart's permanent Chart UID. Save the chart first."
                 )
+                _refresh_summary()
                 return
             try:
                 windows = generate_personal_transit_range(
@@ -263,6 +264,7 @@ class TransitPopoutMixin:
             except Exception:
                 logger.exception("Failed to build the Personal Transit Theme View.")
                 theme_output.setPlainText("Theme View could not calculate this transit range.")
+                _refresh_summary()
                 return
             surrounding_major_windows[:] = windows
             theme_output.setPlainText(format_transit_theme_view(windows))
@@ -958,7 +960,6 @@ class TransitPopoutMixin:
             calendar_info_map.clear()
             preload_queue.clear()
             _redraw_chart_wheel()
-            _refresh_summary()
             _refresh_theme_view()
             preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
             QTimer.singleShot(0, _drain_preload_queue)
@@ -968,7 +969,6 @@ class TransitPopoutMixin:
         summary_sort_combo.currentTextChanged.connect(lambda _text: _refresh_summary())
         update_button.clicked.connect(_on_update_chart)
         _redraw_chart_wheel()
-        _refresh_summary()
         _refresh_theme_view()
         preload_queue[:] = [key for key, state in transit_ranges.items() if not state.get("resolved")]
         QTimer.singleShot(0, _drain_preload_queue)

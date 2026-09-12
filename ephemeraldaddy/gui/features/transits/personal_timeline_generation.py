@@ -215,8 +215,10 @@ def _aspect_orb(
 def _definition_is_active(
     when: datetime.datetime,
     definition: TimelineTransitDefinition,
+    longitude_at: Callable[[datetime.datetime, str], float | None] | None = None,
 ) -> bool:
-    longitude = planetary_longitude(when, definition.transiting_body)
+    resolver = longitude_at or planetary_longitude
+    longitude = resolver(when, definition.transiting_body)
     return bool(
         longitude is not None
         and _aspect_orb(float(longitude), definition) <= definition.orb_deg
@@ -227,18 +229,19 @@ def _refine_boundary(
     outside: datetime.datetime,
     inside: datetime.datetime,
     definition: TimelineTransitDefinition,
+    longitude_at: Callable[[datetime.datetime, str], float | None] | None = None,
 ) -> datetime.datetime:
     """Refine an outside/inside transition to approximately minute precision."""
     left = outside
     right = inside
-    left_active = _definition_is_active(left, definition)
-    right_active = _definition_is_active(right, definition)
+    left_active = _definition_is_active(left, definition, longitude_at)
+    right_active = _definition_is_active(right, definition, longitude_at)
     if left_active == right_active:
         return inside
 
     for _ in range(_BOUNDARY_REFINEMENT_STEPS):
         middle = left + ((right - left) / 2)
-        middle_active = _definition_is_active(middle, definition)
+        middle_active = _definition_is_active(middle, definition, longitude_at)
         if middle_active == left_active:
             left = middle
         else:
@@ -459,6 +462,14 @@ def generate_personal_transit_range(
     for definition in definitions:
         definitions_by_body.setdefault(definition.transiting_body, []).append(definition)
 
+    longitude_cache: dict[tuple[datetime.datetime, str], float | None] = {}
+
+    def longitude_at(when: datetime.datetime, body: str) -> float | None:
+        key = (when, body)
+        if key not in longitude_cache:
+            longitude_cache[key] = planetary_longitude(when, body)
+        return longitude_cache[key]
+
     step = datetime.timedelta(hours=step_hours)
     active_starts: dict[tuple[str, str, str], tuple[datetime.datetime, bool]] = {}
     previous_active: set[tuple[str, str, str]] = set()
@@ -468,7 +479,7 @@ def generate_personal_transit_range(
     while current_dt <= end:
         current_active: set[tuple[str, str, str]] = set()
         for transit_body, body_definitions in definitions_by_body.items():
-            longitude = planetary_longitude(current_dt, transit_body)
+            longitude = longitude_at(current_dt, transit_body)
             if longitude is None:
                 continue
             for definition in body_definitions:
@@ -476,12 +487,26 @@ def generate_personal_transit_range(
                     current_active.add(definition.key)
         for key in current_active.difference(previous_active):
             active_starts[key] = (
-                (start if current_dt == start else _refine_boundary(previous_dt, current_dt, definition_lookup[key])),
+                (
+                    start
+                    if current_dt == start
+                    else _refine_boundary(
+                        previous_dt,
+                        current_dt,
+                        definition_lookup[key],
+                        longitude_at,
+                    )
+                ),
                 current_dt == start,
             )
         for key in previous_active.difference(current_active):
             window_start, start_truncated = active_starts.pop(key)
-            boundary = _refine_boundary(current_dt, previous_dt, definition_lookup[key])
+            boundary = _refine_boundary(
+                current_dt,
+                previous_dt,
+                definition_lookup[key],
+                longitude_at,
+            )
             if boundary >= window_start:
                 results.append(PersonalTimelineWindow(normalized_uid, definition_lookup[key], window_start, boundary, start_truncated))
         previous_active = current_active
