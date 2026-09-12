@@ -31092,6 +31092,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         sign2: str | None = None,
         house1: int | None = None,
         house2: int | None = None,
+        geometry_known: bool = True,
     ) -> None:
         aspect_keywords = ASPECT_KEYWORDS.get(str(atype).replace(" ", "_").lower(), [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
@@ -31116,7 +31117,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )
 
-        header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
+        header = (
+            f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
+            if geometry_known
+            else f"{p1} {atype} {p2} • active during the listed date range"
+        )
         self._set_chart_info_lines_with_segments(header, line_segments)
 
     def _current_unsaved_change_summary_lines(self) -> list[str]:

@@ -13,7 +13,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PySide6.QtCore import QDate, QThread, QTime, QTimer, Qt
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDateEdit, QDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QTimeEdit, QWidget,
+    QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QTabWidget, QTimeEdit, QWidget,
 )
 
 from ephemeraldaddy.core.aspect_display import iter_displayable_aspects
@@ -57,8 +57,10 @@ from ephemeraldaddy.gui.features.transits.range_worker import (
     PersonalTransitRangeWorker,
 )
 from ephemeraldaddy.gui.features.transits.theme_view import (
-    format_global_transit_theme_view, format_transit_range_table, format_transit_theme_view,
+    format_transit_range_table, qt_theme_tab_label, theme_entries_grouped_by_time,
+    transit_aspect_event_name,
 )
+from ephemeraldaddy.gui.features.transits.theme_table import build_theme_aspect_table
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     resolve_transit_window_scan_config, resolve_transit_window_scan_config_for_transit_body,
 )
@@ -83,6 +85,8 @@ class TransitPopoutHost(Protocol):
     def _chart_data_visibility_options(self) -> dict[str, Any]: ...
     def _register_popout_shortcuts(self, dialog: Any) -> None: ...
     def _sort_popout_aspects(self, aspect_hits: list[Any], sort_mode: str) -> list[Any]: ...
+    def _run_with_chart_info_output(self, target: Any, callback: Callable[[], Any]) -> Any: ...
+    def _show_aspect_info(self, *args: Any, **kwargs: Any) -> None: ...
 
 
 class TransitPopoutController:
@@ -92,6 +96,135 @@ class TransitPopoutController:
         self._host = host
         self._dialogs: list[QDialog] = []
         self._chart_by_dialog: dict[QDialog, Chart] = {}
+
+    def _set_personal_theme_tabs(
+        self,
+        tabs: QTabWidget,
+        windows: list[Any],
+        center: datetime.datetime,
+        chart_info_output: QPlainTextEdit,
+        display_timezone: datetime.tzinfo | None,
+    ) -> None:
+        """Render one clickable, rich table tab per transit theme."""
+        while tabs.count():
+            old = tabs.widget(0)
+            self._host._popout_summary_contexts.pop(old.viewport(), None)
+            tabs.removeTab(0)
+            old.deleteLater()
+        grouped = theme_entries_grouped_by_time(windows, center)
+        if not grouped:
+            empty = QPlainTextEdit("No themed major transits occur in this ±30 day window.")
+            empty.setReadOnly(True)
+            tabs.addTab(empty, "No Themes")
+            return
+        headings = (("past", "🌖Past"), ("present", "🌕Present"), ("future", "🌒Future"))
+        for theme_label, buckets in grouped.items():
+            sections = []
+            for bucket, heading in headings:
+                rows = []
+                for entry in buckets[bucket]:
+                    rows.append({
+                        "start": entry.start.astimezone(display_timezone) if display_timezone else entry.start,
+                        "end": entry.end.astimezone(display_timezone) if display_timezone else entry.end,
+                        "p1": entry.transiting_body,
+                        "p2": entry.natal_body,
+                        "type": entry.aspect_type,
+                        "event_name": transit_aspect_event_name(
+                            entry.transiting_body, entry.aspect_type, entry.natal_body
+                        ),
+                        "angle": float(ASPECT_DEFS.get(entry.aspect_type, {}).get("angle", 0.0)),
+                        "delta": 0.0,
+                        "geometry_known": False,
+                        "start_truncated": entry.start_truncated,
+                        "end_truncated": entry.end_truncated,
+                    })
+                sections.append((heading, rows))
+            table = build_theme_aspect_table(
+                sections,
+                row_activated=lambda entry, target=chart_info_output: self._show_theme_aspect_info(entry, target),
+            )
+            tabs.addTab(table, qt_theme_tab_label(theme_label))
+
+    def _set_global_theme_tabs(
+        self, tabs: QTabWidget, aspects: list[Any], when: datetime.datetime | None,
+        chart_info_output: QPlainTextEdit, display_timezone: datetime.tzinfo | None,
+    ) -> None:
+        """Render global aspects in the same per-theme rich-table contract."""
+        from ephemeraldaddy.gui.features.transits.theme_view import themes_for_aspect_bodies
+
+        grouped: dict[str, list[dict[str, object]]] = {}
+        for aspect in aspects:
+            if isinstance(aspect, dict):
+                left = str(aspect.get("p1") or aspect.get("body1") or "")
+                right = str(aspect.get("p2") or aspect.get("body2") or "")
+                aspect_type = str(aspect.get("type") or aspect.get("aspect") or "aspect")
+                exact_angle = float(ASPECT_DEFS.get(aspect_type, {}).get("angle", 0.0))
+                angle = float(aspect.get("angle", exact_angle))
+                delta = float(aspect.get("delta", angle - exact_angle))
+            else:
+                left_obj, right_obj = getattr(aspect, "a", ""), getattr(aspect, "b", "")
+                left = str(getattr(left_obj, "name", left_obj))
+                right = str(getattr(right_obj, "name", right_obj))
+                aspect_type = str(getattr(aspect, "aspect", "aspect"))
+                exact_angle = float(ASPECT_DEFS.get(aspect_type, {}).get("angle", 0.0))
+                angle = float(getattr(aspect, "angle", exact_angle))
+                delta = float(getattr(aspect, "delta", getattr(aspect, "orb_deg", angle - exact_angle)))
+            projected = {
+                "p1": left,
+                "type": aspect_type,
+                "p2": right,
+                "angle": angle,
+                "delta": delta,
+                "event_name": transit_aspect_event_name(left, aspect_type, right),
+                "geometry_known": True,
+            }
+            for _key, label in themes_for_aspect_bodies(left, right):
+                grouped.setdefault(label, []).append(projected)
+        while tabs.count():
+            old = tabs.widget(0)
+            self._host._popout_summary_contexts.pop(old.viewport(), None)
+            tabs.removeTab(0)
+            old.deleteLater()
+        shown_when = when.astimezone(display_timezone) if when and display_timezone else when
+        date_label = f"{shown_when:%Y-%m-%d}" if shown_when else "Unknown date"
+        for theme_label in sorted(grouped, key=str.casefold):
+            present_rows = [
+                row | {
+                    "start": shown_when,
+                    "end": shown_when,
+                    "date_label": date_label,
+                }
+                for row in grouped[theme_label]
+            ]
+            table = build_theme_aspect_table(
+                (("🌖Past", ()), ("🌕Present", present_rows), ("🌒Future", ())),
+                row_activated=lambda entry, target=chart_info_output: self._show_theme_aspect_info(entry, target),
+            )
+            tabs.addTab(table, qt_theme_tab_label(theme_label))
+        if not grouped:
+            empty = QPlainTextEdit(f"No themed global transit aspects occur on {date_label}.")
+            empty.setReadOnly(True)
+            tabs.addTab(empty, "No Themes")
+
+    def _show_theme_aspect_info(
+        self, entry: dict[str, Any], chart_info_output: QPlainTextEdit
+    ) -> None:
+        """Populate persistent Chart Info when any Theme table cell is clicked."""
+        aspect_type = str(entry.get("type", "aspect"))
+        aspect_key = aspect_type.lower().replace("-", "").replace("_", "").replace(" ", "")
+        definition = ASPECT_DEFS.get(aspect_key, {})
+
+        def render() -> None:
+            self._host._show_aspect_info(
+                str(entry.get("p1", "")),
+                str(entry.get("p2", "")),
+                aspect_type,
+                float(entry.get("angle", definition.get("angle", 0.0))),
+                float(entry.get("delta", 0.0)),
+                geometry_known=bool(entry.get("geometry_known", False)),
+            )
+
+        self._host._run_with_chart_info_output(chart_info_output, render)
 
     def action_chart(self) -> Chart | None:
         """Return the chart belonging to the active or most recent visible popout."""
@@ -201,6 +334,7 @@ class TransitPopoutController:
             aspect_entries=all_hits,
             export_file_stem=f"{_sanitize_export_token(natal_chart.name)}-transit_aspect_distribution",
             weighted_score_for_entry=_weighted_personal_transit_score,
+            chart_info_layout=transit_scaffold.chart_info_layout,
         )
 
         right_layout = transit_scaffold.table_layout
@@ -293,10 +427,21 @@ class TransitPopoutController:
         summary_output.viewport().installEventFilter(self._host)
         right_layout.addWidget(summary_output, 3)
 
-        theme_output = QPlainTextEdit()
-        theme_output.setReadOnly(True)
-        theme_output.setPlaceholderText("Calculating major transits for the surrounding 60 days…")
-        transit_scaffold.theme_layout.addWidget(theme_output, 1)
+        theme_tabs = QTabWidget()
+        theme_loading_output = QPlainTextEdit("Calculating major transits for the surrounding 60 days…")
+        theme_loading_output.setReadOnly(True)
+        theme_tabs.addTab(theme_loading_output, "Themes")
+        transit_scaffold.theme_layout.addWidget(theme_tabs, 1)
+
+        def _show_theme_status(message: str) -> None:
+            while theme_tabs.count():
+                old = theme_tabs.widget(0)
+                self._host._popout_summary_contexts.pop(old.viewport(), None)
+                theme_tabs.removeTab(0)
+                old.deleteLater()
+            status = QPlainTextEdit(message)
+            status.setReadOnly(True)
+            theme_tabs.addTab(status, "Themes")
 
         transit_timestamp = transit_chart.dt.strftime("%Y-%m-%d_%H%M") if transit_chart.dt else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
         transit_file_stem = self._build_transit_export_file_stem(
@@ -393,10 +538,7 @@ class TransitPopoutController:
             if not chart_uid:
                 range_loading = False
                 range_error = "The natal chart must be saved with a permanent Chart UID."
-                theme_output.setPlainText(
-                    f"{activation_text}\n\n"
-                    "Theme View needs the natal chart's permanent Chart UID. Save the chart first."
-                )
+                _show_theme_status("Theme View needs the natal chart's permanent Chart UID. Save the chart first.")
                 summary_share_button.setEnabled(True)
                 summary_share_button.setToolTip(summary_share_ready_tooltip)
                 _refresh_summary()
@@ -409,9 +551,7 @@ class TransitPopoutController:
                 range_thread.requestInterruption()
                 range_thread.quit()
 
-            theme_output.setPlainText(
-                f"{activation_text}\n\nCalculating major transits for the surrounding 60 days…"
-            )
+            _show_theme_status("Calculating major transits for the surrounding 60 days…")
             summary_share_button.setEnabled(False)
             summary_share_button.setToolTip(
                 "Export will be available when the surrounding transit scan finishes."
@@ -442,9 +582,8 @@ class TransitPopoutController:
                 range_error = None
                 windows = list(payload) if isinstance(payload, (list, tuple)) else []
                 surrounding_major_windows[:] = windows
-                theme_output.setPlainText(
-                    f"{_current_activation_text()}\n\n"
-                    f"{format_transit_theme_view(windows, display_timezone=local_tz)}"
+                self._set_personal_theme_tabs(
+                    theme_tabs, windows, center, chart_info_output, local_tz
                 )
                 summary_share_button.setEnabled(True)
                 summary_share_button.setToolTip(summary_share_ready_tooltip)
@@ -457,10 +596,7 @@ class TransitPopoutController:
                 range_loading = False
                 range_error = error_text or "Unknown range calculation error"
                 logger.warning("Personal Transit range calculation failed: %s", error_text)
-                theme_output.setPlainText(
-                    f"{_current_activation_text()}\n\n"
-                    "Theme View could not calculate this transit range."
-                )
+                _show_theme_status("Theme View could not calculate this transit range.")
                 summary_share_button.setEnabled(True)
                 summary_share_button.setToolTip(summary_share_ready_tooltip)
                 _refresh_summary()
@@ -1267,6 +1403,7 @@ class TransitPopoutController:
             )
             if isinstance(entry, dict)
             else max(0.0, float(getattr(entry, "exactness", 0.0)) * float(getattr(entry, "weight", 0.0))),
+            chart_info_layout=transit_scaffold.chart_info_layout,
         )
 
         right_layout = transit_scaffold.table_layout
@@ -1336,9 +1473,8 @@ class TransitPopoutController:
         summary_output.viewport().installEventFilter(self._host)
         right_layout.addWidget(summary_output, 3)
 
-        theme_output = QPlainTextEdit()
-        theme_output.setReadOnly(True)
-        transit_scaffold.theme_layout.addWidget(theme_output, 1)
+        theme_tabs = QTabWidget()
+        transit_scaffold.theme_layout.addWidget(theme_tabs, 1)
 
         state: dict[str, object] = {
             "chart": chart,
@@ -1434,16 +1570,16 @@ class TransitPopoutController:
             popout_context["aspect_info_map"] = aspect_info_map
             popout_context["species_info_map"] = species_info_map
             popout_context["summary_block_offset"] = positions_start_index
-            theme_output.setPlainText(
-                format_global_transit_theme_view(
-                    iter_displayable_aspects(
-                        getattr(active_chart, "aspects", []) or [],
-                        use_houses=_chart_uses_houses(active_chart),
-                        known_positions=getattr(active_chart, "positions", {}) or {},
-                    ),
-                    active_chart.dt,
-                    display_timezone=self._host.transit_panel_controller.display_timezone,
-                )
+            self._set_global_theme_tabs(
+                theme_tabs,
+                list(iter_displayable_aspects(
+                    getattr(active_chart, "aspects", []) or [],
+                    use_houses=_chart_uses_houses(active_chart),
+                    known_positions=getattr(active_chart, "positions", {}) or {},
+                )),
+                active_chart.dt,
+                chart_info_output,
+                self._host.transit_panel_controller.display_timezone,
             )
 
         def _redraw() -> None:

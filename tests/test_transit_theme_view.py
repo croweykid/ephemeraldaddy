@@ -13,11 +13,31 @@ from ephemeraldaddy.gui.features.transits.theme_view import (
     format_global_transit_theme_view,
     format_transit_range_table,
     format_transit_theme_view,
+    qt_theme_tab_label,
+    theme_entries_grouped_by_time,
+    transit_aspect_event_name,
     themes_for_aspect_bodies,
 )
 
 
 UTC = datetime.timezone.utc
+
+
+def test_qt_theme_tab_label_preserves_literal_ampersands():
+    assert qt_theme_tab_label("Identity & Selfhood") == "Identity && Selfhood"
+    assert qt_theme_tab_label("No Ampersand") == "No Ampersand"
+
+
+def test_transit_aspect_event_name_is_distinct_from_technical_aspect_label():
+    assert transit_aspect_event_name("Saturn", "square", "Sun") == (
+        "Limits and responsibility running into a wall of ego and identity"
+    )
+
+
+def test_every_planet_keyword_entry_has_a_transit_summary():
+    from ephemeraldaddy.core.interpretations import PLANET_KEYWORDS
+
+    assert all(str(keywords.get("summary", "")).strip() for keywords in PLANET_KEYWORDS.values())
 
 
 def test_theme_view_groups_aspect_under_reference_theme_with_dates():
@@ -61,8 +81,27 @@ def test_truncated_personal_windows_do_not_claim_clipped_dates_are_boundaries():
     theme_text = format_transit_theme_view([window])
     table_text = format_transit_range_table([window])
 
-    assert "before 2026-08-13 – after 2026-10-12" in theme_text
+    assert "2026-08-13 – after 2026-10-12" in theme_text
+    assert "before" not in theme_text
     assert "before 2026-08-13 – after 2026-10-12" in table_text
+
+
+def test_theme_windows_are_split_into_past_present_and_future_sections():
+    center = datetime.datetime(2026, 9, 12, tzinfo=UTC)
+    definition = TimelineTransitDefinition("Saturn", "Sun", 10.0, "square", 90.0, 3.0)
+    windows = [
+        PersonalTimelineWindow("uid", definition, center - datetime.timedelta(days=3), center - datetime.timedelta(days=2)),
+        PersonalTimelineWindow("uid", definition, center - datetime.timedelta(days=1), center + datetime.timedelta(days=1)),
+        PersonalTimelineWindow("uid", definition, center + datetime.timedelta(days=2), center + datetime.timedelta(days=3)),
+    ]
+
+    grouped = theme_entries_grouped_by_time(windows, center)
+
+    assert grouped
+    for buckets in grouped.values():
+        assert len(buckets["past"]) == 1
+        assert len(buckets["present"]) == 1
+        assert len(buckets["future"]) == 1
 
 
 def test_transit_views_convert_dates_to_display_timezone():
