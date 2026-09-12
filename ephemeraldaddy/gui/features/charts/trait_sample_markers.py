@@ -1,4 +1,4 @@
-"""Display source-sample markers on Trait prediction rows without changing Trait identity."""
+"""Display source-sample markers without changing Trait or chart identity."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import Any
 
 from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
     chart_uid_is_anti_ascribed,
+    chart_uid_is_ascribed,
     normalize_chart_uid,
 )
 from ephemeraldaddy.gui.features.charts.trait_prediction_policy import (
@@ -47,6 +48,53 @@ def _trait_profile(trait: Mapping[str, Any]) -> Mapping[str, Any]:
     return profile if isinstance(profile, Mapping) else trait
 
 
+def _marked_chart_name_for_profile(
+    name: object,
+    profile: Mapping[str, Any],
+    chart_uid: object,
+) -> str:
+    """Decorate one chart display name from Trait sample provenance."""
+    text = str(name or "")
+    positive = chart_uid_is_ascribed(profile, chart_uid)
+    anti = chart_uid_is_anti_ascribed(profile, chart_uid)
+    if not positive and not anti:
+        return text
+    prefix = ("🧚" if positive else "") + ("👹" if anti else "")
+    return f"{prefix} {text}"
+
+
+def _rankings_rows_with_sample_markers(
+    selected_trait_name: str | None,
+    rankings: list[dict[str, Any]],
+    traits: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return display copies of Ranking rows with UID-driven sample markers."""
+    wanted = str(selected_trait_name or "").strip().casefold()
+    if not wanted or not rankings:
+        return rankings
+    selected_trait = next(
+        (
+            trait
+            for trait in traits
+            if str(trait.get("name", "") or "").strip().casefold() == wanted
+        ),
+        None,
+    )
+    if not isinstance(selected_trait, Mapping):
+        return rankings
+    profile = _trait_profile(selected_trait)
+    marked_rows: list[dict[str, Any]] = []
+    for row in rankings:
+        marked_row = dict(row)
+        marked_row["name"] = _marked_chart_name_for_profile(
+            row.get("name", ""),
+            profile,
+            row.get("chart_uid", ""),
+        )
+        marked_rows.append(marked_row)
+    return marked_rows
+
+
 def _anti_ascribed_trait_names_for_chart(
     chart: Any,
     traits: list[dict[str, Any]],
@@ -63,12 +111,11 @@ def _anti_ascribed_trait_names_for_chart(
 
 
 def install_trait_sample_markers(core: ModuleType) -> None:
-    """Install display-only 🧚/👹 provenance markers on Trait prediction rows.
+    """Install display-only 🧚/👹 provenance markers on Trait-related UI.
 
-    The underlying Trait names, href targets, scores, persisted metadata, and cache
-    identities remain unchanged.  Markers are applied only while prediction UI
-    output is being rendered.  The positive-sample exclusion preference continues
-    to suppress 🧚 rows normally; anti-sample provenance remains display-only.
+    The underlying Trait names, chart names, href targets, scores, persisted
+    metadata, ranking order, and cache identities remain unchanged. Markers are
+    applied only to presentation copies immediately before rendering.
     """
     if bool(getattr(core, "_ephemeraldaddy_trait_sample_markers_installed", False)):
         return
@@ -159,6 +206,39 @@ def install_trait_sample_markers(core: ModuleType) -> None:
             else:
                 setattr(core, _ANTI_MARKER_NAMES_ATTR, previous_anti)
 
+    # Database View Rankings already keeps chart UID separate from display name.
+    # Wrap only the final Traits renderer so scoring, sorting, caches, and chart
+    # links continue to operate on the original raw rows.
+    from ephemeraldaddy.gui.ranking_panel import RankingsPanelMixin
+
+    original_render_rankings_traits_html = RankingsPanelMixin._render_rankings_traits_html
+
+    def render_rankings_traits_html_with_sample_markers(
+        owner: Any,
+        selected_trait_name: str | None,
+        rankings: list[dict[str, Any]],
+        *,
+        cache_warmed: bool,
+        parsed_percent: float | None,
+    ) -> str:
+        from ephemeraldaddy.gui.features.settings.traits import list_traits
+
+        display_rankings = _rankings_rows_with_sample_markers(
+            selected_trait_name,
+            rankings,
+            list_traits(active_only=True),
+        )
+        return original_render_rankings_traits_html(
+            owner,
+            selected_trait_name,
+            display_rankings,
+            cache_warmed=cache_warmed,
+            parsed_percent=parsed_percent,
+        )
+
+    RankingsPanelMixin._render_rankings_traits_html = (
+        render_rankings_traits_html_with_sample_markers
+    )
     core._trait_prediction_rows_from_metadata = rows_from_metadata_with_sample_markers
     core._trait_rank_row = rank_row_with_sample_marker
     core._apply_traits_prediction_metadata = apply_metadata_with_sample_markers
