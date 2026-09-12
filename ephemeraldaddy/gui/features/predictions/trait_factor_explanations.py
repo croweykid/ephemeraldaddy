@@ -27,6 +27,10 @@ class TraitFactorEvidence:
     inverse_missing: tuple[str, ...]
     negative_indicators_present: tuple[str, ...]
     negative_indicators_missing: tuple[str, ...]
+    positive_unknown: tuple[str, ...] = ()
+    inverse_unknown: tuple[str, ...] = ()
+    negative_indicators_unknown: tuple[str, ...] = ()
+    has_negative_definitions: bool = False
 
     @property
     def counter_factors(self) -> tuple[str, ...]:
@@ -43,6 +47,7 @@ class _FactorCandidate:
     dominance: bool = False
     position_subject: str = ""
     position_destination: str = ""
+    requires_houses: bool = False
 
 
 def _weighted_text_entries(values: Any) -> dict[str, float]:
@@ -55,10 +60,21 @@ def _weighted_text_entries(values: Any) -> dict[str, float]:
     return entries
 
 
-def _position_candidate(spec: str, weight: float) -> _FactorCandidate:
+def _position_candidate(
+    spec: str,
+    weight: float,
+    *,
+    requires_houses: bool = False,
+) -> _FactorCandidate:
     parsed = predictor.parse_position_spec(spec)
     if parsed is None:
-        return _FactorCandidate("positions", spec, spec, weight)
+        return _FactorCandidate(
+            "positions",
+            spec,
+            spec,
+            weight,
+            requires_houses=requires_houses,
+        )
     category, container, subject = parsed
     if category == "body_in_sign" and isinstance(container, str):
         return _FactorCandidate(
@@ -68,6 +84,7 @@ def _position_candidate(spec: str, weight: float) -> _FactorCandidate:
             weight,
             position_subject=str(subject),
             position_destination=container,
+            requires_houses=requires_houses,
         )
     if category == "body_in_house" and isinstance(container, int):
         return _FactorCandidate(
@@ -77,6 +94,7 @@ def _position_candidate(spec: str, weight: float) -> _FactorCandidate:
             weight,
             position_subject=str(subject),
             position_destination=f"House {container}",
+            requires_houses=requires_houses,
         )
     if category == "sign_in_house" and isinstance(container, int):
         return _FactorCandidate(
@@ -86,18 +104,23 @@ def _position_candidate(spec: str, weight: float) -> _FactorCandidate:
             weight,
             position_subject=f"House {container}",
             position_destination=str(subject),
+            requires_houses=requires_houses,
         )
-    return _FactorCandidate("positions", spec, spec, weight)
+    return _FactorCandidate(
+        "positions",
+        spec,
+        spec,
+        weight,
+        requires_houses=requires_houses,
+    )
 
 
-def _eligible_candidates(
-    chart: Any,
+def _configured_candidates(
     factors: Mapping[str, Any],
     *,
     prefix: str = "",
 ) -> list[_FactorCandidate]:
-    """Return nonzero eligible criteria in the scorer's presentation order."""
-    use_houses = bool(chart_uses_houses(chart))
+    """Return every configured nonzero criterion in scorer presentation order."""
     candidates: list[_FactorCandidate] = []
 
     def values_for(category: str) -> Any:
@@ -114,12 +137,18 @@ def _eligible_candidates(
     add_strings("bodies", dominance=True)
     add_strings("nakshatras", dominance=True)
 
-    if use_houses:
-        candidates.extend(
-            _FactorCandidate("houses", house, f"House {house}", float(weight), dominance=True)
-            for house, weight in predictor.weighted_house_entries(values_for("houses")).items()
-            if float(weight) != 0.0
+    candidates.extend(
+        _FactorCandidate(
+            "houses",
+            house,
+            f"House {house}",
+            float(weight),
+            dominance=True,
+            requires_houses=True,
         )
+        for house, weight in predictor.weighted_house_entries(values_for("houses")).items()
+        if float(weight) != 0.0
+    )
 
     candidates.extend(
         _FactorCandidate("gates", gate, f"Gate {gate}", float(weight))
@@ -160,16 +189,41 @@ def _eligible_candidates(
     for spec, weight in predictor.weighted_position_entries(values_for("positions")).items():
         if float(weight) == 0.0:
             continue
-        if use_houses or not predictor.position_spec_uses_houses(spec):
-            candidates.append(_position_candidate(spec, float(weight)))
+        candidates.append(
+            _position_candidate(
+                spec,
+                float(weight),
+                requires_houses=bool(predictor.position_spec_uses_houses(spec)),
+            )
+        )
 
     for spec, weight in _weighted_text_entries(values_for("aspects")).items():
         if float(weight) == 0.0:
             continue
-        if use_houses or not predictor.aspect_spec_uses_houses(spec):
-            candidates.append(_FactorCandidate("aspects", spec, spec, float(weight)))
+        candidates.append(
+            _FactorCandidate(
+                "aspects",
+                spec,
+                spec,
+                float(weight),
+                requires_houses=bool(predictor.aspect_spec_uses_houses(spec)),
+            )
+        )
 
     return candidates
+
+
+def _eligible_candidates(
+    chart: Any,
+    factors: Mapping[str, Any],
+    *,
+    prefix: str = "",
+) -> list[_FactorCandidate]:
+    """Return configured criteria that the chart can actually evaluate."""
+    configured = _configured_candidates(factors, prefix=prefix)
+    if bool(chart_uses_houses(chart)):
+        return configured
+    return [candidate for candidate in configured if not candidate.requires_houses]
 
 
 def _scorer_mutual_exclusive_bucket(candidate: _FactorCandidate) -> tuple[str, Any] | None:
@@ -299,7 +353,7 @@ def _missing_rows(
     family_buckets: list[tuple[str, Any] | None],
     matched_labels: set[str],
 ) -> tuple[str, ...]:
-    """Format absent candidates while honoring the scorer's exclusivity rules."""
+    """Format absent candidates while honoring scorer-wide exclusivity rules."""
     bucket_by_id = {
         id(candidate): bucket
         for candidate, bucket in zip(family_candidates, family_buckets)
@@ -359,6 +413,11 @@ def _missing_rows(
     return tuple(missing)
 
 
+def _unknown_rows(candidates: list[_FactorCandidate]) -> tuple[str, ...]:
+    """Label configured criteria that cannot be evaluated without birth time."""
+    return tuple(f"{candidate.label} (no BT: unknown)" for candidate in candidates)
+
+
 def build_trait_factor_evidence(
     chart: Any,
     factors: Mapping[str, Any] | None,
@@ -372,9 +431,11 @@ def build_trait_factor_evidence(
     indicators, and zero weights are omitted. Anti-properties remain a separate
     negative-indicator family regardless of their signed value.
 
-    Missing/absent rows use the scorer's current eligibility and mutual-exclusive
-    bucket rules so the explainer cannot claim that an impossible alternative is
-    independently missing after another member of the same scorer bucket matched.
+    House-dependent criteria on charts without usable houses are retained as
+    unknown rather than being mislabeled missing or undefined. Missing/absent
+    rows share the scorer's mutual-exclusive buckets across normal and anti
+    families, matching scorer behavior for positions, HD type, profile, and
+    authority alternatives.
     """
     profile = factors if isinstance(factors, Mapping) else {}
     resolved_matches = (
@@ -392,14 +453,48 @@ def build_trait_factor_evidence(
         for value in resolved_matches.get("negative", [])
         if str(value)
     }
+    matched_all = matched_normal | matched_anti
 
-    normal_candidates = _eligible_candidates(chart, profile)
-    normal_buckets = _candidate_buckets(normal_candidates)
-    positive_candidates = [candidate for candidate in normal_candidates if candidate.weight > 0.0]
-    inverse_candidates = [candidate for candidate in normal_candidates if candidate.weight < 0.0]
+    use_houses = bool(chart_uses_houses(chart))
+    normal_configured = _configured_candidates(profile)
+    anti_configured = _configured_candidates(profile, prefix="anti")
 
-    anti_candidates = _eligible_candidates(chart, profile, prefix="anti")
-    anti_buckets = _candidate_buckets(anti_candidates)
+    normal_candidates = [
+        candidate
+        for candidate in normal_configured
+        if use_houses or not candidate.requires_houses
+    ]
+    anti_candidates = [
+        candidate
+        for candidate in anti_configured
+        if use_houses or not candidate.requires_houses
+    ]
+    normal_unknown_candidates = (
+        []
+        if use_houses
+        else [candidate for candidate in normal_configured if candidate.requires_houses]
+    )
+    anti_unknown_candidates = (
+        []
+        if use_houses
+        else [candidate for candidate in anti_configured if candidate.requires_houses]
+    )
+
+    positive_candidates = [
+        candidate for candidate in normal_candidates if candidate.weight > 0.0
+    ]
+    inverse_candidates = [
+        candidate for candidate in normal_candidates if candidate.weight < 0.0
+    ]
+    positive_unknown_candidates = [
+        candidate for candidate in normal_unknown_candidates if candidate.weight > 0.0
+    ]
+    inverse_unknown_candidates = [
+        candidate for candidate in normal_unknown_candidates if candidate.weight < 0.0
+    ]
+
+    scorer_family_candidates = normal_candidates + anti_candidates
+    scorer_family_buckets = _candidate_buckets(scorer_family_candidates)
 
     supporting = tuple(
         candidate.label
@@ -419,21 +514,21 @@ def build_trait_factor_evidence(
 
     missing = _missing_rows(
         positive_candidates,
-        family_candidates=normal_candidates,
-        family_buckets=normal_buckets,
-        matched_labels=matched_normal,
+        family_candidates=scorer_family_candidates,
+        family_buckets=scorer_family_buckets,
+        matched_labels=matched_all,
     )
     inverse_missing = _missing_rows(
         inverse_candidates,
-        family_candidates=normal_candidates,
-        family_buckets=normal_buckets,
-        matched_labels=matched_normal,
+        family_candidates=scorer_family_candidates,
+        family_buckets=scorer_family_buckets,
+        matched_labels=matched_all,
     )
     negative_indicators_missing = _missing_rows(
         anti_candidates,
-        family_candidates=anti_candidates,
-        family_buckets=anti_buckets,
-        matched_labels=matched_anti,
+        family_candidates=scorer_family_candidates,
+        family_buckets=scorer_family_buckets,
+        matched_labels=matched_all,
     )
 
     return TraitFactorEvidence(
@@ -443,4 +538,8 @@ def build_trait_factor_evidence(
         inverse_missing=inverse_missing,
         negative_indicators_present=negative_indicators_present,
         negative_indicators_missing=negative_indicators_missing,
+        positive_unknown=_unknown_rows(positive_unknown_candidates),
+        inverse_unknown=_unknown_rows(inverse_unknown_candidates),
+        negative_indicators_unknown=_unknown_rows(anti_unknown_candidates),
+        has_negative_definitions=bool(anti_configured),
     )
