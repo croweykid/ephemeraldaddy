@@ -37,7 +37,7 @@ def test_theme_view_groups_aspect_under_reference_theme_with_dates():
 
 
 def test_global_theme_view_groups_aspects_for_chart_date():
-    aspect = {"body1": "Saturn", "body2": "Sun", "aspect": "square"}
+    aspect = {"p1": "Saturn", "p2": "Sun", "type": "square"}
 
     text = format_global_transit_theme_view(
         [aspect], datetime.datetime(2026, 9, 12, tzinfo=UTC)

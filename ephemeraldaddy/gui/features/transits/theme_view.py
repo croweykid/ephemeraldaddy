@@ -85,9 +85,12 @@ def format_global_transit_theme_view(aspects: Iterable[Any], when: datetime.date
     date_label = f"{when:%Y-%m-%d}" if when is not None else "Unknown date"
     for aspect in aspects:
         if isinstance(aspect, dict):
-            left = str(aspect.get("body1") or aspect.get("a") or "")
-            right = str(aspect.get("body2") or aspect.get("b") or "")
-            aspect_name = str(aspect.get("aspect") or "aspect")
+            # Global Chart aspects use the canonical p1/p2/type mapping schema.
+            # Retain the older aliases only for callers that supply an adapted
+            # aspect mapping rather than a Chart.aspects row.
+            left = str(aspect.get("p1") or aspect.get("body1") or aspect.get("a") or "")
+            right = str(aspect.get("p2") or aspect.get("body2") or aspect.get("b") or "")
+            aspect_name = str(aspect.get("type") or aspect.get("aspect") or "aspect")
         else:
             left_endpoint = getattr(aspect, "a", "")
             right_endpoint = getattr(aspect, "b", "")
