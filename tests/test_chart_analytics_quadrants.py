@@ -1,5 +1,9 @@
+from types import SimpleNamespace
+
 from ephemeraldaddy.gui.features.charts.quadrants import (
     aggregate_house_values_by_quadrant,
+    build_quadrant_info_html,
+    install_quadrants_owner_reset_hook,
     quadrant_for_house,
     quadrant_percentages,
 )
@@ -41,3 +45,61 @@ def test_quadrant_percentages_are_zero_safe_and_normalized():
         "III": 25.0,
         "IV": 25.0,
     }
+
+
+def test_quadrant_info_exposes_house_range_and_axis_meaning():
+    html = build_quadrant_info_html("IV")
+
+    assert "Quadrant IV" in html
+    assert "Social Expression" in html
+    assert "Houses 10–12" in html
+    assert "Social / Public" in html
+    assert "Self-Directed" in html
+
+
+def test_common_chart_display_reset_also_clears_quadrants():
+    calls: list[object] = []
+    quadrant_layout = object()
+    old_canvas = object()
+
+    def clear_chart_displays():
+        calls.append("common-reset")
+
+    def clear_layout_widgets(layout):
+        calls.append(layout)
+
+    owner = SimpleNamespace(
+        quadrants_chart_container_layout=quadrant_layout,
+        quadrants_canvas=old_canvas,
+        _clear_chart_displays=clear_chart_displays,
+        _clear_layout_widgets=clear_layout_widgets,
+    )
+    controller = SimpleNamespace(_owner=owner)
+
+    install_quadrants_owner_reset_hook(controller)
+    owner._clear_chart_displays()
+
+    assert calls == ["common-reset", quadrant_layout]
+    assert owner.quadrants_canvas is None
+
+
+def test_quadrants_reset_hook_is_idempotent():
+    calls: list[str] = []
+
+    def clear_chart_displays():
+        calls.append("common-reset")
+
+    owner = SimpleNamespace(
+        quadrants_chart_container_layout=None,
+        quadrants_canvas=object(),
+        _clear_chart_displays=clear_chart_displays,
+        _clear_layout_widgets=lambda _layout: None,
+    )
+    controller = SimpleNamespace(_owner=owner)
+
+    install_quadrants_owner_reset_hook(controller)
+    install_quadrants_owner_reset_hook(controller)
+    owner._clear_chart_displays()
+
+    assert calls == ["common-reset"]
+    assert owner.quadrants_canvas is None
