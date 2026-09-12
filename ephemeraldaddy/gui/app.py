@@ -487,7 +487,7 @@ from ephemeraldaddy.gui.features.controllers.db_info import (
     add_prediction_norms_recalculation_tool,
 )
 from ephemeraldaddy.gui.features.transits import TransitPanelController
-from ephemeraldaddy.gui.features.transits.popout_windows import TransitPopoutMixin
+from ephemeraldaddy.gui.features.transits.popout_windows import TransitPopoutController
 from ephemeraldaddy.gui.features.chart_editor.exit_performance import (
     should_block_database_view_open_for_prediction_flush,
     should_defer_prediction_flush_until_prediction_view,
@@ -2078,7 +2078,6 @@ def _selected_chart_list_item_names(list_widget: QListWidget) -> list[str]:
 
 # Database View / Manage Charts Window
 class ManageChartsDialog(
-    TransitPopoutMixin,
     AspectPopoutMixin,
     RankingsPanelMixin,
     DatabaseAnalyticsChartsMixin,
@@ -2475,6 +2474,7 @@ class ManageChartsDialog(
             self,
             get_popout_window_icon_path=_get_popout_window_icon_path,
         )
+        self.transit_popout_controller = TransitPopoutController(self)
         self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
@@ -5632,21 +5632,6 @@ class ManageChartsDialog(
     def _sanitize_export_token(self, value: str, fallback: str = "chart") -> str:
         return _sanitize_export_token(value, fallback)
 
-    def _build_transit_export_file_stem(
-        self,
-        transit_chart: Chart,
-        *,
-        chart_name_for_personal_transit: str | None = None,
-    ) -> str:
-        transit_timestamp = (
-            transit_chart.dt.strftime("%Y-%m-%d_%H%M")
-            if transit_chart.dt
-            else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
-        )
-        default_stem = f"transit_{transit_timestamp}"
-        return f"{default_stem}_{self._sanitize_export_token(chart_name_for_personal_transit)}"
-        # return default_stem
-
     def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
         _position_popout_share_button(output_widget, button)
 
@@ -5677,48 +5662,6 @@ class ManageChartsDialog(
             sanitize_export_token=self._sanitize_export_token,
             export_text_provider=export_text_provider,
         )
-
-    def _personal_transit_priority(
-        self,
-        hit: Any,
-        mode: str,
-        natal_planet_weights: dict[str, float] | None = None,
-    ) -> float:
-        orb_cap = personal_transit_orb_cap(mode, hit.a.name, hit.b.name, hit.aspect)
-        if orb_cap <= 0:
-            return 0.0
-        orb_factor = max(0.0, 1.0 - (float(hit.orb_deg) / orb_cap))
-        aspect_key = str(hit.aspect).replace(" ", "_").lower()
-        aspect_angle = float(ASPECT_DEFS.get(aspect_key, {}).get("angle", 0.0))
-        transit_weight = float(TRANSIT_WEIGHT.get(hit.a.name, 1.0))
-        if natal_planet_weights:
-            natal_weight = float(natal_planet_weights.get(hit.b.name, NATAL_WEIGHT.get(hit.b.name, 1.0)))
-        else:
-            natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
-        angle_weight = float(ANGLE_WEIGHT.get(aspect_angle, 1.0))
-        return (transit_weight + natal_weight) * angle_weight * orb_factor
-
-    def _sort_personal_transit_mode_aspects(
-        self,
-        aspect_hits: list[Any],
-        sort_mode: str,
-        mode: str,
-        natal_planet_weights: dict[str, float] | None = None,
-    ) -> list[Any]:
-        if sort_mode == "Priority":
-            return sorted(
-                aspect_hits,
-                key=lambda hit: self._personal_transit_priority(
-                    hit,
-                    mode,
-                    natal_planet_weights=natal_planet_weights,
-                ),
-                reverse=True,
-            )
-        return self._sort_popout_aspects(aspect_hits, sort_mode)
-
-
-
 
 
     def _owner_window(self):
@@ -11803,7 +11746,7 @@ class ManageChartsDialog(
             ):
                 chart = self._transit_chart_canvases.get(obj)
                 if chart is not None:
-                    self._show_transit_chart_popout(chart)
+                    self.transit_popout_controller.show_transit_chart_popout(chart)
                     return True
         return super().eventFilter(obj, event)
 
@@ -15062,18 +15005,7 @@ class ManageChartsDialog(
         parent._run_chart_action_from_active_context(action_name, requester=self)
 
     def _get_transit_popout_action_chart(self) -> Chart | None:
-        if not self._transit_popout_chart_by_dialog:
-            return None
-        active_window = QApplication.activeWindow()
-        if isinstance(active_window, QDialog):
-            active_chart = self._transit_popout_chart_by_dialog.get(active_window)
-            if active_chart is not None:
-                return active_chart
-
-        for dialog in reversed(self._transit_popout_dialogs):
-            if dialog in self._transit_popout_chart_by_dialog and dialog.isVisible():
-                return self._transit_popout_chart_by_dialog[dialog]
-        return None
+        return self.transit_popout_controller.action_chart()
 
     def _on_menu_interpret_astro_age(self) -> None:
         self._run_main_window_chart_action("interpret_astro_age")
@@ -37391,7 +37323,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
             manage_dialog = self._get_or_create_manage_charts_dialog()
             manage_dialog._transit_location_label = location_label
-            manage_dialog._show_personal_transit_chart_popout(
+            manage_dialog.transit_popout_controller.show_personal_transit_chart_popout(
                 natal_chart,
                 transit_chart,
                 transit_in_natal,

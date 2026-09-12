@@ -9,10 +9,10 @@ def test_both_transit_popouts_use_shared_scaffolding():
     source = (
         ROOT / "ephemeraldaddy/gui/features/transits/popout_windows.py"
     ).read_text(encoding="utf-8")
-    personal = source.split("def _show_personal_transit_chart_popout", 1)[1].split(
-        "def _show_transit_chart_popout", 1
+    personal = source.split("def show_personal_transit_chart_popout", 1)[1].split(
+        "def show_transit_chart_popout", 1
     )[0]
-    global_transit = source.split("def _show_transit_chart_popout", 1)[1].split(
+    global_transit = source.split("def show_transit_chart_popout", 1)[1].split(
         "\n    def ", 1
     )[0]
 
@@ -22,7 +22,11 @@ def test_both_transit_popouts_use_shared_scaffolding():
     assert "transit_scaffold.chart_drawing_layout.addWidget(canvas" in global_transit
     assert "def _show_personal_transit_chart_popout" not in app_source
     assert "def _show_transit_chart_popout" not in app_source
-    assert "TransitPopoutMixin" in app_source
+    assert "TransitPopoutMixin" not in app_source
+    assert "TransitPopoutController(self)" in app_source
+    assert "class TransitPopoutHost(Protocol)" in source
+    assert "class TransitPopoutController" in source
+    assert "self.transit_popout_controller.show_transit_chart_popout(chart)" in app_source
 
 
 def test_shared_scaffolding_owns_requested_tabs_and_defaults():

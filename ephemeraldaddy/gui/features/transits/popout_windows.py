@@ -6,13 +6,13 @@ import copy
 import datetime
 import logging
 import uuid
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PySide6.QtCore import QDate, QThread, QTime, QTimer, Qt
 from PySide6.QtWidgets import (
-    QComboBox, QDateEdit, QDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+    QApplication, QComboBox, QDateEdit, QDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QTimeEdit, QWidget,
 )
 
@@ -20,9 +20,10 @@ from ephemeraldaddy.core.aspect_display import iter_displayable_aspects
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import ASPECT_SORT_OPTIONS
+from ephemeraldaddy.core.interpretations import ANGLE_WEIGHT, NATAL_WEIGHT, TRANSIT_WEIGHT
 from ephemeraldaddy.core.composite import (
     PERSONAL_TRANSIT_MODE_DAILY_VIBE, PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
-    TRANSIT_ASPECT_RULES, find_transit_aspect_window_result,
+    TRANSIT_ASPECT_RULES, find_transit_aspect_window_result, personal_transit_orb_cap,
     personal_transit_rules_for_mode, split_daily_vibe_hits_by_expected_duration,
 )
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
@@ -68,10 +69,93 @@ def _new_debug_action_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
-class TransitPopoutMixin:
-    """Window behavior shared by Database View's Global and Personal Transit actions."""
+class TransitPopoutHost(Protocol):
+    """Explicit boundary required by the Transit popout controller."""
 
-    def _show_personal_transit_chart_popout(
+    transit_panel_controller: Any
+    _popout_summary_contexts: dict[Any, dict[str, object]]
+
+    def _attach_popout_share_button(self, *args: Any, **kwargs: Any) -> Any: ...
+    def _build_popout_left_panel(self, *args: Any, **kwargs: Any) -> Any: ...
+    def _chart_data_visibility_options(self) -> dict[str, Any]: ...
+    def _register_popout_shortcuts(self, dialog: Any) -> None: ...
+    def _sort_popout_aspects(self, aspect_hits: list[Any], sort_mode: str) -> list[Any]: ...
+
+
+class TransitPopoutController:
+    """Own Global and Personal Transit popouts behind a declared host boundary."""
+
+    def __init__(self, host: TransitPopoutHost) -> None:
+        self._host = host
+        self._dialogs: list[QDialog] = []
+        self._chart_by_dialog: dict[QDialog, Chart] = {}
+
+    def action_chart(self) -> Chart | None:
+        """Return the chart belonging to the active or most recent visible popout."""
+        active_window = QApplication.activeWindow()
+        if isinstance(active_window, QDialog):
+            active_chart = self._chart_by_dialog.get(active_window)
+            if active_chart is not None:
+                return active_chart
+        for dialog in reversed(self._dialogs):
+            chart = self._chart_by_dialog.get(dialog)
+            if chart is not None and dialog.isVisible():
+                return chart
+        return None
+
+    def _build_transit_export_file_stem(
+        self,
+        transit_chart: Chart,
+        *,
+        chart_name_for_personal_transit: str | None = None,
+    ) -> str:
+        timestamp = (
+            transit_chart.dt.strftime("%Y-%m-%d_%H%M")
+            if transit_chart.dt
+            else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
+        )
+        return f"transit_{timestamp}_{_sanitize_export_token(chart_name_for_personal_transit)}"
+
+    @staticmethod
+    def _personal_transit_priority(
+        hit: Any,
+        mode: str,
+        natal_planet_weights: dict[str, float] | None = None,
+    ) -> float:
+        orb_cap = personal_transit_orb_cap(mode, hit.a.name, hit.b.name, hit.aspect)
+        if orb_cap <= 0:
+            return 0.0
+        orb_factor = max(0.0, 1.0 - (float(hit.orb_deg) / orb_cap))
+        aspect_key = str(hit.aspect).replace(" ", "_").lower()
+        aspect_angle = float(ASPECT_DEFS.get(aspect_key, {}).get("angle", 0.0))
+        transit_weight = float(TRANSIT_WEIGHT.get(hit.a.name, 1.0))
+        natal_weight = float(
+            (natal_planet_weights or NATAL_WEIGHT).get(
+                hit.b.name, NATAL_WEIGHT.get(hit.b.name, 1.0)
+            )
+        )
+        return (transit_weight + natal_weight) * float(
+            ANGLE_WEIGHT.get(aspect_angle, 1.0)
+        ) * orb_factor
+
+    def _sort_personal_transit_mode_aspects(
+        self,
+        aspect_hits: list[Any],
+        sort_mode: str,
+        mode: str,
+        natal_planet_weights: dict[str, float] | None = None,
+    ) -> list[Any]:
+        if sort_mode == "Priority":
+            return sorted(
+                aspect_hits,
+                key=lambda hit: self._personal_transit_priority(
+                    hit, mode, natal_planet_weights
+                ),
+                reverse=True,
+            )
+        return self._host._sort_popout_aspects(aspect_hits, sort_mode)
+
+    def show_personal_transit_chart_popout(
         self,
         natal_chart: Chart,
         transit_chart: Chart,
@@ -80,7 +164,7 @@ class TransitPopoutMixin:
                 *,
         include_time: bool,
     ) -> None:
-        dialog = ManagedTransitPopoutDialog(self)
+        dialog = ManagedTransitPopoutDialog(self._host)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
         dialog.setWindowTitle(transit_chart.name)
         dialog.setMinimumSize(780, 780)
@@ -108,7 +192,7 @@ class TransitPopoutMixin:
                 ),
             )
 
-        chart_info_output = self._build_popout_left_panel(
+        chart_info_output = self._host._build_popout_left_panel(
             transit_scaffold.aspects_layout,
             chart_info_placeholder="Personal Transit Chart: natal houses with transit planet overlay.",
             aspect_entries=all_hits,
@@ -147,8 +231,8 @@ class TransitPopoutMixin:
         controls_layout.addWidget(update_button, 0, 4, 2, 1)
         right_layout.addLayout(controls_layout)
 
-        local_tz = self.transit_panel_controller.display_timezone
-        location_label = getattr(transit_chart, "birth_place", None) or getattr(self, "_transit_location_label", None) or "Unknown"
+        local_tz = self._host.transit_panel_controller.display_timezone
+        location_label = getattr(transit_chart, "birth_place", None) or getattr(self._host, "_transit_location_label", None) or "Unknown"
         raw_location = location_label
         transit_location = (transit_chart.lat, transit_chart.lon)
         if transit_chart.dt:
@@ -203,7 +287,7 @@ class TransitPopoutMixin:
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        summary_output.viewport().installEventFilter(self)
+        summary_output.viewport().installEventFilter(self._host)
         right_layout.addWidget(summary_output, 3)
 
         theme_output = QPlainTextEdit()
@@ -216,7 +300,7 @@ class TransitPopoutMixin:
             transit_chart,
             chart_name_for_personal_transit=natal_chart.name,
         )
-        summary_share_button = self._attach_popout_share_button(
+        summary_share_button = self._host._attach_popout_share_button(
             summary_output,
             transit_file_stem,
             export_text_provider=lambda: _build_personal_transit_export_text(),
@@ -232,7 +316,7 @@ class TransitPopoutMixin:
             "summary_block_offset": 0,
             "share_button": summary_share_button,
         }
-        self._popout_summary_contexts[popout_context_key] = popout_context
+        self._host._popout_summary_contexts[popout_context_key] = popout_context
         surrounding_major_windows: list[Any] = []
         range_generation = 0
         range_thread: QThread | None = None
@@ -441,7 +525,7 @@ class TransitPopoutMixin:
         def _window_cache_key(mode: str, hit_obj: Any) -> tuple[object, ...]:
             chart_dt = transit_chart.dt
             scan_config = _scan_config_for_hit(hit_obj)
-            return self.transit_panel_controller.transit_window_cache_key(
+            return self._host.transit_panel_controller.transit_window_cache_key(
                 mode=mode,
                 hit_obj=hit_obj,
                 chart_dt=chart_dt,
@@ -451,10 +535,10 @@ class TransitPopoutMixin:
             )
 
         def _window_cache_get(cache_key: tuple[object, ...]) -> dict[str, object] | None:
-            return self.transit_panel_controller.get_transit_window_cache(cache_key)
+            return self._host.transit_panel_controller.get_transit_window_cache(cache_key)
 
         def _window_cache_put(cache_key: tuple[object, ...], payload: dict[str, object]) -> None:
-            self.transit_panel_controller.put_transit_window_cache(cache_key, payload)
+            self._host.transit_panel_controller.put_transit_window_cache(cache_key, payload)
 
         _transit_shutdown_in_progress = False
         _transit_shutdown_callbacks: list[Callable[[], None]] = []
@@ -535,7 +619,7 @@ class TransitPopoutMixin:
                 len(transit_workers),
             )
 
-        dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
+        dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._host._popout_summary_contexts.pop(key, None))
         dialog.set_async_shutdown(_begin_transit_worker_shutdown)
 
         def _refresh_summary() -> None:
@@ -826,7 +910,7 @@ class TransitPopoutMixin:
                 _refresh_summary()
                 return
             if state["resolving"]:
-                self.transit_panel_controller.record_transit_window_inflight_dedupe()
+                self._host.transit_panel_controller.record_transit_window_inflight_dedupe()
                 return
             hit = state.get("hit")
             mode = str(state.get("mode", PERSONAL_TRANSIT_MODE_LIFE_FORECAST))
@@ -1047,18 +1131,18 @@ class TransitPopoutMixin:
         QTimer.singleShot(0, _drain_preload_queue)
 
         dialog.resize(1320, 1080)
-        self._register_popout_shortcuts(dialog)
+        self._host._register_popout_shortcuts(dialog)
         dialog.show()
-        self._transit_popout_dialogs.append(dialog)
+        self._dialogs.append(dialog)
         dialog.destroyed.connect(
-            lambda _=None, dialog=dialog: self._transit_popout_dialogs.remove(dialog)
-            if dialog in self._transit_popout_dialogs
+            lambda _=None, dialog=dialog: self._dialogs.remove(dialog)
+            if dialog in self._dialogs
             else None
         )
 
 
-    def _show_transit_chart_popout(self, chart: Chart) -> None:
-        dialog = QDialog(self)
+    def show_transit_chart_popout(self, chart: Chart) -> None:
+        dialog = QDialog(self._host)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
         dialog.setMinimumSize(780, 780)
         layout = QHBoxLayout()
@@ -1066,7 +1150,7 @@ class TransitPopoutMixin:
         dialog.setLayout(layout)
         transit_scaffold = build_transit_popout_scaffold(layout)
 
-        chart_info_output = self._build_popout_left_panel(
+        chart_info_output = self._host._build_popout_left_panel(
             transit_scaffold.aspects_layout,
             chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
             aspect_entries=list(
@@ -1157,7 +1241,7 @@ class TransitPopoutMixin:
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        summary_output.viewport().installEventFilter(self)
+        summary_output.viewport().installEventFilter(self._host)
         right_layout.addWidget(summary_output, 3)
 
         theme_output = QPlainTextEdit()
@@ -1166,8 +1250,8 @@ class TransitPopoutMixin:
 
         state: dict[str, object] = {
             "chart": chart,
-            "location_label": getattr(self, "_transit_location_label", None) or "Unknown",
-            "raw_location": getattr(self, "_transit_location_label", None) or "",
+            "location_label": getattr(self._host, "_transit_location_label", None) or "Unknown",
+            "raw_location": getattr(self._host, "_transit_location_label", None) or "",
             "time_label": "unknown" if getattr(chart, "birthtime_unknown", False) else chart.dt.strftime("%H:%M"),
             "date_label": chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????",
         }
@@ -1194,7 +1278,7 @@ class TransitPopoutMixin:
                 chart_data_text=chart_data_text,
             )
 
-        summary_share_button = self._attach_popout_share_button(
+        summary_share_button = self._host._attach_popout_share_button(
             summary_output,
             transit_file_stem,
             export_text_provider=lambda: _build_transit_export_text(summary_output.toPlainText()),
@@ -1210,9 +1294,9 @@ class TransitPopoutMixin:
             "summary_block_offset": 0,
             "share_button": summary_share_button,
         }
-        self._popout_summary_contexts[popout_context_key] = popout_context
+        self._host._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(
-            lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
+            lambda _=None, key=popout_context_key: self._host._popout_summary_contexts.pop(key, None)
         )
 
         def _refresh_summary() -> None:
@@ -1222,7 +1306,7 @@ class TransitPopoutMixin:
             chart_summary_text, position_info_map, aspect_info_map, species_info_map = format_chart_text(
                 active_chart,
                 aspect_sort=sort_mode,
-                **self._chart_data_visibility_options(),
+                **self._host._chart_data_visibility_options(),
             )
             summary_lines_local = chart_summary_text.splitlines()
             positions_start_index = next(
@@ -1285,7 +1369,7 @@ class TransitPopoutMixin:
                 symbol_scale=0.7,
             )
             canvas.draw_idle()
-            self._transit_popout_chart_by_dialog[dialog] = active_chart
+            self._chart_by_dialog[dialog] = active_chart
             _refresh_summary()
 
         def _resolve_popout_location(raw_value: str) -> tuple[float, float, str] | None:
@@ -1322,7 +1406,7 @@ class TransitPopoutMixin:
                 return
             lat, lon, location_label = resolved_location
 
-            local_tz = self.transit_panel_controller.display_timezone
+            local_tz = self._host.transit_panel_controller.display_timezone
             selected_date = popout_date_input.date()
             selected_time = popout_time_input.time()
             selected_local = datetime.datetime(
@@ -1358,16 +1442,16 @@ class TransitPopoutMixin:
         _redraw()
 
         dialog.resize(1320, 1080)
-        self._register_popout_shortcuts(dialog)
+        self._host._register_popout_shortcuts(dialog)
 
         dialog.show()
-        self._transit_popout_dialogs.append(dialog)
-        self._transit_popout_chart_by_dialog[dialog] = chart
+        self._dialogs.append(dialog)
+        self._chart_by_dialog[dialog] = chart
         dialog.destroyed.connect(
-            lambda _=None, dialog=dialog: self._transit_popout_dialogs.remove(dialog)
-            if dialog in self._transit_popout_dialogs
+            lambda _=None, dialog=dialog: self._dialogs.remove(dialog)
+            if dialog in self._dialogs
             else None
         )
         dialog.destroyed.connect(
-            lambda _=None, dialog=dialog: self._transit_popout_chart_by_dialog.pop(dialog, None)
+            lambda _=None, dialog=dialog: self._chart_by_dialog.pop(dialog, None)
         )
