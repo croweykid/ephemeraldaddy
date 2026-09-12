@@ -7,6 +7,12 @@ from typing import Any, Callable
 
 from matplotlib.figure import Figure
 
+from ephemeraldaddy.gui.features.charts.quadrants import (
+    build_quadrant_info_html,
+    draw_quadrants_popout,
+    install_quadrants_controller_bridge,
+)
+
 Chart = Any
 Owner = Any
 Axis = Any
@@ -90,7 +96,6 @@ def _configure_nakshatra(owner: Owner, canvas: Canvas, info_panel: InfoPanel, ch
 
 def _configure_quadrants(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
     del owner, chart
-    from ephemeraldaddy.gui.features.charts.quadrants import build_quadrant_info_html
 
     def _on_pick(event: object) -> None:
         artist_gid = _artist_gid(event)
@@ -212,7 +217,7 @@ METRIC_PANEL_SPECS: tuple[MetricPanelSpec, ...] = (
     MetricPanelSpec(
         key="quadrants",
         title="Quadrants",
-        draw=_call_draw("_draw_quadrants"),
+        draw=draw_quadrants_popout,
         popout_size=(8.5, 4.2),
         placeholder="Click a quadrant bar or label to view its interpretation.",
         configure_info=_configure_quadrants,
@@ -343,3 +348,9 @@ def configure_metric_popout_info(owner: Owner, title: str, canvas: Canvas, info_
         info_panel.setPlaceholderText(spec.placeholder)
     if spec.configure_info is not None:
         spec.configure_info(owner, canvas, info_panel, chart)
+
+
+# The controller already has a single owner-hook installation seam for Quadrants.
+# Extend that seam so the common New Chart/placeholder display reset also clears
+# the Quadrants canvas without duplicating MainWindow's large reset routine.
+install_quadrants_controller_bridge()
