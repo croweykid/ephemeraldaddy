@@ -8,15 +8,21 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from ephemeraldaddy.core.aspect_display import axis_aspect_redundancy_key
 from ephemeraldaddy.core.composite import (
+    BodyPosition,
     COMPOSITE_ASPECT_TYPES,
+    PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+    PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
     PERSONAL_TRANSIT_MAX_ORB_DEG,
     angular_distance,
+    compute_chart,
+    personal_transit_rules_for_mode,
 )
 from ephemeraldaddy.core.ephemeris import planetary_longitude
 from ephemeraldaddy.core.interpretations import (
-    ASTEROIDS, BLACK_MOON_LILITH, EPHEMERIS_MAX_DATE, EPHEMERIS_MIN_DATE,
-    NODES, OUTER_PLANETS,
+    ANGLES, ASTEROIDS, BLACK_MOON_LILITH, EPHEMERIS_MAX_DATE, EPHEMERIS_MIN_DATE,
+    FAST_TRANSIT_BODIES, NODES, OUTER_PLANETS, VERY_FAST_TRANSIT_BODIES,
 )
 
 DEFAULT_TIMELINE_YEARS = 120
@@ -150,6 +156,76 @@ def _build_transit_definitions(chart: Any) -> tuple[TimelineTransitDefinition, .
     return tuple(definitions.values())
 
 
+def _build_personal_transit_range_definitions(
+    chart: Any,
+) -> tuple[TimelineTransitDefinition, ...]:
+    """Build exactly the candidates accepted by the two Personal Transit modes."""
+    positions = dict(getattr(chart, "positions", {}) or {})
+    transit_bodies = list(_timeline_transiting_bodies())
+    transit_bodies.extend(
+        sorted(
+            (FAST_TRANSIT_BODIES | VERY_FAST_TRANSIT_BODIES | ANGLES).difference(
+                transit_bodies
+            )
+        )
+    )
+    definitions: dict[tuple[str, str, str], TimelineTransitDefinition] = {}
+    seen_axis_events: set[tuple[object, ...]] = set()
+
+    for mode in (
+        PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+        PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+    ):
+        rules = personal_transit_rules_for_mode(mode)
+        for transit_name in transit_bodies:
+            transit_position = BodyPosition(name=transit_name, lon_deg=0.0)
+            for natal_name_raw, natal_longitude_raw in positions.items():
+                if natal_longitude_raw is None:
+                    continue
+                try:
+                    natal_longitude = float(natal_longitude_raw) % 360.0
+                except (TypeError, ValueError):
+                    continue
+                natal_name = str(natal_name_raw)
+                natal_position = BodyPosition(name=natal_name, lon_deg=natal_longitude)
+                if rules.pair_filter and not rules.pair_filter(
+                    transit_position, natal_position, rules.context
+                ):
+                    continue
+                for aspect in rules.aspect_types:
+                    allowed_orb = (
+                        rules.orb_table(
+                            transit_position, natal_position, aspect, rules.context
+                        )
+                        if rules.orb_table
+                        else aspect.orb_deg
+                    )
+                    if allowed_orb <= 0:
+                        continue
+                    axis_key = axis_aspect_redundancy_key(
+                        transit_name,
+                        natal_name,
+                        aspect.name,
+                        directed=True,
+                        layer1="TRANSIT",
+                        layer2="NATAL",
+                    )
+                    if axis_key is not None:
+                        if axis_key in seen_axis_events:
+                            continue
+                        seen_axis_events.add(axis_key)
+                    definition = TimelineTransitDefinition(
+                        transiting_body=transit_name,
+                        natal_body=natal_name,
+                        natal_longitude=natal_longitude,
+                        aspect_name=aspect.name,
+                        aspect_angle=float(aspect.angle_deg),
+                        orb_deg=float(allowed_orb),
+                    )
+                    definitions[definition.key] = definition
+    return tuple(definitions.values())
+
+
 def _aspect_orb(
     transit_longitude: float,
     definition: TimelineTransitDefinition,
@@ -161,8 +237,10 @@ def _aspect_orb(
 def _definition_is_active(
     when: datetime.datetime,
     definition: TimelineTransitDefinition,
+    longitude_at: Callable[[datetime.datetime, str], float | None] | None = None,
 ) -> bool:
-    longitude = planetary_longitude(when, definition.transiting_body)
+    resolver = longitude_at or planetary_longitude
+    longitude = resolver(when, definition.transiting_body)
     return bool(
         longitude is not None
         and _aspect_orb(float(longitude), definition) <= definition.orb_deg
@@ -173,18 +251,19 @@ def _refine_boundary(
     outside: datetime.datetime,
     inside: datetime.datetime,
     definition: TimelineTransitDefinition,
+    longitude_at: Callable[[datetime.datetime, str], float | None] | None = None,
 ) -> datetime.datetime:
     """Refine an outside/inside transition to approximately minute precision."""
     left = outside
     right = inside
-    left_active = _definition_is_active(left, definition)
-    right_active = _definition_is_active(right, definition)
+    left_active = _definition_is_active(left, definition, longitude_at)
+    right_active = _definition_is_active(right, definition, longitude_at)
     if left_active == right_active:
         return inside
 
     for _ in range(_BOUNDARY_REFINEMENT_STEPS):
         middle = left + ((right - left) / 2)
-        middle_active = _definition_is_active(middle, definition)
+        middle_active = _definition_is_active(middle, definition, longitude_at)
         if middle_active == left_active:
             left = middle
         else:
@@ -376,5 +455,107 @@ def generate_personal_timeline(
             )
         )
 
+    results.sort(key=lambda item: (item.start, item.end, item.transit.label))
+    return results
+
+
+def generate_personal_transit_range(
+    chart_uid: str,
+    chart: Any,
+    *,
+    start: datetime.datetime,
+    end: datetime.datetime,
+    step_hours: float = 6.0,
+    cancelled: Callable[[], bool] | None = None,
+    transit_location: tuple[float, float] | None = None,
+) -> list[PersonalTimelineWindow]:
+    """Generate major transit windows inside an explicit, short date range."""
+    normalized_uid = str(chart_uid or "").strip().upper()
+    if not normalized_uid:
+        raise ValueError("Personal Transit range generation requires a Chart UID.")
+    if start.tzinfo is None or end.tzinfo is None:
+        raise ValueError("Transit range bounds must be timezone-aware.")
+    if end <= start or step_hours <= 0:
+        raise ValueError(
+            "Transit range end must be after start and scan step hours must be positive."
+        )
+
+    definitions = _build_personal_transit_range_definitions(chart)
+    definition_lookup = {definition.key: definition for definition in definitions}
+    definitions_by_body: dict[str, list[TimelineTransitDefinition]] = {}
+    for definition in definitions:
+        definitions_by_body.setdefault(definition.transiting_body, []).append(definition)
+
+    longitude_cache: dict[tuple[datetime.datetime, str], float | None] = {}
+    chart_positions_cache: dict[datetime.datetime, dict[str, float]] = {}
+
+    def longitude_at(when: datetime.datetime, body: str) -> float | None:
+        key = (when, body)
+        if key not in longitude_cache:
+            if transit_location is not None:
+                positions = chart_positions_cache.get(when)
+                if positions is None:
+                    positions = dict(
+                        compute_chart(
+                            when,
+                            transit_location,
+                            name="Personal Transit range probe",
+                        ).positions
+                    )
+                    chart_positions_cache[when] = positions
+                value = positions.get(body)
+                longitude_cache[key] = float(value) if value is not None else None
+            else:
+                longitude_cache[key] = planetary_longitude(when, body)
+        return longitude_cache[key]
+
+    step = datetime.timedelta(hours=step_hours)
+    active_starts: dict[tuple[str, str, str], tuple[datetime.datetime, bool]] = {}
+    previous_active: set[tuple[str, str, str]] = set()
+    previous_dt = start
+    current_dt = start
+    results: list[PersonalTimelineWindow] = []
+    while current_dt <= end:
+        if cancelled is not None and cancelled():
+            return []
+        current_active: set[tuple[str, str, str]] = set()
+        for transit_body, body_definitions in definitions_by_body.items():
+            longitude = longitude_at(current_dt, transit_body)
+            if longitude is None:
+                continue
+            for definition in body_definitions:
+                if _aspect_orb(float(longitude), definition) <= definition.orb_deg:
+                    current_active.add(definition.key)
+        for key in current_active.difference(previous_active):
+            active_starts[key] = (
+                (
+                    start
+                    if current_dt == start
+                    else _refine_boundary(
+                        previous_dt,
+                        current_dt,
+                        definition_lookup[key],
+                        longitude_at,
+                    )
+                ),
+                current_dt == start,
+            )
+        for key in previous_active.difference(current_active):
+            window_start, start_truncated = active_starts.pop(key)
+            boundary = _refine_boundary(
+                current_dt,
+                previous_dt,
+                definition_lookup[key],
+                longitude_at,
+            )
+            if boundary >= window_start:
+                results.append(PersonalTimelineWindow(normalized_uid, definition_lookup[key], window_start, boundary, start_truncated))
+        previous_active = current_active
+        previous_dt = current_dt
+        if current_dt >= end:
+            break
+        current_dt = min(end, current_dt + step)
+    for key, (window_start, start_truncated) in active_starts.items():
+        results.append(PersonalTimelineWindow(normalized_uid, definition_lookup[key], window_start, end, start_truncated, True))
     results.sort(key=lambda item: (item.start, item.end, item.transit.label))
     return results
