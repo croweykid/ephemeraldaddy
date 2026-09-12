@@ -354,7 +354,25 @@ from ephemeraldaddy.gui.features.chart_editor.metric_canvas_layout import (
     MetricCanvasLayoutController,
 )
 from ephemeraldaddy.gui.features.chart_editor.controller import ChartEditorController
-from ephemeraldaddy.gui.features.chart_editor.session import ChartEditSession
+from ephemeraldaddy.gui.features.chart_editor.session import (
+    ChartEditSession,
+    ChartTimeContext,
+)
+from ephemeraldaddy.gui.features.chart_information.aspect_sentences import (
+    build_aspect_sentence_segments,
+)
+from ephemeraldaddy.gui.features.chart_information.position_sentences import (
+    build_position_sentence_model,
+)
+from ephemeraldaddy.gui.features.chart_information.rich_text import (
+    ChartInformationDocument,
+    build_decan_document,
+    build_mode_document,
+)
+from ephemeraldaddy.gui.features.import_export.chart_markdown_controller import (
+    ChartMarkdownExportCallbacks,
+    ChartMarkdownExportController,
+)
 from ephemeraldaddy.gui.features.database_view.close_progress import DatabaseCloseProgress
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
@@ -751,7 +769,6 @@ from ephemeraldaddy.core.interpretations import (
     get_blended_color,
     GENERATIONAL_COHORTS,
     GENERATION_COLORS,
-    ASPECT_COLORS,
     ASPECT_FRICTION,
     ASPECT_SCORE_WEIGHTS,
     ASPECT_TYPES,
@@ -1890,7 +1907,7 @@ def _get_qapp():
         app = QApplication(qt_argv)
     else:
         logger.debug("Reusing existing QApplication instance.")
-        
+
         # PySide6 builds vary: some expose setApplicationDisplayName on the app
     # instance (not QCoreApplication class), while older builds omit it.
     if hasattr(app, "setApplicationDisplayName"):
@@ -2841,7 +2858,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.list_widget.itemDoubleClicked.connect(self._load_chart_from_item)
         self.list_widget.itemSelectionChanged.connect(self._on_selection_changed)
         self.list_widget.installEventFilter(self)
-        
+
         self.list_panel = QWidget()
         self.list_panel.setStyleSheet(f"background-color: {DATABASE_VIEW_LIST_PANEL_BACKGROUND};")
         self.list_panel.setMinimumWidth(280) #was 420
@@ -25132,6 +25149,19 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # - Chart Edit Window: current_chart_uid is set (editing existing chart).
         self.current_chart_uid: str | None = None
         self._chart_edit_session = ChartEditSession()
+        self._chart_markdown_export_controller = ChartMarkdownExportController(
+            ChartMarkdownExportCallbacks(
+                choose_destination=lambda title, default, file_filter: QFileDialog.getSaveFileName(
+                    self, title, default, file_filter
+                )[0],
+                show_information=lambda title, message: QMessageBox.information(
+                    self, title, message
+                ),
+                show_error=lambda title, message: QMessageBox.critical(
+                    self, title, message
+                ),
+            )
+        )
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
         self._loaded_birth_place = None
         self._loaded_lat = None
@@ -25164,10 +25194,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._metadata_autosave_timer.setSingleShot(True)
         self._metadata_autosave_timer.timeout.connect(self._flush_pending_metadata_save)
         self._metadata_autosave_requires_recalculation = False
-        self._last_chart_save_changed_fields: set[str] | None = None
-        self._last_chart_save_recalculated = False
-        self._chart_view_saved_changes_since_load = False
-        self._chart_view_prediction_flush_pending = False
         self._timing_preview_update_timer = QTimer(self)
         self._timing_preview_update_timer.setSingleShot(True)
         self._timing_preview_update_timer.timeout.connect(
@@ -30209,156 +30235,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         ):
             self._schedule_chart_render_for_active_right_panel()
 
-    def _build_chart_export_markdown(self, chart: Chart) -> str:
-        date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
-        time_label = (
-            "Unknown"
-            if getattr(chart, "birthtime_unknown", False)
-            else chart.dt.strftime("%H:%M %Z")
-        )
-        alias = getattr(chart, "alias", None) or ""
-        birth_place = getattr(chart, "birth_place", None) or "Unknown"
-        use_houses = _chart_uses_houses(chart)
-        houses = getattr(chart, "houses", None) if use_houses else None
-
-        lines = [
-            f"# Chart Export: {chart.name or 'Unnamed'}",
-            "",
-            "## Metadata",
-            "",
-            "| Field | Value |",
-            "| --- | --- |",
-            f"| Name | {chart.name or 'Unnamed'} |",
-            f"| Alias | {alias or '—'} |",
-            f"| 🐣Date | {date_label} |",
-            f"| 🐣Time | {time_label} |",
-            f"| 🐣Place | {birth_place} |",
-            f"| Latitude / Longitude | {chart.lat:.4f} / {chart.lon:.4f} |",
-            f"| 🐣Time unknown | {getattr(chart, 'birthtime_unknown', False)} |",
-            f"| Rectified 🐣Time used | {getattr(chart, 'retcon_time_used', False)} |",
-            f"| UTC fallback used | {getattr(chart, 'used_utc_fallback', False)} |",
-        ]
-
-        lines.extend([
-            "",
-            "## Positions",
-            "",
-            "| Body | Position | Sign | House |",
-            "| --- | --- | --- | --- |",
-        ])
-
-        ordered_bodies = [body for body in PLANET_ORDER if body in chart.positions]
-        extras = sorted(set(chart.positions).difference(ordered_bodies))
-        ordered_bodies.extend(extras)
-        for body in ordered_bodies:
-            lon = chart.positions.get(body)
-            if lon is None:
-                lines.append(f"| {body} | Unknown | Unknown | — |")
-                continue
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                lines.append(f"| {body} | Unknown (🐣Time unknown) | Unknown | — |")
-                continue
-            sign = _sign_for_longitude(lon)
-            pretty_position = _format_longitude(lon)
-            house_num = _house_for_longitude(houses, lon) if use_houses else None
-            house_label = str(house_num) if house_num else "—"
-            lines.append(f"| {body} | {pretty_position} | {sign} | {house_label} |")
-
-        if use_houses and houses:
-            lines.extend([
-                "",
-                "## House Cusps",
-                "",
-                "| House | Cusp |",
-                "| --- | --- |",
-            ])
-            for idx, cusp in enumerate(houses[:12], start=1):
-                lines.append(f"| {idx} | {_format_longitude(cusp)} |")
-
-        lines.extend([
-            "",
-            "## Aspects",
-            "",
-            "| Body A | Aspect | Body B | Exact Angle | Orb (Δ) | Score |",
-            "| --- | --- | --- | ---: | ---: | ---: |",
-        ])
-        aspects = getattr(chart, "aspects", None) or []
-        filtered_aspects = list(
-            iter_displayable_aspects(
-                aspects,
-                use_houses=use_houses,
-                known_positions=getattr(chart, "positions", {}) or {},
-            )
-        )
-        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
-        if not dominant_planet_weights:
-            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-        filtered_aspects.sort(
-            key=lambda asp: _aspect_score(asp, planet_weights=dominant_planet_weights),
-            reverse=True,
-        )
-        if not filtered_aspects:
-            lines.append("| — | — | — | — | — | — |")
-        for asp in filtered_aspects:
-            lines.append(
-                "| "
-                f"{asp.get('p1', '?')} | {_aspect_label(asp.get('type', ''))} | {asp.get('p2', '?')} | "
-                f"{_format_degree_minutes(float(asp.get('angle', 0.0)), include_sign=False)} | {_format_degree_minutes(float(asp.get('delta', 0.0)))} | "
-                f"{_aspect_score(asp, planet_weights=dominant_planet_weights):.2f} |"
-            )
-
-        lines.extend([
-            "",
-            "## Raw Chart Data (JSON)",
-            "",
-            "```json",
-            json.dumps(chart.as_dict(), indent=2, ensure_ascii=False),
-            "```",
-            "",
-        ])
-        return "\n".join(lines)
-
     def _export_chart(self, chart: Chart | None) -> None:
-        if chart is None:
-            QMessageBox.information(
-                self,
-                "incomplete birthdate",
-                "Generate or load a chart before exporting.",
-            )
-            return
-
-        chart_title = (chart.name or "chart").strip() or "chart"
-        safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", chart_title).strip("_") or "birthchart"
-        export_date = datetime.date.today().isoformat()
-        default_filename = f"ephemeraldaddy_{safe_title}_chart-{export_date}.md"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export chart analysis (MD)",
-            default_filename,
-            "Markdown Files (*.md)",
-        )
-        if not file_path:
-            return
-        if not file_path.lower().endswith(".md"):
-            file_path = f"{file_path}.md"
-
-        markdown_text = self._build_chart_export_markdown(chart)
-        try:
-            with open(file_path, "w", encoding="utf-8") as md_file:
-                md_file.write(markdown_text)
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export failed",
-                f"Could not export chart markdown:\n{e}",
-            )
-            return
-
-        QMessageBox.information(
-            self,
-            "Export complete",
-            f"Saved chart markdown to:\n{file_path}",
-        )
+        """Compatibility boundary for active-context chart export callers."""
+        self._chart_markdown_export_controller.export(chart)
 
     def on_export_chart(self) -> None:
         self._export_chart(self._latest_chart)
@@ -31509,100 +31388,19 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
-        sign_key = sign.title()
-        sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
-        adverbs = sign_keywords.get("best_adverbs", []) + sign_keywords.get(
-            "worst_adverbs", []
+        model = build_position_sentence_model(
+            body,
+            sign,
+            house_num,
+            default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )
-        planet_keywords = PLANET_KEYWORDS.get(body, {})
-        verbs = planet_keywords.get("verbs", [])
-        verbs_only = planet_keywords.get("verbsonly", [])
-        planet_nouns = planet_keywords.get("nouns", [])
-        if house_num is None:
-            verb_choices = verbs_only or verbs
-            if not (adverbs and verb_choices):
-                self.chart_info_output.setPlainText(
-                    f"No interpretation data available for {body} in {sign}."
-                )
-                return
-        else:
-            sign_verbs = sign_keywords.get("verbs", [])
-            house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
-            if not (adverbs and verbs and house_keywords and sign_verbs and planet_nouns):
-                self.chart_info_output.setPlainText(
-                    f"No interpretation data available for {body} in {sign}, house {house_num}."
-                )
-                return
-        
-        unique_lines: list[list[tuple[str, str | None]]] = []
-        seen: set[tuple[str, str, str]] = set()
-        
-        def add_unique_lines(
-            target_count: int,
-            verb_options: list[str],
-            noun_options: list[str],
-            adverb_options: list[str],
-            verb_color: str | None = None,
-            noun_color: str | None = None,
-            adverb_color: str | None = None,
-            max_attempts: int = 200,
-        ) -> None:
-            attempts = 0
-            while len(unique_lines) < target_count and attempts < max_attempts:
-                noun = random.choice(noun_options)
-                verb = random.choice(verb_options)
-                adverb = random.choice(adverb_options)
-                combo = (noun, verb, adverb)
-                if combo in seen:
-                    attempts += 1
-                    continue
-                seen.add(combo)
-                line_segments: list[tuple[str, str | None]] = [("• ", None)]
-                if str(verb).strip():
-                    line_segments.append((str(verb).strip(), verb_color))
-                if str(noun).strip():
-                    if len(line_segments) > 1:
-                        line_segments.append((" ", None))
-                    line_segments.append((str(noun).strip(), noun_color))
-                if str(adverb).strip():
-                    if len(line_segments) > 1:
-                        line_segments.append((" ", None))
-                    line_segments.append((str(adverb).strip(), adverb_color))
-                unique_lines.append(line_segments)
-                attempts += 1
-        if house_num is None:
-            verb_choices = verbs_only or verbs
-            add_unique_lines(
-                6,
-                verb_choices,
-                [""],
-                adverbs,
-                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
+        if model is None:
+            location = f", house {house_num}" if house_num is not None else ""
+            self.chart_info_output.setPlainText(
+                f"No interpretation data available for {body} in {sign}{location}."
             )
-            header = f"{body} in {sign}"
-        else:
-            house_of_keywords = [f"of {house}" for house in house_keywords]
-            add_unique_lines(
-                3,
-                verbs,
-                house_keywords,
-                adverbs,
-                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                noun_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-            )
-            add_unique_lines(
-                6,
-                sign_verbs,
-                planet_nouns,
-                house_of_keywords,
-                verb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                noun_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-                adverb_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
-            )
-            header = f"{body} in {sign} • House {house_num}"
-        self._set_chart_info_lines_with_segments(header, unique_lines)
+            return
+        self._set_chart_info_lines_with_segments(model.header, model.lines)
 
     def _show_decan_info(self, body: str, sign: str, longitude: object | None) -> None:
         body_key = str(body or "").strip()
@@ -31611,25 +31409,31 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if decan is None:
             self.chart_info_output.setPlainText(f"{display_body}: no decan data available.")
             return
-        title_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        decan_color = PLANET_COLORS.get(decan.subsign_ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        self._render_chart_information_document(
+            build_decan_document(
+                decan,
+                body_name=body_key,
+                display_body=display_body,
+                default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+            )
+        )
 
+    def _render_chart_information_document(
+        self, document: ChartInformationDocument
+    ) -> None:
+        """Render a toolkit-neutral Chart Information document into the Qt panel."""
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
         cursor.movePosition(QTextCursor.Start)
-        title_fmt = QTextCharFormat()
-        title_fmt.setForeground(QColor(title_color))
-        title_fmt.setFontWeight(QFont.Bold)
-        subheader_fmt = QTextCharFormat()
-        subheader_fmt.setForeground(QColor(decan_color))
-        subheader_fmt.setFontItalic(True)
-        plain_fmt = QTextCharFormat()
-        plain_fmt.setFontWeight(QFont.Normal)
-        cursor.insertText(f"{display_body}: {decan.ordinal_label} decan of {decan.sign_name}\n\n", title_fmt)
-        if decan.description:
-            cursor.insertText(f"{decan.description}\n\n", subheader_fmt)
-        for keyword in decan.keywords:
-            cursor.insertText(f"• {keyword}\n", plain_fmt)
+        for run in document.runs:
+            text_format = QTextCharFormat()
+            if run.style.color:
+                text_format.setForeground(QColor(run.style.color))
+            text_format.setFontWeight(QFont.Bold if run.style.bold else QFont.Normal)
+            text_format.setFontItalic(run.style.italic)
+            if run.style.point_size is not None:
+                text_format.setFontPointSize(run.style.point_size)
+            cursor.insertText(run.text, text_format)
         self.chart_info_output.setTextCursor(cursor)
         reset_cursor = self.chart_info_output.textCursor()
         reset_cursor.movePosition(QTextCursor.Start)
@@ -31863,39 +31667,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.chart_info_output.setPlainText(f"{model.label}\n\nNo keyword data available.")
             return
 
-        self.chart_info_output.clear()
-        cursor = self.chart_info_output.textCursor()
-        cursor.movePosition(QTextCursor.Start)
-
-        title_fmt = QTextCharFormat()
-        title_fmt.setForeground(QColor(MODE_COLORS.get(model.key, CHART_THEME_COLORS.get("text", "#f5f5f5"))))
-        title_fmt.setFontWeight(QFont.Bold)
-        title_fmt.setFontPointSize(13)
-        header_fmt = QTextCharFormat()
-        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
-        header_fmt.setFontWeight(QFont.Bold)
-        plain_fmt = QTextCharFormat()
-        plain_fmt.setFontWeight(QFont.Normal)
-        plain_fmt.setFontItalic(False)
-
-        cursor.insertText(f"{model.label} Mode\n\n", title_fmt)
-        if model.keywords:
-            cursor.insertText("Keywords:", header_fmt)
-            cursor.insertText("\n", plain_fmt)
-            for keyword in model.keywords:
-                cursor.insertText(f"• {keyword}\n", plain_fmt)
-        if model.signs:
-            if model.keywords:
-                cursor.insertText("\n", plain_fmt)
-            cursor.insertText("Signs:", header_fmt)
-            cursor.insertText("\n", plain_fmt)
-            for sign in model.signs:
-                cursor.insertText(f"• {sign}\n", plain_fmt)
-
-        self.chart_info_output.setTextCursor(cursor)
-        reset_cursor = self.chart_info_output.textCursor()
-        reset_cursor.movePosition(QTextCursor.Start)
-        self.chart_info_output.setTextCursor(reset_cursor)
+        self._render_chart_information_document(
+            build_mode_document(
+                model,
+                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+            )
+        )
 
     def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
         self.chart_info_output.setPlainText(
@@ -32570,115 +32348,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             return
 
-        line_segments = self._build_aspect_line_segments(
-            p1=p1,
-            p2=p2,
-            atype=atype,
-            p1_nouns=p1_nouns,
-            p2_nouns=p2_nouns,
+        line_segments = build_aspect_sentence_segments(
+            first_body=p1,
+            second_body=p2,
+            aspect_type=atype,
+            first_body_nouns=p1_nouns,
+            second_body_nouns=p2_nouns,
             aspect_keywords=aspect_keywords,
-            sign1=sign1,
-            sign2=sign2,
-            house1=house1,
-            house2=house2,
+            first_sign=sign1,
+            second_sign=sign2,
+            first_house=house1,
+            second_house=house2,
+            default_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
         self._set_chart_info_lines_with_segments(header, line_segments)
-
-    def _build_aspect_line_segments(
-        self,
-        *,
-        p1: str,
-        p2: str,
-        atype: str,
-        p1_nouns: list[str],
-        p2_nouns: list[str],
-        aspect_keywords: list[str],
-        sign1: str | None,
-        sign2: str | None,
-        house1: int | None,
-        house2: int | None,
-        line_count: int = 6,
-        max_attempts: int = 300,
-    ) -> list[list[tuple[str, str | None]]]:
-        sign1_key = str(sign1 or "").strip().title()
-        sign2_key = str(sign2 or "").strip().title()
-        sign1_keywords = SIGN_KEYWORDS.get(sign1_key, {})
-        sign2_keywords = SIGN_KEYWORDS.get(sign2_key, {})
-        sign1_adjectives = [
-            str(token).strip()
-            for token in [*sign1_keywords.get("best", []), *sign1_keywords.get("worst", [])]
-            if str(token).strip()
-        ]
-        sign2_adjectives = [
-            str(token).strip()
-            for token in [*sign2_keywords.get("best", []), *sign2_keywords.get("worst", [])]
-            if str(token).strip()
-        ]
-        house1_keywords = HOUSE_DEFINITIONS.get(house1, {}).get("core_domains", []) if house1 else []
-        house2_keywords = HOUSE_DEFINITIONS.get(house2, {}).get("core_domains", []) if house2 else []
-
-        p1_color = PLANET_COLORS.get(p1, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        p2_color = PLANET_COLORS.get(p2, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        sign1_color = SIGN_COLORS.get(sign1_key, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        sign2_color = SIGN_COLORS.get(sign2_key, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        house1_color = HOUSE_COLORS.get(str(house1), CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        house2_color = HOUSE_COLORS.get(str(house2), CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-        aspect_color = ASPECT_COLORS.get(atype, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
-
-        line_segments: list[list[tuple[str, str | None]]] = []
-        seen: set[tuple[str, str, str, str, str, str, str]] = set()
-        attempts = 0
-
-        while len(line_segments) < line_count and attempts < max_attempts:
-            noun1 = str(random.choice(p1_nouns)).strip()
-            noun2 = str(random.choice(p2_nouns)).strip()
-            keyword = str(random.choice(aspect_keywords)).strip()
-            sign1_adj = str(random.choice(sign1_adjectives)).strip() if sign1_adjectives else ""
-            sign2_adj = str(random.choice(sign2_adjectives)).strip() if sign2_adjectives else ""
-            house_noun1 = str(random.choice(house1_keywords)).strip() if house1_keywords else ""
-            house_noun2 = str(random.choice(house2_keywords)).strip() if house2_keywords else ""
-
-            combo = (sign1_adj, noun1, keyword, sign2_adj, noun2, house_noun1, house_noun2)
-            if combo in seen:
-                attempts += 1
-                continue
-            seen.add(combo)
-
-            segments: list[tuple[str, str | None]] = [("• ", None)]
-            if house_noun1 and house_noun2:
-                segments.extend(
-                    [
-                        ("(", None),
-                        (house_noun1, house1_color),
-                        (" & ", None),
-                        (house_noun2, house2_color),
-                        ("): ", None),
-                    ]
-                )
-
-            sentence_tokens: list[tuple[str, str | None]] = []
-            if sign1_adj:
-                sentence_tokens.append((sign1_adj, sign1_color))
-            if noun1:
-                sentence_tokens.append((noun1, p1_color))
-            if keyword:
-                sentence_tokens.append((keyword, aspect_color))
-            if sign2_adj:
-                sentence_tokens.append((sign2_adj, sign2_color))
-            if noun2:
-                sentence_tokens.append((noun2, p2_color))
-
-            for index, (text, color) in enumerate(sentence_tokens):
-                if index > 0:
-                    segments.append((" ", None))
-                segments.append((text, color))
-
-            line_segments.append(segments)
-            attempts += 1
-
-        return line_segments
 
     def _current_unsaved_change_summary_lines(self) -> list[str]:
         """Read the view boundary and delegate draft comparison to its workflow."""
@@ -34802,17 +34487,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             chart,
             birth_place=place,
         )
-        self._last_chart_save_changed_fields = None if changed_fields is None else set(changed_fields)
-        self._last_chart_save_recalculated = bool(chart_recalculated)
         save_changed_chart_data = bool(
             is_new_chart
             or chart_recalculated
             or changed_fields is None
             or bool(changed_fields)
-        )
-        self._chart_view_saved_changes_since_load = (
-            bool(getattr(self, "_chart_view_saved_changes_since_load", False))
-            or save_changed_chart_data
         )
         save_requires_prediction_flush = bool(
             not is_placeholder
@@ -34824,10 +34503,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 or "birth_data" in changed_fields
             )
         )
-        self._chart_view_prediction_flush_pending = (
-            bool(getattr(self, "_chart_view_prediction_flush_pending", False))
-            or save_requires_prediction_flush
+        self._chart_edit_session.record_successful_save(
+            changed_fields=changed_fields,
+            recalculated=chart_recalculated,
+            changed_chart_data=save_changed_chart_data,
+            prediction_flush_required=save_requires_prediction_flush,
         )
+        self._chart_edit_session.set_time_context(ChartTimeContext.from_chart(chart))
         refresh_database_metrics = self._database_refresh_requires_metrics(changed_fields)
         if refresh_database_metrics:
             self._update_sentiment_tally(
@@ -34847,7 +34529,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._loaded_birth_place = place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
-        self._set_lucygoosey(False)
         self._apply_chart_type_ui_state(getattr(chart, "chart_type", None))
         if is_new_chart:
             self.update_button.setText("Update Chart")
@@ -34897,6 +34578,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._schedule_chart_render(chart, sections={"wheel"})
 
     def _reset_new_chart_form(self) -> None:
+        self._chart_edit_session.begin(chart_uid=None)
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._clear_current_chart_uid()
@@ -35301,7 +34983,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
         if replacing_current_chart and self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
-            self._chart_view_prediction_flush_pending = False
+            self._chart_edit_session.mark_prediction_flush_complete()
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = current_chart_uid == normalized_chart_uid
         if not from_chart_link and not is_same_chart_request:
@@ -35548,10 +35230,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._update_time_input_text_colors()
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
-        self._last_chart_save_changed_fields = set()
-        self._last_chart_save_recalculated = False
-        self._chart_view_saved_changes_since_load = False
-        self._chart_view_prediction_flush_pending = False
+        self._chart_edit_session.begin(
+            chart_uid=normalized_chart_uid,
+            time_context=ChartTimeContext.from_chart(chart),
+        )
         self._loaded_birth_place = chart.birth_place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
@@ -35637,7 +35319,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._cancel_pending_chart_render()
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
-            self._chart_view_prediction_flush_pending = False
+            self._chart_edit_session.mark_prediction_flush_complete()
         if self.load_chart_by_uid(
             previous_chart_uid,
             from_chart_link=True,
@@ -35865,10 +35547,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         state = getattr(self, "_chart_right_panel_state", None)
         active_panel = getattr(state, "active_tab", None)
         return should_block_database_view_open_for_prediction_flush(
-            pending_prediction_flush=bool(
-                getattr(self, "_chart_view_prediction_flush_pending", False)
-            ),
-            changed_fields=getattr(self, "_last_chart_save_changed_fields", None),
+            pending_prediction_flush=self._chart_edit_session.prediction_flush_pending,
+            changed_fields=self._chart_edit_session.last_changed_fields,
             active_right_panel=active_panel,
         )
 
@@ -35895,12 +35575,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._flush_pending_sentiment_metrics_save()
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
-            self._chart_view_prediction_flush_pending = False
+            self._chart_edit_session.mark_prediction_flush_complete()
         elif should_defer_prediction_flush_until_prediction_view(
-            pending_prediction_flush=bool(
-                getattr(self, "_chart_view_prediction_flush_pending", False)
-            ),
-            changed_fields=getattr(self, "_last_chart_save_changed_fields", None),
+            pending_prediction_flush=self._chart_edit_session.prediction_flush_pending,
+            changed_fields=self._chart_edit_session.last_changed_fields,
         ):
             logger.info(
                 "Deferred Chart Editor prediction cache flush until Predictions are requested."
@@ -38982,7 +38660,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
-            self._chart_view_prediction_flush_pending = False
+            self._chart_edit_session.mark_prediction_flush_complete()
         _stop_background_prediction_render(self)
         _stop_traits_prediction_refresh_workers(self)
         if self._size_checker_popup is not None:
