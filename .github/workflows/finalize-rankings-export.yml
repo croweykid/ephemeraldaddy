@@ -27,12 +27,6 @@ jobs:
           path = Path('ephemeraldaddy/gui/ranking_panel.py')
           text = path.read_text(encoding='utf-8')
 
-          old_import = 'from PySide6.QtCore import QEvent, QObject, Qt, QThread, QTimer, Signal'
-          new_import = 'from PySide6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QThread, QTimer, Signal'
-          if text.count(old_import) != 1:
-              raise SystemExit(f'Expected one QtCore import anchor, found {text.count(old_import)}')
-          text = text.replace(old_import, new_import)
-
           old_icon = 'Path(__file__).resolve().parents[2] / "graphics" / "share_icon2.png"'
           new_icon = 'Path(__file__).resolve().parents[1] / "graphics" / "share_icon2.png"'
           if text.count(old_icon) != 1:
@@ -40,15 +34,13 @@ jobs:
           text = text.replace(old_icon, new_icon)
 
           required = (
-              'rankings_most_sign_limit = 10',
-              'rankings_least_sign_limit = 10',
-              'QPushButton("Show next 10")',
-              '_show_more_most_dominant_signs',
-              '_show_more_least_dominant_signs',
-              '_rankings_export_full_label_png',
-              '_export_rankings_traits_png',
-              '_export_rankings_most_sign_png',
-              '_export_rankings_least_sign_png',
+              'self._rankings_sign_visible_limits: dict[tuple[bool, str], int] = {}',
+              'QPushButton("show next 10")',
+              '_on_rankings_sign_show_next_clicked',
+              '_rankings_export_icon_path',
+              '_export_rankings_section_png',
+              'label.resize(export_width, export_height)',
+              'label.resize(original_size)',
           )
           missing = [token for token in required if token not in text]
           if missing:
@@ -71,5 +63,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/finalize-rankings-export.yml
           git add ephemeraldaddy/gui/ranking_panel.py
-          git commit -m "Fix ranking export runtime dependencies"
+          git commit -m "Fix ranking export icon path"
           git push origin HEAD:feature/rankings-export-visible-rows
