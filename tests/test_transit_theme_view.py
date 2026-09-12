@@ -13,6 +13,7 @@ from ephemeraldaddy.gui.features.transits.theme_view import (
     format_global_transit_theme_view,
     format_transit_range_table,
     format_transit_theme_view,
+    theme_entries_grouped_by_time,
     themes_for_aspect_bodies,
 )
 
@@ -61,8 +62,27 @@ def test_truncated_personal_windows_do_not_claim_clipped_dates_are_boundaries():
     theme_text = format_transit_theme_view([window])
     table_text = format_transit_range_table([window])
 
-    assert "before 2026-08-13 – after 2026-10-12" in theme_text
+    assert "2026-08-13 – after 2026-10-12" in theme_text
+    assert "before" not in theme_text
     assert "before 2026-08-13 – after 2026-10-12" in table_text
+
+
+def test_theme_windows_are_split_into_past_present_and_future_sections():
+    center = datetime.datetime(2026, 9, 12, tzinfo=UTC)
+    definition = TimelineTransitDefinition("Saturn", "Sun", 10.0, "square", 90.0, 3.0)
+    windows = [
+        PersonalTimelineWindow("uid", definition, center - datetime.timedelta(days=3), center - datetime.timedelta(days=2)),
+        PersonalTimelineWindow("uid", definition, center - datetime.timedelta(days=1), center + datetime.timedelta(days=1)),
+        PersonalTimelineWindow("uid", definition, center + datetime.timedelta(days=2), center + datetime.timedelta(days=3)),
+    ]
+
+    grouped = theme_entries_grouped_by_time(windows, center)
+
+    assert grouped
+    for buckets in grouped.values():
+        assert len(buckets["past"]) == 1
+        assert len(buckets["present"]) == 1
+        assert len(buckets["future"]) == 1
 
 
 def test_transit_views_convert_dates_to_display_timezone():

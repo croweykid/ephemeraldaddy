@@ -203,6 +203,7 @@ def build_popout_left_panel(
     circuit_entries: list[dict[str, Any]] | None = None,
     hd_placement_contexts: list[tuple[str, Any]] | None = None,
     open_hd_synastry: Callable[[], None] | None = None,
+    chart_info_layout: QVBoxLayout | None = None,
 ) -> QPlainTextEdit:
     left_panel_layout = QVBoxLayout()
 
@@ -552,8 +553,9 @@ def build_popout_left_panel(
         emphasize_dnd_class_headers=True,
         emphasize_species_info_headers=True,
     )
-    left_panel_layout.addWidget(chart_info_label)
-    left_panel_layout.addWidget(chart_info_output, 1)
+    info_destination = chart_info_layout or left_panel_layout
+    info_destination.addWidget(chart_info_label)
+    info_destination.addWidget(chart_info_output, 1)
 
     def _show_awareness_gate_info(gate: int) -> None:
         show_gate_info = getattr(parent, "_show_human_design_gate_line_info", None)
