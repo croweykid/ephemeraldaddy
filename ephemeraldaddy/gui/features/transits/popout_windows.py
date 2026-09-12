@@ -128,6 +128,8 @@ class TransitPopoutController:
                         "event_name": transit_aspect_event_name(
                             entry.transiting_body, entry.aspect_type, entry.natal_body
                         ),
+                        "angle": float(ASPECT_DEFS.get(entry.aspect_type, {}).get("angle", 0.0)),
+                        "delta": 0.0,
                     })
                 sections.append((heading, rows))
             table = build_theme_aspect_table(
@@ -143,19 +145,33 @@ class TransitPopoutController:
         """Render global aspects in the same per-theme rich-table contract."""
         from ephemeraldaddy.gui.features.transits.theme_view import themes_for_aspect_bodies
 
-        grouped: dict[str, list[tuple[str, str, str]]] = {}
+        grouped: dict[str, list[dict[str, object]]] = {}
         for aspect in aspects:
             if isinstance(aspect, dict):
                 left = str(aspect.get("p1") or aspect.get("body1") or "")
                 right = str(aspect.get("p2") or aspect.get("body2") or "")
                 aspect_type = str(aspect.get("type") or aspect.get("aspect") or "aspect")
+                exact_angle = float(ASPECT_DEFS.get(aspect_type, {}).get("angle", 0.0))
+                angle = float(aspect.get("angle", exact_angle))
+                delta = float(aspect.get("delta", angle - exact_angle))
             else:
                 left_obj, right_obj = getattr(aspect, "a", ""), getattr(aspect, "b", "")
                 left = str(getattr(left_obj, "name", left_obj))
                 right = str(getattr(right_obj, "name", right_obj))
                 aspect_type = str(getattr(aspect, "aspect", "aspect"))
+                exact_angle = float(ASPECT_DEFS.get(aspect_type, {}).get("angle", 0.0))
+                angle = float(getattr(aspect, "angle", exact_angle))
+                delta = float(getattr(aspect, "delta", getattr(aspect, "orb_deg", angle - exact_angle)))
+            projected = {
+                "p1": left,
+                "type": aspect_type,
+                "p2": right,
+                "angle": angle,
+                "delta": delta,
+                "event_name": transit_aspect_event_name(left, aspect_type, right),
+            }
             for _key, label in themes_for_aspect_bodies(left, right):
-                grouped.setdefault(label, []).append((left, aspect_type, right))
+                grouped.setdefault(label, []).append(projected)
         while tabs.count():
             old = tabs.widget(0)
             self._host._popout_summary_contexts.pop(old.viewport(), None)
@@ -165,16 +181,12 @@ class TransitPopoutController:
         date_label = f"{shown_when:%Y-%m-%d}" if shown_when else "Unknown date"
         for theme_label in sorted(grouped, key=str.casefold):
             present_rows = [
-                {
+                row | {
                     "start": shown_when,
                     "end": shown_when,
                     "date_label": date_label,
-                    "p1": left,
-                    "type": aspect_type,
-                    "p2": right,
-                    "event_name": transit_aspect_event_name(left, aspect_type, right),
                 }
-                for left, aspect_type, right in grouped[theme_label]
+                for row in grouped[theme_label]
             ]
             table = build_theme_aspect_table(
                 (("🌖Past", ()), ("🌕Present", present_rows), ("🌒Future", ())),
@@ -199,8 +211,8 @@ class TransitPopoutController:
                 str(entry.get("p1", "")),
                 str(entry.get("p2", "")),
                 aspect_type,
-                float(definition.get("angle", 0.0)),
-                0.0,
+                float(entry.get("angle", definition.get("angle", 0.0))),
+                float(entry.get("delta", 0.0)),
             )
 
         self._host._run_with_chart_info_output(chart_info_output, render)

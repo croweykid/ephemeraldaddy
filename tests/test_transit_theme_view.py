@@ -23,7 +23,15 @@ UTC = datetime.timezone.utc
 
 
 def test_transit_aspect_event_name_is_distinct_from_technical_aspect_label():
-    assert transit_aspect_event_name("Saturn", "square", "Sun") == "Hard times with ego and identity"
+    assert transit_aspect_event_name("Saturn", "square", "Sun") == (
+        "Limits and responsibility running into a wall of ego and identity"
+    )
+
+
+def test_every_planet_keyword_entry_has_a_transit_summary():
+    from ephemeraldaddy.core.interpretations import PLANET_KEYWORDS
+
+    assert all(str(keywords.get("summary", "")).strip() for keywords in PLANET_KEYWORDS.values())
 
 
 def test_theme_view_groups_aspect_under_reference_theme_with_dates():

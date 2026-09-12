@@ -7,41 +7,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from ephemeraldaddy.core.interpretations import ASPECT_KEYWORDS, PLANET_KEYWORDS
 from ephemeraldaddy.core.theme_reference import THEMES
-
-
-_ASPECT_EVENT_PHRASES = {
-    "conjunction": "Intensified {topic}",
-    "opposition": "Push and pull with {topic}",
-    "square": "Hard times with {topic}",
-    "trine": "Easy flow with {topic}",
-    "sextile": "Opportunities with {topic}",
-    "quincunx": "Adjustments around {topic}",
-    "semisextile": "Small changes around {topic}",
-    "semisquare": "Friction with {topic}",
-    "sesquiquadrate": "Escalation around {topic}",
-    "quintile": "Creative solutions with {topic}",
-    "biquintile": "Creative development with {topic}",
-}
-
-_BODY_EVENT_TOPICS = {
-    "Sun": "ego and identity",
-    "Moon": "feelings and needs",
-    "Mercury": "thoughts and communication",
-    "Venus": "love and values",
-    "Mars": "action and assertion",
-    "Jupiter": "growth and opportunity",
-    "Saturn": "limits and responsibility",
-    "Uranus": "freedom and change",
-    "Neptune": "ideals and uncertainty",
-    "Pluto": "power and transformation",
-    "Rahu": "future direction",
-    "Ketu": "the past and release",
-    "AS": "identity and presentation",
-    "MC": "career and reputation",
-    "DS": "partnerships",
-    "IC": "home and foundations",
-}
 
 
 def transit_aspect_event_name(
@@ -49,9 +16,12 @@ def transit_aspect_event_name(
 ) -> str:
     """Return a concise human title distinct from the technical aspect label."""
     aspect_key = str(aspect_type).lower().replace("-", "").replace("_", "").replace(" ", "")
-    topic = _BODY_EVENT_TOPICS.get(str(natal_body), str(natal_body).lower())
-    template = _ASPECT_EVENT_PHRASES.get(aspect_key, "Activity around {topic}")
-    return template.format(topic=topic)
+    first = PLANET_KEYWORDS.get(str(transiting_body), {})
+    second = PLANET_KEYWORDS.get(str(natal_body), {})
+    first_summary = str(first.get("summary") or next(iter(first.get("nouns", ())), transiting_body))
+    second_summary = str(second.get("summary") or next(iter(second.get("nouns", ())), natal_body))
+    aspect_phrase = str(next(iter(ASPECT_KEYWORDS.get(aspect_key, ())), aspect_type))
+    return f"{first_summary} {aspect_phrase} {second_summary}".capitalize()
 
 
 @dataclass(frozen=True, slots=True)

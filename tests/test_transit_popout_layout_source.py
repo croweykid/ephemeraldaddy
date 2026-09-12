@@ -72,6 +72,19 @@ def test_theme_tabs_use_rich_row_selectable_tables_with_semantic_colors():
     assert "ASPECT_COLORS.get(" in source
     assert "RELATIVE_YEAR_COLORS[label]" in source
     assert "Qt.RichText" in source
+    assert "TRANSIT_THEME_TABLE_STYLE" in source
+    assert "table.setStyleSheet(TRANSIT_THEME_TABLE_STYLE)" in source
+
+
+def test_global_theme_rows_preserve_actual_aspect_geometry():
+    source = (
+        ROOT / "ephemeraldaddy/gui/features/transits/popout_windows.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'angle = float(aspect.get("angle", exact_angle))' in source
+    assert 'delta = float(aspect.get("delta", angle - exact_angle))' in source
+    assert 'float(entry.get("angle", definition.get("angle", 0.0)))' in source
+    assert 'float(entry.get("delta", 0.0))' in source
 
 
 def test_personal_range_runs_in_cancellable_worker_not_gui_thread():

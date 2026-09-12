@@ -12,7 +12,11 @@ from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QLabel, QTableWidget, QTableWidgetItem
 
 from ephemeraldaddy.core.interpretations import ASPECT_COLORS, PLANET_COLORS
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, RELATIVE_YEAR_COLORS
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    RELATIVE_YEAR_COLORS,
+    TRANSIT_THEME_TABLE_STYLE,
+)
 
 
 THEME_ASPECT_ROLE = Qt.UserRole + 41
@@ -62,12 +66,7 @@ def build_theme_aspect_table(
     table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
     table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
     table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-    table.setStyleSheet(
-        "QTableWidget { color:#f5f5f5; background:rgba(255,255,255,0.03); "
-        "border:1px solid rgba(255,255,255,0.12); gridline-color:rgba(255,255,255,0.08); }"
-        "QHeaderView::section { color:#f5f5f5; background:rgba(255,255,255,0.08); "
-        "border:0; padding:3px 6px; } QTableWidget::item { padding:2px 6px; }"
-    )
+    table.setStyleSheet(TRANSIT_THEME_TABLE_STYLE)
 
     for heading, entries_iter in sections:
         entries = list(entries_iter)
