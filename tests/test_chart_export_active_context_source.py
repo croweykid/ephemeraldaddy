@@ -9,7 +9,7 @@ APP_SOURCE = (
 
 
 def _method(name: str, *, last: bool = False) -> str:
-    marker = f"    def {name}"
+    marker = f"    def {name}("
     start = APP_SOURCE.rindex(marker) if last else APP_SOURCE.index(marker)
     end = APP_SOURCE.find("\n    def ", start + len(marker))
     return APP_SOURCE[start:] if end == -1 else APP_SOURCE[start:end]
@@ -23,4 +23,4 @@ def test_active_context_export_keeps_shared_chart_export_delegate():
     assert 'elif action_name == "export_chart":' in active_context_router
     assert "self._export_chart(chart)" in active_context_router
     assert "self._export_chart(self._latest_chart)" in chart_editor_action
-    assert "QFileDialog.getSaveFileName(" in export_delegate
+    assert "self._chart_markdown_export_controller.export(chart)" in export_delegate
