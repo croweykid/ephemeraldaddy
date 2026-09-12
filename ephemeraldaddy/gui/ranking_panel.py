@@ -339,7 +339,7 @@ class RankingsPanelMixin:
     @staticmethod
     def _rankings_export_icon_path() -> str:
         return str(
-            Path(__file__).resolve().parents[2] / "graphics" / "share_icon2.png"
+            Path(__file__).resolve().parents[1] / "graphics" / "share_icon2.png"
         )
 
     def _configure_rankings_export_button(
