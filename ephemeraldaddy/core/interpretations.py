@@ -1627,6 +1627,7 @@ SYNASTRY_AXES = {
 
 SIGN_KEYWORDS_CANONICAL = {
     "aries": {
+        "jyotisa":"Mesa",
         "function": "starts",
         "adverbs": [
             "directly",
@@ -1664,6 +1665,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "taurus": {
+        "jyotisa":"Vrasabha",
         "function": "sustains",
         "adverbs": [
             "steadily",
@@ -1701,6 +1703,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "gemini": {
+        "jyotisa":"Mithuna",
         "function": "connects",
         "adverbs": [
             "quickly",
@@ -1738,6 +1741,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "cancer": {
+        "jyotisa":"Karkata",
         "function": "protects",
         "adverbs": [
             "guardedly",
@@ -1775,6 +1779,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "leo": {
+        "jyotisa":"Simha",
         "function": "radiates",
         "adverbs": [
             "proudly",
@@ -1812,6 +1817,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "virgo": {
+        "jyotisa":"Kanya",
         "function": "refines",
         "adverbs": [
             "precisely",
@@ -1849,6 +1855,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "libra": {
+        "jyotisa":"Tula",
         "function": "balances",
         "adverbs": [
             "gracefully",
@@ -1886,6 +1893,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "scorpio": {
+        "jyotisa":"Vrsika",
         "function": "penetrates",
         "adverbs": [
             "intensely",
@@ -1923,6 +1931,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "sagittarius": {
+        "jyotisa":"Dhanu",
         "function": "expands",
         "adverbs": [
             "freely",
@@ -1960,6 +1969,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "capricorn": {
+        "jyotisa":"Makara",
         "function": "consolidates",
         "adverbs": [
             "seriously",
@@ -1997,6 +2007,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "aquarius": {
+        "jyotisa":"Kumbha",
         "function": "differentiates",
         "adverbs": [
             "independently",
@@ -2034,6 +2045,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "pisces": {
+        "jyotisa":"Mina",
         "function": "dissolves",
         "adverbs": [
             "fluidly",
@@ -2579,6 +2591,7 @@ SIGN_KEYWORDS = {str(sign).title(): value for sign, value in SIGN_KEYWORDS.items
 
 PLANET_KEYWORDS = {
     "Sun": {
+        "summary": "ego and identity",
         "nouns": [
             "authority", "sovereignty", "identity", "will", "purpose", "presence",
             "leadership", "distinction", "recognition", "direction", "conviction", "visibility",
@@ -2604,6 +2617,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "Earth", #only count Sun, not Earth as secondary evidence of the same thing
     },
     "Moon": {
+        "summary": "feelings and needs",
         "nouns": [
             "reactivity", "instinct", "feelings", "moods", "comfort", "needs", "memory", "care",
             "safety", "support", "familiarity", "nourishment", "recovery", "rest",
@@ -2629,6 +2643,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Mercury": {
+        "summary": "thoughts and communication",
         "nouns": [
             "thoughts","mental processes","words", "questions", "data", "messages", "information","language",
             "writing", "reading", "notes", "details","communication", "curiosity", "interpretation",
@@ -2655,6 +2670,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Venus": {
+        "summary": "love and values",
         "nouns": [
             "attraction", "pleasure", "taste", "affection", "charm", "style", "beauty", #"relationships","enjoyments",
             "harmony", "preference", "connection", "romance", "appreciation", "allure", "values",
@@ -2682,6 +2698,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Mars": {
+        "summary": "action and assertion",
         "nouns": [
             "drive", "energy", "assertion", "action", "effort", "movement", "conflict",
             "competition", "courage", "risk", "urgency", "pursuit", "anger", "force",
@@ -2709,6 +2726,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Jupiter": {
+        "summary": "growth and opportunity",
         "nouns": [
             "growth", "expansion", "learning", "teaching", "wisdom", "belief","trust", #omitted "faith" to avoid dragging church furniture into the room
             "conviction", "opportunity", "abundance", "generosity", "travel", "exploration","hope",
@@ -2735,6 +2753,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Saturn": { #If you're just printing a list of keywords, you're going to want to dial back the synonyms. But as long as you're generating phrases, this is cool & keeps things spicy and varied, poetic.
+        "summary": "limits and responsibility",
         "nouns": [
             "limitations","burdens", "commitments", "duties", "responsibilities", "discipline","elders","practice","rules","institutions","orthodoxy","status quo","continuity","existing structures",
             "structure", "time", "endurance", "obligations","inertia","entropy","restrictions","bureaucracy","entrenched order","consequence","precedent","sanctioned order","accumulated dust", #dust is the residue of time, the cross we all bear, entropy incarnate
@@ -2763,6 +2782,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Uranus": {
+        "summary": "freedom and change",
         "nouns": [
             "iconoclasm", "unpredictability", "novelty", "experiments", "rebellion", "futurism","deviation","disruption",
             "pattern breaks", "innovation", "heresy", "counterculture","discontinuity","anomalies","rule challenges", 
@@ -2792,6 +2812,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Neptune": {
+        "summary": "ideals and uncertainty",
         "nouns": [
             "imagination", "idealization", "escapism", "illusion", "yearning", "dreams","vast immersion in the primordial unknown",
             "music", "glamour", "diffusion", "dissolution", "longing", "mysticism","l'appel du vide","vastness","lack of boundaries",
@@ -2822,6 +2843,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Pluto": {
+        "summary": "power and transformation",
         "nouns": [
             "control", "compulsion", "obsession", "fixations", "metamorphosis", "power dynamics","power struggle",
             "subterranean motives", "purge", "eradication", "exposure", "confrontation","battle-tested bonds","excavation of hidden motives",
@@ -2849,6 +2871,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Chiron": {
+        "summary": "wounds and healing",
         "nouns": [
             "trigger points", "sensitivities", "difficulty", "lessons", "adaptation", "recovery paths",
             "mistakes", "compensatory skills", "instructive failures", "awkwardness",
@@ -2873,6 +2896,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Ceres": {
+        "summary": "care and nourishment",
         "nouns": [
             "nourishment", "care", "food", "provisioning", "support", "cultivation",
             "gardens", "lunches",  "budgeting","momming",
@@ -2897,6 +2921,7 @@ PLANET_KEYWORDS = {
 
     },
     "Pallas": {
+        "summary": "strategy and pattern recognition",
         "nouns": [
             "strategy", "pattern recognition", "solutions", "design", "engineering", "tactics",
             "foresight", "maps", "discernment", "negotiation", "intelligence", "system architecture",
@@ -2920,6 +2945,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Juno": {
+        "summary": "commitment and partnership",
         "nouns": [
             "commitment", "marriage", "partnership", "vows", "agreements", "mutuality",
             "fairness", "expectations", "loyalty", "reciprocity", "accountability", "fidelity",
@@ -2943,6 +2969,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Vesta": {
+        "summary": "devotion and focus",
         "nouns": [
             "focus", "devotion", "dedication", "practice", "study", "solitude","asceticism","purification","rejection of distraction",
             "discipline", "consecration", "containment", "standards", "sacred focus", "inner flame",
@@ -2966,6 +2993,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Rahu": {
+        "summary": "future direction",
         "nouns": [
             "hunger", "craving", "obsession", "fixation", "ambition", "insatiability",
             "amplification", "fascination", "taboo attraction", "worldly appetite", "restlessness",
@@ -2989,6 +3017,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "Ketu",
     },
     "Ketu": {
+        "summary": "the past and release",
         "nouns": [
             "detachment", "severance", "release", "renunciation", "withdrawal", "distance","disenchantment", "spent appetite",
             "negation", "disinterest", "letting go", "emptiness", "endings", "dissolution", "end of an era","hollow victories",
@@ -3011,7 +3040,123 @@ PLANET_KEYWORDS = {
         ],
         "polarity_partner": "Rahu",
     },
+    "Psyche": {
+        "summary": "soul and sensitivity",
+        "nouns": [
+            "sensitivity", "receptivity", "inner life", "vulnerability", "trust", "recognition",
+            "understanding", "intimacy", "exposure", "self-knowledge", "depth", "emotional perception",
+        ],
+        "verbs": [
+            "being sensitive to", "opening to", "trusting", "being understood through", "recognizing",
+            "revealing", "receiving", "internalizing", "becoming vulnerable through", "perceiving",
+            "deepening through", "being affected by",
+        ],
+        "verbsonly": [
+            "sensing", "opening", "trusting", "recognizing", "revealing", "receiving",
+            "internalizing", "perceiving", "deepening", "being affected",
+        ],
+        "definition1":"especially sensitive to", #append SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition2":"opening up", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
+        "explanation": [
+            "Heightened sensitivity to being understood, known, and emotionally received",
+            "Strong concern with trust, vulnerability, and the private inner life",
+            "Tendency to internalize experiences deeply and search for their personal meaning",
+            "Shows where receptivity and exposure can produce greater self-understanding"
+        ],
+        "archetypes":[
+            "Psyche",
+        ],
+        "polarity_partner": "none",
+    },
+
+    "Eros": {
+        "summary": "desire and erotic connection",
+        "nouns": [
+            "desire", "eroticism", "attraction", "arousal", "passion", "longing",
+            "magnetism", "fascination", "pursuit", "seduction", "pleasure", "consummation",
+        ],
+        "verbs": [
+            "desiring", "being attracted to", "longing for", "pursuing", "being aroused by",
+            "being fascinated by", "seducing", "seeking pleasure through", "hungering for",
+            "being magnetized toward", "intensifying desire for", "wanting to possess",
+        ],
+        "verbsonly": [
+            "desiring", "longing", "pursuing", "seducing", "hungering",
+            "being attracted", "being aroused", "being fascinated", "seeking pleasure",
+        ],
+        "definition1":"strongly attracted to", #append SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition2":"desiring", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
+        "explanation": [
+            "Shows what generates intense attraction, desire, and erotic charge",
+            "Describes the style of pursuit, fascination, and passionate involvement",
+            "Can indicate where ordinary interest develops into compelling personal desire",
+            "Concerned more with wanting and erotic magnetism than with affection or commitment"
+        ],
+        "archetypes":[
+            "Eros",
+            "Cupid",
+        ],
+        "polarity_partner": "none",
+    },
+    "Pholus": {
+        "summary": "catalysts and consequences",
+        "nouns": [
+            "catalysis", "release", "chain reactions", "amplification", "spillover", "consequences",
+            "turning points", "acceleration", "uncontainment", "thresholds", "momentum", "aftereffects",
+        ],
+        "verbs": [
+            "setting off", "releasing", "amplifying", "accelerating", "uncorking",
+            "spilling into", "setting consequences in motion through", "passing a threshold in",
+            "allowing to spread", "making difficult to contain", "producing aftereffects through",
+        ],
+        "verbsonly": [
+            "triggering", "releasing", "amplifying", "accelerating", "uncorking",
+            "spreading", "crossing thresholds", "setting consequences in motion",
+        ],
+        "definition1":"where small causes can produce large consequences in", #append SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition2":"escalating", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
+        "explanation": [
+            "Associated with catalytic developments whose consequences exceed their apparent beginnings",
+            "Shows where something contained can be released and become difficult to reverse",
+            "Can describe rapid amplification, chain reactions, and consequential turning points",
+            "Often operates less as a stable trait than as a point of activation or acceleration"
+        ],
+        "archetypes":[
+            "Pholus",
+        ],
+        "polarity_partner": "none",
+    },
+    "Eris": {
+        "summary": "discord and exclusion",
+        "nouns": [
+            "discord", "rivalry", "exclusion", "competition", "provocation", "contention",
+            "outsiderhood", "status disputes", "recognition", "resentment", "disruption", "dissent",
+        ],
+        "verbs": [
+            "contesting", "challenging", "provoking", "competing for", "disputing",
+            "refusing exclusion from", "demanding recognition in", "disrupting consensus around",
+            "questioning who controls", "rivaling", "agitating around", "objecting to",
+        ],
+        "verbsonly": [
+            "contesting", "challenging", "provoking", "competing", "disputing",
+            "demanding recognition", "disrupting consensus", "rivaling", "objecting",
+        ],
+        "definition1":"likely to contest exclusion or status around", #append SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition2":"challenging", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
+        "explanation": [
+            "Strong sensitivity to exclusion, hierarchy, recognition, and contested belonging",
+            "Tendency to challenge arrangements perceived as unfair, closed, or illegitimate",
+            "Can generate rivalry, dissent, provocation, and competition for standing",
+            "Shows where conflict may arise over who is recognized, included, or allowed influence"
+        ],
+        "archetypes":[
+            "Eris",
+            "Discordia",
+        ],
+        "polarity_partner": "none",
+    },
     "Earth": {
+        "summary": "grounding and embodiment",
         "nouns": [
             "grounding", "stability", "weight", "gravity", "anchoring", "embodiment",
             "support", "containment", "orientation", "footing", "balance", "limits",
@@ -3049,6 +3194,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "Sun",
 },
     "Osculating Lilith": {
+        "summary": "autonomy and taboo",
         "nouns": [
             "refusal", "defiance", "taboo", "exile", "noncompliance", "provocation",
             "untamed desire", "erotic autonomy", "rejection", "social punishment", "subversion", "disowned hunger",
@@ -3074,6 +3220,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "Part of Fortune": {
+        "summary": "ease and opportunity",
         "nouns": [
             "luck", "ease", "flow", "wellbeing", "prosperity", "fruitfulness", "timing","tao",
             "advantages", "support", "natural fit", "coherence", "rhythm", "thriving",
@@ -3098,6 +3245,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "none",
     },
     "AS": {
+        "summary": "identity and presentation",
         "nouns": [
             "introductions", "arrival", "beginnings", "first impressions", "initiative",
             "reactions", "approaches", "style", "tone",
@@ -3118,6 +3266,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "DS",
     },
     "MC": {
+        "summary": "career and reputation",
         "nouns": [
             "work", "leadership", "management", "presentations", "deliverables", "promotions",
             "reputation", "responsibility", "decisions", "targets", "visibility", "outcomes",
@@ -3138,6 +3287,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "IC",
     },
     "DS": {
+        "summary": "partnerships",
         "nouns": [
             "dating", "partnership", "listening", "compromise", "negotiation", "collaboration",
             "sharing", "matching", "terms", "arguments", "reconciliation", "commitment",
@@ -3158,6 +3308,7 @@ PLANET_KEYWORDS = {
         "polarity_partner": "AS",
     },
     "IC": {
+        "summary": "home and foundations",
         "nouns": [
             "rest", "home", "staying in", "recovery", "nesting", "meals",
             "cleaning", "family time", "memory", "reflection", "savings", "recharge",
@@ -3985,14 +4136,17 @@ ASPECT_FRICTION = {
     "harmonious": { #enabling
         "color": "#3333ff", #blue
         "aspects": {"sextile", "trine", "quintile", "biquintile"},
+        "emoji":"🧁️", #a cupcake - nice but eat too much & get fat
     },
     "conflicted": { #antagonizing
         "color": "#ff0000", #murdery red
         "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
+        "emoji":"🧗", #a climber; sure you might die but you also might get jacked
     },
     "neutral/variable": { #ambiguous
         "color": "#ffff66", #chill yellow
         "aspects": {"conjunction", "semisextile"},
+        "emoji":"🚰", #a faucet: it's just coming out, and lots of it. what you do with it is your business.
     },
 }
 
@@ -4020,9 +4174,10 @@ ASPECT_KEYWORDS = {
         "getting in the way of", "forcing a choice with", "meeting halfway with", "testing the limits of",
     ],
     "square": [
-        "running into a wall of", "hitting resistance with", "getting blocked by", "clashing against",
-        "starting fights with", "creating problems for", "forcing action against", "stressed out by",
-        "made more difficult by", "conflicted by", "turning up the pressure on",
+        #"running into a wall of", "hitting resistance with", "getting blocked by", "clashing against",
+        #"starting fights with", "creating problems for", "forcing action against", "stressed out by",
+        #"made more difficult by", "conflicted by",
+        "blocked by",
     ],
     "trine": [
         "making it easy for", "helping out", "supporting", "backing up","paving the way for",

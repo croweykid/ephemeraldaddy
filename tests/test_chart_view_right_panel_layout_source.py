@@ -196,7 +196,7 @@ def test_right_panel_scroll_areas_pin_content_to_left_edge():
 def test_predictions_refresh_uses_token_gated_right_panel_scheduler():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
     method_start = source.index("    def _refresh_chart_summary")
-    method = source[method_start : source.index("    def _build_chart_export_markdown", method_start)]
+    method = source[method_start : source.index("    def _export_chart", method_start)]
 
     assert "self._schedule_chart_render_for_active_right_panel()" in method
     assert "self._render_enneagram_predictions(chart)" not in method

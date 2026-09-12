@@ -5,12 +5,54 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping
 
+from ephemeraldaddy.core.chart import resolve_use_birth_time_data
+
 ChangeKind = Literal["authoritative", "lightweight"]
 
 
 def _normalize_chart_uid(chart_uid: str | None) -> str | None:
     normalized = str(chart_uid or "").strip().upper()
     return normalized or None
+
+
+@dataclass(frozen=True, slots=True)
+class ChartSaveResult:
+    """Describe the downstream impact of one successful chart save."""
+
+    changed_fields: frozenset[str] | None
+    recalculated: bool
+    changed_chart_data: bool
+    prediction_flush_required: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ChartTimeContext:
+    """Reliability and house-availability state for the edited chart."""
+
+    birth_time_unknown: bool = False
+    rectified_time_enabled: bool = False
+    rectification_range_enabled: bool = False
+    chart_uses_houses: bool = True
+
+    @classmethod
+    def from_chart(cls, chart: object) -> ChartTimeContext:
+        """Capture time reliability from a chart without retaining the record."""
+        return cls(
+            birth_time_unknown=bool(getattr(chart, "birthtime_unknown", False)),
+            rectified_time_enabled=bool(getattr(chart, "retcon_time_used", False)),
+            rectification_range_enabled=bool(
+                getattr(chart, "rectification_range_used", False)
+            ),
+            chart_uses_houses=bool(resolve_use_birth_time_data(chart)),
+        )
+
+    @property
+    def uses_provisional_time(self) -> bool:
+        return self.rectified_time_enabled or self.rectification_range_enabled
+
+    @property
+    def has_authoritative_birth_time(self) -> bool:
+        return not self.birth_time_unknown and not self.uses_provisional_time
 
 
 @dataclass(slots=True)
@@ -26,22 +68,40 @@ class ChartEditSession:
     authoritative_values: dict[str, Any] = field(default_factory=dict)
     draft_values: dict[str, Any] = field(default_factory=dict)
     dirty_fields: set[str] = field(default_factory=set)
-    recalculation_required: bool = False
+    authoritative_dirty_fields: set[str] = field(default_factory=set)
+    last_save_result: ChartSaveResult | None = None
+    saved_changes_since_load: bool = False
+    prediction_flush_pending: bool = False
+    time_context: ChartTimeContext = field(default_factory=ChartTimeContext)
 
     def __post_init__(self) -> None:
         self.active_chart_uid = _normalize_chart_uid(self.active_chart_uid)
         self.authoritative_values = dict(self.authoritative_values)
         self.draft_values = dict(self.draft_values or self.authoritative_values)
+        self.dirty_fields = set(self.dirty_fields)
+        self.authoritative_dirty_fields = set(self.authoritative_dirty_fields)
 
     @property
     def is_dirty(self) -> bool:
         return bool(self.dirty_fields)
+
+    @property
+    def recalculation_required(self) -> bool:
+        return bool(self.authoritative_dirty_fields)
+
+    @property
+    def last_changed_fields(self) -> frozenset[str] | None:
+        """Return the latest save change set, preserving unknown classification."""
+        if self.last_save_result is None:
+            return None
+        return self.last_save_result.changed_fields
 
     def begin(
         self,
         *,
         chart_uid: str | None,
         authoritative_values: Mapping[str, Any] | None = None,
+        time_context: ChartTimeContext | None = None,
     ) -> None:
         """Start a clean persisted-chart or new-chart editing session."""
         values = dict(authoritative_values or {})
@@ -49,7 +109,19 @@ class ChartEditSession:
         self.authoritative_values = values
         self.draft_values = dict(values)
         self.dirty_fields.clear()
-        self.recalculation_required = False
+        self.authoritative_dirty_fields.clear()
+        self.last_save_result = None
+        self.saved_changes_since_load = False
+        self.prediction_flush_pending = False
+        self.time_context = time_context or ChartTimeContext()
+
+    def set_active_chart_uid(self, chart_uid: str | None) -> None:
+        """Update only the persisted identity while preserving draft state."""
+        self.active_chart_uid = _normalize_chart_uid(chart_uid)
+
+    def set_time_context(self, time_context: ChartTimeContext) -> None:
+        """Replace the calculation-reliability state with an explicit snapshot."""
+        self.time_context = time_context
 
     def mark_dirty(
         self,
@@ -63,7 +135,15 @@ class ChartEditSession:
             raise ValueError("A dirty field must have a non-empty name")
         self.dirty_fields.add(normalized_field)
         if kind == "authoritative":
-            self.recalculation_required = True
+            self.authoritative_dirty_fields.add(normalized_field)
+
+    def require_recalculation(self, required: bool) -> None:
+        """Bridge legacy dirty notifications until all fields use typed drafts."""
+        legacy_reason = "legacy-unspecified"
+        if required:
+            self.authoritative_dirty_fields.add(legacy_reason)
+        else:
+            self.authoritative_dirty_fields.clear()
 
     def set_draft_value(
         self,
@@ -79,6 +159,7 @@ class ChartEditSession:
         self.draft_values[normalized_field] = value
         if self.authoritative_values.get(normalized_field) == value:
             self.dirty_fields.discard(normalized_field)
+            self.authoritative_dirty_fields.discard(normalized_field)
         else:
             self.mark_dirty(normalized_field, kind=kind)
 
@@ -86,10 +167,37 @@ class ChartEditSession:
         """Accept the current draft as saved and clear pending impact."""
         self.authoritative_values = dict(self.draft_values)
         self.dirty_fields.clear()
-        self.recalculation_required = False
+        self.authoritative_dirty_fields.clear()
+
+    def record_successful_save(
+        self,
+        *,
+        changed_fields: set[str] | frozenset[str] | None,
+        recalculated: bool,
+        changed_chart_data: bool,
+        prediction_flush_required: bool,
+    ) -> ChartSaveResult:
+        """Record a save result and accumulate lifecycle-level refresh state."""
+        result = ChartSaveResult(
+            changed_fields=(
+                None if changed_fields is None else frozenset(changed_fields)
+            ),
+            recalculated=bool(recalculated),
+            changed_chart_data=bool(changed_chart_data),
+            prediction_flush_required=bool(prediction_flush_required),
+        )
+        self.last_save_result = result
+        self.saved_changes_since_load |= result.changed_chart_data
+        self.prediction_flush_pending |= result.prediction_flush_required
+        self.mark_clean()
+        return result
+
+    def mark_prediction_flush_complete(self) -> None:
+        """Clear pending prediction work after a successful synchronous flush."""
+        self.prediction_flush_pending = False
 
     def discard(self) -> None:
         """Restore the authoritative snapshot and clear pending impact."""
         self.draft_values = dict(self.authoritative_values)
         self.dirty_fields.clear()
-        self.recalculation_required = False
+        self.authoritative_dirty_fields.clear()
