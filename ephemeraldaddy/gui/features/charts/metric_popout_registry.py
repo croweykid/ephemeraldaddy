@@ -7,6 +7,12 @@ from typing import Any, Callable
 
 from matplotlib.figure import Figure
 
+from ephemeraldaddy.gui.features.charts.quadrants import (
+    build_quadrant_info_html,
+    draw_quadrants_popout,
+    install_quadrants_controller_bridge,
+)
+
 Chart = Any
 Owner = Any
 Axis = Any
@@ -84,6 +90,19 @@ def _configure_nakshatra(owner: Owner, canvas: Canvas, info_panel: InfoPanel, ch
         if nakshatra_name is None:
             return
         info_panel.setHtml(owner._build_nakshatra_popout_info(chart, nakshatra_name))
+
+    canvas.mpl_connect("pick_event", _on_pick)
+
+
+def _configure_quadrants(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
+    del owner, chart
+
+    def _on_pick(event: object) -> None:
+        artist_gid = _artist_gid(event)
+        if artist_gid is None or not artist_gid.startswith("quadrant:"):
+            return
+        _, quadrant = artist_gid.split(":", 1)
+        info_panel.setHtml(build_quadrant_info_html(quadrant))
 
     canvas.mpl_connect("pick_event", _on_pick)
 
@@ -194,6 +213,14 @@ METRIC_PANEL_SPECS: tuple[MetricPanelSpec, ...] = (
             int_keys={"house"},
         ),
         cache_key="chart-analysis:dominant_houses",
+    ),
+    MetricPanelSpec(
+        key="quadrants",
+        title="Quadrants",
+        draw=draw_quadrants_popout,
+        popout_size=(8.5, 4.2),
+        placeholder="Click a quadrant bar or label to view its interpretation.",
+        configure_info=_configure_quadrants,
     ),
     MetricPanelSpec(
         key="enneagram",
@@ -321,3 +348,12 @@ def configure_metric_popout_info(owner: Owner, title: str, canvas: Canvas, info_
         info_panel.setPlaceholderText(spec.placeholder)
     if spec.configure_info is not None:
         spec.configure_info(owner, canvas, info_panel, chart)
+
+
+# The GUI imports this registry before ChartAnalysisSectionsController instances are
+# constructed. In headless environments PySide6 may be intentionally unavailable,
+# so keep the registry itself importable while installing the bridge when possible.
+try:
+    install_quadrants_controller_bridge()
+except ImportError:
+    pass
