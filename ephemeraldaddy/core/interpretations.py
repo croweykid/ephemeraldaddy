@@ -1627,6 +1627,7 @@ SYNASTRY_AXES = {
 
 SIGN_KEYWORDS_CANONICAL = {
     "aries": {
+        "jyotisa":"Mesa",
         "function": "starts",
         "adverbs": [
             "directly",
@@ -1664,6 +1665,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "taurus": {
+        "jyotisa":"Vrasabha",
         "function": "sustains",
         "adverbs": [
             "steadily",
@@ -1701,6 +1703,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "gemini": {
+        "jyotisa":"Mithuna",
         "function": "connects",
         "adverbs": [
             "quickly",
@@ -1738,6 +1741,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "cancer": {
+        "jyotisa":"Karkata",
         "function": "protects",
         "adverbs": [
             "guardedly",
@@ -1775,6 +1779,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "leo": {
+        "jyotisa":"Simha",
         "function": "radiates",
         "adverbs": [
             "proudly",
@@ -1812,6 +1817,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "virgo": {
+        "jyotisa":"Kanya",
         "function": "refines",
         "adverbs": [
             "precisely",
@@ -1849,6 +1855,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "libra": {
+        "jyotisa":"Tula",
         "function": "balances",
         "adverbs": [
             "gracefully",
@@ -1886,6 +1893,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "scorpio": {
+        "jyotisa":"Vrsika",
         "function": "penetrates",
         "adverbs": [
             "intensely",
@@ -1923,6 +1931,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "sagittarius": {
+        "jyotisa":"Dhanu",
         "function": "expands",
         "adverbs": [
             "freely",
@@ -1960,6 +1969,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "capricorn": {
+        "jyotisa":"Makara",
         "function": "consolidates",
         "adverbs": [
             "seriously",
@@ -1997,6 +2007,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "aquarius": {
+        "jyotisa":"Kumbha",
         "function": "differentiates",
         "adverbs": [
             "independently",
@@ -2034,6 +2045,7 @@ SIGN_KEYWORDS_CANONICAL = {
     },
 
     "pisces": {
+        "jyotisa":"Mina",
         "function": "dissolves",
         "adverbs": [
             "fluidly",
@@ -4134,9 +4146,10 @@ ASPECT_KEYWORDS = {
         "getting in the way of", "forcing a choice with", "meeting halfway with", "testing the limits of",
     ],
     "square": [
-        "running into a wall of", "hitting resistance with", "getting blocked by", "clashing against",
-        "starting fights with", "creating problems for", "forcing action against", "stressed out by",
-        "made more difficult by", "conflicted by", "turning up the pressure on",
+        #"running into a wall of", "hitting resistance with", "getting blocked by", "clashing against",
+        #"starting fights with", "creating problems for", "forcing action against", "stressed out by",
+        #"made more difficult by", "conflicted by",
+        "blocked by",
     ],
     "trine": [
         "making it easy for", "helping out", "supporting", "backing up","paving the way for",
