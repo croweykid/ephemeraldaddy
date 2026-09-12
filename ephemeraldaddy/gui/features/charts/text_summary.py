@@ -91,7 +91,29 @@ def _planetary_positions_at_effective_chart_time(chart: Chart) -> dict:
         return {}
     return planetary_positions(effective_dt, chart.lat, chart.lon)
 
+def _draconic_source_positions(chart: Chart) -> dict[str, float]:
+    """Return natal positions with a freshly resolved North Node for Draconic rotation.
 
+    Chart/database objects may contain cached derived positions. Draconic
+    longitude is defined relative to the natal North Node, so the node used as
+    the rotation anchor must come from the chart's effective datetime whenever
+    possible.
+
+    Preserve the chart's stored positions for every other body; only Rahu is
+    refreshed here. If ephemeris recovery fails, fall back to the cached Rahu.
+    """
+    source_positions = dict(getattr(chart, "positions", {}) or {})
+
+    try:
+        refreshed_positions = _planetary_positions_at_effective_chart_time(chart)
+    except Exception:
+        refreshed_positions = {}
+
+    refreshed_rahu = refreshed_positions.get("Rahu")
+    if refreshed_rahu is not None:
+        source_positions["Rahu"] = float(refreshed_rahu) % 360.0
+
+    return source_positions
 
 def _sign_dignity_prefix(body: str, sign: str) -> str:
     """Return the dignity/debility glyph prefix for a body's zodiac sign."""
@@ -1342,14 +1364,7 @@ def format_chart_text(
     # Draconic Positions: rotate the zodiac so the natal North Node (Rahu) is 0° Aries.
     # House membership stays the same because house cusps rotate by the same offset;
     # the cusps' zodiac signs/degrees change even though a body's house number does not.
-    draconic_source_positions = dict(chart.positions)
-    if draconic_source_positions.get("Rahu") is None:
-        try:
-            refreshed_positions = _planetary_positions_at_effective_chart_time(chart)
-        except Exception:
-            refreshed_positions = {}
-        if refreshed_positions.get("Rahu") is not None:
-            draconic_source_positions["Rahu"] = refreshed_positions["Rahu"]
+    draconic_source_positions = _draconic_source_positions(chart)
     draconic_positions = calculate_draconic_positions(draconic_source_positions)
 
     if lines and lines[-1] != "":
