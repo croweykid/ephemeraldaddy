@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import logging
 from typing import Callable
 
@@ -8,6 +9,7 @@ from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QScrollArea,
     QLabel,
     QPushButton,
@@ -18,6 +20,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.gui.features.charts.quadrants import (
+    QUADRANT_DEFINITIONS,
+    calculate_dominant_quadrant_weights,
+    calculate_quadrant_prevalence_counts,
+    quadrant_percentages,
+)
 from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOpenTiming
 from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWorker
 from ephemeraldaddy.gui.style import (
@@ -64,6 +73,14 @@ class ChartAnalysisSectionsController:
         self._on_export_chart_csv = on_export_chart_csv
         self._get_share_icon_path = get_share_icon_path
         self._on_section_toggled = on_section_toggled
+        self._quadrants_refresh_hook_installed = False
+
+    def _on_header_dropdown_changed(self, chart_key: str) -> None:
+        self.update_subtitle(chart_key)
+        if chart_key == "quadrants":
+            self.render_quadrants()
+            return
+        self._on_dropdown_changed(chart_key)
 
     def create_header(
         self,
@@ -97,7 +114,7 @@ class ChartAnalysisSectionsController:
         for option_label, option_value in options:
             dropdown.addItem(option_label.upper(), option_value)
         dropdown.currentIndexChanged.connect(
-            lambda _index, key=chart_key: self._on_dropdown_changed(key)
+            lambda _index, key=chart_key: self._on_header_dropdown_changed(key)
         )
         header_layout.addWidget(dropdown, alignment=Qt.AlignRight)
         self._owner._chart_analysis_chart_dropdowns[chart_key] = dropdown
@@ -113,12 +130,17 @@ class ChartAnalysisSectionsController:
         export_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
         apply_button_cursor(export_button)
         export_button.setToolTip(f"Export {title_text} as CSV")
-        export_button.clicked.connect(
-            lambda _checked=False, key=chart_key, title=title_text: self._on_export_chart_csv(
-                key,
-                title,
+        if chart_key == "quadrants":
+            export_button.clicked.connect(
+                lambda _checked=False, title=title_text: self.export_quadrants_csv(title)
             )
-        )
+        else:
+            export_button.clicked.connect(
+                lambda _checked=False, key=chart_key, title=title_text: self._on_export_chart_csv(
+                    key,
+                    title,
+                )
+            )
         header_layout.addWidget(export_button, alignment=Qt.AlignRight)
 
         self._owner._chart_analysis_chart_filenames[chart_key] = default_filename
@@ -129,7 +151,10 @@ class ChartAnalysisSectionsController:
         if subtitle is None:
             return
         subtitle_by_mode = self._owner._chart_analysis_subtitle_by_mode.get(chart_key, {})
-        mode = self._owner._chart_analysis_selected_mode(chart_key, chart_key)
+        if chart_key == "quadrants":
+            mode = self._quadrant_mode()
+        else:
+            mode = self._owner._chart_analysis_selected_mode(chart_key, chart_key)
         subtitle_text = subtitle_by_mode.get(mode)
         if subtitle_text:
             subtitle.setText(subtitle_text)
@@ -172,9 +197,6 @@ class ChartAnalysisSectionsController:
             expanded=expanded,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
         )
-        # Keep collapsible headers reachable by keyboard tab navigation while
-        # avoiding mouse-click focus, which can make the right-panel scroll area
-        # auto-scroll the clicked header during expansion geometry changes.
         toggle.setFocusPolicy(Qt.TabFocus)
 
         content = QWidget()
@@ -246,6 +268,17 @@ class ChartAnalysisSectionsController:
             self._owner._chart_analysis_section_widgets[section_key] = section
         return content_layout
 
+    def _section_toggled(self, section_key: str, checked: bool) -> None:
+        if section_key == "quadrants":
+            self.set_section_expanded(section_key, checked)
+            if checked:
+                QTimer.singleShot(0, self.render_quadrants)
+            return
+        if self._on_section_toggled is not None:
+            self._on_section_toggled(section_key, checked)
+        else:
+            self.set_section_expanded(section_key, checked)
+
     def add_section(
         self,
         *,
@@ -268,11 +301,7 @@ class ChartAnalysisSectionsController:
             layout=parent_layout or self._owner.metrics_layout,
             title=section_title,
             expanded=expanded,
-            on_toggled=lambda checked, key=section_key: (
-                self._on_section_toggled(key, checked)
-                if self._on_section_toggled is not None
-                else self.set_section_expanded(key, checked)
-            ),
+            on_toggled=lambda checked, key=section_key: self._section_toggled(key, checked),
             section_key=section_key,
         )
         self._owner._chart_analysis_section_expanded[section_key] = expanded
@@ -368,6 +397,134 @@ class ChartAnalysisSectionsController:
                 details_layout.addWidget(footer_label)
                 self._owner._chart_analysis_footer_labels[section_key] = footer_label
 
+    def _quadrant_mode(self) -> str:
+        dropdown = self._owner._chart_analysis_chart_dropdowns.get("quadrants")
+        if isinstance(dropdown, QComboBox):
+            mode = dropdown.currentData()
+            if isinstance(mode, str) and mode:
+                return mode
+        return "quadrant_prevalence"
+
+    def _quadrant_values(self, chart: object) -> dict[str, float]:
+        if self._quadrant_mode() == "dominant_quadrants":
+            return calculate_dominant_quadrant_weights(chart)
+        return calculate_quadrant_prevalence_counts(chart)
+
+    def _draw_quadrants(self, ax, chart: object) -> None:
+        ax.clear()
+        if not chart_uses_houses(chart):
+            ax.set_axis_off()
+            ax.text(
+                0.5,
+                0.5,
+                "Birth time required for house-based quadrant analysis.",
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+                color="#f5f5f5",
+                fontsize=10,
+            )
+            return
+
+        values_by_quadrant = self._quadrant_values(chart)
+        percentages = quadrant_percentages(values_by_quadrant)
+        quadrant_keys = [quadrant for quadrant, _meaning, _houses in QUADRANT_DEFINITIONS]
+        values = [float(values_by_quadrant.get(quadrant, 0.0)) for quadrant in quadrant_keys]
+        bars = ax.bar(quadrant_keys, values, color="#6fa8dc")
+        apply_axes = getattr(self._owner, "_apply_standard_ncv_bar_chart_axes", None)
+        if callable(apply_axes):
+            apply_axes(ax, quadrant_keys)
+        else:
+            ax.tick_params(axis="x", labelsize=8, colors="#f5f5f5")
+            ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
+        max_value = max(values) if values else 0.0
+        ax.set_ylim(0, max(1.0, max_value * 1.18))
+        offset = max(0.05, max_value * 0.025)
+        for bar, quadrant, value in zip(bars, quadrant_keys, values, strict=True):
+            value_text = f"{value:.1f}" if self._quadrant_mode() == "dominant_quadrants" else f"{value:g}"
+            ax.text(
+                bar.get_x() + (bar.get_width() / 2),
+                value + offset,
+                f"{value_text} · {percentages[quadrant]:.0f}%",
+                ha="center",
+                va="bottom",
+                color="#f5f5f5",
+                fontsize=8,
+            )
+        mode_title = "Weighted" if self._quadrant_mode() == "dominant_quadrants" else "Object Count"
+        ax.set_title(f"Quadrants — {mode_title}", color="#f5f5f5", fontsize=10, pad=8)
+        ax.figure.tight_layout()
+
+    def render_quadrants(self, chart: object | None = None) -> None:
+        if not self._owner._chart_analysis_section_expanded.get("quadrants", False):
+            return
+        chart = chart or getattr(self._owner, "_latest_chart", None)
+        if chart is None:
+            return
+        render_metric_panel = getattr(self._owner, "_render_metric_panel", None)
+        layout = getattr(self._owner, "quadrants_chart_container_layout", None)
+        if not callable(render_metric_panel) or layout is None:
+            return
+        if not hasattr(self._owner, "quadrants_canvas"):
+            self._owner.quadrants_canvas = None
+        render_metric_panel(
+            canvas_attr="quadrants_canvas",
+            container_layout=layout,
+            figsize=(5.5, 3.2),
+            title="Quadrants",
+            draw_fn=self._draw_quadrants,
+            chart=chart,
+        )
+
+    def export_quadrants_csv(self, title: str = "Quadrants") -> None:
+        chart = getattr(self._owner, "_latest_chart", None)
+        if chart is None:
+            return
+        default_name = self._owner._chart_analysis_chart_filenames.get(
+            "quadrants",
+            "ephemeraldaddy_chart_quadrants",
+        )
+        path, _selected_filter = QFileDialog.getSaveFileName(
+            self._owner,
+            f"Export {title} as CSV",
+            f"{default_name}.csv",
+            "CSV Files (*.csv)",
+        )
+        if not path:
+            return
+        values = self._quadrant_values(chart)
+        percentages = quadrant_percentages(values)
+        with open(path, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["Quadrant", "Meaning", "Houses", "Value", "Percent"])
+            for quadrant, meaning, houses in QUADRANT_DEFINITIONS:
+                value = values.get(quadrant, 0.0)
+                writer.writerow(
+                    [
+                        quadrant,
+                        meaning,
+                        f"{houses[0]}-{houses[-1]}",
+                        value,
+                        round(percentages[quadrant], 2),
+                    ]
+                )
+
+    def _install_quadrants_refresh_hook(self) -> None:
+        if self._quadrants_refresh_hook_installed:
+            return
+        schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)
+        if not callable(schedule_chart_render):
+            return
+
+        def schedule_with_quadrants(chart, *args, **kwargs):
+            result = schedule_chart_render(chart, *args, **kwargs)
+            if self._owner._chart_analysis_section_expanded.get("quadrants", False):
+                QTimer.singleShot(0, lambda chart=chart: self.render_quadrants(chart))
+            return result
+
+        self._owner._schedule_chart_render = schedule_with_quadrants
+        self._quadrants_refresh_hook_installed = True
+
     def create_sections(self, panel: QWidget) -> None:
         self.add_section(
             panel=panel,
@@ -442,6 +599,25 @@ class ChartAnalysisSectionsController:
         )
         self.add_section(
             panel=panel,
+            section_key="quadrants",
+            section_title="Quadrants",
+            header_title="Quadrants",
+            subtitle_text="House quadrants grouped as I (1–3), II (4–6), III (7–9), and IV (10–12).",
+            subtitle_by_mode={
+                "quadrant_prevalence": "Object distribution across the four house quadrants. No weights applied.",
+                "dominant_quadrants": "Existing house-dominance weights aggregated into the four house quadrants.",
+            },
+            default_filename="ephemeraldaddy_chart_quadrants",
+            chart_container_attr="quadrants_chart_container",
+            chart_layout_attr="quadrants_chart_container_layout",
+            dropdown_options=[
+                ("Object Count", "quadrant_prevalence"),
+                ("Weighted", "dominant_quadrants"),
+            ],
+            expanded=False,
+        )
+        self.add_section(
+            panel=panel,
             section_key="dominant_elements",
             section_title="Elements",
             header_title="Dominant elements",
@@ -509,6 +685,7 @@ class ChartAnalysisSectionsController:
             chart_layout_attr="chart_type_container_layout",
             expanded=False,
         )
+        self._install_quadrants_refresh_hook()
 
 
 class RetconDialogController:
@@ -600,9 +777,6 @@ class ChartsController:
                 )
         elif not getattr(dialog, "_chart_rows", None):
             refresh_reason = "initial_population"
-            # First-open row/metric population is the slowest Database View step.
-            # During application startup, keep it inside the loading-bar
-            # interval so Database Analytics does not begin after 100%.
             def refresh_after_show() -> None:
                 dialog._refresh_charts(
                     refresh_metrics=True,
@@ -631,14 +805,6 @@ class ChartsController:
         )
         if refresh_after_show is not None:
             if progress_callback:
-                # During application startup, keep the loading widget alive until
-                # the first Database View population really finishes.  Previously
-                # this refresh was delayed until after the shell appeared, which
-                # closed the startup progress bar while the center panel was still
-                # blank and busy.  Showing the shell, pumping pending paint events,
-                # and then doing the initial refresh under the same progress
-                # callback gives users an accurate lifeline through the slowest
-                # first-open step.
                 progress_callback("Loading Database rows…", 89)
                 app = QApplication.instance()
                 if app is not None:
@@ -661,8 +827,6 @@ class ChartsController:
                 )
                 progress_callback("Database View is ready.", 99)
             else:
-                # Non-startup transitions still defer the expensive refresh until
-                # after the dialog has painted, preserving interactive snappiness.
                 def refresh_and_record() -> None:
                     try:
                         refresh_after_show()
