@@ -41,6 +41,7 @@ from zoneinfo import ZoneInfo
 
 from ephemeraldaddy.gui.crash_diagnostics import install_crash_diagnostics
 from ephemeraldaddy.core.position_descriptions import get_position_description
+from ephemeraldaddy.gui.features.windowing import GlobalCloseShortcutFilter
 
 
 logger = logging.getLogger(__name__)
@@ -277,51 +278,10 @@ from PySide6.QtCore import (
     QSignalBlocker,
     QThread,
     Signal,
-    Slot,
     QRegularExpression,
     QItemSelectionModel,
     QStringListModel,
 )
-
-
-class _PlanetDynamicsWorker(QObject):
-    """Compute body-dynamics scores away from the GUI thread."""
-
-    finished = Signal(str, tuple, object)
-    failed = Signal(str, tuple, str)
-
-    def __init__(self, request_id: str, signature: tuple[object, ...], chart: Chart) -> None:
-        super().__init__()
-        self._request_id = request_id
-        self._signature = signature
-        self._chart = chart
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            if QThread.currentThread().isInterruptionRequested():
-                return
-            scores = _calculate_planet_dynamics_scores(self._chart)
-            self.finished.emit(self._request_id, self._signature, scores)
-        except Exception as exc:  # pragma: no cover - defensive GUI worker path
-            self.failed.emit(self._request_id, self._signature, str(exc))
-
-
-class _GlobalCloseShortcutFilter(QObject):
-    """Ensures Ctrl/Cmd+W closes the currently active top-level window."""
-
-    def eventFilter(self, _obj: QObject, event: QEvent) -> bool:
-        if event.type() != QEvent.KeyPress:
-            return False
-        if not event.matches(QKeySequence.Close):
-            return False
-
-        target = QApplication.activeModalWidget() or QApplication.activeWindow()
-        if target is None:
-            return False
-
-        target.close()
-        return True
 
 
 class _ComboItemColorDelegate(QStyledItemDelegate):
@@ -963,6 +923,9 @@ from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     parse_last_encounter_text,
     reset_chart_editor_last_encounter_controls,
 )
+from ephemeraldaddy.gui.features.chart_editor.body_dynamics_worker import (
+    PlanetDynamicsWorker,
+)
 from ephemeraldaddy.gui.features.database_view.batch_editor.cultural_contribution import (
     CulturalContributionBatchCallbacks,
     CulturalContributionBatchEditor,
@@ -985,7 +948,6 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
     calculate_modal_prevalence_counts as _calculate_modal_prevalence_counts,
     calculate_mode_weights as _calculate_mode_weights,
-    calculate_planet_dynamics_scores as _calculate_planet_dynamics_scores,
     calculate_planet_condition_weights as _calculate_planet_condition_weights,
     calculate_nakshatra_prevalence_counts as _calculate_nakshatra_prevalence_counts,
     calculate_sidereal_planet_prevalence_counts as _calculate_sidereal_planet_prevalence_counts,
@@ -1235,11 +1197,11 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_matc
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
 )
-from ephemeraldaddy.gui.features.charts.similarities import SimilaritiesController
+from ephemeraldaddy.gui.features.similarities.analysis import SimilaritiesController
 from ephemeraldaddy.gui.features.charts.perceived_similarity_predictors_panel import (
     PerceivedSimilarityPredictorsPanel,
 )
-from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+from ephemeraldaddy.gui.features.similarities.analysis.calculations import (
     build_common_dominant_elements as _build_common_dominant_elements,
     build_common_dominant_modes as _build_common_dominant_modes,
     build_dissimilarity_export_sections,
@@ -1912,7 +1874,7 @@ def _get_qapp():
 
     configure_application_identity(app)
     if not hasattr(app, "_edd_global_close_filter"):
-        app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
+        app._edd_global_close_filter = GlobalCloseShortcutFilter(app)
         app.installEventFilter(app._edd_global_close_filter)
     _apply_global_dropdown_and_menu_styles(app)
     install_app_tooltip_style(app)
@@ -5692,9 +5654,6 @@ class ManageChartsDialog(
             if callable(metric_payloads):
                 return metric_payloads
         raise AttributeError(name)
-
-    def _build_similarities_analysis_panel(self) -> QWidget:
-        return self.similarities_controller.build_panel()
 
     def _build_perceived_similarity_predictors_panel(self) -> QWidget:
         panel = PerceivedSimilarityPredictorsPanel(
@@ -24023,7 +23982,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._similar_charts_popout_cache: OrderedDict[tuple[str, str, str, str], dict[str, Any]] = OrderedDict()
         self._similar_charts_request_id: str | None = None
         self._similar_charts_worker_jobs: list[tuple[QThread, SimilarChartsWorker]] = []
-        self._planet_dynamics_worker_jobs: dict[str, tuple[QThread, _PlanetDynamicsWorker]] = {}
+        self._planet_dynamics_worker_jobs: dict[str, tuple[QThread, PlanetDynamicsWorker]] = {}
         self._planet_dynamics_pending_signatures: set[tuple[object, ...]] = set()
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
@@ -35909,7 +35868,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         request_id = uuid.uuid4().hex
         thread = QThread(self)
-        worker = _PlanetDynamicsWorker(request_id, signature, copy.deepcopy(chart))
+        worker = PlanetDynamicsWorker(request_id, signature, copy.deepcopy(chart))
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         planet_dynamics_ui_relay = PlanetDynamicsUiRelay(

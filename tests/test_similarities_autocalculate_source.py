@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 CONTROLLER_SOURCE = Path(
-    "ephemeraldaddy/gui/features/charts/similarities/controller.py"
+    "ephemeraldaddy/gui/features/similarities/analysis/controller.py"
 ).read_text(encoding="utf-8")
 
 

@@ -39,7 +39,7 @@ def test_help_uses_only_primary_window_names():
 def test_similarity_modules_and_rectification_visible_labels_are_canonical():
     chrome = _source("ephemeraldaddy/gui/window_chrome.py")
     similarity_panel = _source(
-        "ephemeraldaddy/gui/features/charts/similarities/controller.py"
+        "ephemeraldaddy/gui/features/similarities/analysis/controller.py"
     )
     twins_window = _source(
         "ephemeraldaddy/gui/features/charts/similar_charts_popout.py"

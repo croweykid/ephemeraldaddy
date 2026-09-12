@@ -21,17 +21,29 @@ def test_planet_dynamics_cache_signature_includes_aspects_and_rectified_time():
 
 def test_planet_dynamics_prepare_uses_background_worker_payload():
     source = Path("ephemeraldaddy/gui/app.py").read_text()
-    assert "class _PlanetDynamicsWorker(QObject)" in source
-    worker_source = source.split("class _PlanetDynamicsWorker", 1)[1].split(
-        "class _GlobalCloseShortcutFilter", 1
-    )[0]
-    assert "_calculate_planet_dynamics_scores(self._chart)" in worker_source
+    worker_source = Path(
+        "ephemeraldaddy/gui/features/chart_editor/body_dynamics_worker.py"
+    ).read_text()
+    assert "class _PlanetDynamicsWorker(QObject)" not in source
+    assert "class PlanetDynamicsWorker(QObject)" in worker_source
+    assert "calculate_planet_dynamics_scores(self._chart)" in worker_source
     assert "finished = Signal(str, tuple, object)" in worker_source
+    assert "failed = Signal(str, tuple, str)" in worker_source
+    interruption_check = (
+        "if QThread.currentThread().isInterruptionRequested():\n"
+        "                return"
+    )
+    assert interruption_check in worker_source
+    assert worker_source.index(interruption_check) < worker_source.index(
+        "calculate_planet_dynamics_scores(self._chart)"
+    )
+    assert "self.failed.emit(self._request_id, self._signature, str(exc))" in worker_source
 
     precompute_source = source.split("def _precompute_planet_dynamics_if_needed", 1)[1].split(
         "def _forget_planet_dynamics_worker_job", 1
     )[0]
     assert "QThread(self)" in precompute_source
+    assert "PlanetDynamicsWorker(request_id, signature, copy.deepcopy(chart))" in precompute_source
     assert "copy.deepcopy(chart)" in precompute_source
     assert "thread.started.connect(worker.run)" in precompute_source
     assert "self._planet_dynamics_pending_signatures.add(signature)" in precompute_source

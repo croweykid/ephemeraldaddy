@@ -1,1 +1,1 @@
-"""Shared similarities workflows used by both top-level application windows."""
+"""Canonical home for shared and Database View similarities workflows."""

@@ -1,11 +1,11 @@
 # LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
-"""Controller for the Manage Charts Similarities Analysis feature.
+"""Controller for the Database View Similarities Analysis panel.
 
 The controller is the authoritative owner for Similarities Analysis panel state:
 export sections, pair controls, chart lookup, DB baseline cache, info-panel
-widgets/routing, and lifecycle entry points.  ``ManageChartsDialog`` delegates
-panel construction and user-facing actions here while calculation-heavy helper
-methods remain callable on the host during this extraction step.
+widgets/routing, and lifecycle entry points. The Database View constructs this
+controller and delegates user-facing actions here while calculation-heavy
+legacy entry points remain callable on the host during this extraction step.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.core.interpretations import BAZI_ZODIAC
 from ephemeraldaddy.gui.features.charts.db_info_panel import DBInfoPanel
-from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+from ephemeraldaddy.gui.features.similarities.analysis.calculations import (
     SimilaritiesDbBaselineCache,
 )
 from ephemeraldaddy.gui.style import (

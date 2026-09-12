@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from types import SimpleNamespace
 
-from ephemeraldaddy.gui.features.charts.similarities.cohort_metadata import (
+from ephemeraldaddy.gui.features.similarities.cohort_metadata import (
     UNSPECIFIED_GENDER_LABEL,
     build_gender_distribution,
     chart_uid_is_ascribed,
