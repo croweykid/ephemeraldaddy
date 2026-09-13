@@ -8,9 +8,9 @@ import pytest
 
 from ephemeraldaddy.analysis import traits
 from ephemeraldaddy.analysis.traits import parse_trait_file
-from ephemeraldaddy.gui.features.charts import exporters
+from ephemeraldaddy.gui.features.charts import exporters]
 from ephemeraldaddy.gui.features.charts.database_norms_cache import analytical_mapping_signature
-from ephemeraldaddy.gui.features.similarities.trait_export import (
+\from ephemeraldaddy.gui.features.similarities.trait_export import (
     build_similarities_trait_export_payload,
     compact_gender_distribution_weights,
 )
