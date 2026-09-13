@@ -1260,6 +1260,10 @@ from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOp
 from ephemeraldaddy.gui.features.charts.section_availability import (
     is_chart_analysis_section_available,
 )
+from ephemeraldaddy.gui.features.charts.quadrants import (
+    build_quadrant_export_rows,
+    clear_quadrants_display,
+)
 from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
     build_chart_view_left_panel,
@@ -27560,6 +27564,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             else:
                 counts = _calculate_dominant_house_weights(chart)
             return [[str(house_num), counts.get(house_num, 0)] for house_num in range(1, 13)]
+        if chart_key == "quadrants":
+            mode = self._chart_analysis_selected_mode(chart_key, "quadrant_prevalence")
+            return build_quadrant_export_rows(chart, mode)
         if chart_key == "dominant_elements":
             mode = self._chart_analysis_selected_mode(chart_key, "dominant_elements")
             counts = (
@@ -27638,7 +27645,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         rows = self._chart_analysis_rows_for_key(chart_key, chart)
         if not rows:
-            QMessageBox.information(self, "Nothing to export", f"No data available for {chart_title}.")
+            message = (
+                "Sorry, quadrants cannot be calculated without birth time. :("
+                if chart_key == "quadrants" and not chart_uses_houses(chart)
+                else f"No data available for {chart_title}."
+            )
+            QMessageBox.information(self, "Nothing to export", message)
             return
 
         default_stem = self._chart_analysis_chart_filenames.get(
@@ -27660,7 +27672,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         try:
             with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
                 writer = csv.writer(csv_file)
-                writer.writerow(["Metric", "Value"])
+                writer.writerow(
+                    ["Quadrant", "Meaning", "Houses", "Value", "Percent"]
+                    if chart_key == "quadrants"
+                    else ["Metric", "Value"]
+                )
                 writer.writerows(rows)
         except OSError as exc:
             QMessageBox.critical(self, "Export failed", f"Could not write CSV file.\n\n{exc}")
@@ -34889,6 +34905,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 "signs",
                 "planets",
                 "houses",
+                "quadrants",
                 "elements",
                 "nakshatra",
                 "modal",
@@ -34912,6 +34929,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "signs",
             "planets",
             "houses",
+            "quadrants",
             "elements",
             "nakshatra",
             "modal",
@@ -34981,6 +34999,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._render_planet_tally(chart)
         elif section == "houses":
             self._render_house_tally(chart)
+        elif section == "quadrants":
+            self._chart_analysis_sections_controller.render_quadrants(chart)
         elif section == "elements":
             self._render_element_tally(chart)
         elif section == "nakshatra":
@@ -35095,6 +35115,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "dominant_signs": "signs",
             "dominant_planets": "planets",
             "dominant_houses": "houses",
+            "quadrants": "quadrants",
             "dominant_elements": "elements",
             "nakshatra_prevalence": "nakshatra",
             "modal_distribution": "modal",
@@ -35110,6 +35131,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "signs": "dominant_signs",
             "planets": "dominant_planets",
             "houses": "dominant_houses",
+            "quadrants": "quadrants",
             "elements": "dominant_elements",
             "nakshatra": "nakshatra_prevalence",
             "modal": "modal_distribution",
@@ -35126,6 +35148,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "signs",
             "planets",
             "houses",
+            "quadrants",
             "elements",
             "nakshatra",
             "modal",
@@ -35181,6 +35204,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 "signs",
                 "planets",
                 "houses",
+                "quadrants",
                 "elements",
                 "nakshatra",
                 "modal",
@@ -35372,6 +35396,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_canvas = canvas
 
     def _clear_chart_displays(self, *, reset_anagrams: bool = True) -> None:
+        clear_quadrants_display(self)
         for layout in (
             self.chart_canvas_container_layout,
             self.sign_chart_container_layout,

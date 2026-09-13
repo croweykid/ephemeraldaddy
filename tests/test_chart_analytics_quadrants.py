@@ -2,8 +2,9 @@ from types import SimpleNamespace
 
 from ephemeraldaddy.gui.features.charts.quadrants import (
     aggregate_house_values_by_quadrant,
+    build_quadrant_export_rows,
     build_quadrant_info_html,
-    install_quadrants_owner_reset_hook,
+    draw_quadrants,
     quadrant_for_house,
     quadrant_percentages,
 )
@@ -25,6 +26,8 @@ def test_quadrant_for_house_rejects_invalid_values():
     assert quadrant_for_house(0) is None
     assert quadrant_for_house(13) is None
     assert quadrant_for_house("nope") is None
+    assert quadrant_for_house(1.9) is None
+    assert quadrant_for_house(True) is None
 
 
 def test_aggregate_house_values_by_quadrant():
@@ -57,49 +60,63 @@ def test_quadrant_info_exposes_house_range_and_axis_meaning():
     assert "Self-Directed" in html
 
 
-def test_common_chart_display_reset_also_clears_quadrants():
-    calls: list[object] = []
-    quadrant_layout = object()
-    old_canvas = object()
+def test_untimed_quadrants_render_message_and_do_not_export():
+    from matplotlib.figure import Figure
 
-    def clear_chart_displays():
-        calls.append("common-reset")
+    chart = SimpleNamespace(birthtime_unknown=True, retcon_time_used=False)
+    ax = Figure().subplots()
 
-    def clear_layout_widgets(layout):
-        calls.append(layout)
+    draw_quadrants(SimpleNamespace(), ax, chart)
 
-    owner = SimpleNamespace(
-        quadrants_chart_container_layout=quadrant_layout,
-        quadrants_canvas=old_canvas,
-        _clear_chart_displays=clear_chart_displays,
-        _clear_layout_widgets=clear_layout_widgets,
+    assert [text.get_text() for text in ax.texts] == [
+        "Sorry, quadrants cannot be calculated without birth time. :("
+    ]
+    assert build_quadrant_export_rows(chart, "quadrant_prevalence") == []
+
+
+def test_quadrant_export_rows_follow_active_mode(monkeypatch):
+    import ephemeraldaddy.gui.features.charts.quadrants as quadrants
+
+    chart = SimpleNamespace(birthtime_unknown=False, retcon_time_used=False)
+    monkeypatch.setattr(
+        quadrants,
+        "calculate_dominant_quadrant_weights",
+        lambda _chart: {"I": 1.25, "II": 2.25, "III": 3.25, "IV": 3.25},
     )
-    controller = SimpleNamespace(_owner=owner)
 
-    install_quadrants_owner_reset_hook(controller)
-    owner._clear_chart_displays()
+    rows = build_quadrant_export_rows(chart, "dominant_quadrants")
 
-    assert calls == ["common-reset", quadrant_layout]
-    assert owner.quadrants_canvas is None
+    assert rows == [
+        ["QI", "Personal Identity", "H1–H3", 1.2, 12.5],
+        ["QII", "Personal Expression", "H4–H6", 2.2, 22.5],
+        ["QIII", "Social Identity", "H7–H9", 3.2, 32.5],
+        ["QIV", "Social Expression", "H10–H12", 3.2, 32.5],
+    ]
 
 
-def test_quadrants_reset_hook_is_idempotent():
-    calls: list[str] = []
+def test_quadrant_signature_connects_clockwise_and_includes_breakdown(monkeypatch):
+    from matplotlib.figure import Figure
+    import ephemeraldaddy.gui.features.charts.quadrants as quadrants
 
-    def clear_chart_displays():
-        calls.append("common-reset")
-
-    owner = SimpleNamespace(
-        quadrants_chart_container_layout=None,
-        quadrants_canvas=object(),
-        _clear_chart_displays=clear_chart_displays,
-        _clear_layout_widgets=lambda _layout: None,
+    chart = SimpleNamespace(birthtime_unknown=False, retcon_time_used=False)
+    monkeypatch.setattr(
+        quadrants,
+        "calculate_house_prevalence_counts",
+        lambda _chart: {1: 1, 4: 2, 7: 3, 10: 4},
     )
-    controller = SimpleNamespace(_owner=owner)
+    ax = Figure().subplots()
 
-    install_quadrants_owner_reset_hook(controller)
-    install_quadrants_owner_reset_hook(controller)
-    owner._clear_chart_displays()
+    draw_quadrants(SimpleNamespace(), ax, chart, interactive=True)
 
-    assert calls == ["common-reset"]
-    assert owner.quadrants_canvas is None
+    signature = ax.lines[0]
+    assert list(zip(signature.get_xdata(), signature.get_ydata(), strict=True)) == [
+        (-0.1, -0.1),
+        (0.2, -0.2),
+        (0.3, 0.3),
+        (-0.4, 0.4),
+        (-0.1, -0.1),
+    ]
+    assert "QIV  4 · 40%" in ax.texts[-1].get_text()
+    assert {artist.get_gid() for artist in [*ax.lines, *ax.texts]} >= {
+        "quadrant:I", "quadrant:II", "quadrant:III", "quadrant:IV"
+    }
