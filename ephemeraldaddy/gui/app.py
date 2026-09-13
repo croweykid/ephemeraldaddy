@@ -278,10 +278,41 @@ from PySide6.QtCore import (
     QSignalBlocker,
     QThread,
     Signal,
+    Slot,
     QRegularExpression,
     QItemSelectionModel,
     QStringListModel,
 )
+
+#do i want this here or did I migrate it elsewhere? lost track, can't find it elsewhere. ;_; #branchlife?
+class _PlanetDynamicsWorker(QObject):
+    """Compute body-dynamics scores away from the GUI thread."""
+
+    finished = Signal(str, tuple, object)
+    failed = Signal(str, tuple, str)
+
+    def __init__(
+        self,
+        request_id: str,
+        signature: tuple[object, ...],
+        chart: Chart,
+    ) -> None:
+        super().__init__()
+        self._request_id = request_id
+        self._signature = signature
+        self._chart = chart
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if QThread.currentThread().isInterruptionRequested():
+                return
+            scores = _calculate_planet_dynamics_scores(self._chart)
+            self.finished.emit(self._request_id, self._signature, scores)
+        except Exception as exc:  # pragma: no cover - defensive GUI worker path
+            self.failed.emit(self._request_id, self._signature, str(exc))
+
+
 
 
 class _ComboItemColorDelegate(QStyledItemDelegate):

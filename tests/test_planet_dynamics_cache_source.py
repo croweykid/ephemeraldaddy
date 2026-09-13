@@ -27,6 +27,11 @@ def test_planet_dynamics_prepare_uses_background_worker_payload():
     assert "class _PlanetDynamicsWorker(QObject)" not in source
     assert "class PlanetDynamicsWorker(QObject)" in worker_source
     assert "calculate_planet_dynamics_scores(self._chart)" in worker_source
+    # assert "class _PlanetDynamicsWorker(QObject)" in source
+    # worker_source = source.split("class _PlanetDynamicsWorker", 1)[1].split(
+    #     "class _ComboItemColorDelegate", 1
+    # )[0]
+    # assert "_calculate_planet_dynamics_scores(self._chart)" in worker_source
     assert "finished = Signal(str, tuple, object)" in worker_source
     assert "failed = Signal(str, tuple, str)" in worker_source
     interruption_check = (
