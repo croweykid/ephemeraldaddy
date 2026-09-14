@@ -1,5 +1,6 @@
 import datetime as dt
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -18,8 +19,32 @@ def _request(longitude=2.0):
         datetime=dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc),
         latitude=1.0,
         longitude=longitude,
-        use_birth_time_data=False,
+        uses_houses=False,
+        canonical_astro_token=("test", longitude, False),
     )
+
+
+def test_from_chart_uses_canonical_range_rectification_gate_and_midpoint():
+    chart = SimpleNamespace(
+        chart_uid="PARENT01",
+        dt=dt.datetime(2020, 1, 1, 0, 0, tzinfo=dt.timezone.utc),
+        birth_place="Test",
+        lat=1.0,
+        lon=2.0,
+        birthtime_unknown=True,
+        retcon_time_used=False,
+        retcon_hour=None,
+        retcon_minute=None,
+        rectification_range_used=True,
+        rectification_range_start_minute=8 * 60 + 10,
+        rectification_range_end_minute=8 * 60 + 50,
+    )
+
+    request = SiderealCalculationRequest.from_chart(chart)
+
+    assert request.uses_houses
+    assert (request.datetime.hour, request.datetime.minute) == (8, 30)
+    assert request.source_token()
 
 
 def test_service_reuses_current_row_and_rebuilds_stale_row():
