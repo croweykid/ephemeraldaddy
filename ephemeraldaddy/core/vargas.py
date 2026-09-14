@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 from types import MappingProxyType
-from typing import Callable, Mapping
+from typing import Any, Callable, Mapping
 
+from ephemeraldaddy.core.aspects import find_aspects
 from ephemeraldaddy.core.sidereal import LAHIRI, SiderealChartData
 
 
@@ -29,6 +30,9 @@ class VargaChartView:
     ayanamsha: str
     division: str
     positions: Mapping[str, float]
+    retrogrades: Mapping[str, bool]
+    house_cusps: None
+    aspects: tuple[Mapping[str, Any], ...]
     source_recalculation_token: str
     ruleset_version: int = VARGA_RULESET_VERSION
 
@@ -72,11 +76,17 @@ def project_varga(source: SiderealChartData, division: str = "D9") -> VargaChart
         raise ValueError(f"Unsupported source ayanamsha {source.ayanamsha!r}")
     if code not in VARGA_RULES:
         raise ValueError(f"Unsupported varga {division!r}")
+    positions = {
+        name: project_longitude(value, code) for name, value in source.positions.items()
+    }
     return VargaChartView(
         chart_uid=source.chart_uid,
         zodiac="sidereal",
         ayanamsha=source.ayanamsha,
         division=code,
-        positions=MappingProxyType({name: project_longitude(value, code) for name, value in source.positions.items()}),
+        positions=MappingProxyType(positions),
+        retrogrades=source.retrogrades,
+        house_cusps=None,
+        aspects=tuple(MappingProxyType(dict(value)) for value in find_aspects(positions)),
         source_recalculation_token=source.source_recalculation_token,
     )

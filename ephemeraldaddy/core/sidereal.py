@@ -69,6 +69,14 @@ class SiderealChartData:
     source_recalculation_token: str
     calculation_version: int = SIDEREAL_CALCULATION_VERSION
 
+    @property
+    def zodiac(self) -> str:
+        return "sidereal"
+
+    @property
+    def division(self) -> str:
+        return "D1"
+
 
 NAKSHATRA_NAMES = (
     "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
