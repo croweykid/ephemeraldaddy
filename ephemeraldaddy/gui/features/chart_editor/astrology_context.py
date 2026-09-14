@@ -14,6 +14,7 @@ class AstrologyChartContext(Protocol):
     retrogrades: Mapping[str, bool]
     house_cusps: Sequence[float] | None
     aspects: Sequence[Mapping[str, Any]]
+    uses_houses: bool
 
 
 SHARED_PERSON_PANELS = frozenset(
