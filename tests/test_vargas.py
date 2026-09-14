@@ -1,0 +1,25 @@
+import pytest
+
+from ephemeraldaddy.core.vargas import VARGA_RULES, project_longitude
+
+
+def test_only_explicitly_validated_varga_rules_are_exposed():
+    assert set(VARGA_RULES) == {"D9"}
+    assert VARGA_RULES["D9"].name == "Navamsha"
+    with pytest.raises(ValueError):
+        project_longitude(10.0, "D10")
+
+
+@pytest.mark.parametrize(
+    ("source_sign", "expected_start_sign"),
+    [(0, 0), (1, 9), (2, 6), (3, 3), (4, 0), (5, 9)],
+)
+def test_navamsha_uses_parashara_modality_starts(source_sign, expected_start_sign):
+    assert int(project_longitude(source_sign * 30.0) // 30) == expected_start_sign
+
+
+def test_navamsha_segment_boundary_is_deterministic():
+    boundary = 30.0 / 9.0
+    assert project_longitude(boundary - 1e-9) == pytest.approx(30.0 - 9e-9, abs=1e-7)
+    assert project_longitude(boundary) == pytest.approx(30.0)
+    assert project_longitude(360.0) == pytest.approx(0.0)
