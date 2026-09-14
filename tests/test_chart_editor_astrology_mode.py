@@ -37,6 +37,45 @@ def test_sidereal_display_chart_is_a_copy_with_shared_uid(monkeypatch):
     assert display.positions == {"Sun": 346.0}
     assert chart.positions == {"Sun": 10.0}
     assert display.houses == []
+    assert display._tropical_source_chart is chart
+
+
+def test_switching_sidereal_display_back_to_tropical_restores_original_coordinates(monkeypatch):
+    chart = SimpleNamespace(
+        chart_uid="PARENT01",
+        positions={"Sun": 10.0},
+        retrogrades={},
+        houses=[1.0],
+        housesPo=[2.0],
+        aspects=[],
+        is_placeholder=False,
+    )
+    sidereal = SimpleNamespace(
+        positions={"Sun": 346.0},
+        retrogrades={},
+        house_cusps=None,
+        aspects=(),
+        zodiac="sidereal",
+        division="D1",
+        ayanamsha="lahiri",
+        source_recalculation_token="token",
+    )
+    monkeypatch.setattr(
+        astrology_mode, "get_or_calculate_sidereal_chart_data", lambda _chart: sidereal
+    )
+
+    display = astrology_mode.chart_for_astrology_context(
+        chart, ZodiacContext("sidereal", "lahiri")
+    )
+    restored = astrology_mode.chart_for_astrology_context(
+        display, ZodiacContext("tropical")
+    )
+
+    assert restored is chart
+    assert restored.positions == {"Sun": 10.0}
+    assert restored.houses == [1.0]
+    assert restored.zodiac == "tropical"
+    assert restored.division == "D1"
 
 
 class Button:
