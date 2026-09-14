@@ -19,6 +19,21 @@ def _coerce_minute_of_day(value) -> int | None:
     return None
 
 
+def _validated_retcon_time(chart) -> tuple[int, int] | None:
+    """Return a valid explicitly rectified hour/minute, otherwise ``None``."""
+
+    if not bool(getattr(chart, "retcon_time_used", False)):
+        return None
+    try:
+        hour = int(getattr(chart, "retcon_hour", None))
+        minute = int(getattr(chart, "retcon_minute", None))
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        return None
+    return hour, minute
+
+
 def rectification_range_minutes(chart) -> tuple[int, int] | None:
     if not bool(getattr(chart, "rectification_range_used", False)):
         return None
@@ -62,42 +77,50 @@ def apply_rectification_range_midpoint(chart) -> bool:
     return True
 
 
-def resolve_use_birth_time_data(chart) -> bool:
-    return not bool(getattr(chart, "birthtime_unknown", False)) or bool(
-        getattr(chart, "retcon_time_used", False)
-    )
-
-
-def sync_use_birth_time_data(chart) -> bool:
-    resolved = resolve_use_birth_time_data(chart)
-    try:
-        chart.use_birth_time_data = resolved
-    except Exception:
-        pass
-    return resolved
-
-
 def chart_uses_houses(chart) -> bool:
-    return sync_use_birth_time_data(chart)
+    """Canonical TRUE/FALSE valve for all time-based chart calculations.
+
+    Downstream consumers should not care *why* a usable time exists. A chart is
+    house/time eligible when it has a known recorded birth time, a valid exact
+    rectification, or a valid rectification range.
+    """
+
+    if not bool(getattr(chart, "birthtime_unknown", False)):
+        return True
+    if _validated_retcon_time(chart) is not None:
+        return True
+    return rectification_range_minutes(chart) is not None
 
 
 def _effective_chart_datetime(chart) -> datetime.datetime | None:
+    """Return the one datetime time-based calculations should consume."""
+
     dt = getattr(chart, "dt", None)
     if not isinstance(dt, datetime.datetime):
         return None
-    if chart_uses_houses(chart) and bool(getattr(chart, "retcon_time_used", False)):
-        retcon_hour = getattr(chart, "retcon_hour", None)
-        retcon_minute = getattr(chart, "retcon_minute", None)
-        if retcon_hour is not None and retcon_minute is not None:
-            try:
-                return dt.replace(
-                    hour=int(retcon_hour),
-                    minute=int(retcon_minute),
-                    second=0,
-                    microsecond=0,
-                )
-            except Exception:
-                return dt
+
+    retcon_time = _validated_retcon_time(chart)
+    if retcon_time is not None:
+        hour, minute = retcon_time
+        try:
+            return dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        except Exception:
+            return None
+
+    if bool(getattr(chart, "birthtime_unknown", False)):
+        midpoint = rectification_range_midpoint_minutes(chart)
+        if midpoint is None:
+            return None
+        try:
+            return dt.replace(
+                hour=midpoint // 60,
+                minute=midpoint % 60,
+                second=0,
+                microsecond=0,
+            )
+        except Exception:
+            return None
+
     return dt
 
 
@@ -147,30 +170,24 @@ def recompute_time_specific_metadata(chart) -> None:
 
 
 def apply_time_specific_metadata_policy(chart) -> None:
+    # Preserve the existing range-rectification behavior: for an unknown source
+    # time with no valid exact rectification, the chart's concrete planetary
+    # snapshot is placed at the range midpoint. House eligibility itself comes
+    # only from chart_uses_houses().
     if (
-        not chart_uses_houses(chart)
-        and bool(getattr(chart, "birthtime_unknown", False))
-        and not bool(getattr(chart, "retcon_time_used", False))
+        bool(getattr(chart, "birthtime_unknown", False))
+        and _validated_retcon_time(chart) is None
+        and rectification_range_minutes(chart) is not None
     ):
-        # Rectification ranges use the midpoint as the chart object's concrete
-        # calculation time. Chart Data Output may still display sign variants
-        # for positions that are not stable across the range; other features
-        # currently consume these midpoint positions directly until range-aware
-        # ambiguity handling is generalized app-wide.
         apply_rectification_range_midpoint(chart)
-    use_birth_time_data = sync_use_birth_time_data(chart)
-    if use_birth_time_data:
+
+    if chart_uses_houses(chart):
         recompute_time_specific_metadata(chart)
     else:
         sanitize_time_specific_metadata(chart)
 
 
 class Chart:
-    def __setattr__(self, name, value):
-        object.__setattr__(self, name, value)
-        if name in {"birthtime_unknown", "retcon_time_used"}:
-            object.__setattr__(self, "use_birth_time_data", resolve_use_birth_time_data(self))
-
     def __init__(
         self,
         name,
@@ -255,7 +272,6 @@ class Chart:
         self.rectification_range_used = False
         self.rectification_range_start_minute = None
         self.rectification_range_end_minute = None
-        self.use_birth_time_data = True
         self.is_deceased = False
         self.death_month = None
         self.death_day = None
@@ -296,6 +312,18 @@ class Chart:
         self._add_part_of_fortune()
         self.aspects = find_aspects(self.positions)
         self.modal_distribution = self._modal_distribution()
+
+    @property
+    def use_birth_time_data(self) -> bool:
+        """Deprecated compatibility alias; chart_uses_houses() is authoritative."""
+
+        return chart_uses_houses(self)
+
+    @use_birth_time_data.setter
+    def use_birth_time_data(self, _value) -> None:
+        # Legacy loaders still assign this name. Ignore those writes so a stale
+        # duplicate boolean can never override the canonical source facts.
+        return
 
     def as_dict(self):
         return {
@@ -360,11 +388,9 @@ class Chart:
             "aspects": self.aspects,
             "modal_distribution": self.modal_distribution,
             "used_utc_fallback": self.used_utc_fallback,
-            "use_birth_time_data": bool(getattr(self, "use_birth_time_data", chart_uses_houses(self))),
             "signs_unknown": bool(getattr(self, "signs_unknown", False)),
             "unknown_signs": list(getattr(self, "unknown_signs", []) or []),
         }
-
 
     @property
     def sentiment_confidence(self):
