@@ -33,30 +33,46 @@ def test_calculate_lahiri_d1_uses_matching_sidereal_angles_and_untimed_policy(mo
     monkeypatch.setattr(sidereal, "planetary_retrogrades", lambda *_: {"Sun": False})
 
     timed = sidereal.calculate_lahiri_d1(
-        chart_uid="abc12345", dt=moment, latitude=51.5, longitude=0.0, use_birth_time_data=True
+        chart_uid="abc12345",
+        dt=moment,
+        latitude=51.5,
+        longitude=0.0,
+        uses_houses=True,
+        source_token="timed-token",
     )
     untimed = sidereal.calculate_lahiri_d1(
-        chart_uid="abc12345", dt=moment, latitude=51.5, longitude=0.0, use_birth_time_data=False
+        chart_uid="abc12345",
+        dt=moment,
+        latitude=51.5,
+        longitude=0.0,
+        uses_houses=False,
+        source_token="untimed-token",
     )
 
     assert timed.chart_uid == "ABC12345"
     assert timed.positions["Sun"] == pytest.approx(280.0 - timed.ayanamsha_degrees)
     assert timed.positions["AS"] == timed.ascendant == timed.house_cusps[0]
     assert timed.positions["MC"] == timed.mc
+    assert timed.uses_houses
     assert untimed.ascendant is None
     assert untimed.mc is None
     assert untimed.house_cusps is None
+    assert not untimed.uses_houses
     assert "AS" not in untimed.positions
 
 
-def test_source_token_ignores_person_data_but_tracks_astrology_inputs():
-    moment = dt.datetime(2020, 5, 1, tzinfo=UTC)
-    base = dict(dt=moment, latitude=1.0, longitude=2.0, use_birth_time_data=True)
-    token = sidereal.source_recalculation_token(**base)
+def test_source_token_extends_canonical_astro_token_with_sidereal_context():
+    canonical = ("2020-05-01T00:00:00+00:00", 1.0, 2.0, False)
+    token = sidereal.source_recalculation_token(canonical_astro_token=canonical)
 
-    assert token == sidereal.source_recalculation_token(**base)
-    assert token != sidereal.source_recalculation_token(**{**base, "longitude": 2.1})
-    # Notes/tags/photos are intentionally absent from the token contract.
+    assert token == sidereal.source_recalculation_token(canonical_astro_token=canonical)
+    assert token != sidereal.source_recalculation_token(
+        canonical_astro_token=("2020-05-01T00:00:00+00:00", 1.0, 2.1, False)
+    )
+    assert token != sidereal.source_recalculation_token(
+        canonical_astro_token=canonical,
+        calculation_version=sidereal.SIDEREAL_CALCULATION_VERSION + 1,
+    )
 
 
 @pytest.mark.parametrize(
