@@ -1,6 +1,6 @@
 """Sidereal D1 calculation contracts.
 
-This module deliberately contains no persistence or GUI behavior.  A sidereal
+This module deliberately contains no persistence or GUI behavior. A sidereal
 D1 is calculated data belonging to an existing chart UID, not another person.
 """
 
@@ -77,6 +77,12 @@ class SiderealChartData:
     def division(self) -> str:
         return "D1"
 
+    @property
+    def uses_houses(self) -> bool:
+        """Whether this persisted D1 snapshot contains valid time-based geometry."""
+
+        return self.house_cusps is not None
+
 
 NAKSHATRA_NAMES = (
     "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
@@ -128,26 +134,16 @@ def nakshatra_position(longitude: float) -> NakshatraPosition:
 
 def source_recalculation_token(
     *,
-    dt: _dt.datetime,
-    latitude: float,
-    longitude: float,
-    use_birth_time_data: bool,
+    canonical_astro_token: object,
     ayanamsha: str = LAHIRI,
     calculation_version: int = SIDEREAL_CALCULATION_VERSION,
-    rectification_state: Mapping[str, Any] | None = None,
 ) -> str:
-    """Hash only source facts capable of changing calculated sidereal data."""
+    """Extend ED's canonical ASTRO_DATA token with Sidereal-specific context."""
 
-    if dt.tzinfo is None:
-        raise ValueError("Recalculation tokens require a timezone-aware datetime")
     payload = {
-        "utc": dt.astimezone(_dt.timezone.utc).isoformat(timespec="microseconds"),
-        "latitude": float(latitude),
-        "longitude": float(longitude),
-        "use_birth_time_data": bool(use_birth_time_data),
+        "canonical_astro_token": canonical_astro_token,
         "ayanamsha": str(ayanamsha).strip().lower(),
         "calculation_version": int(calculation_version),
-        "rectification_state": dict(rectification_state or {}),
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -162,7 +158,11 @@ def _sidereal_houses(
         cusps, axes = swe.houses_ex(
             jd_ut, float(latitude), float(longitude), b"P", swe.FLG_SIDEREAL
         )
-    return tuple(float(value) % 360.0 for value in cusps), float(axes[0]) % 360.0, float(axes[1]) % 360.0
+    return (
+        tuple(float(value) % 360.0 for value in cusps),
+        float(axes[0]) % 360.0,
+        float(axes[1]) % 360.0,
+    )
 
 
 def calculate_lahiri_d1(
@@ -171,29 +171,31 @@ def calculate_lahiri_d1(
     dt: _dt.datetime,
     latitude: float,
     longitude: float,
-    use_birth_time_data: bool,
-    source_token: str | None = None,
-    rectification_state: Mapping[str, Any] | None = None,
+    uses_houses: bool,
+    source_token: str,
 ) -> SiderealChartData:
     """Calculate an immutable Lahiri D1 without mutating a parent ``Chart``."""
 
     uid = _require_uid(chart_uid)
+    if not str(source_token or "").strip():
+        raise ValueError("A canonical source recalculation token is required")
+
     shift = lahiri_ayanamsha(dt)
     tropical = planetary_positions(dt, latitude, longitude)
     positions = {name: (float(value) - shift) % 360.0 for name, value in tropical.items()}
     house_cusps: tuple[float, ...] | None = None
     ascendant = mc = None
-    if use_birth_time_data:
+    if uses_houses:
         house_cusps, ascendant, mc = _sidereal_houses(dt, latitude, longitude)
-        positions.update({"AS": ascendant, "MC": mc, "DS": (ascendant + 180.0) % 360.0, "IC": (mc + 180.0) % 360.0})
+        positions.update(
+            {
+                "AS": ascendant,
+                "MC": mc,
+                "DS": (ascendant + 180.0) % 360.0,
+                "IC": (mc + 180.0) % 360.0,
+            }
+        )
 
-    token = source_token or source_recalculation_token(
-        dt=dt,
-        latitude=latitude,
-        longitude=longitude,
-        use_birth_time_data=use_birth_time_data,
-        rectification_state=rectification_state,
-    )
     aspects = tuple(MappingProxyType(dict(aspect)) for aspect in find_aspects(positions))
     immutable_positions = MappingProxyType(positions)
     return SiderealChartData(
@@ -206,6 +208,8 @@ def calculate_lahiri_d1(
         mc=mc,
         house_cusps=house_cusps,
         aspects=aspects,
-        nakshatras=MappingProxyType({name: nakshatra_position(value) for name, value in positions.items()}),
-        source_recalculation_token=token,
+        nakshatras=MappingProxyType(
+            {name: nakshatra_position(value) for name, value in positions.items()}
+        ),
+        source_recalculation_token=str(source_token),
     )
