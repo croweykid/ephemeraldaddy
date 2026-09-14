@@ -11,14 +11,27 @@ from ephemeraldaddy.gui.features.chart_editor.astrology_context import ChartEdit
 
 def chart_for_astrology_context(chart: object, context: ZodiacContext) -> object:
     """Return a chart-like display object without mutating cached Tropical data."""
-    if getattr(chart, "zodiac", None) == context.zodiac:
-        return chart
-    if context.zodiac == "tropical" or bool(getattr(chart, "is_placeholder", False)):
+
+    if context.zodiac == "tropical":
+        # Sidereal display objects are shallow copies of the canonical Tropical
+        # chart. Never relabel a Sidereal copy as Tropical: restore the original
+        # coordinate source so positions/houses/aspects cannot leak across modes.
+        tropical_chart = getattr(chart, "_tropical_source_chart", chart)
+        setattr(tropical_chart, "zodiac", "tropical")
+        setattr(tropical_chart, "division", "D1")
+        return tropical_chart
+
+    if bool(getattr(chart, "is_placeholder", False)):
         setattr(chart, "zodiac", "tropical")
         setattr(chart, "division", "D1")
         return chart
+
+    if getattr(chart, "zodiac", None) == "sidereal":
+        return chart
+
     sidereal = get_or_calculate_sidereal_chart_data(chart)
     display_chart = copy(chart)
+    display_chart._tropical_source_chart = chart
     display_chart.positions = dict(sidereal.positions)
     display_chart.retrogrades = dict(sidereal.retrogrades)
     display_chart.houses = list(sidereal.house_cusps or ())
