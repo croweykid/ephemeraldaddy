@@ -2,227 +2,531 @@
 
 ## Status
 
-This document is the implementation mandate for adding sidereal astrology and Jyotish-style divisional-chart support to EphemeralDaddy.
+This document is the implementation mandate for adding a first-class Sidereal mode and Jyotish-style divisional-chart support to EphemeralDaddy.
 
-It is intentionally conservative about persistence and intentionally permissive about experimentation. The objective is to determine whether sidereal and divisional-chart features are useful enough to deserve first-class product treatment **without** multiplying the database into thousands of redundant chart records or contaminating established tropical behavior.
+The architecture decision is now settled:
 
-The implementation should proceed in phases. The first phase is a proof of concept built from production-quality primitives, not a disposable spike.
+1. EphemeralDaddy continues to have **one person/chart identity per `chart_uid`**.
+2. Tropical D1 and Sidereal D1 are two astrology-data representations linked to that same `chart_uid`.
+3. **Sidereal D1 is persisted** in a dedicated sidereal table in the **same database** as the rest of EphemeralDaddy.
+4. D2/D3/D7/D9/D10/D12/etc. remain deterministic projections derived from Sidereal D1 and are generated on demand rather than persisted as independent chart records.
+5. Shared person/editor data remains shared between Tropical and Sidereal Chart Editor views.
+6. The current Predictions system is Tropical-specific and is **hidden in Sidereal mode** for this rollout.
+7. A future Sidereal Predictions system may add sidereal predictors to Traits, but that is a separate feature tier and must not be inferred from the existence of Sidereal Chart Analytics.
+
+The early calculation/Astro Twin proof of concept is still useful, but it is no longer a decision gate for whether Sidereal D1 should be persisted. Persisted Sidereal D1 is the target architecture. The POC exists to validate mathematics, performance, similarity behavior, and integration seams before the feature spreads through the GUI.
 
 ---
 
-## 1. Core Product Model
+## 1. Canonical Product / Identity Model
 
-EphemeralDaddy continues to have **one persisted person/chart entity per chart UID**.
-
-Sidereal D1 and divisional charts are alternate calculated views of that same parent chart. They may feel like nested charts in the UI, but they are **not independent people, independent database charts, or independent UIDs**.
-
-Conceptually:
+The user-facing and engineering model is:
 
 ```text
-Persisted Chart / Person
-    |
-    |-- Tropical chart
-    |-- Human Design
-    |-- BaZi
-    `-- Sidereal / Jyotish projection layer
-         |-- D1 Rashi
-         |-- D2 Hora
-         |-- D3 Drekkana
-         |-- D7 Saptamsha
-         |-- D9 Navamsha
-         |-- D10 Dashamsha
-         |-- D12 Dwadashamsha
-         `-- additional supported vargas
+                        Chart UID
+                           |
+             +-------------+-------------+
+             |                           |
+        Person Data                  Astrology Data
+   observations/tags, notes,        /              \
+   photos, biography, ABC,      Tropical D1       Sidereal D1
+   Material Facts, metadata                           |
+                                             divisional projections
+                                          D2 D3 D7 D9 D10 D12...
 ```
 
-The UI may present these as child or nested chart views. Internally, there is still only one chart identity.
+### Important EphemeralDaddy terminology
 
-### Mandatory invariant
+Do **not** interpret `Traits` in generic English as ordinary descriptive person data.
 
-Do **not** create permanent rows or chart UIDs for D1, D2, D3, D9, D10, etc.
+In EphemeralDaddy, **Traits are part of the Predictions system**. They are predicted from astrological/metaphysical properties, currently including Tropical astrology plus Human Design and BaZi predictors. Purely observed/descriptive labels belong to tags/observations and related person-data systems.
 
-Do **not** allow derived charts to recursively spawn persisted derived charts.
+Therefore:
 
-The storage model must remain approximately:
+- Observations/tags are shared person data.
+- Predictions Traits are not shared neutral person data; they belong to the current Tropical prediction framework unless/until sidereal predictors are deliberately added.
+
+### Mandatory identity invariant
+
+There is still only one person/chart entity and one `chart_uid`.
+
+Do **not** create:
 
 ```text
-~3,000 persisted charts
+Alice Tropical    -> UID A
+Alice Sidereal    -> UID B
+Alice D9          -> UID C
+```
+
+The correct model is:
+
+```text
+Alice -> UID A
+         |-- Tropical D1 astrology data
+         |-- Sidereal D1 astrology data
+         `-- on-demand D# projections
+```
+
+Sidereal mode changes the active astrology representation. It does not convert the person into another chart identity.
+
+---
+
+## 2. Persistence Architecture: Same Database, Separate Sidereal Table
+
+Sidereal D1 must be stored in a **separate logical table/domain inside the existing EphemeralDaddy database**, keyed to the same `chart_uid` as the parent chart.
+
+Do not create a second physical database file unless a later, independently justified storage requirement demands it.
+
+A separate physical database would add unnecessary synchronization, backup, migration ordering, orphan cleanup, transaction, failure-recovery, and UID-integrity problems. A sibling table provides the needed isolation without splitting the persistence boundary.
+
+Conceptual schema:
+
+```text
+charts / person data
+--------------------------------
+chart_uid  PRIMARY KEY
+birth/source data
+observations / notes / tags
+ABC
+Material Facts
+photo references
+biography / metadata
+...
+
+<tropical astrology storage>
+--------------------------------
+chart_uid  UNIQUE / FK
+existing tropical ASTRO_DATA
+...
+
+sidereal_chart_data
+--------------------------------
+chart_uid  PRIMARY KEY or UNIQUE FK
+ayanamsha
+calculation_version
+source_recalculation_token
+positions
+retrogrades
+ascendant
+mc
+house_cusps
+house_assignments
+aspects, if persisted by the chosen existing data convention
+nakshatras / padas, when implemented
+other canonical Sidereal D1 calculated fields
+```
+
+Exact normalization and field layout must follow the current refactor's repository/data-access conventions rather than blindly copying this sketch.
+
+### Sidereal D1 is persisted but still derived/rebuildable
+
+Persisting Sidereal D1 is a performance/product decision, not a claim that the data is independently authored.
+
+Sidereal D1 remains deterministically derived from:
+
+- source birth data;
+- the chosen ayanamsha;
+- the calculation implementation/version;
+- applicable birth-time/rectification state.
+
+The stored row therefore needs enough provenance/invalidation data to determine when it is stale and regenerate it safely.
+
+The sidereal table is the durable database-wide **snapshot layer** that future Sidereal Astro Twin, research, rankings, analytics, and Sidereal Trait-predictor work can query without recomputing ~3,000 charts for every operation.
+
+---
+
+## 3. What Is Persisted vs. Derived On Demand
+
+### Persist
+
+- one parent person/chart record per `chart_uid`;
+- existing Tropical D1 astrology data according to current architecture;
+- one Sidereal D1 data record per chart where calculation is possible;
+- provenance/invalidation metadata for that Sidereal D1 record.
+
+### Do not persist as independent chart entities
+
+- D2 Hora;
+- D3 Drekkana;
+- D7 Saptamsha;
+- D9 Navamsha;
+- D10 Dashamsha;
+- D12 Dwadashamsha;
+- other vargas.
+
+Divisional charts are mathematical projections of the stored sidereal longitudes and should be generated on demand.
+
+Preferred flow:
+
+```text
+stored Sidereal D1
+    |
+    +-> request D9
+    |      -> derive D9 positions
+    |      -> derive only required analytics
+    |      -> display
+    |      -> optionally keep in bounded memory cache
+    |
+    `-> request D10
+           -> derive D10 independently
+```
+
+Do not eagerly generate D2 through D60 simply because Sidereal D1 exists.
+
+### No recursive chart explosion
+
+A D9 must never become a new persisted parent capable of generating its own persisted child records.
+
+The database remains roughly:
+
+```text
+~3,000 chart identities
+~3,000 Tropical D1 astrology records
+~3,000 Sidereal D1 astrology records
 ```
 
 not:
 
 ```text
-~3,000 x number_of_vargas persisted charts
+~3,000 x every supported D# as chart identities
 ```
-
-The latter is only multiplicative rather than mathematically exponential, but it is still unnecessary database growth and would infect ranking, export, backup, refresh, UID, relationship, trait, image, and migration behavior throughout the application.
 
 ---
 
-## 2. Three Layers Must Remain Distinct
+## 4. Global Astrology Mode
 
-The implementation must keep the following concepts separate.
+Add/extend the global astrology setting under:
+
+```text
+Settings > Astrology
+```
+
+Conceptually:
+
+```text
+Zodiac / Astrology mode:
+(*) Tropical
+( ) Sidereal
+
+Sidereal ayanamsha:
+    Lahiri
+```
+
+Lahiri is the initial sidereal standard for this rollout. Architecture must not make future alternate ayanamshas impossible, but there is no requirement to expose multiple choices immediately.
+
+### Mode semantics
+
+Changing Tropical/Sidereal mode selects the active astrology-data context. It must **not** rewrite, convert, or destroy the other representation.
+
+Think:
+
+```text
+Chart UID
+   |
+   `-> active astrology lens
+          |-- Tropical D1
+          `-- Sidereal D1
+```
+
+not:
+
+```text
+"convert this chart permanently to sidereal"
+```
+
+A shared facade/context boundary should expose the active coordinate-system data so UI and analysis code does not devolve into hundreds of scattered `if sidereal:` branches.
+
+Conceptual API:
+
+```python
+get_active_astrology_context(chart_uid)
+```
+
+or an equivalent repository/service abstraction appropriate to the refactor.
+
+---
+
+## 5. Three Layers Must Remain Distinct
+
+Do not collapse the following concepts into one flag.
 
 ### Layer A: Coordinate system
 
 Examples:
 
-- tropical
-- sidereal / Lahiri
-- future alternate ayanamshas
+- Tropical;
+- Sidereal/Lahiri;
+- future alternate ayanamshas.
 
 ### Layer B: Chart projection
 
 Examples:
 
-- D1 Rashi
-- D2 Hora
-- D3 Drekkana
-- D9 Navamsha
-- D10 Dashamsha
-- etc.
+- D1 Rashi;
+- D2 Hora;
+- D3 Drekkana;
+- D7 Saptamsha;
+- D9 Navamsha;
+- D10 Dashamsha;
+- D12 Dwadashamsha.
 
-### Layer C: Analysis framework
+### Layer C: Analysis / prediction framework
 
 Examples:
 
-- EphemeralDaddy's existing Western analytics
-- Jyotish-specific analysis added later
+- EphemeralDaddy's existing Chart Analytics applied to Tropical coordinates;
+- EphemeralDaddy's existing Chart Analytics applied to Sidereal coordinates;
+- current Tropical Predictions / Trait framework;
+- future Sidereal Predictions / sidereal Trait predictors;
+- future Jyotish-native drishti/yoga/dasha/etc. systems.
 
-These are not synonyms.
+A Sidereal D1 chart can be analyzed with existing ED prevalence/dominance/aspect machinery where mechanically valid without claiming those algorithms are canonical Jyotish.
 
-A sidereal D1 chart can be analyzed using EphemeralDaddy's existing dominance/aspect/prevalence machinery, but that does **not** make those calculations canonical Jyotish analytics.
-
-Likewise, a D9 chart can be displayed using ED's standard chart presentation and analyzed with ED's Western aspect engine, but a Western grand trine in D9 is not the same concept as Jyotish drishti.
-
-UI labels and exports must make the distinction visible whenever ambiguity is possible.
-
-Recommended future display metadata:
-
-```text
-Coordinate system: Sidereal
-Ayanamsha: Lahiri
-Division: D9 Navamsha
-Analysis framework: EphemeralDaddy
-```
+A D9 grand trine found by ED's Western aspect engine is not automatically Jyotish `drishti`. Western dignities are not automatically Jyotish dignity rules. Keep labels honest.
 
 ---
 
-## 3. Sidereal D1 Is the Foundation, Not a Second Persisted Chart
+## 6. Chart Editor Mode Matrix
 
-The sidereal D1 should be treated as a deterministic projection derived from the parent's birth data and configured ayanamsha.
+The Sidereal Chart Editor is not a stripped-down unrelated window. It is a **sidereal version of the same Chart Editor experience**, backed by the same `chart_uid`, with astrology-sensitive panels switched to sidereal data and non-astral person panels shared.
 
-A convenient API may expose it as something like:
+### Tropical mode
 
-```python
-chart.sidereal
+```text
+Chart / positions        -> Tropical
+Chart Analytics          -> Tropical
+Predictions              -> Tropical
+Observations             -> shared person data
+ABC                      -> shared person data
+Material Facts           -> shared person data
+Time Sensitivity         -> Tropical calculations
+Photo Gallery            -> shared person data
 ```
 
-but this should represent derived astro data, not a new persisted `Chart` instance.
+### Sidereal mode
 
-Suggested shape:
+```text
+Chart / positions        -> Sidereal
+Chart Analytics          -> Sidereal
+Predictions              -> HIDDEN for now
+Observations             -> SAME shared person data
+ABC                      -> SAME shared person data
+Material Facts           -> SAME shared person data
+Time Sensitivity         -> Sidereal calculations
+Photo Gallery            -> SAME shared person data
+```
+
+### Shared-panel invariant
+
+Observations, ABC, Material Facts, Photo Gallery, and other designated non-astral person-level panels are **not duplicated** between Tropical and Sidereal views.
+
+Edits from either view write to the same underlying parent record and must be visible from the other view.
+
+For example:
+
+```text
+Edit Observation in Sidereal Chart Editor
+        -> writes shared chart/person data for chart_uid
+        -> Tropical Chart Editor sees the same edit
+
+Add photo in Tropical Chart Editor
+        -> writes shared Photo Gallery data for chart_uid
+        -> Sidereal Chart Editor sees the same photo
+```
+
+Do not create `sidereal_notes`, `sidereal_photos`, `sidereal_material_facts`, etc.
+
+### Astronomy-derived fields remain coordinate-specific
+
+Positions, houses, angles, aspects, prevalence, dominance, and other coordinate-derived calculations must come from the active Tropical or Sidereal D1 context.
+
+---
+
+## 7. Predictions Are Tropical-Only in This Rollout
+
+The entire existing Predictions section is based on the Tropical interpretation/predictor framework.
+
+This includes EphemeralDaddy Traits. Traits are predicted using the existing predictor system, including Tropical astrological properties and currently integrated Human Design/BaZi properties. They must **not** be presented as if they are valid Sidereal predictions merely because Sidereal positions can be calculated.
+
+Therefore the mandate is simple:
+
+```text
+Tropical mode:
+    Predictions -> visible
+
+Sidereal mode:
+    Predictions -> hidden
+```
+
+Do not grey out the panel while silently showing Tropical output under a Sidereal chart. Do not opportunistically substitute Sidereal placements into the Tropical Predictions engine and call the result validated.
+
+### Future Sidereal Predictions / Traits
+
+A future project may add Sidereal predictor properties to the Trait system, conceptually:
+
+```text
+Trait
+|-- Tropical predictors
+|-- Human Design predictors
+|-- BaZi predictors
+`-- Sidereal predictors        <- future
+```
+
+The persisted `sidereal_chart_data` table is specifically useful for this possibility because database-wide Trait research can quickly query the Sidereal state of every chart without rebuilding every Sidereal chart for every training/comparison operation.
+
+A future Sidereal Trait layer may use:
+
+- Sidereal signs;
+- Sidereal houses;
+- Sidereal aspects;
+- Sidereal dominance/analytics properties where intentionally defined;
+- Nakshatras/padas;
+- later Jyotish-native properties if deliberately implemented.
+
+That future work must establish its own predictor semantics and validation. It is **not part of the initial Sidereal-mode rollout**.
+
+### Tags/observations remain distinct
+
+Observed tags, observations, notes, or other descriptive labels about a person remain shared outcome/person data. Do not create fake `tropical_funny` versus `sidereal_funny` observed labels merely to compare frameworks.
+
+This separation is valuable for later empirical testing: the same observed outcomes can be tested against Tropical predictors and Sidereal predictors independently.
+
+---
+
+## 8. Chart Analytics Policy
+
+Chart Analytics remains visible in both modes and must consume the active coordinate-system context.
+
+```text
+Tropical mode -> Tropical Chart Analytics
+Sidereal mode -> Sidereal Chart Analytics
+```
+
+Mechanically suitable examples include:
+
+- sign prevalence;
+- element prevalence;
+- modality prevalence;
+- house prevalence;
+- quadrant counts / percentages;
+- aspect counts;
+- aspect patterns;
+- dominance where the current engine can be applied coherently;
+- other position/house/aspect-derived analytics.
+
+### Semantic rule
+
+When ED's existing Western analytics are applied to Sidereal positions, label them as **EphemeralDaddy analytics on Sidereal coordinates**, not canonical Jyotish analytics.
+
+Do not silently rename:
+
+- ED aspects -> Jyotish drishti;
+- ED patterns -> Jyotish yogas;
+- ED dominance -> canonical Jyotish strength;
+- Western dignity/dispositor rules -> Jyotish dignity rules.
+
+A future explicit analysis-framework control may exist, but it is not required for the first Sidereal rollout.
+
+---
+
+## 9. Time Sensitivity Policy
+
+Time Sensitivity is available in both Chart Editor modes, but it is coordinate-aware rather than shared static output.
+
+The underlying source facts about birth-time certainty/uncertainty are shared. The astrological consequences must be recalculated using the active coordinate system.
+
+```text
+Tropical mode
+    -> Tropical Ascendant/MC/houses/etc. sensitivity
+
+Sidereal mode
+    -> Sidereal Ascendant/MC/houses/etc. sensitivity
+```
+
+Do not display a Tropical Time Sensitivity result under Sidereal mode simply because the parent birth-time metadata is shared.
+
+This same birth-time reliability policy must be respected when deriving divisional Ascendants/houses.
+
+---
+
+## 10. Sidereal D1 Calculation Contract
+
+Sidereal D1 should be exposed through a clean calculated-data contract, not a second persisted `Chart` object with another identity.
+
+Conceptual shape:
 
 ```python
 @dataclass(frozen=True)
 class SiderealChartData:
-    parent_uid: str
+    chart_uid: str
     ayanamsha: str
     positions: Mapping[str, float]
     retrogrades: Mapping[str, bool]
     ascendant: float | None
     mc: float | None
     houses: Sequence[float] | None
+    aspects: Sequence[Aspect]
     nakshatras: Mapping[str, object] | None
-    calculation_token: str
+    source_recalculation_token: str
+    calculation_version: int
 ```
 
-Exact fields may differ according to the refactor's current data contracts.
+Exact fields must fit current repository/domain contracts.
 
-### Important terminology
+### Terminology
 
-Do not casually call sidereal D1 "metadata" in implementation code if that conflicts with EphemeralDaddy's existing classification of metadata versus derived ASTRO_DATA.
-
-Sidereal coordinates are calculated astrology data.
+Sidereal D1 is astrology data, not descriptive metadata. Avoid calling it chart metadata in code if that conflicts with current ASTRO_DATA classification.
 
 ---
 
-## 4. D1 May Be Cached; Varga Charts Should Be Generated On Demand
+## 11. Recalculation and Invalidation
 
-It is acceptable to retain/cache a compact sidereal D1 projection for a parent chart if profiling demonstrates a benefit.
+Persisted Sidereal D1 must regenerate when any source input capable of changing it becomes stale.
 
-It is **not** acceptable to persist full independent D2/D3/D9/etc. chart objects for every database record.
+Use or extend EphemeralDaddy's canonical astrology-data recalculation token rather than creating unrelated invalidation logic.
 
-Preferred behavior:
+Applicable invalidators include:
 
-```text
-birth data
-   -> sidereal D1 projection
-       -> D9 requested
-           -> derive D9
-           -> render / analyze
-           -> retain only in bounded memory cache if useful
-```
+- birth date;
+- birth time;
+- timezone / UTC resolution;
+- latitude / longitude;
+- timed vs. untimed status;
+- rectification-related source data;
+- ayanamsha;
+- sidereal calculation version;
+- any future source option affecting sidereal geometry.
 
-A divisional chart is a deterministic mathematical transformation of sidereal longitudes. It does not require a new ephemeris calculation for each varga.
+Changing shared non-astral data must **not** trigger sidereal recomputation:
 
-The varga layer should consume the sidereal longitudes used for D1, not scrape or reverse-engineer data from a rendered D1 window.
+- Observations;
+- ABC content;
+- Material Facts;
+- photos;
+- tags;
+- biography;
+- notes;
+- unrelated UI settings.
 
-### Suggested cache key
+### Stale-row behavior
 
-```python
-CacheKey(
-    parent_uid,
-    astro_data_recalculation_token,
-    ayanamsha,
-    division,
-    varga_ruleset_version,
-)
-```
+A sidereal row whose `source_recalculation_token` no longer matches the parent chart's current calculation inputs is stale derived data and must be rebuilt before it is treated as authoritative.
 
-A cache value should contain compact calculated positions and other deterministic derived fields, not a duplicate biography, traits, notes, photo gallery, widgets, database relationship state, or persisted `Chart` entity.
-
-A bounded in-memory LRU cache is appropriate if repeated switching such as:
-
-```text
-D1 -> D9 -> D10 -> D9
-```
-
-otherwise causes needless recalculation.
+Do not trust persisted Sidereal D1 indefinitely merely because a row exists.
 
 ---
 
-## 5. Recalculation / Invalidation Rules
+## 12. Initial Ayanamsha Policy
 
-Sidereal and divisional data must invalidate whenever source birth data that affects astrology calculations changes.
+The initial supported sidereal calculation uses **Lahiri**.
 
-Use or extend the existing canonical astro-data recalculation token rather than inventing unrelated invalidation logic.
+Do not implement sidereal positions by subtracting a hardcoded value such as "about 24 degrees."
 
-At minimum, derived data must become stale when applicable inputs change, including:
+Ayanamsha is date-sensitive and must be calculated using the astronomical layer/Swiss Ephemeris facilities or another validated mathematically equivalent implementation.
 
-- birth date
-- birth time
-- timezone / UTC resolution
-- latitude / longitude
-- timed versus untimed chart status
-- rectification-related source data
-- configured ayanamsha
-- varga ruleset version
+Architecture should permit later alternate ayanamshas without requiring wholesale rewrites.
 
-Changing subjective metadata, notes, images, or unrelated presentation settings must not trigger sidereal/varga recomputation.
-
----
-
-## 6. Initial Ayanamsha Policy
-
-The proof of concept uses **Lahiri**.
-
-Do not implement sidereal astrology by hardcoding a fixed subtraction such as "about 24 degrees."
-
-The ayanamsha is date-sensitive and must come from the astronomical calculation layer / Swiss Ephemeris support.
-
-Architecture should allow future selectable ayanamshas without forcing the first UI to expose them.
-
-Recommended configuration object:
+Conceptual context object:
 
 ```python
 @dataclass(frozen=True)
@@ -231,62 +535,100 @@ class ZodiacContext:
     ayanamsha: str | None = None
 ```
 
-Avoid scattering ad hoc `sidereal=True` booleans through unrelated call sites.
+Avoid leaking raw `sidereal=True` booleans throughout unrelated GUI/business logic.
 
 ---
 
-## 7. Swiss Ephemeris Safety
+## 13. Swiss Ephemeris Safety
 
-The current ephemeris stack uses `pyswisseph` / Swiss Ephemeris.
+The current astronomy stack uses `pyswisseph` / Swiss Ephemeris.
 
-Swiss Ephemeris exposes sidereal calculation modes and sidereal house calculation support. Use those facilities rather than manually shifting every value unless a deliberately chosen projection strategy proves safer.
+Use Swiss Ephemeris sidereal calculation and sidereal-house facilities where appropriate rather than manually shifting values without validation.
 
-### Concurrency caveat
+### Global-state/concurrency caveat
 
-`set_sid_mode` is library/global state.
+Swiss Ephemeris `set_sid_mode` is global library state.
 
-Before allowing concurrent calculations with multiple ayanamshas or worker threads, explicitly determine whether the current calculation model can race on sidereal mode.
+Before parallel calculations, worker-thread use, or multiple ayanamshas are permitted, verify that Sidereal mode cannot race or leak into Tropical calculations.
 
-Acceptable solutions may include:
+Acceptable approaches may include:
 
-- a lock around stateful Swiss Ephemeris sidereal operations;
-- a tightly scoped calculation facade that sets and consumes sidereal mode atomically;
-- or a validated projection approach that avoids mutable global state where mathematically equivalent.
+- a lock around stateful sidereal operations;
+- a tightly scoped calculation facade that sets/consumes sidereal mode atomically;
+- a validated projection implementation that avoids mutable global state where mathematically equivalent.
 
-Do not assume this problem away.
-
-The proof of concept may use one Lahiri mode, but the production architecture must not quietly become unsafe when later parallelism or multiple ayanamshas are added.
+Tests must prove that opening/calculating Sidereal charts does not mutate subsequent Tropical results.
 
 ---
 
-## 8. Sidereal Houses and Angles Must Match the Coordinate System
+## 14. Sidereal Houses and Angles Must Match Sidereal Coordinates
 
-Never mix sidereal planets with tropical house cusps/angles and present the result as a coherent sidereal chart.
+Never combine Sidereal planets with Tropical cusps/angles and present the result as a coherent Sidereal chart.
 
-For sidereal D1:
+For Sidereal D1:
 
-- planets are sidereal;
-- Ascendant / MC must be sidereal;
-- house cusps must be sidereal;
-- any house assignments shown in analytics must use the same coordinate system.
+- planets are Sidereal;
+- Ascendant is Sidereal;
+- MC is Sidereal;
+- house cusps are Sidereal;
+- house assignments use those Sidereal cusps;
+- coordinate-derived Chart Analytics consume the same context.
 
-This must be tested explicitly.
+This must have explicit regression fixtures.
 
 ---
 
-## 9. Varga Mathematics Must Be Rule-Driven
+## 15. Divisional Charts Derive From Stored Sidereal D1
 
-Divisional charts are not all implemented correctly by a naive generic formula such as:
+D2/D3/D7/D9/D10/D12/etc. should consume the canonical stored Sidereal longitudes, not rerun full astronomy unnecessarily and not scrape a rendered D1 UI.
+
+Conceptually:
+
+```text
+parent birth data
+      |
+      v
+persisted Sidereal D1
+      |
+      +-> D2
+      +-> D3
+      +-> D7
+      +-> D9
+      +-> D10
+      `-> D12
+```
+
+D1 is special because it is a database-wide application mode and future research/predictor substrate. The divisional charts are lightweight projections of it.
+
+A small bounded memory cache for recently used D# projections is acceptable if profiling supports it.
+
+Suggested cache identity:
+
+```python
+CacheKey(
+    chart_uid,
+    sidereal_source_recalculation_token,
+    ayanamsha,
+    division,
+    varga_ruleset_version,
+)
+```
+
+Do not duplicate Observations, ABC, Material Facts, Photo Gallery, biography, tags, Traits, or other person/prediction data into this cache.
+
+---
+
+## 16. Varga Mathematics Must Be Rule-Driven
+
+Do not assume every divisional chart is correctly implemented by a generic formula such as:
 
 ```python
 degree // (30 / N)
 ```
 
-Segment boundaries are only part of the problem. Sign assignment rules differ by varga and tradition; some vargas have special mappings.
+Segment size is only part of the problem. Sign-assignment rules vary by varga/tradition, and some divisions have special mappings.
 
-Use an explicit dispatch/rule layer.
-
-Example:
+Use an explicit rules registry, for example:
 
 ```python
 VARGA_RULES = {
@@ -301,21 +643,22 @@ VARGA_RULES = {
 }
 ```
 
-Each supported division must have:
+Each supported division requires:
 
-- documented rule/tradition;
-- deterministic tests at boundaries;
-- tests for all twelve source signs where relevant;
-- exact behavior at 0 degrees and segment boundaries;
-- a versioned ruleset if future tradition choices may alter results.
+- documented tradition/rule choice;
+- deterministic tests;
+- all relevant source signs;
+- exact segment-boundary behavior;
+- values immediately below/above boundaries;
+- ruleset versioning where future tradition choices could alter results.
 
-Do not ship a generic varga calculator that is known to be wrong for special cases.
+Do not ship a generic D# calculator known to be wrong for special cases.
 
 ---
 
-## 10. Nakshatras and Padas
+## 17. Nakshatras and Padas
 
-Once sidereal longitude exists, Nakshatra support is inexpensive and should be architecturally adjacent to the sidereal layer.
+Nakshatra/pada support belongs adjacent to Sidereal D1 and should be easy to add once Sidereal longitude is authoritative.
 
 Basic geometry:
 
@@ -326,92 +669,58 @@ Basic geometry:
 1 pada = 3 degrees 20 minutes
 ```
 
-Nakshatra/pada derivation belongs to the sidereal coordinate layer rather than a tropical chart parser.
+Nakshatra/pada data should live in the Sidereal astrology domain, not be bolted into the Tropical parser.
 
-It may be deferred from the first visible POC if necessary, but the module structure should not make it difficult to add.
+It can be deferred from the first visible UI if necessary, but the sidereal schema/module design must not make it painful later.
 
 ---
 
-## 11. UI Entry Points
+## 18. UI Entry Points
 
-Users should ultimately be able to open sidereal/divisional charts through both of the following paths.
+Users should be able to access Sidereal/Jyotish views through both:
 
-### A. Chart-level button
+### A. Chart-level controls
 
-A `D[#]` / Jyotish button or control accessible from the chart UI.
+A `D[#]` / Sidereal/Jyotish button/control associated with the current chart.
 
-### B. `window_chrome` navigation
+### B. `window_chrome`
 
-A corresponding menu path for opening the same views.
+A menu path exposing Sidereal D1 and supported divisional charts.
 
-Both routes must resolve to the same underlying command/factory. Do not create separate sidereal calculation implementations for menu versus button launches.
+Both entry paths must call the same underlying service/factory.
 
 Conceptually:
 
 ```text
-D1 button
+D1 / D9 / D10 control
 or
-window_chrome -> Jyotish -> D1 Rashi
-                      -> D9 Navamsha
-                      -> D10 Dashamsha
-                            |
-                            v
-              open_sidereal_chart(parent_uid, division)
+window_chrome -> Sidereal / Jyotish -> D1 Rashi
+                                    -> D9 Navamsha
+                                    -> D10 Dashamsha
+                                           |
+                                           v
+                            open_astrology_view(chart_uid, context)
 ```
 
-The initial POC only needs D1 and D9 unless implementation testing suggests D1 alone is necessary first.
+Do not create separate calculation implementations for buttons and menus.
+
+The global Settings > Astrology mode is distinct from explicitly opening a D# projection: the setting changes the default D1 astrology lens, while D# commands request a specific divisional projection.
 
 ---
 
-## 12. Sidereal Chart Window
+## 19. Chart Editor / Context Contract
 
-The sidereal/divisional chart opens in a **read-only sidereal version of the Chart Editor window**.
+The existing Chart Editor shell should be shared rather than forked wholesale.
 
-Reuse the existing Chart Editor shell and presentation components where feasible rather than forking an unrelated second editor.
+Coordinate-aware panels should consume a chart-like astrology context rather than assuming every context is the one persisted Tropical `Chart` object.
 
-The window is chart-like, but it is not editing a persisted child chart.
-
-### Included
-
-- chart wheel / chart visualization
-- sidereal/divisional positions
-- houses and angles where valid
-- aspects where the selected analysis mode uses them
-- Chart Analytics
-- Predictions where explicitly supported by the rollout phase
-
-### Excluded
-
-- Material Facts
-- Subjective Notes / Observations
-- Photo Gallery
-- any controls that imply the D1/D9/etc. view owns separate person metadata
-- any direct editing that could make the derived chart inconsistent with its parent birth data
-
-### Read-only invariant
-
-Derived astronomical/astrological positions in a D1/D9/etc. window are read-only.
-
-A user must not be able to drag or directly edit "D9 Mars" independently of the parent chart, because the D9 value is determined by the source birth data.
-
-A possible later feature may explicitly offer:
-
-```text
-Create hypothetical chart from this view
-```
-
-That would create a separate intentionally editable hypothetical chart. It is **not** part of the initial rollout.
-
----
-
-## 13. Chart-Like Interface / Context Contract
-
-Existing panels should gradually depend on a chart-data interface or protocol rather than requiring a fully persisted `Chart` entity.
-
-Suggested conceptual protocol:
+Conceptual protocol:
 
 ```python
-class ChartContext(Protocol):
+class AstrologyChartContext(Protocol):
+    chart_uid: str
+    zodiac: str
+    division: str
     positions: Mapping[str, float]
     houses: Sequence[float] | None
     aspects: Sequence[Aspect]
@@ -419,209 +728,252 @@ class ChartContext(Protocol):
     use_birth_time_data: bool
 ```
 
-Likely consumers may then accept:
+Potential providers:
 
 ```text
-Chart
-HypotheticalChart
-SiderealD1View
+TropicalD1Context
+SiderealD1Context
 VargaChartView
+HypotheticalChartContext
 ```
 
-without pretending all of them have persistence, notes, traits, photos, relationships, or identities of their own.
+This does **not** mean person-level panels become duplicated context data. They should continue to address the underlying `chart_uid` and shared person repositories.
 
-Do not force the entire existing `Chart` class to become the backing object for every derived projection if a lightweight context object suffices.
+### Coordinate editing
+
+Sidereal D1 and D# positions are derived from parent birth data and must not be independently drag-edited into incoherence.
+
+If EphemeralDaddy eventually offers an explicit "Create hypothetical from this view" action, that is a separate new chart workflow, not ordinary Sidereal editing.
 
 ---
 
-## 14. Chart Analytics Policy
+## 20. Divisional-Chart Window Behavior
 
-The sidereal Chart Editor **will** include Chart Analytics.
+Divisional charts are nested alternate chart views, not persisted people.
 
-For the POC, existing analytics may be wired to the sidereal/varga positions where mechanically valid.
+They may reuse the Sidereal Chart Editor shell, but their astrology coordinates are read-only projections.
 
-Examples that are straightforward to recompute against an alternate chart context include:
+If shared person-level panels are displayed in a D# view, they must still point to the same parent `chart_uid` and must never become D#-specific copies.
 
-- sign prevalence
-- element prevalence
-- modality prevalence
-- house prevalence
-- quadrant counts / percentages
-- aspect counts
-- aspect patterns
-- other position/aspect-based analytics that do not depend on person metadata
+The initial D# surface should prioritize:
 
-### Critical semantic rule
+- chart visualization;
+- projected positions;
+- valid angles/houses where methodology and birth-time quality support them;
+- Chart Analytics where the chosen ED algorithms are mechanically meaningful;
+- explicit Sidereal/Lahiri/D# labeling.
 
-Existing EphemeralDaddy calculations remain **EphemeralDaddy / Western-style analytics applied to sidereal coordinates** unless and until a Jyotish-specific implementation exists.
-
-For example, existing dominance calculations may be useful and experimentally interesting on a sidereal chart, but they must not be relabeled as canonical Jyotish dominance.
-
-Likewise:
-
-- ED aspects are not automatically Jyotish drishti;
-- ED aspect patterns are not automatically Jyotish yogas;
-- Western dignity/dispositor logic is not automatically a Jyotish dignity system.
-
-Where ambiguity exists, surface the analysis framework in the UI and export metadata.
-
-A later evolution may offer:
-
-```text
-Analysis framework:
-(*) EphemeralDaddy
-( ) Jyotish
-```
-
-but the initial feature does not need a complete second analysis engine.
+Current Tropical Predictions remain unavailable in D# views.
 
 ---
 
-## 15. Predictions Policy
+## 21. Birth-Time Quality and Untimed Charts
 
-Predictions are the area requiring the strongest rollout gate.
+Divisional angles can be more birth-time-sensitive than ordinary D1 planetary placements.
 
-### D1 sidereal
+For example, D9 divides each 30-degree sign into 3 degree 20 minute sections, so modest Ascendant movement near a boundary can change Navamsha Lagna.
 
-D1 sidereal Predictions are mechanically plausible because natal and transit coordinates can both be calculated consistently in the sidereal system.
-
-Many pure planet-to-planet angular separations remain invariant under a uniform zodiac offset, while the following can change materially:
-
-- sign
-- sign ruler / dispositor
-- house
-- house ruler
-- ingress timing / sign context
-- Nakshatra
-- other sign- or house-dependent interpretation
-
-Therefore D1 Predictions may be enabled after explicit validation that all participating inputs use the same coordinate system and no tropical-only assumptions leak into the presentation or interpretation.
-
-### Divisional-chart predictions
-
-Do **not** automatically point the existing Predictions engine at D9/D10/etc. and declare the result valid.
-
-Questions such as whether to:
-
-```text
-natal D9
-vs.
-transiting planets transformed into D9
-```
-
-are astrological-framework decisions, not simple wiring tasks.
-
-Initial mandate:
-
-```text
-D1 sidereal: Predictions eligible after validation
-D9+ vargas: Predictions disabled or clearly experimental until methodology is deliberately chosen
-```
-
-Do not block the entire sidereal/varga POC on solving a complete Jyotish predictive system.
-
----
-
-## 16. Birth-Time Quality and Untimed Charts
-
-Birth-time uncertainty matters more strongly for divisional angles/houses than for ordinary D1 planetary placements.
-
-D9 divides each 30-degree sign into 3 degree 20 minute sections. Small Ascendant movement can therefore change the Navamsha Lagna near a boundary.
-
-Respect EphemeralDaddy's existing birth-time reliability rules.
+Respect existing ED timing-quality rules.
 
 Recommended behavior:
 
 ```text
 Reliable known birth time
-    -> planetary varga positions
-    -> divisional Ascendant
-    -> divisional houses where methodology supports them
+    -> Sidereal/D# planetary positions
+    -> Sidereal/D# Ascendant when methodology supports it
+    -> houses when methodology supports them
 
 Unknown / unusable birth time
-    -> planetary varga positions may still be available
-    -> divisional Ascendant unavailable
-    -> divisional houses unavailable
+    -> planetary Sidereal/D# positions may remain available
+    -> angles unavailable
+    -> houses unavailable
 
 Rectified / uncertain range
-    -> do not present a single fragile divisional Ascendant as certain
+    -> do not present a fragile single D# Lagna as certain
 ```
 
-Any UI suppression rules already used by tropical Chart Analytics for untimed charts should be reused or generalized, not reimplemented independently.
+The Time Sensitivity panel should make such instability inspectable rather than hiding it.
 
 ---
 
-## 17. Performance Mandate
+## 22. Performance Mandate
 
-The varga arithmetic itself is cheap.
+The main risk is not the arithmetic. It is accidentally making every Sidereal or D# request trigger the entire application graph.
 
-The main performance risk is accidentally triggering every downstream subsystem whenever a derived view is opened.
-
-Avoid chains such as:
+Avoid:
 
 ```text
-calculate D9
- -> construct full persisted Chart
- -> calculate all aspects
- -> calculate dominance
- -> calculate all patterns
- -> calculate all interpretations
- -> run predictions
- -> update rankings/indexes
- -> write database
- -> refresh unrelated UI
+open D9
+ -> construct another full persisted Chart
+ -> duplicate person data
+ -> calculate every analysis
+ -> run Tropical Predictions
+ -> update rankings
+ -> update Trait indexes
+ -> write database child record
+ -> refresh unrelated windows
 ```
 
-Instead:
+### Rule 1: Sidereal D1 is persisted once, refreshed only when stale
 
-### Rule 1: Coordinates are lazy
+Normal use should read the stored Sidereal D1 row rather than recalculate it on every panel access.
 
-Opening D9 calculates D9.
+### Rule 2: D# projections are lazy
 
-Opening D10 calculates D10.
+Opening D9 calculates D9. It must not precompute D2-D8 or all traditional vargas.
 
-Opening D9 must not eagerly construct D2 through D8.
+### Rule 3: Analyses are lazy
 
-### Rule 2: Analyses are independently lazy
+Only derive analytics needed by visible panels or explicit research operations.
 
-Only calculate analytics needed by visible panels or explicit research operations.
+### Rule 4: Shared panels do not duplicate storage
 
-### Rule 3: Persistence is minimal
+Observations/ABC/Material Facts/Photo Gallery are read/written through their existing shared parent repositories.
 
-No child-chart database row is required merely to display a varga.
+### Rule 5: Derived views do not pollute person indexes
 
-### Rule 4: No ranking/index pollution
+D9 etc. do not become extra rows in chart lists, normal database chart counts, relationship graphs, backups, person search, or ordinary rankings as separate people.
 
-Derived views must not automatically appear in ordinary database chart counts, Rankings, search results, chart pickers, trait indexes, relationship graphs, or backup manifests as if they were people.
+### Rule 6: Add query/index optimization only where measurement supports it
 
-### Rule 5: Measure before caching broadly
+The Sidereal table should be queryable efficiently, but do not serialize an enormous precomputed "every possible Sidereal research property" blob merely because future research may use it.
 
-A compact D1 cache is allowed, but do not precompute every chart's every varga merely because it is possible.
-
----
-
-## 18. Export Rules
-
-Any export initiated from a sidereal/divisional view must identify its coordinate context.
-
-At minimum, exported chart or analytics data should be capable of distinguishing:
-
-- parent chart UID / identity reference
-- sidereal versus tropical
-- ayanamsha
-- division (`D1`, `D9`, etc.)
-- analysis framework when relevant
-- calculation / ruleset version when required for reproducibility
-
-Do not export a D9 analytics table in a format indistinguishable from the parent tropical chart's analytics.
-
-Existing export/share behavior should otherwise be reused where possible.
+Add derived/indexed research representations intentionally if profiling shows database-wide Sidereal queries need them.
 
 ---
 
-## 19. Proposed Core Modules
+## 23. Future Sidereal Trait / Research Architecture
 
-Prefer isolated pure calculation modules over adding dozens of sidereal/varga branches to the monolithic GUI layer.
+Persisted Sidereal D1 enables a future predictor layer without another chart corpus.
+
+Example research flow:
+
+```text
+Trait being modeled
+    |
+charts carrying relevant training/outcome labels
+    |
+join by chart_uid
+    |
+sidereal_chart_data
+    |
+search recurring Sidereal properties
+```
+
+The sidereal table itself is the snapshot of each chart's Sidereal state.
+
+There is no need to persist another "Sidereal Trait chart" for each person merely to determine whether database charts match Sidereal properties.
+
+If performance later requires a compact feature vector/index, derive it from `sidereal_chart_data` and version/invalidate it independently.
+
+### Controlled framework comparison
+
+Keeping shared observed person outcomes separate from astrology-specific predictors creates a useful testbed:
+
+```text
+same people
+same observations/tags/outcomes
+same chart_uid set
+
+Tropical predictors  vs.  Sidereal predictors
+```
+
+This allows future research to test whether Sidereal properties add signal rather than changing the labels to fit the framework.
+
+---
+
+## 24. Astro Twin Experimental Program
+
+The Astro Twin experiment remains a useful early research/validation surface.
+
+Once Sidereal D1 records exist, comparisons can operate directly from persisted Sidereal vectors instead of recalculating all D1s every run.
+
+Support at least these conceptual modes:
+
+### A. Sidereal D1 -> Sidereal D1
+
+Baseline Sidereal Astro Twin.
+
+### B. D9 -> D9
+
+Derive subject D9 and comparison D9s from stored Sidereal D1 records.
+
+Question:
+
+> Who has a Navamsha most structurally similar to this person's Navamsha?
+
+### C. D9 -> Sidereal D1
+
+Compare a subject's derived D9 against comparison charts' **Sidereal D1**, never Tropical D1.
+
+Question:
+
+> Whose ordinary Sidereal natal structure most resembles this person's Navamsha?
+
+### Coordinate consistency
+
+Do not compare:
+
+```text
+Alice D9 Sidereal
+vs.
+Bob Tropical D1
+```
+
+and treat the result as a clean same-coordinate comparison.
+
+### Reuse current Astro Twin logic
+
+Before implementation, inspect the production Astro Twin similarity metric, feature vector, filters, weights, and ranking behavior on the active branch. Do not reconstruct an assumed algorithm from memory.
+
+If Astro Twin is tightly coupled to persisted Tropical `Chart` objects, refactor the comparison seam to accept an astrology context/vector rather than creating fake D# chart rows.
+
+---
+
+## 25. Astro Twin Statistical Controls
+
+A ~3,000-chart database will always produce a nearest neighbor. A striking match is not evidence by itself.
+
+D9 is also mathematically derived from D1 and therefore not independent of natal structure.
+
+Recommended evaluation:
+
+1. Choose a subject.
+2. Calculate the best astrology-only D9->D1 or D9->D9 match before inspecting held-out outcomes.
+3. Evaluate held-out person-level data after the match is fixed.
+4. Compare with Tropical D1->D1 and Sidereal D1->D1 baselines.
+5. Compare against random controls.
+6. Compare against shuffled/permuted D9 assignments or another null model.
+7. Repeat across enough subjects to avoid anecdotal cherry-picking.
+
+Held-out evaluation may use appropriate existing person-level labels/metadata that were not consumed by the astrology similarity metric.
+
+The POC is informative even though Sidereal D1 persistence is already mandated: it helps determine whether deeper varga product investment and Sidereal predictor research are worthwhile.
+
+---
+
+## 26. Export Rules
+
+Exports must identify their astrology context.
+
+Sidereal/divisional exports should be capable of recording:
+
+- parent `chart_uid` / identity reference;
+- Tropical vs. Sidereal;
+- ayanamsha;
+- division (`D1`, `D9`, etc.);
+- analysis framework where relevant;
+- calculation/ruleset version when required for reproducibility.
+
+Do not export a D9 analytics result in a form indistinguishable from the parent's Tropical analytics.
+
+Shared person data included in exports remains parent-chart data, not copied D# ownership.
+
+---
+
+## 27. Proposed Core Modules
+
+Prefer isolated calculation/domain modules rather than scattering Sidereal branches through the GUI.
 
 Suggested organization:
 
@@ -638,363 +990,97 @@ ephemeraldaddy/core/
 
 Responsibilities may include:
 
-- zodiac/ayanamsha context
-- Lahiri D1 projection
-- sidereal angles/houses facade
-- Nakshatra/pada derivation
-- calculation token / cache-key support
-- no GUI responsibilities
+- zodiac/ayanamsha context;
+- Lahiri D1 calculation;
+- Sidereal angles/houses facade;
+- Nakshatra/pada derivation;
+- calculation provenance/token support;
+- no GUI responsibilities.
 
 ### `vargas.py`
 
 Responsibilities may include:
 
-- explicit supported varga rule registry
-- pure longitude-to-varga transformations
-- named division metadata
-- ruleset versioning
-- boundary-safe tests
-- no database writes
-- no GUI responsibilities
+- explicit varga rule registry;
+- pure longitude-to-varga transforms;
+- division names/metadata;
+- ruleset versioning;
+- boundary-safe tests;
+- no person-data writes;
+- no GUI responsibilities.
 
-Keep both modules usable by research code without instantiating windows.
+### Persistence/repository layer
 
----
+Use the existing refactor's repository/data-access pattern for:
 
-## 20. Proof of Concept Must Come Before Broad Rollout
+- `sidereal_chart_data` reads/writes;
+- stale-record detection;
+- batch creation/backfill;
+- parent deletion cleanup;
+- migrations.
 
-The first implementation should answer three questions:
-
-1. Are the sidereal and D9 calculations correct?
-2. What is the actual performance cost over the current ~3,000-chart database?
-3. Does divisional-chart matching produce anything empirically interesting enough to justify first-class UI and further Jyotish work?
-
-### POC deliverables
-
-Implement production-quality primitives for:
-
-```text
-Lahiri sidereal D1
-D9 Navamsha
-```
-
-Then provide a lightweight read-only sidereal chart view capable of opening at least:
-
-```text
-D1
-D9
-```
-
-and an isolated research harness for Astro Twin experiments.
-
-No database migration is required for the POC.
-
-No precomputation of all vargas is required.
-
-No complete Jyotish interpretation engine is required.
-
-No complete Jyotish prediction engine is required.
+Do not make calculation modules directly own SQLite/DB writes if current architecture already separates those concerns.
 
 ---
 
-## 21. Astro Twin Experiment
+## 28. Migration / Backfill Logistics
 
-The Astro Twin system is the preferred early validation surface because EphemeralDaddy already has a large enough chart database to test whether divisional similarity is producing nontrivial structure.
+Because Sidereal D1 is now a persistent first-class data domain, production rollout requires a schema migration/backfill plan.
 
-The POC should support at least three experiment modes.
+### Migration requirements
 
-### A. D1 -> D1
+- create the Sidereal D1 table/domain;
+- key each row by existing `chart_uid`;
+- enforce one Sidereal D1 row per chart per supported persisted context (initially Lahiri);
+- preserve parent deletion/integrity behavior;
+- ensure backups include the Sidereal table;
+- ensure restoring old databases can create/backfill the missing Sidereal table safely.
 
-Baseline comparison using sidereal D1 against sidereal D1.
+### Backfill requirements
 
-### B. D9 -> D9
+Existing ~3,000 charts will need Sidereal D1 data.
 
-Compare a subject's Navamsha against every comparison chart's Navamsha.
+Do not make application startup recalculate all charts synchronously every time.
 
-Interpretation question:
+Choose an explicit one-time/lazy migration strategy consistent with current ED migration conventions. Acceptable patterns include:
 
-> Who has a Navamsha most structurally similar to this person's Navamsha?
+- one-time background/batched backfill with progress;
+- migration-time batch generation if measured fast and safe;
+- lazy per-chart generation plus a deliberate database-wide backfill command for research readiness.
 
-### C. D9 -> D1
+Whatever strategy is selected must be resumable/idempotent enough that interruption does not corrupt parent charts or duplicate rows.
 
-Compare a subject's Navamsha against comparison charts' **sidereal D1**, not their stored tropical D1.
-
-Interpretation question:
-
-> Whose ordinary sidereal natal structure most resembles this person's Navamsha?
-
-This is likely the stranger and potentially more informative experiment.
-
-### Coordinate consistency is mandatory
-
-Do not compare:
-
-```text
-Alice D9 sidereal
-vs.
-Bob tropical D1
-```
-
-and treat the result as meaningful. The ayanamsha offset would contaminate the comparison metric.
-
-Correct concept:
-
-```text
-~3,000 persisted parent charts
-    -> derive ~3,000 Lahiri D1 vectors in memory
-    -> derive subject D9
-    -> run nearest-neighbor comparison
-    -> retain only results / discard temporary vectors as appropriate
-```
-
-No new persisted chart rows are necessary.
+The Sidereal table should record calculation version/token so future algorithm updates can invalidate/backfill safely.
 
 ---
 
-## 22. Astro Twin Statistical Controls
+## 29. Refresh and State Isolation
 
-A database of ~3,000 charts will always produce a nearest neighbor. A striking nearest neighbor alone is not evidence that the D9 experiment has explanatory validity.
-
-Also, D9 is mathematically derived from D1; it is not statistically independent of the natal chart.
-
-Therefore the experimental evaluation must include controls.
-
-### Recommended validation sequence
-
-1. Select a subject.
-2. Calculate the best astrology-only D9 -> D1 or D9 -> D9 match without inspecting subjective outcome data.
-3. After the match is fixed, evaluate held-out non-astrological information where available.
-4. Compare against the subject's ordinary D1 -> D1 Astro Twin.
-5. Compare against random controls.
-6. Compare against shuffled/permuted D9 assignments or another suitable null model.
-7. Repeat across enough subjects to determine whether any observed relationship survives anecdotal selection.
-
-Potential held-out dimensions may include existing database information such as:
-
-- traits
-- MBTI
-- Enneagram
-- sentiments / subjective assessments
-- similarity observations
-- relationship patterns
-- other non-astrological labels already available to research tooling
-
-The astrology similarity metric must not directly consume the same held-out labels used to evaluate whether the match is interesting.
-
-### Success criterion
-
-The experiment becomes evidence for deeper rollout only if D9-derived matching consistently outperforms reasonable controls or reveals stable, interpretable structure across a meaningful sample—not because one celebrity pair looks compelling.
-
----
-
-## 23. POC Should Reuse Current Astro Twin Logic, Not Guess It
-
-Before implementing research comparison, inspect the current Astro Twin code path on the active branch and identify its actual similarity metric, filters, feature vector, weighting, and ranking behavior.
-
-Do not recreate an assumed "Astro Twin" algorithm from memory or documentation if production code differs.
-
-The D1/D9 experimental modes should reuse or explicitly adapt the current similarity machinery so that baseline comparisons remain interpretable.
-
-If the existing Astro Twin code is tightly coupled to persisted `Chart` objects, refactor the comparison boundary toward a lightweight chart-context/vector input rather than persisting derived charts merely to satisfy the current API.
-
----
-
-## 24. Rollout Phases
-
-### Phase 0 — Inspection and contracts
-
-Before code changes:
-
-- locate current ephemeris and house calculation seams;
-- inspect current Chart / ASTRO_DATA ownership after the ongoing refactor;
-- inspect current Astro Twin implementation;
-- inspect current Chart Editor panel dependencies;
-- identify any code that assumes every chart-like object has a UID/database row;
-- document Swiss Ephemeris sidereal state/concurrency handling;
-- choose authoritative D9 rule references and expected test vectors.
-
-No UI work should precede this inspection if it would force incorrect data contracts.
-
-### Phase 1 — Pure calculation POC
-
-Implement:
-
-- `ZodiacContext` or equivalent;
-- Lahiri sidereal planetary positions;
-- sidereal angles/houses where birth time is valid;
-- D9 calculation from sidereal longitudes;
-- unit tests and known external comparison fixtures;
-- in-memory batch derivation for research.
-
-No database schema migration.
-
-### Phase 2 — Astro Twin validation
-
-Implement research-only or developer-facing modes:
-
-- sidereal D1 -> D1;
-- D9 -> D9;
-- D9 -> sidereal D1;
-- baseline / random / shuffled controls;
-- timing measurements over the existing database.
-
-Use results to decide whether broad divisional-chart UX is justified.
-
-### Phase 3 — Read-only Sidereal Chart window
-
-If Phase 1 calculations are verified, add the read-only chart view.
-
-Initially expose:
-
-- D1
-- D9
-- standard chart visualization
-- valid positions/houses/aspects
-- Chart Analytics wired to the derived chart context
-- explicit Sidereal / Lahiri / D# labeling
-
-Exclude person-editing panels.
-
-### Phase 4 — D1 Predictions validation
-
-Only after coordinate plumbing is proven:
-
-- wire D1 sidereal natal data to compatible Predictions calculations;
-- ensure sidereal transit context is consistent;
-- audit sign-, ruler-, house-, ingress-, and interpretation-dependent logic;
-- label output clearly.
-
-D9+ Predictions remain gated.
-
-### Phase 5 — Additional vargas
-
-Add divisions individually through tested explicit rules.
-
-Likely candidates:
-
-```text
-D2
-D3
-D7
-D10
-D12
-```
-
-Do not bulk-enable every traditional varga merely because a generic function can emit numbers.
-
-### Phase 6 — Jyotish-native analysis, only if warranted
-
-Potential future systems include:
-
-- drishti
-- yogas
-- dashas
-- Jyotish dignity systems
-- varga strength/dignity analysis
-- Shadbala
-- Ashtakavarga
-- functional benefic/malefic logic
-- other tradition-specific interpretation layers
-
-These are a separate project tier and must not be smuggled into the basic sidereal-coordinate rollout.
-
----
-
-## 25. Testing Mandate
-
-### Sidereal calculation tests
-
-Verify against trusted external/reference calculations for multiple dates, locations, and planets.
-
-Test:
-
-- dates far apart in time so ayanamsha drift is exercised;
-- sign-boundary cases;
-- retrograde bodies;
-- Ascendant / MC;
-- house cusps;
-- timed and untimed charts;
-- timezone/UTC conversion behavior.
-
-### Varga tests
-
-For every supported varga:
-
-- all source signs as applicable;
-- every segment transition;
-- exact boundary behavior;
-- values immediately below and above boundaries;
-- wraparound near 0 / 360 degrees;
-- known published/reference examples.
-
-Floating-point comparisons must have explicit tolerances and must not cause random segment flips near mathematically exact boundaries.
-
-### Regression tests
-
-Tropical calculations must remain byte-for-byte or tolerance-equivalent to pre-feature behavior where the feature is not selected.
-
-Opening a sidereal chart must not mutate global tropical calculation state.
-
-Opening D9 must not alter the parent chart's persisted positions.
-
-Closing a sidereal window must not write a new chart row.
-
-Database chart counts must remain unchanged after browsing derived charts.
-
-### UI tests
-
-Verify:
-
-- both entry points open the same derived mode;
-- correct parent identity is displayed;
-- Material Facts is absent;
-- Subjective Notes/Observations is absent;
-- Photo Gallery is absent;
-- edit controls cannot mutate derived coordinates;
-- untimed charts suppress invalid angles/houses;
-- D1/D9 labels and Lahiri context remain visible;
-- analytics refresh against the derived context rather than stale tropical data;
-- switching divisions does not leak the previous division's analytics.
-
-### Performance tests
-
-Measure at least:
-
-- single-chart D1 generation;
-- single-chart D9 generation;
-- batch sidereal D1 for the full current database;
-- batch D9 for the full current database where needed for research;
-- Astro Twin comparison runtime;
-- memory footprint before/after batch research;
-- UI open/switch latency.
-
-Use measurements to determine whether any persistence/cache beyond lightweight D1 data is justified.
-
----
-
-## 26. Refresh and State Isolation
-
-Sidereal/divisional refresh behavior must be scoped to the active derived view.
+Refresh logic must respect both the shared parent identity and separate astrology contexts.
 
 Examples:
 
-- editing the parent birth data should invalidate the open derived chart and refresh it;
-- switching D9 -> D1 should refresh analytics using D1 context;
-- a tropical Chart Editor refresh must not accidentally consume cached D9 data;
-- a D9 analytics refresh must not overwrite the parent tropical chart's persisted analytics;
-- closing the derived window must not trigger an unnecessary database save of calculated child state.
+- editing birth data invalidates both affected Tropical derived data and the Sidereal D1 row;
+- editing an Observation updates both open Chart Editor modes immediately/at normal shared-data refresh boundaries without recalculating astrology;
+- adding/removing a Photo Gallery item is visible in both modes without recalculating Sidereal data;
+- switching Tropical -> Sidereal swaps Chart Analytics and Time Sensitivity to Sidereal context;
+- switching Sidereal -> Tropical restores Tropical context;
+- Sidereal refresh must not overwrite Tropical ASTRO_DATA;
+- D9 refresh must not write D9 as a new chart row;
+- opening/closing a D# view must not change the database person count;
+- a stale Sidereal row must be rebuilt before being used for analysis/research.
 
-Prefer immutable derived-data objects where practical.
+Prefer immutable calculated Sidereal/D# data objects where practical.
 
 ---
 
-## 27. Relationship to Existing Human Design and BaZi Support
+## 30. Relationship to Human Design and BaZi
 
-Human Design and BaZi demonstrate that EphemeralDaddy can expose multiple metaphysical systems from one person/chart record.
+Human Design and BaZi demonstrate that one person/chart record can support multiple metaphysical systems.
 
-They are **not**, by themselves, proof that the current flat `Chart` object is the correct place to store every field of every future system.
+They do **not** justify flattening every future system into hundreds of fields on the parent `Chart` object.
 
-Do not extend the current pattern by adding fields such as:
+Do not add:
 
 ```text
 d2_positions
@@ -1004,112 +1090,350 @@ d10_positions
 ...
 ```
 
-to every persisted `Chart`.
+to every persisted parent chart.
 
-The sidereal/varga rollout should improve system boundaries rather than make the parent chart object an ever-larger warehouse.
+Likewise, do not treat existing Tropical Traits as automatically Sidereal simply because Traits already accept HD/BaZi predictors.
 
----
-
-## 28. Relationship to Draconic Support
-
-Draconic calculation is an existing conceptual precedent for alternate coordinate projections derived from canonical chart data.
-
-Reuse lessons from its separation of canonical positions versus transformed positions where appropriate.
-
-However, do not force sidereal/varga behavior through draconic code if the underlying astronomy, houses, caching, or context requirements differ.
-
-The reusable idea is the **projection boundary**, not necessarily the exact implementation.
+A future Sidereal predictor family should be explicit and data-driven.
 
 ---
 
-## 29. What Must Not Happen
+## 31. Relationship to Draconic Support
 
-The following approaches are explicitly rejected unless this mandate is deliberately revised.
+Draconic calculation is a useful precedent for alternate coordinate projections from canonical chart data.
 
-### Do not:
+Reuse the architectural lesson that transformed coordinates should have a clean projection boundary.
 
-- create one database `Chart` row per varga;
-- assign new chart UIDs to D1/D9/etc.;
-- copy Material Facts, Notes, Photo Gallery, traits, relationships, or biography into derived views;
-- eagerly calculate every varga for every stored chart at startup;
-- persist huge nested derived structures without profiling evidence;
-- mix tropical houses with sidereal planets;
-- hardcode a constant ayanamsha subtraction;
-- assume all vargas use the same generic mapping rule;
-- silently label Western analytics as Jyotish analytics;
-- silently enable D9 Predictions without choosing a methodology;
-- compare D9 sidereal against tropical D1 in Astro Twin research;
-- include derived charts in ordinary database rankings/search/chart counts as people;
-- allow read-only derived positions to become independently editable;
-- let Swiss Ephemeris sidereal global state leak across unrelated calculations;
-- fork a second complete Chart Editor implementation when a shared chart-context shell will suffice;
-- block the POC on implementing the entire Jyotish tradition.
+Do not force Sidereal/varga logic through Draconic code if the astronomy, houses, persistence, caching, or context requirements differ.
+
+Sidereal D1 is more substantial than a purely transient projection because it is now a persisted application-wide coordinate representation and future research substrate.
 
 ---
 
-## 30. Decision Gates
+## 32. POC / Rollout Phases
+
+### Phase 0 — Inspection and contracts
+
+Before broad code changes:
+
+- inspect current `Chart`, ASTRO_DATA, repository, and migration ownership on `oh-lawdy-we-still-refactoring!`;
+- inspect current ephemeris/house seams;
+- inspect Chart Editor panel dependencies;
+- inspect Settings > Astrology flow;
+- inspect current Astro Twin implementation;
+- locate code that assumes all astrology data is Tropical;
+- locate code that assumes every chart-like object is a persisted person;
+- document Swiss Ephemeris Sidereal global-state handling;
+- select authoritative D9 test vectors/rule references.
+
+### Phase 1 — Pure calculation POC
+
+Implement/test production-quality primitives for:
+
+- Lahiri Sidereal D1;
+- Sidereal houses/angles where timed data is valid;
+- D9 from Sidereal longitudes;
+- calculation provenance/tokening;
+- external-reference fixtures.
+
+This phase may operate in memory while mathematics is being verified.
+
+### Phase 2 — Persisted Sidereal D1
+
+Implement:
+
+- Sidereal table migration;
+- `chart_uid` linkage;
+- stale-row detection;
+- write/read repository/service;
+- initial backfill strategy;
+- Lahiri context/version metadata.
+
+This is the target architecture, not an optional optimization.
+
+### Phase 3 — Sidereal Chart Editor mode
+
+Wire the shared Chart Editor shell so Sidereal mode provides:
+
+- Sidereal chart visualization/positions;
+- Sidereal Chart Analytics;
+- shared Observations;
+- shared ABC;
+- shared Material Facts;
+- Sidereal Time Sensitivity;
+- shared Photo Gallery;
+- **no Predictions panel**.
+
+Verify edits to shared panels propagate across both modes because they address the same `chart_uid`.
+
+### Phase 4 — Global Settings mode
+
+Expose/complete:
+
+```text
+Settings > Astrology > Tropical / Sidereal
+```
+
+and ensure coordinate-aware surfaces use the active context without mutating the other representation.
+
+### Phase 5 — Astro Twin / research validation
+
+Implement/reuse:
+
+- Sidereal D1->D1;
+- D9->D9;
+- D9->Sidereal D1;
+- baseline/random/shuffled controls;
+- batch performance measurements.
+
+### Phase 6 — Additional vargas
+
+Add tested divisions one at a time, likely beginning with:
+
+```text
+D2
+D3
+D7
+D10
+D12
+```
+
+Do not bulk-enable every varga through an unvalidated generic mapper.
+
+### Phase 7 — Future Sidereal Predictions, only if deliberately approved
+
+Possible future work:
+
+- Sidereal predictor properties for Traits;
+- dedicated Sidereal Predictions UI;
+- Sidereal research indexes/feature vectors;
+- Nakshatra-based predictor support;
+- explicit interaction with HD/BaZi predictor families.
+
+This requires a separate design/validation decision.
+
+### Phase 8 — Jyotish-native systems, only if warranted
+
+Potential future systems include:
+
+- drishti;
+- yogas;
+- dashas;
+- Jyotish dignity/strength rules;
+- varga dignity/strength;
+- Shadbala;
+- Ashtakavarga;
+- functional benefic/malefic logic;
+- other tradition-specific interpretation layers.
+
+These are not prerequisites for Sidereal D1 or basic divisional-chart support.
+
+---
+
+## 33. Testing Mandate
+
+### Sidereal astronomy tests
+
+Verify against trusted external/reference charts for multiple dates and locations.
+
+Test:
+
+- dates far apart enough to exercise ayanamsha drift;
+- sign-boundary cases;
+- retrograde bodies;
+- Ascendant/MC;
+- house cusps;
+- timed/untimed charts;
+- timezone/UTC conversion behavior;
+- Lahiri provenance/versioning.
+
+### Varga tests
+
+For every supported D#:
+
+- all relevant source signs;
+- every segment transition;
+- exact boundary behavior;
+- values immediately below/above boundaries;
+- wraparound at 0/360;
+- known reference examples;
+- explicit floating-point tolerances.
+
+### Persistence tests
+
+Verify:
+
+- one Sidereal row per intended `chart_uid`/context;
+- parent deletion does not orphan corrupt data;
+- birth-data changes invalidate stale Sidereal rows;
+- shared-person edits do not invalidate Sidereal rows;
+- migrations are idempotent/resumable as designed;
+- backup/restore includes Sidereal data;
+- old databases upgrade safely.
+
+### Tropical regression tests
+
+When Tropical mode is active, existing Tropical calculations and Predictions must remain equivalent to pre-feature behavior.
+
+Opening/calculating Sidereal data must not leak Swiss Ephemeris state into later Tropical results.
+
+### Chart Editor UI tests
+
+Tropical mode must show:
+
+- Tropical Chart Analytics;
+- Tropical Predictions;
+- Observations;
+- ABC;
+- Material Facts;
+- Tropical Time Sensitivity;
+- Photo Gallery.
+
+Sidereal mode must show:
+
+- Sidereal Chart Analytics;
+- Observations;
+- ABC;
+- Material Facts;
+- Sidereal Time Sensitivity;
+- Photo Gallery;
+- **no Predictions panel**.
+
+Verify shared-panel edits from either mode are visible in the other mode.
+
+Verify Sidereal Chart Analytics/Time Sensitivity never display stale Tropical results.
+
+### Divisional UI tests
+
+Verify:
+
+- D# views identify Sidereal/Lahiri/division clearly;
+- derived coordinates are not independently editable;
+- untimed restrictions are honored;
+- changing D# refreshes analytics to the new projection;
+- D# views never create person rows/UIDs;
+- shared panels, if displayed, still edit the parent `chart_uid`.
+
+### Performance tests
+
+Measure:
+
+- single-chart Sidereal D1 calculation;
+- single Sidereal D1 database read;
+- initial ~3,000-chart backfill;
+- D9 derivation;
+- batch D9 derivation where research requires it;
+- Sidereal Astro Twin runtime;
+- memory footprint of batch research;
+- Tropical/Sidereal mode-switch latency;
+- Chart Editor open/refresh latency.
+
+Use measurements before adding additional denormalized/indexed research storage.
+
+---
+
+## 34. Explicitly Rejected Approaches
+
+Unless this mandate is deliberately revised, do **not**:
+
+- create a second physical database merely for Sidereal data;
+- create a second person/chart UID for Sidereal D1;
+- create persisted chart entities for every varga;
+- duplicate Observations between Tropical/Sidereal views;
+- duplicate ABC data between Tropical/Sidereal views;
+- duplicate Material Facts between Tropical/Sidereal views;
+- duplicate Photo Gallery data between Tropical/Sidereal views;
+- call observed tags "Traits" in implementation/design discussion;
+- show the existing Tropical Predictions/Traits panel in Sidereal mode;
+- silently feed Sidereal placements into Tropical Predictions and call it Sidereal prediction;
+- treat current Tropical Trait predictors as coordinate-neutral;
+- eagerly calculate all vargas for all charts at startup;
+- hardcode a constant ayanamsha shift;
+- mix Tropical houses/angles with Sidereal planets;
+- assume every varga uses one generic mapping formula;
+- label ED Western analytics as canonical Jyotish analytics;
+- compare D9 Sidereal against Tropical D1 as a same-coordinate Astro Twin experiment;
+- include D# projections in normal person counts/search/relationship graphs as extra people;
+- allow D# coordinates to become independently editable;
+- permit Swiss Ephemeris Sidereal global state to contaminate Tropical calculations;
+- fork an entirely separate Chart Editor when shared shell/context routing is sufficient;
+- block basic Sidereal support on implementing the full Jyotish tradition.
+
+---
+
+## 35. Decision Gates
 
 ### Gate A — Calculation correctness
 
-Do trusted reference charts agree for Lahiri D1 and D9?
+Lahiri D1 and D9 must agree with trusted references before broad UI exposure.
 
-If not, stop and fix mathematics before UX work expands.
+### Gate B — Persistence/invalidation correctness
 
-### Gate B — Performance
+The Sidereal table must remain synchronized to source birth data through deterministic invalidation, without creating duplicate person identities.
 
-Can the current database derive research vectors at acceptable runtime/memory cost without persistence explosion?
+### Gate C — UI/context isolation
 
-If not, optimize/calculate lazily before schema expansion.
+Tropical and Sidereal Chart Editor modes must use the correct astrology context while sharing designated person panels safely.
 
-### Gate C — Astro Twin signal
+### Gate D — Performance
 
-Do D9-derived matches show repeatable structure beyond nearest-neighbor inevitability and reasonable null controls?
+Backfill, database reads, mode switching, D# derivation, and research workloads must be measured and acceptable at the current database scale.
 
-If no, sidereal D1 may still be worthwhile, but broad varga product investment should be reconsidered.
+### Gate E — Varga research signal
 
-### Gate D — UI stability
+Astro Twin experiments should determine whether deeper divisional-chart investment produces stable structure beyond nearest-neighbor inevitability.
 
-Can the existing Chart Editor accept a chart-like derived context without regressions to tropical editing and refresh behavior?
+This gate affects deeper varga/research investment, **not** whether Sidereal D1 exists.
 
-If not, improve the context boundary rather than persisting fake child charts to work around the UI.
+### Gate F — Sidereal Predictions methodology
 
-### Gate E — Predictive methodology
-
-D1 Predictions may proceed after consistent sidereal plumbing is validated.
-
-D9+ Predictions require an explicit methodological decision before release.
+No Sidereal Predictions panel is released until Sidereal-specific predictor semantics, Trait integration, training/query behavior, and validation are deliberately designed.
 
 ---
 
-## 31. Definition of Initial Success
+## 36. Definition of Initial Success
 
-The initial Sidereal/Jyotish rollout is successful when all of the following are true:
+The initial rollout is successful when all of the following are true:
 
-1. Existing tropical charts remain unchanged.
-2. A parent chart can produce a verified Lahiri D1 view without a new persisted chart record.
-3. The same parent can produce a verified D9 view on demand.
-4. D1/D9 can open in a read-only Chart Editor-derived window.
-5. The derived window omits person-specific editing panels.
-6. Chart Analytics reads the active derived positions/houses/aspects correctly.
-7. Untimed-chart restrictions remain coherent.
-8. The database chart count does not increase from browsing sidereal/varga charts.
-9. Astro Twin research can compare D1/D1, D9/D9, and D9/sidereal-D1 without persisting thousands of alternate charts.
-10. Batch performance over the current database is measured and acceptable.
-11. The code clearly distinguishes coordinate system, chart division, and analysis framework.
-12. Future vargas and future Jyotish-native analytics can be added without restructuring the database identity model again.
+1. Every parent chart can own at most one current Lahiri Sidereal D1 record keyed to the same `chart_uid`.
+2. Sidereal D1 is stored in the same database in a separate logical table/domain.
+3. Existing Tropical D1 behavior remains unchanged.
+4. Settings > Astrology can select Tropical or Sidereal without mutating the other representation.
+5. Tropical Chart Editor shows Tropical Chart Analytics and Tropical Predictions.
+6. Sidereal Chart Editor shows Sidereal Chart Analytics and hides Predictions.
+7. Observations are shared across Tropical and Sidereal views.
+8. ABC is shared across Tropical and Sidereal views.
+9. Material Facts are shared across Tropical and Sidereal views.
+10. Photo Gallery is shared across Tropical and Sidereal views.
+11. Time Sensitivity uses the active Tropical/Sidereal coordinate context.
+12. Edits in shared panels from either Chart Editor mode affect the same parent data and appear in both modes.
+13. D9 can be generated from stored Sidereal D1 without creating another chart UID/row.
+14. Supported D# views are read-only with respect to derived coordinates.
+15. Birth-time/untimed behavior remains coherent.
+16. Sidereal storage invalidates/rebuilds correctly when source birth data changes.
+17. Astro Twin research can compare Sidereal D1/D1, D9/D9, and D9/Sidereal-D1 without duplicating person records.
+18. Current Tropical Traits remain correctly understood as Predictions-system outputs/predictors rather than generic observed labels.
+19. The architecture leaves a clean future path for Sidereal Trait predictors without requiring another duplicated chart corpus.
+20. The code clearly distinguishes person data, coordinate system, chart division, analytics framework, and prediction framework.
 
 ---
 
-## 32. Implementation Philosophy
+## 37. Final Architectural Rule
 
-The user-facing metaphor is:
+The product metaphor is:
 
-> a person's sidereal/divisional charts are nested alternate versions of the same chart.
+> One person has multiple astrological representations.
 
-The engineering model is:
+The persistence model is:
 
-> one persisted person/chart entity plus deterministic, lazy, read-only calculated projections.
+> One `chart_uid`, shared person data, one Tropical D1 astrology domain, one persisted Sidereal D1 astrology domain, and lazy divisional projections derived from Sidereal D1.
 
-Preserve that distinction throughout the rollout.
+The Chart Editor rule is:
 
-The first experiment should be small enough to abandon if it proves uninteresting, but architected well enough that success does not require throwing it away and rebuilding the feature from scratch.
+> Non-astral person panels are shared; coordinate-sensitive panels follow the active Tropical/Sidereal context; current Predictions remain Tropical-only.
+
+The future-prediction rule is:
+
+> Sidereal Predictions, if added, gain explicit Sidereal predictors rather than pretending the existing Tropical Trait model is coordinate-neutral.
+
+Preserve those boundaries throughout implementation.
