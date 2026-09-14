@@ -182,7 +182,14 @@ def draw_quadrants(
     )
     percentages = quadrant_percentages(values_by_quadrant)
     quadrant_keys = [quadrant for quadrant, _meaning, _houses in QUADRANT_DEFINITIONS]
-    directions = {"I": (-1.0, -1.0), "II": (1.0, -1.0), "III": (1.0, 1.0), "IV": (-1.0, 1.0)}
+    # Matplotlib's positive y-axis points upward, so this ordering advances
+    # clockwise on screen: lower-left -> upper-left -> upper-right -> lower-right.
+    directions = {
+        "I": (-1.0, -1.0),
+        "II": (-1.0, 1.0),
+        "III": (1.0, 1.0),
+        "IV": (1.0, -1.0),
+    }
     points = [
         (directions[key][0] * percentages[key] / 100.0, directions[key][1] * percentages[key] / 100.0)
         for key in quadrant_keys

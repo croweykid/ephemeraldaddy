@@ -111,11 +111,18 @@ def test_quadrant_signature_connects_clockwise_and_includes_breakdown(monkeypatc
     signature = ax.lines[0]
     assert list(zip(signature.get_xdata(), signature.get_ydata(), strict=True)) == [
         (-0.1, -0.1),
-        (0.2, -0.2),
+        (-0.2, 0.2),
         (0.3, 0.3),
-        (-0.4, 0.4),
+        (0.4, -0.4),
         (-0.1, -0.1),
     ]
+    # A negative signed area in ordinary Cartesian coordinates is clockwise.
+    vertices = list(zip(signature.get_xdata(), signature.get_ydata(), strict=True))
+    signed_area_twice = sum(
+        (x1 * y2) - (x2 * y1)
+        for (x1, y1), (x2, y2) in zip(vertices, vertices[1:], strict=True)
+    )
+    assert signed_area_twice < 0
     assert "QIV  4 · 40%" in ax.texts[-1].get_text()
     assert {artist.get_gid() for artist in [*ax.lines, *ax.texts]} >= {
         "quadrant:I", "quadrant:II", "quadrant:III", "quadrant:IV"
