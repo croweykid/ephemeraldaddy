@@ -669,6 +669,32 @@ def _create_sidereal_chart_data_table(conn: sqlite3.Connection) -> None:
         END
         """
     )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS sidereal_chart_data_parent_insert_guard
+        BEFORE INSERT ON sidereal_chart_data
+        WHEN NEW.chart_uid != UPPER(NEW.chart_uid)
+          OR NOT EXISTS (
+              SELECT 1 FROM charts WHERE chart_uid = NEW.chart_uid
+          )
+        BEGIN
+            SELECT RAISE(ABORT, 'sidereal_chart_data requires an existing parent chart_uid');
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS sidereal_chart_data_parent_update_guard
+        BEFORE UPDATE OF chart_uid ON sidereal_chart_data
+        WHEN NEW.chart_uid != UPPER(NEW.chart_uid)
+          OR NOT EXISTS (
+              SELECT 1 FROM charts WHERE chart_uid = NEW.chart_uid
+          )
+        BEGIN
+            SELECT RAISE(ABORT, 'sidereal_chart_data requires an existing parent chart_uid');
+        END
+        """
+    )
 
 
 def _create_chart_change_log(conn: sqlite3.Connection) -> None:

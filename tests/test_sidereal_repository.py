@@ -55,6 +55,24 @@ def test_repository_rejects_orphans_and_parent_delete_cleans_snapshot():
     assert connection.execute("SELECT count(*) FROM sidereal_chart_data").fetchone()[0] == 0
 
 
+def test_schema_rejects_orphans_even_when_repository_is_bypassed():
+    connection = _database()
+
+    with pytest.raises(
+        sqlite3.IntegrityError,
+        match="requires an existing parent chart_uid",
+    ):
+        connection.execute(
+            """
+            INSERT INTO sidereal_chart_data (
+                chart_uid, ayanamsha, ayanamsha_degrees, calculation_version,
+                source_recalculation_token, positions, retrogrades,
+                aspects, nakshatras, updated_at
+            ) VALUES ('MISSING01', 'lahiri', 23.8, 1, 'token', '{}', '{}', '[]', '{}', 'now')
+            """
+        )
+
+
 def test_person_data_edit_does_not_delete_or_stale_snapshot():
     connection = _database()
     repository = SiderealChartDataRepository(connection)
