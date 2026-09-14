@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import datetime as dt
-from typing import Any, Mapping
+from typing import Any
 
 from ephemeraldaddy.core.sidereal import (
     LAHIRI,
@@ -19,60 +19,50 @@ from ephemeraldaddy.core.vargas import VargaChartView, project_varga
 
 @dataclass(frozen=True)
 class SiderealCalculationRequest:
-    """Astrology-relevant parent inputs for one chart UID."""
+    """Canonical parent-chart inputs required for one Sidereal D1 snapshot."""
 
     chart_uid: str
     datetime: dt.datetime
     latitude: float
     longitude: float
-    use_birth_time_data: bool
-    rectification_state: Mapping[str, Any] | None = None
+    uses_houses: bool
+    canonical_astro_token: tuple[Any, ...]
 
     def source_token(self) -> str:
         return source_recalculation_token(
-            dt=self.datetime,
-            latitude=self.latitude,
-            longitude=self.longitude,
-            use_birth_time_data=self.use_birth_time_data,
-            rectification_state=self.rectification_state,
+            canonical_astro_token=self.canonical_astro_token,
         )
 
     @classmethod
     def from_chart(cls, chart: object) -> "SiderealCalculationRequest":
+        """Build from ED's canonical time gate and ASTRO_DATA invalidation token."""
+
+        from ephemeraldaddy.core.chart import _effective_chart_datetime, chart_uses_houses
+        from ephemeraldaddy.core.chart_data_fields import astro_data_recalculation_token
+
         chart_uid = str(getattr(chart, "chart_uid", "") or "")
-        chart_datetime = getattr(chart, "dt", None)
-        if not isinstance(chart_datetime, dt.datetime):
+        base_datetime = getattr(chart, "dt", None)
+        if not isinstance(base_datetime, dt.datetime):
             raise ValueError("Chart has no calculable datetime")
-        retcon_used = bool(getattr(chart, "retcon_time_used", False))
-        retcon_hour = getattr(chart, "retcon_hour", None)
-        retcon_minute = getattr(chart, "retcon_minute", None)
-        if retcon_used and retcon_hour is not None and retcon_minute is not None:
-            chart_datetime = chart_datetime.replace(
-                hour=int(retcon_hour), minute=int(retcon_minute), second=0, microsecond=0
-            )
-        use_birth_time_data = not bool(
-            getattr(chart, "birthtime_unknown", False)
-        ) or retcon_used
+
+        uses_houses = chart_uses_houses(chart)
+        calculation_datetime = (
+            _effective_chart_datetime(chart) if uses_houses else base_datetime
+        )
+        if not isinstance(calculation_datetime, dt.datetime):
+            raise ValueError("Chart has no effective calculation datetime")
+
+        canonical_token = astro_data_recalculation_token(
+            chart,
+            chart_uses_houses_value=uses_houses,
+        )
         return cls(
             chart_uid=chart_uid,
-            datetime=chart_datetime,
+            datetime=calculation_datetime,
             latitude=float(getattr(chart, "lat")),
             longitude=float(getattr(chart, "lon")),
-            use_birth_time_data=use_birth_time_data,
-            rectification_state={
-                "retcon_time_used": retcon_used,
-                "retcon_hour": retcon_hour,
-                "retcon_minute": retcon_minute,
-                "rectification_range_used": bool(
-                    getattr(chart, "rectification_range_used", False)
-                ),
-                "rectification_range_start_minute": getattr(
-                    chart, "rectification_range_start_minute", None
-                ),
-                "rectification_range_end_minute": getattr(
-                    chart, "rectification_range_end_minute", None
-                ),
-            },
+            uses_houses=uses_houses,
+            canonical_astro_token=canonical_token,
         )
 
 
@@ -109,9 +99,8 @@ class SiderealChartDataService:
             dt=request.datetime,
             latitude=request.latitude,
             longitude=request.longitude,
-            use_birth_time_data=request.use_birth_time_data,
+            uses_houses=request.uses_houses,
             source_token=token,
-            rectification_state=request.rectification_state,
         )
         normalized_request_uid = "".join(
             character
