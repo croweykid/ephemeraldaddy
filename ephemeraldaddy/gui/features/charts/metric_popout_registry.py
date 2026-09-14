@@ -10,7 +10,6 @@ from matplotlib.figure import Figure
 from ephemeraldaddy.gui.features.charts.quadrants import (
     build_quadrant_info_html,
     draw_quadrants_popout,
-    install_quadrants_controller_bridge,
 )
 
 Chart = Any
@@ -348,12 +347,3 @@ def configure_metric_popout_info(owner: Owner, title: str, canvas: Canvas, info_
         info_panel.setPlaceholderText(spec.placeholder)
     if spec.configure_info is not None:
         spec.configure_info(owner, canvas, info_panel, chart)
-
-
-# The GUI imports this registry before ChartAnalysisSectionsController instances are
-# constructed. In headless environments PySide6 may be intentionally unavailable,
-# so keep the registry itself importable while installing the bridge when possible.
-try:
-    install_quadrants_controller_bridge()
-except ImportError:
-    pass
