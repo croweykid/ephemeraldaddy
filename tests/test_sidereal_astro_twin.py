@@ -15,7 +15,12 @@ from ephemeraldaddy.core.vargas import VargaChartView
 
 def _request(uid):
     return SiderealCalculationRequest(
-        uid, dt.datetime(2000, 1, 1, tzinfo=dt.timezone.utc), 0.0, 0.0, False
+        chart_uid=uid,
+        datetime=dt.datetime(2000, 1, 1, tzinfo=dt.timezone.utc),
+        latitude=0.0,
+        longitude=0.0,
+        uses_houses=False,
+        canonical_astro_token=(uid, False),
     )
 
 
@@ -92,8 +97,12 @@ def test_coordinate_consistent_modes_reuse_one_uid_corpus(mode, expected):
 
 def test_d9_comparisons_never_inherit_parent_houses():
     parent = SimpleNamespace(
-        chart_uid="SUBJECT01", name="Subject", birthtime_unknown=False,
-        retcon_time_used=True, use_birth_time_data=True, houses=[10.0],
+        chart_uid="SUBJECT01",
+        name="Subject",
+        birthtime_unknown=False,
+        retcon_time_used=True,
+        rectification_range_used=True,
+        houses=[10.0],
     )
 
     def scorer(subject, candidate):
@@ -101,6 +110,7 @@ def test_d9_comparisons_never_inherit_parent_houses():
         assert subject.houses == []
         assert subject.birthtime_unknown
         assert not subject.retcon_time_used
+        assert not subject.rectification_range_used
         return (0.5,)
 
     rank_sidereal_astro_twins(
