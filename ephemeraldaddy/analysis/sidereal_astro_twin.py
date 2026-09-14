@@ -60,13 +60,13 @@ def _context_chart(parent: object, context: object) -> object:
     adapted.dominant_nakshatra_weights = {}
     adapted.dominant_element_weights = {}
     adapted._similarity_derived_cache = {}
-    # Existing Astro Twin house gates consult the established chart timing
-    # fields. D9 currently has no validated house projection, so it must not
-    # accidentally inherit the parent's D1 house availability.
-    if house_cusps is None:
+    # Existing Astro Twin house gates consult chart_uses_houses(). D9 currently
+    # has no validated house projection, so a chart-like adapter must make the
+    # canonical source facts resolve FALSE instead of inventing another gate.
+    if not bool(getattr(context, "uses_houses", house_cusps is not None)):
         adapted.birthtime_unknown = True
         adapted.retcon_time_used = False
-        adapted.use_birth_time_data = False
+        adapted.rectification_range_used = False
     return adapted
 
 
