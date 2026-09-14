@@ -37,6 +37,44 @@ class SiderealCalculationRequest:
             rectification_state=self.rectification_state,
         )
 
+    @classmethod
+    def from_chart(cls, chart: object) -> "SiderealCalculationRequest":
+        chart_uid = str(getattr(chart, "chart_uid", "") or "")
+        chart_datetime = getattr(chart, "dt", None)
+        if not isinstance(chart_datetime, dt.datetime):
+            raise ValueError("Chart has no calculable datetime")
+        retcon_used = bool(getattr(chart, "retcon_time_used", False))
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        if retcon_used and retcon_hour is not None and retcon_minute is not None:
+            chart_datetime = chart_datetime.replace(
+                hour=int(retcon_hour), minute=int(retcon_minute), second=0, microsecond=0
+            )
+        use_birth_time_data = not bool(
+            getattr(chart, "birthtime_unknown", False)
+        ) or retcon_used
+        return cls(
+            chart_uid=chart_uid,
+            datetime=chart_datetime,
+            latitude=float(getattr(chart, "lat")),
+            longitude=float(getattr(chart, "lon")),
+            use_birth_time_data=use_birth_time_data,
+            rectification_state={
+                "retcon_time_used": retcon_used,
+                "retcon_hour": retcon_hour,
+                "retcon_minute": retcon_minute,
+                "rectification_range_used": bool(
+                    getattr(chart, "rectification_range_used", False)
+                ),
+                "rectification_range_start_minute": getattr(
+                    chart, "rectification_range_start_minute", None
+                ),
+                "rectification_range_end_minute": getattr(
+                    chart, "rectification_range_end_minute", None
+                ),
+            },
+        )
+
 
 @dataclass(frozen=True)
 class SiderealBackfillResult:

@@ -488,6 +488,11 @@ from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
     build_unsaved_changes_prompt_details,
     summarize_chart_editor_draft_changes,
 )
+from ephemeraldaddy.gui.features.chart_editor.astrology_mode import (
+    apply_chart_editor_mode,
+    chart_for_astrology_context,
+)
+from ephemeraldaddy.core.sidereal import ZodiacContext
 from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
     refresh_material_relatives_completer,
 )
@@ -1405,6 +1410,13 @@ from ephemeraldaddy.gui.settings.modules.display_preferences import (
     populate_display_preferences_section,
     populate_optional_modules_section,
 )
+from ephemeraldaddy.gui.settings.modules.astrology import (
+    load_astrology_context,
+    save_astrology_context,
+)
+from ephemeraldaddy.gui.settings.modules.astrology_widgets import (
+    add_astrology_mode_controls,
+)
 
 from ephemeraldaddy.gui.style import (
     APPWIDE_DARK_THEME_STYLESHEET,
@@ -2099,6 +2111,7 @@ class ManageChartsDialog(
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._astrology_context = load_astrology_context(self._settings)
         configure_ocean_predictor_from_settings(self._settings)
         self._applying_window_placement = False
         self._session_window_layout_adjusted = False
@@ -5913,6 +5926,7 @@ class ManageChartsDialog(
             "similar_charts": "Astro Twin",
             "gemstone_chart": "Create Gemstone Chart",
             "chart_predictor_quiz": "Chart Predictor Quiz",
+            "sidereal": "Sidereal Chart Editor",
         }
         tool_title = tool_titles.get(tool_key, "Chart Tool")
         chart_id = self._resolve_middle_panel_tool_chart_id(tool_title)
@@ -5946,6 +5960,14 @@ class ManageChartsDialog(
             parent._latest_chart = chart
             parent._set_current_chart_uid(chart.chart_uid)
             parent.on_open_chart_predictor_quiz()
+            return
+
+        if tool_key == "sidereal":
+            parent._astrology_context = ZodiacContext("sidereal", "lahiri")
+            if parent.load_chart_by_uid(chart.chart_uid):
+                parent._show_chart_view_maximized(
+                    maximize=self.isMaximized(), source_window=self
+                )
             return
 
         if tool_key == "bazi":
@@ -15016,6 +15038,9 @@ class ManageChartsDialog(
     def _on_menu_open_bazi_window(self) -> None:
         self._run_main_window_chart_action("open_bazi_window")
 
+    def _on_menu_open_sidereal_chart(self) -> None:
+        self._on_middle_panel_chart_tool("sidereal")
+
     def _on_menu_get_human_design_info(self) -> None:
         self._run_main_window_chart_action("get_human_design_info")
 
@@ -21025,6 +21050,12 @@ class ManageChartsDialog(
             content_layout,
             "Astrology",
         )
+        self._astrology_mode_buttons = add_astrology_mode_controls(
+            chart_calculation_section,
+            dialog=dialog,
+            context=load_astrology_context(self._settings),
+            on_changed=self._on_default_astrology_context_changed,
+        )
         gendered_results_row = QHBoxLayout()
         gendered_results_row.addWidget(QLabel("For gendered results, use:"))
         gendered_results_group = QButtonGroup(dialog)
@@ -21529,6 +21560,13 @@ class ManageChartsDialog(
             "Plugin installed",
             "Plugin installed! Advanced descriptions will now appear in Chart Info! panel when clicked.",
         )
+
+    def _on_default_astrology_context_changed(self, context: ZodiacContext) -> None:
+        self._astrology_context = context
+        save_astrology_context(self._settings, context)
+        owner = self._owner_window()
+        if owner is not None:
+            owner._astrology_context = context
 
     def _set_lilith_calculation_method(self, method: str) -> None:
         normalized = _normalize_lilith_calculation_method(method)
@@ -23746,6 +23784,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._astrology_context = load_astrology_context(self._settings)
         configure_ocean_predictor_from_settings(self._settings)
         self._visibility = VisibilityStore(self._settings)
         self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
@@ -34011,6 +34050,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         # Update the text summary
         panel_activation_started_at = perf_counter()
+        self._cache_chart_view_navigation_entry(normalized_chart_uid, chart)
+        chart = chart_for_astrology_context(chart, self._astrology_context)
+        apply_chart_editor_mode(self, self._astrology_context, normalized_chart_uid)
         self._latest_chart = chart
         if not is_same_chart_request:
             self._refresh_anagrams_for_chart(chart, reset_to_chart_name=True)
@@ -34018,7 +34060,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         elif self._anagrams_presenter is not None:
             self._anagrams_presenter.sync_source_options(chart)
         self._update_unknown_positions_summary(chart)
-        self._cache_chart_view_navigation_entry(normalized_chart_uid, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
             if not bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):
@@ -34869,6 +34910,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         queue_priority: RenderQueuePriority = "interactive",
         refresh_time_sensitivity: bool = True,
     ) -> None:
+        chart = chart_for_astrology_context(chart, self._astrology_context)
+        apply_chart_editor_mode(self, self._astrology_context, chart.chart_uid)
         self._latest_chart = chart
         # Birth-time and rectified-time edits can change house availability on
         # the current chart without rebuilding the right panel.
@@ -36927,6 +36970,23 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         dialog.resize(1320, 1080)
         self._register_popout_shortcuts(dialog)
         dialog.show()
+
+    def on_open_sidereal_chart(self) -> None:
+        chart_uid = self._current_chart_uid_for_navigation()
+        if not chart_uid:
+            database_view = self._get_or_create_manage_charts_dialog()
+            chart_id = database_view._resolve_middle_panel_tool_chart_id(
+                "Sidereal Chart Editor"
+            )
+            if chart_id is None:
+                return
+            chart_uid = get_chart_uid(chart_id)
+        if not chart_uid:
+            QMessageBox.warning(self, "Sidereal Chart Editor", "Unable to resolve that chart UID.")
+            return
+        self._astrology_context = ZodiacContext("sidereal", "lahiri")
+        if self.load_chart_by_uid(chart_uid):
+            self._show_chart_view_maximized()
 
     def on_get_human_design_info(self) -> None:
         if self._latest_chart is None:

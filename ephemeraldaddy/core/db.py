@@ -2301,6 +2301,24 @@ def _get_conn() -> sqlite3.Connection:
     return _connect_raw()
 
 
+def get_or_calculate_sidereal_chart_data(chart: object):
+    """Return the current persisted Lahiri D1 snapshot for a parent chart."""
+    from ephemeraldaddy.core.sidereal_repository import SiderealChartDataRepository
+    from ephemeraldaddy.core.sidereal_service import (
+        SiderealCalculationRequest,
+        SiderealChartDataService,
+    )
+
+    conn = _get_conn()
+    try:
+        service = SiderealChartDataService(SiderealChartDataRepository(conn))
+        result = service.get_or_calculate(SiderealCalculationRequest.from_chart(chart))
+        conn.commit()
+        return result
+    finally:
+        conn.close()
+
+
 def _connect_readonly() -> sqlite3.Connection:
     """Open a cheaper connection for read helpers after startup initialization."""
     return _get_conn()
