@@ -72,11 +72,12 @@ def test_navamsha_segment_boundaries_are_deterministic_for_every_source_sign(
     at = project_longitude(source_boundary)
 
     # Every exact segment transition advances exactly one Navamsha sign. The
-    # projected longitude immediately below it must approach the boundary from
-    # the previous projected sign rather than randomly flipping from float noise.
+    # projected longitude immediately below it must approach 30 degrees in the
+    # previous projected sign rather than randomly flipping from float noise.
     expected_sign_at = int(at // 30.0)
     expected_previous_sign = (expected_sign_at - 1) % 12
-    assert int((below + 1e-8) % 360.0 // 30.0) == expected_previous_sign
+    assert int(below // 30.0) == expected_previous_sign
+    assert below % 30.0 == pytest.approx(30.0, abs=1e-7)
     assert at % 30.0 == pytest.approx(0.0, abs=1e-8)
 
 
