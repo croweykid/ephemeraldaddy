@@ -14,6 +14,15 @@ from ephemeraldaddy.gui.features.charts import trait_predictions_core as _core
 from ephemeraldaddy.gui.features.charts.theme_chart_info import (
     install_theme_chart_info as _install_theme_chart_info,
 )
+from ephemeraldaddy.gui.features.charts.theme_prediction_runtime import (
+    install_theme_prediction_runtime as _install_theme_prediction_runtime,
+)
+from ephemeraldaddy.gui.features.charts.theme_predictions import (
+    install_theme_predictions as _install_theme_predictions,
+)
+from ephemeraldaddy.gui.features.charts.theme_predictions_section_layout import (
+    install_theme_predictions_section_layout as _install_theme_predictions_section_layout,
+)
 from ephemeraldaddy.gui.features.charts.trait_factor_sections import (
     install_trait_factor_sections as _install_trait_factor_sections,
 )
@@ -26,12 +35,6 @@ from ephemeraldaddy.gui.features.charts.trait_prediction_policy import (
 from ephemeraldaddy.gui.features.charts.trait_sample_markers import (
     install_trait_sample_markers as _install_trait_sample_markers,
 )
-from ephemeraldaddy.gui.features.charts.theme_prediction_runtime import (
-    install_theme_prediction_runtime as _install_theme_prediction_runtime,
-)
-from ephemeraldaddy.gui.features.charts.theme_predictions import (
-    install_theme_predictions as _install_theme_predictions,
-)
 
 _install_trait_prediction_policy(_core)
 _install_trait_prediction_context(_core)
@@ -40,6 +43,7 @@ _install_trait_factor_sections(_core)
 _install_theme_predictions(_core)
 _install_theme_prediction_runtime(_theme_predictions)
 _install_theme_chart_info(_theme_predictions)
+_install_theme_predictions_section_layout(_theme_predictions)
 
 for _name in dir(_core):
     if not _name.startswith("__"):
