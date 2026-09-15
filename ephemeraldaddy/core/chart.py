@@ -313,18 +313,6 @@ class Chart:
         self.aspects = find_aspects(self.positions)
         self.modal_distribution = self._modal_distribution()
 
-    @property
-    def use_birth_time_data(self) -> bool:
-        """Deprecated compatibility alias; chart_uses_houses() is authoritative."""
-
-        return chart_uses_houses(self)
-
-    @use_birth_time_data.setter
-    def use_birth_time_data(self, _value) -> None:
-        # Legacy loaders still assign this name. Ignore those writes so a stale
-        # duplicate boolean can never override the canonical source facts.
-        return
-
     def as_dict(self):
         return {
             "name": self.name,
