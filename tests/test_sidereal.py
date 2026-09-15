@@ -8,12 +8,87 @@ from ephemeraldaddy.core import sidereal
 UTC = dt.timezone.utc
 
 
+# Swiss Ephemeris 2.10 native Lahiri reference values for
+# 2000-01-01 12:00:00 UTC. These are intentionally hard-coded rather than
+# recomputed through EphemeralDaddy's projection path so future changes cannot
+# make the implementation and its expected values drift together.
+_SWISS_J2000_TROPICAL = {
+    "Sun": 280.36891967534336,
+    "Moon": 223.32377543840954,
+    "Mercury": 271.8892750074874,
+    "Venus": 241.5657983261687,
+    "Mars": 327.9633133185202,
+    "Jupiter": 25.253030309421764,
+    "Saturn": 40.39563895600193,
+}
+_SWISS_J2000_LAHIRI = {
+    "Sun": 256.51569718931427,
+    "Moon": 199.47055295238047,
+    "Mercury": 248.0360525214584,
+    "Venus": 217.7125758401396,
+    "Mars": 304.11009083249115,
+    "Jupiter": 1.3998078233926976,
+    "Saturn": 16.542416469972864,
+}
+_SWISS_J2000_LONDON_LAHIRI_CUSPS = (
+    0.4340826001690026,
+    37.308576926662056,
+    58.17678964290366,
+    75.7578653142555,
+    95.20014903446688,
+    123.8341527186856,
+    180.434082600169,
+    217.30857692666206,
+    238.17678964290369,
+    255.7578653142555,
+    275.2001490344669,
+    303.83415271868563,
+)
+_SWISS_J2000_LONDON_LAHIRI_AS = 0.4340826001690026
+_SWISS_J2000_LONDON_LAHIRI_MC = 255.7578653142555
+
+
 def test_lahiri_ayanamsha_is_date_sensitive_and_matches_swiss_reference():
     j2000 = sidereal.lahiri_ayanamsha(dt.datetime(2000, 1, 1, 12, tzinfo=UTC))
     recent = sidereal.lahiri_ayanamsha(dt.datetime(2025, 1, 1, 12, tzinfo=UTC))
 
     assert j2000 == pytest.approx(23.853222486, abs=0.000001)
     assert recent > j2000
+
+
+def test_lahiri_d1_matches_swiss_native_planets_angles_and_cusps(monkeypatch):
+    """Guard ED's projection against a fixed Swiss-native Lahiri fixture."""
+
+    moment = dt.datetime(2000, 1, 1, 12, tzinfo=UTC)
+    monkeypatch.setattr(
+        sidereal,
+        "planetary_positions",
+        lambda *_: dict(_SWISS_J2000_TROPICAL),
+    )
+    monkeypatch.setattr(
+        sidereal,
+        "planetary_retrogrades",
+        lambda *_: {name: False for name in _SWISS_J2000_TROPICAL},
+    )
+
+    chart = sidereal.calculate_lahiri_d1(
+        chart_uid="REFERENCE01",
+        dt=moment,
+        latitude=51.5,
+        longitude=0.0,
+        uses_houses=True,
+        source_token="reference-token",
+    )
+
+    assert chart.ayanamsha_degrees == pytest.approx(23.853222486, abs=1e-9)
+    for body, expected in _SWISS_J2000_LAHIRI.items():
+        assert chart.positions[body] == pytest.approx(expected, abs=1e-8)
+    assert chart.ascendant == pytest.approx(_SWISS_J2000_LONDON_LAHIRI_AS, abs=1e-8)
+    assert chart.mc == pytest.approx(_SWISS_J2000_LONDON_LAHIRI_MC, abs=1e-8)
+    assert chart.house_cusps == pytest.approx(
+        _SWISS_J2000_LONDON_LAHIRI_CUSPS,
+        abs=1e-8,
+    )
 
 
 def test_sidereal_state_does_not_change_subsequent_tropical_swiss_results():
