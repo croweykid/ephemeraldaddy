@@ -19,6 +19,10 @@ from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES, aspect_orb_factor
 from ephemeraldaddy.core.timeutils import timezone_from_latlon
+from ephemeraldaddy.core.zodiac_projection import (
+    apply_transient_zodiac_context,
+    zodiac_context_for_chart,
+)
 
 
 class TransitionSection(StrEnum):
@@ -106,8 +110,12 @@ def fine_tune_calculation_signature(chart: Any) -> tuple[object, ...]:
     explicit_timezone_key = getattr(explicit_timezone, "key", None) or str(
         explicit_timezone or ""
     )
+    context = zodiac_context_for_chart(chart)
     return (
         str(getattr(chart, "chart_uid", "") or "").strip(),
+        context.zodiac,
+        context.ayanamsha,
+        str(getattr(chart, "division", "D1") or "D1"),
         dt.isoformat() if isinstance(dt, datetime) else repr(dt),
         int(getattr(dt, "fold", 0)) if isinstance(dt, datetime) else 0,
         dt_local.isoformat() if isinstance(dt_local, datetime) else repr(dt_local),
@@ -301,6 +309,7 @@ def _time_label(chart: Any) -> str:
 
 
 def _variant_at(source: Any, moment: datetime) -> Chart:
+    context = zodiac_context_for_chart(source)
     variant = Chart(
         getattr(source, "name", "Hypothetical time"),
         moment,
@@ -313,7 +322,11 @@ def _variant_at(source: Any, moment: datetime) -> Chart:
     variant.birthtime_unknown = False
     variant.retcon_time_used = False
     variant.chart_uid = str(getattr(source, "chart_uid", "") or "")
-    return variant
+    return apply_transient_zodiac_context(
+        variant,
+        context,
+        uses_houses=chart_uses_houses(variant),
+    )
 
 
 def _mapping_changes(
