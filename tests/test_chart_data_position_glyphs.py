@@ -104,3 +104,12 @@ def test_unknown_time_row_shows_nakshatra_change_without_sign_change(monkeypatch
     assert "Ashwini" in variants["Moon"]["text"]
     assert "Bharani" in variants["Moon"]["text"]
     assert "->" in variants["Moon"]["text"]
+
+
+def test_unknown_time_tropical_chart_renders_draconic_nakshatras_from_chart_date():
+    chart = _chart(birthtime_unknown=True)
+    chart.positions.update({"Rahu": 10.0, "Ketu": 190.0})
+
+    summary, _position_info, _aspect_info, _species_info = format_chart_text(chart)
+
+    assert "POSITIONS (Draconic)" in summary

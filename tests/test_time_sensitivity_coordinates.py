@@ -155,6 +155,34 @@ def test_time_sensitivity_cache_separates_tropical_and_sidereal_same_uid(tmp_pat
     assert sidereal_loaded.overall["marker"] == "sidereal"
 
 
+def test_v11_cache_is_invalidated_after_nakshatra_algorithm_change(tmp_path):
+    chart = _source_chart(zodiac="tropical", ayanamsha=None)
+    config = time_sensitivity._resolved_config(chart, TimeSensitivityConfig())
+    db_path = tmp_path / "time_sensitivity.db"
+    stale = TimeSensitivityResult(
+        chart_uid=chart.chart_uid,
+        chart_name=chart.name,
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v11",
+        computed_at="2026-09-16T00:00:00Z",
+        config=asdict(config),
+        sample_count=1,
+        baseline_time="12:00",
+        overall={"marker": "stale fixed-range nakshatras"},
+        numeric_ranges={},
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+    save_time_sensitivity_result(stale, db_path)
+
+    assert TIME_SENSITIVITY_ALGORITHM_VERSION == "time-sensitivity-v12"
+    assert load_time_sensitivity_result_for_chart(
+        chart, TimeSensitivityConfig(), db_path
+    ) is None
+
+
 def test_fine_tune_signature_invalidates_when_coordinate_context_changes():
     chart = _source_chart(zodiac="tropical", ayanamsha=None)
     tropical_signature = hourly_scan.fine_tune_calculation_signature(chart)

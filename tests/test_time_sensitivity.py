@@ -1,4 +1,5 @@
 from ephemeraldaddy.analysis.time_sensitivity import (
+    TIME_SENSITIVITY_ALGORITHM_VERSION,
     TimeSensitivityConfig,
     TimeSensitivityResult,
     save_time_sensitivity_result,
@@ -224,7 +225,7 @@ def test_time_sensitivity_result_loads_by_birth_date_not_chart_uid(tmp_path):
         chart_uid="FIRST",
         chart_name="First",
         birth_date_key="04-05-2001",
-        algorithm_version="time-sensitivity-v2",
+        algorithm_version=TIME_SENSITIVITY_ALGORITHM_VERSION,
         computed_at="2026-06-20T00:00:00Z",
         config=config.__dict__,
         sample_count=49,
@@ -260,7 +261,7 @@ def test_time_sensitivity_result_prefers_exact_chart_uid_before_birth_date(tmp_p
     db_path = tmp_path / "time_sensitivity.db"
     shared = dict(
         birth_date_key="04-05-2001",
-        algorithm_version="time-sensitivity-v2",
+        algorithm_version=TIME_SENSITIVITY_ALGORITHM_VERSION,
         computed_at="2026-06-20T00:00:00Z",
         config=config.__dict__,
         sample_count=49,

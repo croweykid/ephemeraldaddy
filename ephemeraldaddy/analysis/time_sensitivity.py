@@ -22,7 +22,7 @@ from ephemeraldaddy.core.zodiac_projection import (
     zodiac_context_for_chart,
 )
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v11"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v12"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -1031,18 +1031,6 @@ def load_time_sensitivity_result_for_chart(
                 LIMIT 1
                 """,
                 (birth_date_key, TIME_SENSITIVITY_ALGORITHM_VERSION, config_hash),
-            ).fetchone()
-        if row is None and birth_date_key and path != TIME_SENSITIVITY_DB_PATH:
-            row = conn.execute(
-                """
-                SELECT result_json
-                FROM chart_time_sensitivity_ranges
-                WHERE birth_date_key = ?
-                  AND config_hash = ?
-                ORDER BY updated_at DESC
-                LIMIT 1
-                """,
-                (birth_date_key, config_hash),
             ).fetchone()
     if row is None:
         return None

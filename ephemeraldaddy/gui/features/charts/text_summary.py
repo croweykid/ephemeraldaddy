@@ -1494,10 +1494,11 @@ def format_chart_text(
                     else None
                 ),
             )
+            nakshatra_dt = _effective_chart_datetime(chart) or getattr(chart, "dt", None)
             nakshatra = nakshatra_position_for_zodiac(
                 lon,
                 context=chart_context,
-                dt=_effective_chart_datetime(chart),
+                dt=nakshatra_dt,
             ).name
 
             if use_houses:
