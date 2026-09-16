@@ -2437,7 +2437,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     astro_category_layout.addWidget(birth_info_status_section)
 
     #Search: Astrological Positions section
-    bodies_section, bodies_group_layout = add_collapsible_section("🪐Positions") #astrological positions
+    bodies_section, bodies_group_layout = add_collapsible_section("🪐Natal Positions") #astrological positions
 
     bodies_layout = QFormLayout()
     bodies_layout.setLabelAlignment(Qt.AlignLeft)
