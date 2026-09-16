@@ -703,6 +703,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_KEYWORDS,
     DOMINANT_BODY_MEANINGS,
     SIGN_KEYWORDS,
+    SIGN_KEYWORDS_CANONICAL,
     ASPECT_KEYWORDS,
     ELEMENT_COLORS,
     GRECOROMAN_ELEMENTS,
@@ -30026,6 +30027,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             chart_positions=getattr(chart, "positions", {}) or {},
                             position_info_map=position_info_map,
                             sign_for_longitude=_sign_for_longitude,
+                            zodiac=str(getattr(chart, "zodiac", "tropical") or "tropical"),
                         )
                         append_plugin_paragraphs(self.chart_info_output, paragraphs)
                     return True
@@ -30186,6 +30188,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
+        chart = getattr(self, "_latest_chart", None)
+        if str(getattr(chart, "zodiac", "tropical") or "tropical").lower() == "sidereal":
+            self._show_sign_keyword_info(sign, body_name=body)
+            return
         model = build_position_sentence_model(
             body,
             sign,
@@ -30319,14 +30325,32 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         body_key = str(body_name or "").strip()
         body_color = PLANET_COLORS.get(body_key) if body_key else None
         set_chart_info_contrast_background(self.chart_info_output, body_color)
-        sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
-        best_keywords = [
-            str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
+        chart = getattr(self, "_latest_chart", None)
+        is_sidereal = str(getattr(chart, "zodiac", "tropical") or "tropical").lower() == "sidereal"
+        if is_sidereal:
+            sign_keywords = SIGN_KEYWORDS_CANONICAL.get(sign_key.casefold(), {})
+            keyword_sections = [
+                ("Function", [sign_keywords.get("function", "")]),
+                ("Adverbs", sign_keywords.get("adverbs", [])),
+                ("Talents", sign_keywords.get("talents", [])),
+                ("Challenges", sign_keywords.get("challenges", [])),
+                ("Greatest Fears", sign_keywords.get("greatest_fears", [])),
+                ("Motivations", sign_keywords.get("motivations", [])),
+            ]
+        else:
+            sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
+            keyword_sections = [
+                ("At Best", sign_keywords.get("best", [])),
+                ("At Worst", sign_keywords.get("worst", [])),
+            ]
+        keyword_sections = [
+            (
+                label,
+                [str(item).strip() for item in values if str(item).strip()],
+            )
+            for label, values in keyword_sections
         ]
-        worst_keywords = [
-            str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
-        ]
-        if not (best_keywords or worst_keywords):
+        if not any(values for _label, values in keyword_sections):
             self.chart_info_output.setPlainText(f"{sign_key}\n\nNo keyword data available.")
             return
         self.chart_info_output.clear()
@@ -30353,7 +30377,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         plain_fmt.setFontItalic(False)
 
         position_description = (
-            get_position_description(body_key, sign_key) if body_key else None
+            get_position_description(body_key, sign_key)
+            if body_key and not is_sidereal
+            else None
         )
         if position_description:
             cursor.insertText(position_description, plain_fmt)
@@ -30375,7 +30401,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             cursor.insertText("is...\n\n", plain_fmt)
         else:
             sign_position_segments: list[tuple[str, str | None]] = []
-            chart = self._latest_chart
             if chart is not None:
                 use_houses = _chart_uses_houses(chart)
                 houses = getattr(chart, "houses", None) if use_houses else None
@@ -30433,17 +30458,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 cursor.insertText("\n\n", plain_fmt)
             else:
                 cursor.insertText(f"No chart placements in {sign_key}\n\n", plain_fmt)
-        if best_keywords:
-            cursor.insertText("At Best:", header_fmt)
-            cursor.insertText("\n", plain_fmt)
-            for keyword in best_keywords:
-                cursor.insertText(f"• {keyword}\n", plain_fmt)
-        if worst_keywords:
-            if best_keywords:
+        populated_sections = [item for item in keyword_sections if item[1]]
+        for section_index, (label, keywords) in enumerate(populated_sections):
+            if section_index:
                 cursor.insertText("\n", plain_fmt)
-            cursor.insertText("At Worst:", header_fmt)
+            cursor.insertText(f"{label}:", header_fmt)
             cursor.insertText("\n", plain_fmt)
-            for keyword in worst_keywords:
+            for keyword in keywords:
                 cursor.insertText(f"• {keyword}\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
         reset_cursor = self.chart_info_output.textCursor()
@@ -34928,9 +34949,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             # that tab. Opening Chart View should leave quick navigation back to
             # Database View responsive instead of front-loading hidden panel work.
             try:
-                time_sensitivity_token = self._chart_analytics_cache_token(chart)
+                time_sensitivity_token = (
+                    self._chart_analytics_cache_token(chart),
+                    str(getattr(chart, "zodiac", "tropical") or "tropical").lower(),
+                    str(getattr(chart, "ayanamsha", "") or "").lower(),
+                )
             except Exception:
-                time_sensitivity_token = str(id(chart))
+                time_sensitivity_token = (str(id(chart)), "", "")
             if getattr(self, "_time_sensitivity_last_refresh_token", None) != time_sensitivity_token:
                 time_sensitivity_panel.refresh_for_current_chart()
                 self._time_sensitivity_last_refresh_token = time_sensitivity_token

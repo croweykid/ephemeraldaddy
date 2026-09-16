@@ -29,3 +29,30 @@ def test_loaded_chart_is_projected_without_polluting_tropical_navigation_cache()
     assert APP_SOURCE.index(cache_call, APP_SOURCE.index("def load_chart_by_uid(")) < APP_SOURCE.index(
         projection_call, APP_SOURCE.index("def load_chart_by_uid(")
     )
+
+
+def test_time_sensitivity_refresh_token_includes_coordinate_context():
+    schedule_method = APP_SOURCE.split("    def _schedule_chart_render(", 1)[1].split(
+        "    def ", 1
+    )[0]
+
+    assert 'getattr(chart, "zodiac", "tropical")' in schedule_method
+    assert 'getattr(chart, "ayanamsha", "")' in schedule_method
+
+
+def test_sidereal_chart_info_uses_canonical_sign_keywords_and_contextual_plugins():
+    sign_method = APP_SOURCE.split("    def _show_sign_keyword_info(", 1)[1].split(
+        "    def _show_element_keyword_info(", 1
+    )[0]
+    click_handler = APP_SOURCE.split("    def _handle_summary_info_click(", 1)[1].split(
+        "    def _run_with_chart_info_output(", 1
+    )[0]
+    position_method = APP_SOURCE.split("    def _show_position_info(", 1)[1].split(
+        "    def _show_decan_info(", 1
+    )[0]
+
+    assert "SIGN_KEYWORDS_CANONICAL.get(sign_key.casefold(), {})" in sign_method
+    assert 'getattr(chart, "zodiac", "tropical")' in sign_method
+    assert "if body_key and not is_sidereal" in sign_method
+    assert "self._show_sign_keyword_info(sign, body_name=body)" in position_method
+    assert 'zodiac=str(getattr(chart, "zodiac", "tropical") or "tropical")' in click_handler

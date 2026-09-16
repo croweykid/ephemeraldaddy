@@ -60,6 +60,7 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     SIGN_KEYWORDS,
 )
+from ephemeraldaddy.core.zodiac_projection import zodiac_context_for_chart
 from ephemeraldaddy.gui.features.charts.chart_analytics_popout import _display_body_name
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
@@ -1514,11 +1515,15 @@ class TimeSensitivityPanel(QWidget):
         return getattr(self._owner, "_latest_chart", None)
 
     def _current_config(self) -> TimeSensitivityConfig:
+        chart = self._current_chart()
+        context = zodiac_context_for_chart(chart) if chart is not None else None
         return TimeSensitivityConfig(
             interval_minutes=int(self.interval_combo.currentData() or 30),
             include_day_end=True,
             baseline_time=None,
             boundary_refinement=False,
+            zodiac=context.zodiac if context is not None else None,
+            ayanamsha=context.ayanamsha if context is not None else None,
         )
 
     def _set_confidence_for_result(self, result: TimeSensitivityResult | None) -> None:
