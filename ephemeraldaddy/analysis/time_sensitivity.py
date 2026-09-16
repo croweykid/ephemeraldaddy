@@ -6,7 +6,8 @@ import hashlib
 import json
 import sqlite3
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from copy import copy
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -18,6 +19,10 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_RANGES,
     PLANET_ORDER,
     ZODIAC_NAMES,
+)
+from ephemeraldaddy.core.zodiac_projection import (
+    apply_transient_zodiac_context,
+    zodiac_context_for_chart,
 )
 
 TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v11"
@@ -38,6 +43,8 @@ class TimeSensitivityConfig:
     include_day_end: bool = True
     baseline_time: str | None = None
     boundary_refinement: bool = False
+    zodiac: str | None = None
+    ayanamsha: str | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +63,31 @@ class TimeSensitivityResult:
     stable: list[str]
     variable: list[str]
     warnings: list[str]
+
+
+def _resolved_config(
+    chart: Any, config: TimeSensitivityConfig | None = None
+) -> TimeSensitivityConfig:
+    """Resolve the scan's coordinate lens and persist it in cache identity.
+
+    ``None``/``None`` remains the legacy/default Tropical identity so existing
+    Tropical cache rows stay valid. Sidereal contexts are always materialized
+    explicitly as ``sidereal`` plus their ayanamsha, preventing cross-mode reuse.
+    """
+
+    cfg = config or TimeSensitivityConfig()
+    context = zodiac_context_for_chart(
+        chart,
+        zodiac=cfg.zodiac,
+        ayanamsha=cfg.ayanamsha,
+    )
+    if (
+        cfg.zodiac is None
+        and cfg.ayanamsha is None
+        and context.zodiac == "tropical"
+    ):
+        return cfg
+    return replace(cfg, zodiac=context.zodiac, ayanamsha=context.ayanamsha)
 
 
 def birth_date_key_for_chart(chart: Any) -> str:
@@ -89,6 +121,7 @@ def _time_label(hour: int, minute: int) -> str:
 
 
 def _variant_chart(source: Any, hour: int, minute: int) -> Chart:
+    context = zodiac_context_for_chart(source)
     source_dt = getattr(source, "dt", None)
     if not isinstance(source_dt, datetime):
         source_dt = getattr(source, "dt_local", None)
@@ -107,7 +140,11 @@ def _variant_chart(source: Any, hour: int, minute: int) -> Chart:
     variant.birthtime_unknown = False
     variant.retcon_time_used = False
     variant.chart_uid = str(getattr(source, "chart_uid", "") or "")
-    return variant
+    return apply_transient_zodiac_context(
+        variant,
+        context,
+        uses_houses=chart_uses_houses(variant),
+    )
 
 
 def _numeric_snapshot(chart: Chart) -> dict[str, dict[str, float]]:
@@ -721,13 +758,16 @@ def compute_time_sensitivity(
     chart: Any, config: TimeSensitivityConfig | None = None
 ) -> TimeSensitivityResult:
     """Compute sampled Time/Rectification Sensitivity ranges for one chart."""
-    cfg = config or TimeSensitivityConfig()
+    cfg = _resolved_config(chart, config)
+    sample_source = copy(chart)
+    sample_source.zodiac = cfg.zodiac
+    sample_source.ayanamsha = cfg.ayanamsha
     samples: list[dict[str, Any]] = []
     warnings: list[str] = []
     baseline_hour, baseline_minute, baseline_time, baseline_source = (
         _baseline_time_for_chart(chart, cfg.baseline_time)
     )
-    baseline_chart = _variant_chart(chart, baseline_hour, baseline_minute)
+    baseline_chart = _variant_chart(sample_source, baseline_hour, baseline_minute)
     baseline_numeric = _numeric_snapshot(baseline_chart)
 
     for hour, minute in scan_times(
@@ -735,7 +775,7 @@ def compute_time_sensitivity(
     ):
         label = _time_label(hour, minute)
         try:
-            variant = _variant_chart(chart, hour, minute)
+            variant = _variant_chart(sample_source, hour, minute)
             numeric = _numeric_snapshot(variant)
             categorical = _categorical_snapshot(variant)
         except Exception as exc:  # keep user-visible scan failures localized
@@ -884,7 +924,12 @@ def result_to_dict(result: TimeSensitivityResult) -> dict[str, Any]:
 
 
 def _config_hash(config: dict[str, Any]) -> str:
-    payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
+    normalized = dict(config)
+    zodiac = str(normalized.get("zodiac") or "").strip().lower()
+    if zodiac in {"", "tropical"}:
+        normalized.pop("zodiac", None)
+        normalized.pop("ayanamsha", None)
+    payload = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -984,7 +1029,7 @@ def load_time_sensitivity_result_for_chart(
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
     if not path.exists() or (not chart_uid and not birth_date_key):
         return None
-    cfg = config or TimeSensitivityConfig()
+    cfg = _resolved_config(chart, config)
     ensure_time_sensitivity_db(path)
     config_hash = _config_hash(asdict(cfg))
     row: tuple[Any, ...] | None = None

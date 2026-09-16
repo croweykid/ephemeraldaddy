@@ -1,0 +1,48 @@
+name: Time Sensitivity tests
+
+on:
+  pull_request:
+    paths:
+      - "ephemeraldaddy/analysis/time_sensitivity.py"
+      - "ephemeraldaddy/core/chart.py"
+      - "ephemeraldaddy/core/sidereal.py"
+      - "ephemeraldaddy/core/sidereal_service.py"
+      - "ephemeraldaddy/core/zodiac_projection.py"
+      - "ephemeraldaddy/gui/features/chart_editor/time_sensitivity/**"
+      - "ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py"
+      - "tests/test_chart_house_gate.py"
+      - "tests/test_fine_tune_hourly_scan.py"
+      - "tests/test_sidereal.py"
+      - "tests/test_sidereal_service.py"
+      - "tests/test_time_sensitivity.py"
+      - "tests/test_time_sensitivity_coordinates.py"
+      - ".github/workflows/time-sensitivity-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0
+      - name: Install project and test dependencies
+        run: python -m pip install -e ".[test]"
+      - name: Run Time Sensitivity and Sidereal tests
+        run: >-
+          python -m pytest -q
+          tests/test_chart_house_gate.py
+          tests/test_sidereal.py
+          tests/test_sidereal_service.py
+          tests/test_time_sensitivity.py
+          tests/test_time_sensitivity_coordinates.py
+          tests/test_fine_tune_hourly_scan.py

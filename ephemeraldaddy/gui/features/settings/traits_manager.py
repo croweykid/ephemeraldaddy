@@ -180,6 +180,8 @@ def _trait_display_name(item: QListWidgetItem) -> str:
     if raw_name is not None:
         return str(raw_name)
     text = item.text()
+    if text.startswith("🤖 "):
+        text = text[2:]
     for suffix in (" (default, archived)", " (default)", " (archived)"):
         if text.endswith(suffix):
             return text[: -len(suffix)]
@@ -187,6 +189,7 @@ def _trait_display_name(item: QListWidgetItem) -> str:
 
 
 def refresh_traits_settings_list(owner: Any) -> None:
+    traits = sorted(list_traits(), key=lambda trait: str(trait.get("name", "")).casefold())
     list_widget = getattr(owner, "_traits_list_widget", None)
     if isinstance(list_widget, QListWidget):
         current_path = None
@@ -194,18 +197,14 @@ def refresh_traits_settings_list(owner: Any) -> None:
         if selected is not None:
             current_path = selected.data(Qt.UserRole)
         list_widget.clear()
-        for trait in list_traits():
+        for trait in traits:
             name = str(trait["name"])
             archived = bool(trait.get("archived", False))
             bundled = bool(trait.get("bundled", False))
             color = normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
-            labels = []
-            if bundled:
-                labels.append("default")
-            if archived:
-                labels.append("archived")
-            suffix = f" ({', '.join(labels)})" if labels else ""
-            item = QListWidgetItem(f"{name}{suffix}")
+            prefix = "🤖 " if bundled else ""
+            suffix = " (archived)" if archived else ""
+            item = QListWidgetItem(f"{prefix}{name}{suffix}")
             item.setData(Qt.UserRole, str(trait["path"]))
             item.setData(Qt.UserRole + 1, color)
             item.setData(Qt.UserRole + 2, archived)
@@ -214,11 +213,12 @@ def refresh_traits_settings_list(owner: Any) -> None:
             item.setData(Qt.UserRole + 5, name)
             item.setData(Qt.UserRole + 6, str(trait.get("uid") or trait.get("trait_uid") or "").strip())
             item.setForeground(QColor(color))
+            if bundled:
+                item.setToolTip("Default trait — bundled with EphemeralDaddy and read-only.")
             list_widget.addItem(item)
             if str(trait["path"]) == current_path:
                 item.setSelected(True)
     status_label = getattr(owner, "_traits_status_label", None)
-    traits = list_traits()
     count = len(traits)
     archived_count = sum(1 for trait in traits if bool(trait.get("archived", False)))
     bundled_count = sum(1 for trait in traits if bool(trait.get("bundled", False)))

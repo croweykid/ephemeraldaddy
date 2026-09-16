@@ -95,8 +95,6 @@ ASTRO_DATA_INPUT_FIELDS = frozenset(
         "rectification_range_used",
         "rectification_range_start_minute",
         "rectification_range_end_minute",
-        "chart_uses_houses",
-        "use_birth_time_data",
         "death_month",
         "death_day",
         "death_year",
@@ -286,6 +284,12 @@ def astro_data_recalculation_token(
     """Return the canonical token for the ASTRO_DATA inputs of a chart."""
     if chart is None:
         return ()
+    if chart_uses_houses_value is None:
+        # Local import avoids a module cycle while keeping one authoritative
+        # time-eligibility valve for Tropical, Sidereal, caches, and research.
+        from ephemeraldaddy.core.chart import chart_uses_houses
+
+        chart_uses_houses_value = chart_uses_houses(chart)
     dt_value = getattr(chart, "dt", None)
     retcon_hour = getattr(chart, "retcon_hour", None)
     retcon_minute = getattr(chart, "retcon_minute", None)
@@ -310,9 +314,5 @@ def astro_data_recalculation_token(
             getattr(chart, "rectification_range_start_minute", None),
             getattr(chart, "rectification_range_end_minute", None),
         ),
-        bool(
-            chart_uses_houses_value
-            if chart_uses_houses_value is not None
-            else getattr(chart, "use_birth_time_data", False)
-        ),
+        bool(chart_uses_houses_value),
     )

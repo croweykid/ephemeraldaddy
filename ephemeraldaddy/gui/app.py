@@ -284,14 +284,19 @@ from PySide6.QtCore import (
     QStringListModel,
 )
 
-
+#do i want this here or did I migrate it elsewhere? lost track, can't find it elsewhere. ;_; #branchlife?
 class _PlanetDynamicsWorker(QObject):
     """Compute body-dynamics scores away from the GUI thread."""
 
     finished = Signal(str, tuple, object)
     failed = Signal(str, tuple, str)
 
-    def __init__(self, request_id: str, signature: tuple[object, ...], chart: Chart) -> None:
+    def __init__(
+        self,
+        request_id: str,
+        signature: tuple[object, ...],
+        chart: Chart,
+    ) -> None:
         super().__init__()
         self._request_id = request_id
         self._signature = signature
@@ -306,6 +311,8 @@ class _PlanetDynamicsWorker(QObject):
             self.finished.emit(self._request_id, self._signature, scores)
         except Exception as exc:  # pragma: no cover - defensive GUI worker path
             self.failed.emit(self._request_id, self._signature, str(exc))
+
+
 
 
 class _ComboItemColorDelegate(QStyledItemDelegate):
@@ -481,6 +488,11 @@ from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
     build_unsaved_changes_prompt_details,
     summarize_chart_editor_draft_changes,
 )
+from ephemeraldaddy.gui.features.chart_editor.astrology_mode import (
+    apply_chart_editor_mode,
+    chart_for_astrology_context,
+)
+from ephemeraldaddy.core.sidereal import ZodiacContext
 from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
     refresh_material_relatives_completer,
 )
@@ -947,6 +959,9 @@ from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     parse_last_encounter_text,
     reset_chart_editor_last_encounter_controls,
 )
+from ephemeraldaddy.gui.features.chart_editor.body_dynamics_worker import (
+    PlanetDynamicsWorker,
+)
 from ephemeraldaddy.gui.features.database_view.batch_editor.cultural_contribution import (
     CulturalContributionBatchCallbacks,
     CulturalContributionBatchEditor,
@@ -969,7 +984,6 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
     calculate_modal_prevalence_counts as _calculate_modal_prevalence_counts,
     calculate_mode_weights as _calculate_mode_weights,
-    calculate_planet_dynamics_scores as _calculate_planet_dynamics_scores,
     calculate_planet_condition_weights as _calculate_planet_condition_weights,
     calculate_nakshatra_prevalence_counts as _calculate_nakshatra_prevalence_counts,
     calculate_sidereal_planet_prevalence_counts as _calculate_sidereal_planet_prevalence_counts,
@@ -1251,6 +1265,10 @@ from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOp
 from ephemeraldaddy.gui.features.charts.section_availability import (
     is_chart_analysis_section_available,
 )
+from ephemeraldaddy.gui.features.charts.quadrants import (
+    build_quadrant_export_rows,
+    clear_quadrants_display,
+)
 from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
     build_chart_view_left_panel,
@@ -1391,6 +1409,13 @@ from ephemeraldaddy.gui.settings.modules.display_preferences import (
     OptionalModulesConfig,
     populate_display_preferences_section,
     populate_optional_modules_section,
+)
+from ephemeraldaddy.gui.settings.modules.astrology import (
+    load_astrology_context,
+    save_astrology_context,
+)
+from ephemeraldaddy.gui.settings.modules.astrology_widgets import (
+    add_astrology_mode_controls,
 )
 
 from ephemeraldaddy.gui.style import (
@@ -2086,6 +2111,7 @@ class ManageChartsDialog(
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._astrology_context = load_astrology_context(self._settings)
         configure_ocean_predictor_from_settings(self._settings)
         self._applying_window_placement = False
         self._session_window_layout_adjusted = False
@@ -5900,6 +5926,7 @@ class ManageChartsDialog(
             "similar_charts": "Astro Twin",
             "gemstone_chart": "Create Gemstone Chart",
             "chart_predictor_quiz": "Chart Predictor Quiz",
+            "sidereal": "Sidereal Chart Editor",
         }
         tool_title = tool_titles.get(tool_key, "Chart Tool")
         chart_id = self._resolve_middle_panel_tool_chart_id(tool_title)
@@ -5933,6 +5960,14 @@ class ManageChartsDialog(
             parent._latest_chart = chart
             parent._set_current_chart_uid(chart.chart_uid)
             parent.on_open_chart_predictor_quiz()
+            return
+
+        if tool_key == "sidereal":
+            parent._astrology_context = ZodiacContext("sidereal", "lahiri")
+            if parent.load_chart_by_uid(chart.chart_uid):
+                parent._show_chart_view_maximized(
+                    maximize=self.isMaximized(), source_window=self
+                )
             return
 
         if tool_key == "bazi":
@@ -15003,6 +15038,9 @@ class ManageChartsDialog(
     def _on_menu_open_bazi_window(self) -> None:
         self._run_main_window_chart_action("open_bazi_window")
 
+    def _on_menu_open_sidereal_chart(self) -> None:
+        self._on_middle_panel_chart_tool("sidereal")
+
     def _on_menu_get_human_design_info(self) -> None:
         self._run_main_window_chart_action("get_human_design_info")
 
@@ -21012,6 +21050,12 @@ class ManageChartsDialog(
             content_layout,
             "Astrology",
         )
+        self._astrology_mode_buttons = add_astrology_mode_controls(
+            chart_calculation_section,
+            dialog=dialog,
+            context=load_astrology_context(self._settings),
+            on_changed=self._on_default_astrology_context_changed,
+        )
         gendered_results_row = QHBoxLayout()
         gendered_results_row.addWidget(QLabel("For gendered results, use:"))
         gendered_results_group = QButtonGroup(dialog)
@@ -21516,6 +21560,13 @@ class ManageChartsDialog(
             "Plugin installed",
             "Plugin installed! Advanced descriptions will now appear in Chart Info! panel when clicked.",
         )
+
+    def _on_default_astrology_context_changed(self, context: ZodiacContext) -> None:
+        self._astrology_context = context
+        save_astrology_context(self._settings, context)
+        owner = self._owner_window()
+        if owner is not None:
+            owner._astrology_context = context
 
     def _set_lilith_calculation_method(self, method: str) -> None:
         normalized = _normalize_lilith_calculation_method(method)
@@ -23733,6 +23784,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._astrology_context = load_astrology_context(self._settings)
         configure_ocean_predictor_from_settings(self._settings)
         self._visibility = VisibilityStore(self._settings)
         self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
@@ -24004,7 +24056,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._similar_charts_popout_cache: OrderedDict[tuple[str, str, str, str], dict[str, Any]] = OrderedDict()
         self._similar_charts_request_id: str | None = None
         self._similar_charts_worker_jobs: list[tuple[QThread, SimilarChartsWorker]] = []
-        self._planet_dynamics_worker_jobs: dict[str, tuple[QThread, _PlanetDynamicsWorker]] = {}
+        self._planet_dynamics_worker_jobs: dict[str, tuple[QThread, PlanetDynamicsWorker]] = {}
         self._planet_dynamics_pending_signatures: set[tuple[object, ...]] = set()
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
@@ -27551,6 +27603,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             else:
                 counts = _calculate_dominant_house_weights(chart)
             return [[str(house_num), counts.get(house_num, 0)] for house_num in range(1, 13)]
+        if chart_key == "quadrants":
+            mode = self._chart_analysis_selected_mode(chart_key, "quadrant_prevalence")
+            return build_quadrant_export_rows(chart, mode)
         if chart_key == "dominant_elements":
             mode = self._chart_analysis_selected_mode(chart_key, "dominant_elements")
             counts = (
@@ -27629,7 +27684,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         rows = self._chart_analysis_rows_for_key(chart_key, chart)
         if not rows:
-            QMessageBox.information(self, "Nothing to export", f"No data available for {chart_title}.")
+            message = (
+                "Sorry, quadrants cannot be calculated without birth time. :("
+                if chart_key == "quadrants" and not chart_uses_houses(chart)
+                else f"No data available for {chart_title}."
+            )
+            QMessageBox.information(self, "Nothing to export", message)
             return
 
         default_stem = self._chart_analysis_chart_filenames.get(
@@ -27651,7 +27711,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         try:
             with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
                 writer = csv.writer(csv_file)
-                writer.writerow(["Metric", "Value"])
+                writer.writerow(
+                    ["Quadrant", "Meaning", "Houses", "Value", "Percent"]
+                    if chart_key == "quadrants"
+                    else ["Metric", "Value"]
+                )
                 writer.writerows(rows)
         except OSError as exc:
             QMessageBox.critical(self, "Export failed", f"Could not write CSV file.\n\n{exc}")
@@ -33986,6 +34050,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         # Update the text summary
         panel_activation_started_at = perf_counter()
+        self._cache_chart_view_navigation_entry(normalized_chart_uid, chart)
+        chart = chart_for_astrology_context(chart, self._astrology_context)
+        apply_chart_editor_mode(self, self._astrology_context, normalized_chart_uid)
         self._latest_chart = chart
         if not is_same_chart_request:
             self._refresh_anagrams_for_chart(chart, reset_to_chart_name=True)
@@ -33993,7 +34060,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         elif self._anagrams_presenter is not None:
             self._anagrams_presenter.sync_source_options(chart)
         self._update_unknown_positions_summary(chart)
-        self._cache_chart_view_navigation_entry(normalized_chart_uid, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
             if not bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):
@@ -34844,6 +34910,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         queue_priority: RenderQueuePriority = "interactive",
         refresh_time_sensitivity: bool = True,
     ) -> None:
+        chart = chart_for_astrology_context(chart, self._astrology_context)
+        apply_chart_editor_mode(self, self._astrology_context, chart.chart_uid)
         self._latest_chart = chart
         # Birth-time and rectified-time edits can change house availability on
         # the current chart without rebuilding the right panel.
@@ -34880,6 +34948,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 "signs",
                 "planets",
                 "houses",
+                "quadrants",
                 "elements",
                 "nakshatra",
                 "modal",
@@ -34903,6 +34972,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "signs",
             "planets",
             "houses",
+            "quadrants",
             "elements",
             "nakshatra",
             "modal",
@@ -34972,6 +35042,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._render_planet_tally(chart)
         elif section == "houses":
             self._render_house_tally(chart)
+        elif section == "quadrants":
+            self._chart_analysis_sections_controller.render_quadrants(chart)
         elif section == "elements":
             self._render_element_tally(chart)
         elif section == "nakshatra":
@@ -35086,6 +35158,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "dominant_signs": "signs",
             "dominant_planets": "planets",
             "dominant_houses": "houses",
+            "quadrants": "quadrants",
             "dominant_elements": "elements",
             "nakshatra_prevalence": "nakshatra",
             "modal_distribution": "modal",
@@ -35101,6 +35174,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "signs": "dominant_signs",
             "planets": "dominant_planets",
             "houses": "dominant_houses",
+            "quadrants": "quadrants",
             "elements": "dominant_elements",
             "nakshatra": "nakshatra_prevalence",
             "modal": "modal_distribution",
@@ -35117,6 +35191,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "signs",
             "planets",
             "houses",
+            "quadrants",
             "elements",
             "nakshatra",
             "modal",
@@ -35172,6 +35247,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 "signs",
                 "planets",
                 "houses",
+                "quadrants",
                 "elements",
                 "nakshatra",
                 "modal",
@@ -35363,6 +35439,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_canvas = canvas
 
     def _clear_chart_displays(self, *, reset_anagrams: bool = True) -> None:
+        clear_quadrants_display(self)
         for layout in (
             self.chart_canvas_container_layout,
             self.sign_chart_container_layout,
@@ -35890,7 +35967,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         request_id = uuid.uuid4().hex
         thread = QThread(self)
-        worker = _PlanetDynamicsWorker(request_id, signature, copy.deepcopy(chart))
+        worker = PlanetDynamicsWorker(request_id, signature, copy.deepcopy(chart))
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         planet_dynamics_ui_relay = PlanetDynamicsUiRelay(
@@ -36893,6 +36970,23 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         dialog.resize(1320, 1080)
         self._register_popout_shortcuts(dialog)
         dialog.show()
+
+    def on_open_sidereal_chart(self) -> None:
+        chart_uid = self._current_chart_uid_for_navigation()
+        if not chart_uid:
+            database_view = self._get_or_create_manage_charts_dialog()
+            chart_id = database_view._resolve_middle_panel_tool_chart_id(
+                "Sidereal Chart Editor"
+            )
+            if chart_id is None:
+                return
+            chart_uid = get_chart_uid(chart_id)
+        if not chart_uid:
+            QMessageBox.warning(self, "Sidereal Chart Editor", "Unable to resolve that chart UID.")
+            return
+        self._astrology_context = ZodiacContext("sidereal", "lahiri")
+        if self.load_chart_by_uid(chart_uid):
+            self._show_chart_view_maximized()
 
     def on_get_human_design_info(self) -> None:
         if self._latest_chart is None:

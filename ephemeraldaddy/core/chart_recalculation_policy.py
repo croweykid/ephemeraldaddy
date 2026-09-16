@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from ephemeraldaddy.core.chart import resolve_use_birth_time_data
+from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.chart_data_fields import astro_data_recalculation_token
 from ephemeraldaddy.core.chart_types import (
     CHART_TYPE_HYPOTHETICAL,
@@ -60,7 +60,7 @@ class ChartRecalculationPolicy:
             chart,
             birth_place=birth_place,
             chart_uses_houses_value=(
-                bool(resolve_use_birth_time_data(chart)) if chart is not None else None
+                bool(chart_uses_houses(chart)) if chart is not None else None
             ),
         )
 

@@ -6,7 +6,7 @@ import json
 
 from ephemeraldaddy.core.aspect_display import iter_displayable_aspects
 from ephemeraldaddy.core.astrology import sign_for_longitude
-from ephemeraldaddy.core.chart import resolve_use_birth_time_data
+from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES, aspect_score
 
 
@@ -67,7 +67,7 @@ def build_chart_export_markdown(chart: object) -> str:
     name = getattr(chart, "name", None) or "Unnamed"
     alias = getattr(chart, "alias", None) or ""
     birth_place = getattr(chart, "birth_place", None) or "Unknown"
-    use_houses = bool(resolve_use_birth_time_data(chart))
+    use_houses = bool(chart_uses_houses(chart))
     houses = getattr(chart, "houses", None) if use_houses else None
 
     lines = [

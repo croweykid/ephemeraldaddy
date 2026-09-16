@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping
+from datetime import datetime, timezone
 from typing import Any
 
 from ephemeraldaddy.gui.features.charts.similarities_export import (
@@ -12,6 +13,14 @@ from ephemeraldaddy.gui.features.charts.similarities_export import (
 )
 
 from .cohort_metadata import inject_trait_cohort_metadata
+
+
+TRAIT_EXPORTED_AT_KEY = "exported_at"
+
+
+def _utc_export_datetime() -> str:
+    """Return an unambiguous ISO-8601 UTC timestamp for Trait provenance."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _percentage_from_counts(count: object, total: int) -> float:
@@ -120,16 +129,24 @@ def build_similarities_trait_export_payload(
     *,
     sample_uids: Iterable[object] = (),
     gender_distribution: Mapping[str, Any] | None = None,
+    exported_at: str | None = None,
 ) -> OrderedDict:
     """Build a profile-shaped export with explicit source-sample metadata.
 
     The lower-level Similarities payload builder remains responsible for factor
-    normalization. This final builder owns reusable Trait metadata so the file
-    export path does not depend on replacing builder globals at runtime.
-    Two-chart Dissimilarity bundles remain unchanged because the metadata
-    injector deliberately ignores non-Trait bundles.
+    normalization. This final builder owns reusable Trait provenance so the file
+    export path does not depend on replacing builder globals at runtime. Normal
+    Trait profiles receive ``exported_at`` as their first property; two-chart
+    Dissimilarity bundles remain unchanged because they are not reusable Traits.
     """
     payload = build_similarities_json_export_payload(selection_name, export_sections)
+    profile = payload.get(selection_name)
+    if isinstance(profile, dict) and "model" in profile:
+        timestamp = str(exported_at if exported_at is not None else _utc_export_datetime()).strip()
+        profile_with_provenance = OrderedDict([(TRAIT_EXPORTED_AT_KEY, timestamp)])
+        profile_with_provenance.update(profile)
+        payload[selection_name] = profile_with_provenance
+
     inject_trait_cohort_metadata(
         payload,
         selection_name,

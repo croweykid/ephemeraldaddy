@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping
 
-from ephemeraldaddy.core.chart import resolve_use_birth_time_data
+from ephemeraldaddy.core.chart import chart_uses_houses
 
 ChangeKind = Literal["authoritative", "lightweight"]
 
@@ -43,7 +43,7 @@ class ChartTimeContext:
             rectification_range_enabled=bool(
                 getattr(chart, "rectification_range_used", False)
             ),
-            chart_uses_houses=bool(resolve_use_birth_time_data(chart)),
+            chart_uses_houses=bool(chart_uses_houses(chart)),
         )
 
     @property
