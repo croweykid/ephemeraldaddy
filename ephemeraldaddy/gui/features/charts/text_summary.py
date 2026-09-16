@@ -219,7 +219,7 @@ def _format_time_variant_signs(
     if bool(getattr(chart, "retcon_time_used", False)):
         return {}
     apply_unknown_sign_metadata(chart)
-    if not bool(getattr(chart, "signs_unknown", False)):
+    if not bool(getattr(chart, "birthtime_unknown", False)):
         return {}
     tzinfo = chart.dt.tzinfo
     if tzinfo is None:
@@ -282,30 +282,46 @@ def _format_time_variant_signs(
     ordered_names.extend(extras)
     lines: dict[str, dict[str, object]] = {}
     for body in ordered_names:
-        if not draconic and body not in set(getattr(chart, "unknown_signs", []) or []):
-            continue
         samples = [
-            (label, sample_dt, positions[body], sign_for_longitude(positions[body]))
+            (
+                label,
+                sample_dt,
+                positions[body],
+                sign_for_longitude(positions[body]),
+                nakshatra_position_for_zodiac(
+                    positions[body],
+                    context=context,
+                    dt=sample_dt,
+                ).name,
+            )
             for label, sample_dt, positions in sampled_positions
         ]
-        if len({sign for _label, _dt, _lon, sign in samples}) <= 1:
+        if (
+            len({sign for _label, _dt, _lon, sign, _nakshatra in samples}) <= 1
+            and len(
+                {
+                    nakshatra
+                    for _label, _dt, _lon, _sign, nakshatra in samples
+                }
+            )
+            <= 1
+        ):
             continue
 
-        collapsed_samples: list[tuple[str, datetime.datetime, float, str]] = []
+        collapsed_samples: list[tuple[str, datetime.datetime, float, str, str]] = []
         for index, sample in enumerate(samples):
             is_endpoint = index == 0 or index == len(samples) - 1
-            if is_endpoint or not collapsed_samples or collapsed_samples[-1][3] != sample[3]:
+            if (
+                is_endpoint
+                or not collapsed_samples
+                or collapsed_samples[-1][3:] != sample[3:]
+            ):
                 collapsed_samples.append(sample)
         pieces: list[str] = []
         info: list[dict[str, object]] = []
         search_start = 0
-        for label, sample_dt, lon, sign in collapsed_samples:
+        for label, _sample_dt, lon, sign, nakshatra in collapsed_samples:
             pretty = format_longitude(lon)
-            nakshatra = nakshatra_position_for_zodiac(
-                lon,
-                context=context,
-                dt=sample_dt,
-            ).name
             icon = sample_icons.get(label, "")
             piece = f"{icon}{pretty} ({nakshatra})ⓘ"
             pieces.append(piece)

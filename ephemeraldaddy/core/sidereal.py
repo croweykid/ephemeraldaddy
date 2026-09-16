@@ -214,6 +214,11 @@ def nakshatra_position_for_chart(
 
     effective_dt = _effective_chart_datetime(chart)
     if effective_dt is None:
+        # Unknown-time charts deliberately have no *effective* datetime for
+        # houses, but their stored datetime still supplies the calendar date
+        # required by the slowly varying Lahiri ayanamsha.
+        effective_dt = getattr(chart, "dt", None)
+    if not isinstance(effective_dt, _dt.datetime):
         raise ValueError("A chart datetime is required for a tropical nakshatra")
     return nakshatra_position_for_zodiac(
         float(longitude),

@@ -201,6 +201,22 @@ def test_sidereal_analytics_use_precomputed_chart_nakshatras():
     assert weights["Uttara Bhadrapada"] == 0
 
 
+def test_tropical_unknown_time_chart_uses_available_date_for_ayanamsha():
+    chart = type(
+        "UnknownTimeChart",
+        (),
+        {
+            "dt": dt.datetime(2000, 1, 1, 12, tzinfo=UTC),
+            "birthtime_unknown": True,
+            "retcon_time_used": False,
+            "positions": {"Moon": 24.0},
+            "zodiac": "tropical",
+        },
+    )()
+
+    assert sidereal.nakshatra_position_for_chart(chart, "Moon").name == "Ashwini"
+
+
 def test_zodiac_context_rejects_collapsed_or_unsupported_configuration():
     assert sidereal.ZodiacContext("sidereal", "Lahiri").ayanamsha == "lahiri"
     with pytest.raises(ValueError):

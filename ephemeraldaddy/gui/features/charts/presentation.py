@@ -13,13 +13,13 @@ from ephemeraldaddy.core.astrology import sign_for_longitude
 from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
 from ephemeraldaddy.core.sidereal import (
     NAKSHATRA_NAMES,
-    nakshatra_position,
     nakshatra_position_for_chart,
 )
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
+    NAKSHATRA_RANGES,
     GRECOROMAN_ELEMENTS,
     ZODIAC_NAMES,
 )
@@ -106,8 +106,20 @@ def sign_degrees(sign: str, deg: int, minutes: int) -> float:
 
 
 def get_nakshatra(lon: float) -> str:
-    """Return the nakshatra for an already-sidereal longitude."""
-    return nakshatra_position(float(lon)).name
+    """Legacy approximate lookup for context-free tropical coordinates.
+
+    Chart-aware callers must use :func:`get_chart_nakshatra`; this fallback is
+    retained for aggregate tropical grids that have no chart date.
+    """
+    normalized = float(lon) % 360.0
+    for name, start_sign, start_deg, start_min, end_sign, end_deg, end_min in NAKSHATRA_RANGES:
+        start = sign_degrees(start_sign, start_deg, start_min)
+        end = sign_degrees(end_sign, end_deg, end_min)
+        if start <= end and start <= normalized < end:
+            return str(name)
+        if start > end and (normalized >= start or normalized < end):
+            return str(name)
+    return "Unknown"
 
 
 def get_chart_nakshatra(chart: object, body: str, lon: float | None = None) -> str:
