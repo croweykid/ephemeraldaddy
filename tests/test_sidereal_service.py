@@ -24,7 +24,7 @@ def _request(longitude=2.0):
     )
 
 
-def test_from_chart_uses_canonical_range_rectification_gate_and_midpoint():
+def test_from_chart_uses_range_midpoint_without_enabling_houses():
     chart = SimpleNamespace(
         chart_uid="PARENT01",
         dt=dt.datetime(2020, 1, 1, 0, 0, tzinfo=dt.timezone.utc),
@@ -42,7 +42,7 @@ def test_from_chart_uses_canonical_range_rectification_gate_and_midpoint():
 
     request = SiderealCalculationRequest.from_chart(chart)
 
-    assert request.uses_houses
+    assert not request.uses_houses
     assert (request.datetime.hour, request.datetime.minute) == (8, 30)
     assert request.source_token()
 
