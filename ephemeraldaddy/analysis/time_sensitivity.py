@@ -68,7 +68,12 @@ class TimeSensitivityResult:
 def _resolved_config(
     chart: Any, config: TimeSensitivityConfig | None = None
 ) -> TimeSensitivityConfig:
-    """Resolve the scan's coordinate lens and persist it in cache identity."""
+    """Resolve the scan's coordinate lens and persist it in cache identity.
+
+    ``None``/``None`` remains the legacy/default Tropical identity so existing
+    Tropical cache rows stay valid. Sidereal contexts are always materialized
+    explicitly as ``sidereal`` plus their ayanamsha, preventing cross-mode reuse.
+    """
 
     cfg = config or TimeSensitivityConfig()
     context = zodiac_context_for_chart(
@@ -76,6 +81,12 @@ def _resolved_config(
         zodiac=cfg.zodiac,
         ayanamsha=cfg.ayanamsha,
     )
+    if (
+        cfg.zodiac is None
+        and cfg.ayanamsha is None
+        and context.zodiac == "tropical"
+    ):
+        return cfg
     return replace(cfg, zodiac=context.zodiac, ayanamsha=context.ayanamsha)
 
 
