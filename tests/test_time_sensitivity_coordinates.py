@@ -92,10 +92,9 @@ def test_time_sensitivity_config_resolves_active_coordinate_context():
     tropical_config = time_sensitivity._resolved_config(tropical)
     sidereal_config = time_sensitivity._resolved_config(sidereal)
 
-    assert (tropical_config.zodiac, tropical_config.ayanamsha) == (
-        "tropical",
-        None,
-    )
+    # None/None is deliberately retained as the backward-compatible Tropical
+    # cache identity; Sidereal must always be explicit so the rows cannot collide.
+    assert (tropical_config.zodiac, tropical_config.ayanamsha) == (None, None)
     assert (sidereal_config.zodiac, sidereal_config.ayanamsha) == (
         "sidereal",
         "lahiri",
