@@ -46,11 +46,12 @@ class SiderealCalculationRequest:
             raise ValueError("Chart has no calculable datetime")
 
         uses_houses = chart_uses_houses(chart)
-        calculation_datetime = (
-            _effective_chart_datetime(chart) if uses_houses else base_datetime
-        )
+        # The effective datetime is also meaningful for representative planetary
+        # sampling. A rectification range may supply its midpoint here without
+        # granting the exact-time certainty required for houses or angles.
+        calculation_datetime = _effective_chart_datetime(chart)
         if not isinstance(calculation_datetime, dt.datetime):
-            raise ValueError("Chart has no effective calculation datetime")
+            calculation_datetime = base_datetime
 
         canonical_token = astro_data_recalculation_token(
             chart,
