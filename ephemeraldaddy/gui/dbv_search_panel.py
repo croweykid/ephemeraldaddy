@@ -2503,7 +2503,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     astro_category_layout.addWidget(bodies_section)
 
     #Search: Aspects section
-    aspect_section, aspect_group_layout = add_collapsible_section("🪐Aspect") #astrological aspect
+    aspect_section, aspect_group_layout = add_collapsible_section("🪐Natal Aspects") #astrological aspect
 
     aspect_layout = QFormLayout()
     aspect_layout.setLabelAlignment(Qt.AlignLeft)
@@ -2574,7 +2574,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Sign section
     dominant_section, dominant_group_layout = add_collapsible_section(
-        "🪐Sign", #dominant/subordinate astrological sign
+        "🪐Sign Dominance", #dominant/subordinate astrological sign
     )
 
     dominant_layout = QFormLayout()
@@ -2636,7 +2636,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Body section
     dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
-        "🪐Body", #dominant/subordinate astrological bodies
+        "🪐Body/Planet Dominance", #dominant/subordinate astrological bodies
     )
 
     dominant_planet_layout = QFormLayout()
@@ -2699,7 +2699,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Nakshatra section
     dominant_nakshatra_section, dominant_nakshatra_group_layout = add_collapsible_section(
-        "🪐Nakshatra",
+        "🪐Nakshatra Dominance",
     )
 
     dominant_nakshatra_layout = QFormLayout()
@@ -2760,7 +2760,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Dominant Elements section
     dominant_element_section, dominant_element_group_layout = add_collapsible_section(
-        "🪐Elements", #dominatn astrological elements
+        "🪐Elemental Dominance", #dominatn astrological elements
     )
     dominant_element_layout = QFormLayout()
     dominant_element_layout.setLabelAlignment(Qt.AlignLeft)
@@ -2813,7 +2813,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Dominant Mode section
     dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
-        "🪐Modes", #dominant astrological mode
+        "🪐Modal Dominance", #dominant astrological mode
     )
 
     dominant_mode_layout = QFormLayout()
