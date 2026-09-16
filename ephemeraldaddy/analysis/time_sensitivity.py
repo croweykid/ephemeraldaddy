@@ -203,9 +203,9 @@ BODY_SIGN_CONFIDENCE_KEYS = tuple(
 def _categorical_snapshot(chart: Chart) -> dict[str, Any]:
     positions = getattr(chart, "positions", {}) or {}
     body_signs = {
-        key: _sign_for_longitude(float(positions[key]))
-        for key in BODY_SIGN_CONFIDENCE_KEYS
-        if key in positions
+        str(key): _sign_for_longitude(float(longitude))
+        for key, longitude in positions.items()
+        if key not in ANGLE_SIGN_CONFIDENCE_KEYS and longitude is not None
     }
     angle_signs = {
         key: _sign_for_longitude(float(positions[key]))
