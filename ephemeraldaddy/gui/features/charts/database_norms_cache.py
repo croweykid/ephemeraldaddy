@@ -88,10 +88,19 @@ def database_norms_freshness(
 
 
 def analytical_mapping_signature(value: Mapping[str, Any] | None, *, strip_uids: bool = False) -> dict[str, Any]:
-    """Remove display-only metadata from a trait/profile-like mapping."""
+    """Remove display-only and provenance metadata from a trait/profile-like mapping."""
     if not isinstance(value, Mapping):
         return {}
-    excluded = {"name", "color", "description", "motivation", "quotes", "archived", "samples"}
+    excluded = {
+        "name",
+        "color",
+        "description",
+        "motivation",
+        "quotes",
+        "archived",
+        "samples",
+        "exported_at",
+    }
     if strip_uids:
         excluded.update({"uid", "trait_uid"})
     return {str(key): item for key, item in value.items() if str(key) not in excluded}

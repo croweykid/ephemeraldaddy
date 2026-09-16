@@ -277,7 +277,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 CHART_UID_LENGTH = 16
 UID_FINALIZATION_MIGRATION_KEY = "chart_uid_finalization_v1"
@@ -619,6 +619,80 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         CREATE UNIQUE INDEX IF NOT EXISTS idx_charts_chart_uid
         ON charts(chart_uid)
         WHERE chart_uid IS NOT NULL AND chart_uid != ''
+        """
+    )
+
+
+def _create_sidereal_chart_data_table(conn: sqlite3.Connection) -> None:
+    """Create the rebuildable, UID-linked Sidereal D1 snapshot domain."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sidereal_chart_data (
+            chart_uid                 TEXT NOT NULL,
+            ayanamsha                 TEXT NOT NULL,
+            ayanamsha_degrees         REAL NOT NULL,
+            calculation_version       INTEGER NOT NULL,
+            source_recalculation_token TEXT NOT NULL,
+            positions                 TEXT NOT NULL,
+            retrogrades               TEXT NOT NULL,
+            ascendant                 REAL,
+            mc                        REAL,
+            house_cusps               TEXT,
+            aspects                   TEXT NOT NULL,
+            nakshatras                TEXT NOT NULL,
+            updated_at                TEXT NOT NULL,
+            PRIMARY KEY (chart_uid, ayanamsha)
+        )
+        """
+    )
+    conn.execute(
+        """
+        DELETE FROM sidereal_chart_data
+        WHERE chart_uid NOT IN (
+            SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != ''
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_sidereal_chart_data_token
+        ON sidereal_chart_data(ayanamsha, calculation_version, source_recalculation_token)
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS sidereal_chart_data_parent_delete
+        AFTER DELETE ON charts
+        WHEN COALESCE(OLD.chart_uid, '') != ''
+        BEGIN
+            DELETE FROM sidereal_chart_data WHERE chart_uid = UPPER(OLD.chart_uid);
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS sidereal_chart_data_parent_insert_guard
+        BEFORE INSERT ON sidereal_chart_data
+        WHEN NEW.chart_uid != UPPER(NEW.chart_uid)
+          OR NOT EXISTS (
+              SELECT 1 FROM charts WHERE chart_uid = NEW.chart_uid
+          )
+        BEGIN
+            SELECT RAISE(ABORT, 'sidereal_chart_data requires an existing parent chart_uid');
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS sidereal_chart_data_parent_update_guard
+        BEFORE UPDATE OF chart_uid ON sidereal_chart_data
+        WHEN NEW.chart_uid != UPPER(NEW.chart_uid)
+          OR NOT EXISTS (
+              SELECT 1 FROM charts WHERE chart_uid = NEW.chart_uid
+          )
+        BEGIN
+            SELECT RAISE(ABORT, 'sidereal_chart_data requires an existing parent chart_uid');
+        END
         """
     )
 
@@ -2045,6 +2119,8 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     _create_dnd_prediction_metadata_table(conn)
     _create_enneagram_prediction_metadata_table(conn)
     if _charts_table_exists(conn):
+        _create_sidereal_chart_data_table(conn)
+    if _charts_table_exists(conn):
         _prune_duplicate_exclusions(conn)
     if user_version >= 20:
         finalize_chart_uid_migration(conn)
@@ -2058,6 +2134,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _create_indexes(conn)
         finalize_chart_uid_migration(conn)
         _create_chart_change_log(conn)
+        _create_sidereal_chart_data_table(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         return
 
@@ -2164,6 +2241,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 20:
         finalize_chart_uid_migration(conn)
         conn.execute("PRAGMA user_version = 20")
+        user_version = 20
+
+    if user_version < 21:
+        _create_sidereal_chart_data_table(conn)
+        conn.execute("PRAGMA user_version = 21")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -2217,6 +2299,24 @@ def _get_conn() -> sqlite3.Connection:
     if not _SCHEMA_READY or _SCHEMA_READY_DB_PATH != DB_PATH:
         init_db_once()
     return _connect_raw()
+
+
+def get_or_calculate_sidereal_chart_data(chart: object):
+    """Return the current persisted Lahiri D1 snapshot for a parent chart."""
+    from ephemeraldaddy.core.sidereal_repository import SiderealChartDataRepository
+    from ephemeraldaddy.core.sidereal_service import (
+        SiderealCalculationRequest,
+        SiderealChartDataService,
+    )
+
+    conn = _get_conn()
+    try:
+        service = SiderealChartDataService(SiderealChartDataRepository(conn))
+        result = service.get_or_calculate(SiderealCalculationRequest.from_chart(chart))
+        conn.commit()
+        return result
+    finally:
+        conn.close()
 
 
 def _connect_readonly() -> sqlite3.Connection:

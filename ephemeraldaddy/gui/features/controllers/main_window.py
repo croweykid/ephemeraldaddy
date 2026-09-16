@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import logging
 from typing import Callable
 
@@ -9,23 +8,17 @@ from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
-    QFileDialog,
     QScrollArea,
     QLabel,
     QPushButton,
-    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QHBoxLayout,
     QWidget,
 )
 
-from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.quadrants import (
-    QUADRANT_DEFINITIONS,
-    calculate_dominant_quadrant_weights,
-    calculate_quadrant_prevalence_counts,
-    quadrant_percentages,
+    draw_quadrants,
 )
 from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOpenTiming
 from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWorker
@@ -40,7 +33,6 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
     DATABASE_ANALYTICS_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CONTENT_SPACING,
-    DATABASE_ANALYTICS_DROPDOWN_STYLE,
     apply_shared_dropdown_style,
     DATABASE_ANALYTICS_DROPDOWN_TOP_PADDING,
     DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE,
@@ -73,7 +65,6 @@ class ChartAnalysisSectionsController:
         self._on_export_chart_csv = on_export_chart_csv
         self._get_share_icon_path = get_share_icon_path
         self._on_section_toggled = on_section_toggled
-        self._quadrants_refresh_hook_installed = False
 
     def _on_header_dropdown_changed(self, chart_key: str) -> None:
         self.update_subtitle(chart_key)
@@ -130,17 +121,12 @@ class ChartAnalysisSectionsController:
         export_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
         apply_button_cursor(export_button)
         export_button.setToolTip(f"Export {title_text} as CSV")
-        if chart_key == "quadrants":
-            export_button.clicked.connect(
-                lambda _checked=False, title=title_text: self.export_quadrants_csv(title)
+        export_button.clicked.connect(
+            lambda _checked=False, key=chart_key, title=title_text: self._on_export_chart_csv(
+                key,
+                title,
             )
-        else:
-            export_button.clicked.connect(
-                lambda _checked=False, key=chart_key, title=title_text: self._on_export_chart_csv(
-                    key,
-                    title,
-                )
-            )
+        )
         header_layout.addWidget(export_button, alignment=Qt.AlignRight)
 
         self._owner._chart_analysis_chart_filenames[chart_key] = default_filename
@@ -405,55 +391,8 @@ class ChartAnalysisSectionsController:
                 return mode
         return "quadrant_prevalence"
 
-    def _quadrant_values(self, chart: object) -> dict[str, float]:
-        if self._quadrant_mode() == "dominant_quadrants":
-            return calculate_dominant_quadrant_weights(chart)
-        return calculate_quadrant_prevalence_counts(chart)
-
     def _draw_quadrants(self, ax, chart: object) -> None:
-        ax.clear()
-        if not chart_uses_houses(chart):
-            ax.set_axis_off()
-            ax.text(
-                0.5,
-                0.5,
-                "Birth time required for house-based quadrant analysis.",
-                transform=ax.transAxes,
-                ha="center",
-                va="center",
-                color="#f5f5f5",
-                fontsize=10,
-            )
-            return
-
-        values_by_quadrant = self._quadrant_values(chart)
-        percentages = quadrant_percentages(values_by_quadrant)
-        quadrant_keys = [quadrant for quadrant, _meaning, _houses in QUADRANT_DEFINITIONS]
-        values = [float(values_by_quadrant.get(quadrant, 0.0)) for quadrant in quadrant_keys]
-        bars = ax.bar(quadrant_keys, values, color="#6fa8dc")
-        apply_axes = getattr(self._owner, "_apply_standard_ncv_bar_chart_axes", None)
-        if callable(apply_axes):
-            apply_axes(ax, quadrant_keys)
-        else:
-            ax.tick_params(axis="x", labelsize=8, colors="#f5f5f5")
-            ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
-        max_value = max(values) if values else 0.0
-        ax.set_ylim(0, max(1.0, max_value * 1.18))
-        offset = max(0.05, max_value * 0.025)
-        for bar, quadrant, value in zip(bars, quadrant_keys, values, strict=True):
-            value_text = f"{value:.1f}" if self._quadrant_mode() == "dominant_quadrants" else f"{value:g}"
-            ax.text(
-                bar.get_x() + (bar.get_width() / 2),
-                value + offset,
-                f"{value_text} · {percentages[quadrant]:.0f}%",
-                ha="center",
-                va="bottom",
-                color="#f5f5f5",
-                fontsize=8,
-            )
-        mode_title = "Weighted" if self._quadrant_mode() == "dominant_quadrants" else "Object Count"
-        ax.set_title(f"Quadrants — {mode_title}", color="#f5f5f5", fontsize=10, pad=8)
-        ax.figure.tight_layout()
+        draw_quadrants(self._owner, ax, chart)
 
     def render_quadrants(self, chart: object | None = None) -> None:
         if not self._owner._chart_analysis_section_expanded.get("quadrants", False):
@@ -475,55 +414,6 @@ class ChartAnalysisSectionsController:
             draw_fn=self._draw_quadrants,
             chart=chart,
         )
-
-    def export_quadrants_csv(self, title: str = "Quadrants") -> None:
-        chart = getattr(self._owner, "_latest_chart", None)
-        if chart is None:
-            return
-        default_name = self._owner._chart_analysis_chart_filenames.get(
-            "quadrants",
-            "ephemeraldaddy_chart_quadrants",
-        )
-        path, _selected_filter = QFileDialog.getSaveFileName(
-            self._owner,
-            f"Export {title} as CSV",
-            f"{default_name}.csv",
-            "CSV Files (*.csv)",
-        )
-        if not path:
-            return
-        values = self._quadrant_values(chart)
-        percentages = quadrant_percentages(values)
-        with open(path, "w", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(["Quadrant", "Meaning", "Houses", "Value", "Percent"])
-            for quadrant, meaning, houses in QUADRANT_DEFINITIONS:
-                value = values.get(quadrant, 0.0)
-                writer.writerow(
-                    [
-                        quadrant,
-                        meaning,
-                        f"{houses[0]}-{houses[-1]}",
-                        value,
-                        round(percentages[quadrant], 2),
-                    ]
-                )
-
-    def _install_quadrants_refresh_hook(self) -> None:
-        if self._quadrants_refresh_hook_installed:
-            return
-        schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)
-        if not callable(schedule_chart_render):
-            return
-
-        def schedule_with_quadrants(chart, *args, **kwargs):
-            result = schedule_chart_render(chart, *args, **kwargs)
-            if self._owner._chart_analysis_section_expanded.get("quadrants", False):
-                QTimer.singleShot(0, lambda chart=chart: self.render_quadrants(chart))
-            return result
-
-        self._owner._schedule_chart_render = schedule_with_quadrants
-        self._quadrants_refresh_hook_installed = True
 
     def create_sections(self, panel: QWidget) -> None:
         self.add_section(
@@ -611,8 +501,8 @@ class ChartAnalysisSectionsController:
             chart_container_attr="quadrants_chart_container",
             chart_layout_attr="quadrants_chart_container_layout",
             dropdown_options=[
-                ("Object Count", "quadrant_prevalence"),
-                ("Weighted", "dominant_quadrants"),
+                ("Quadrant Prevalence", "quadrant_prevalence"),
+                ("Dominant Quadrants", "dominant_quadrants"),
             ],
             expanded=False,
         )
@@ -685,7 +575,6 @@ class ChartAnalysisSectionsController:
             chart_layout_attr="chart_type_container_layout",
             expanded=False,
         )
-        self._install_quadrants_refresh_hook()
 
 
 class RetconDialogController:

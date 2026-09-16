@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from html import escape
+from numbers import Integral
 from typing import Any
 
 from ephemeraldaddy.core.chart import chart_uses_houses
@@ -36,9 +37,13 @@ QUADRANT_EXPLANATIONS: dict[str, str] = {
 
 def quadrant_for_house(house: object) -> str | None:
     """Return the Roman-numeral quadrant for a 1-based house number."""
-    try:
+    if isinstance(house, bool):
+        return None
+    if isinstance(house, Integral):
         house_number = int(house)
-    except (TypeError, ValueError):
+    elif isinstance(house, str) and house.strip().isdigit():
+        house_number = int(house.strip())
+    else:
         return None
     if house_number < 1 or house_number > 12:
         return None
@@ -86,6 +91,28 @@ def quadrant_percentages(values: Mapping[str, object] | None) -> dict[str, float
     return {quadrant: (value / total) * 100.0 for quadrant, value in normalized.items()}
 
 
+def build_quadrant_export_rows(chart: object, mode: str) -> list[list[object]]:
+    """Build the specialized CSV rows, returning no data for an untimed chart."""
+    if not chart_uses_houses(chart):
+        return []
+    values = (
+        calculate_dominant_quadrant_weights(chart)
+        if mode == "dominant_quadrants"
+        else calculate_quadrant_prevalence_counts(chart)
+    )
+    percentages = quadrant_percentages(values)
+    return [
+        [
+            f"Q{quadrant}",
+            meaning,
+            f"H{houses[0]}–H{houses[-1]}",
+            round(float(values.get(quadrant, 0.0)), 1),
+            round(percentages[quadrant], 1),
+        ]
+        for quadrant, meaning, houses in QUADRANT_DEFINITIONS
+    ]
+
+
 def build_quadrant_info_html(quadrant: str) -> str:
     """Build the Chart Analytics popout description for one quadrant."""
     normalized = str(quadrant or "").strip().upper()
@@ -124,15 +151,21 @@ def selected_quadrant_mode(owner: object) -> str:
     return "quadrant_prevalence"
 
 
-def draw_quadrants_popout(owner: object, ax: Any, chart: object) -> None:
-    """Draw the registered Quadrants popout with pickable bars and labels."""
+def draw_quadrants(
+    owner: object,
+    ax: Any,
+    chart: object,
+    *,
+    interactive: bool = False,
+) -> None:
+    """Draw the shared clockwise house-quadrant signature visualization."""
     ax.clear()
     if not chart_uses_houses(chart):
         ax.set_axis_off()
         ax.text(
             0.5,
             0.5,
-            "Birth time required for house-based quadrant analysis.",
+            "Sorry, quadrants cannot be calculated without birth time. :(",
             transform=ax.transAxes,
             ha="center",
             va="center",
@@ -149,41 +182,75 @@ def draw_quadrants_popout(owner: object, ax: Any, chart: object) -> None:
     )
     percentages = quadrant_percentages(values_by_quadrant)
     quadrant_keys = [quadrant for quadrant, _meaning, _houses in QUADRANT_DEFINITIONS]
-    values = [float(values_by_quadrant.get(quadrant, 0.0)) for quadrant in quadrant_keys]
-    bars = ax.bar(quadrant_keys, values, color="#6fa8dc")
-
-    apply_axes = getattr(owner, "_apply_standard_ncv_bar_chart_axes", None)
-    if callable(apply_axes):
-        apply_axes(ax, quadrant_keys)
-    else:
-        ax.tick_params(axis="x", labelsize=8, colors="#f5f5f5")
-        ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
-
-    for bar, quadrant in zip(bars, quadrant_keys, strict=True):
-        bar.set_gid(f"quadrant:{quadrant}")
-        bar.set_picker(True)
-    for label, quadrant in zip(ax.get_xticklabels(), quadrant_keys, strict=True):
-        label.set_gid(f"quadrant:{quadrant}")
-        label.set_picker(True)
-
-    max_value = max(values) if values else 0.0
-    ax.set_ylim(0, max(1.0, max_value * 1.18))
-    offset = max(0.05, max_value * 0.025)
-    weighted = mode == "dominant_quadrants"
-    for bar, quadrant, value in zip(bars, quadrant_keys, values, strict=True):
-        value_text = f"{value:.1f}" if weighted else f"{value:g}"
-        ax.text(
-            bar.get_x() + (bar.get_width() / 2),
-            value + offset,
-            f"{value_text} · {percentages[quadrant]:.0f}%",
-            ha="center",
-            va="bottom",
+    # Matplotlib's positive y-axis points upward, so this ordering advances
+    # clockwise on screen: lower-left -> upper-left -> upper-right -> lower-right.
+    directions = {
+        "I": (-1.0, -1.0),
+        "II": (-1.0, 1.0),
+        "III": (1.0, 1.0),
+        "IV": (1.0, -1.0),
+    }
+    points = [
+        (directions[key][0] * percentages[key] / 100.0, directions[key][1] * percentages[key] / 100.0)
+        for key in quadrant_keys
+    ]
+    closed_points = [*points, points[0]]
+    ax.plot(
+        [point[0] for point in closed_points],
+        [point[1] for point in closed_points],
+        color="#6fa8dc",
+        linewidth=2,
+        zorder=3,
+    )
+    ax.fill(
+        [point[0] for point in closed_points],
+        [point[1] for point in closed_points],
+        color="#6fa8dc",
+        alpha=0.22,
+        zorder=2,
+    )
+    for diagonal_x, diagonal_y in directions.values():
+        ax.plot([0, diagonal_x], [0, diagonal_y], color="#536273", linewidth=0.8, alpha=0.65)
+    for quadrant, (point_x, point_y) in zip(quadrant_keys, points, strict=True):
+        point, = ax.plot(point_x, point_y, "o", color="#a9d5ff", markersize=7, zorder=4)
+        label = ax.text(
+            directions[quadrant][0] * 0.76,
+            directions[quadrant][1] * 0.76,
+            f"Q{quadrant}",
             color="#f5f5f5",
-            fontsize=8,
+            fontsize=9,
+            fontweight="bold",
+            ha="center",
+            va="center",
         )
-    mode_title = "Weighted" if weighted else "Object Count"
-    ax.set_title(f"Quadrants — {mode_title}", color="#f5f5f5", fontsize=10, pad=8)
+        if interactive:
+            for artist in (point, label):
+                artist.set_gid(f"quadrant:{quadrant}")
+                artist.set_picker(True)
+
+    ax.text(0, 1.05, "PUBLIC", color="#aeb8c4", ha="center", va="bottom", fontsize=8)
+    ax.text(0, -1.05, "PRIVATE", color="#aeb8c4", ha="center", va="top", fontsize=8)
+    ax.text(-1.05, 0, "INDIVIDUAL", color="#aeb8c4", ha="right", va="center", fontsize=8)
+    ax.text(1.05, 0, "RELATIONAL", color="#aeb8c4", ha="left", va="center", fontsize=8)
+    ax.set_xlim(-1.28, 1.28)
+    ax.set_ylim(-1.38, 1.18)
+    ax.set_aspect("equal")
+    ax.set_axis_off()
+    weighted = mode == "dominant_quadrants"
+    breakdown = []
+    for quadrant in quadrant_keys:
+        value = float(values_by_quadrant.get(quadrant, 0.0))
+        value_text = f"{value:.1f}" if weighted else f"{value:g}"
+        breakdown.append(f"Q{quadrant}  {value_text} · {percentages[quadrant]:.0f}%")
+    ax.text(0.5, -0.04, "     ".join(breakdown), transform=ax.transAxes, ha="center", va="top", color="#f5f5f5", fontsize=8)
+    mode_title = "Dominant Quadrants" if weighted else "Quadrant Prevalence"
+    ax.set_title(mode_title, color="#f5f5f5", fontsize=10, pad=8)
     ax.figure.tight_layout()
+
+
+def draw_quadrants_popout(owner: object, ax: Any, chart: object) -> None:
+    """Draw the registered Quadrants popout with pickable points and labels."""
+    draw_quadrants(owner, ax, chart, interactive=True)
 
 
 def clear_quadrants_display(owner: object) -> None:
@@ -193,37 +260,3 @@ def clear_quadrants_display(owner: object) -> None:
     if layout is not None and callable(clear_layout_widgets):
         clear_layout_widgets(layout)
     setattr(owner, "quadrants_canvas", None)
-
-
-def install_quadrants_owner_reset_hook(controller: object) -> None:
-    """Extend MainWindow's common display reset without duplicating its reset logic."""
-    owner = getattr(controller, "_owner", None)
-    if owner is None or getattr(owner, "_quadrants_reset_hook_installed", False):
-        return
-    clear_chart_displays = getattr(owner, "_clear_chart_displays", None)
-    if not callable(clear_chart_displays):
-        return
-
-    def clear_with_quadrants(*args: object, **kwargs: object) -> object:
-        result = clear_chart_displays(*args, **kwargs)
-        clear_quadrants_display(owner)
-        return result
-
-    owner._clear_chart_displays = clear_with_quadrants
-    owner._quadrants_reset_hook_installed = True
-
-
-def install_quadrants_controller_bridge() -> None:
-    """Attach the reset hook at the controller's existing owner-hook installation seam."""
-    from ephemeraldaddy.gui.features.controllers.main_window import ChartAnalysisSectionsController
-
-    if getattr(ChartAnalysisSectionsController, "_quadrants_reset_bridge_installed", False):
-        return
-    original_install = ChartAnalysisSectionsController._install_quadrants_refresh_hook
-
-    def install_with_reset(self: object) -> None:
-        original_install(self)
-        install_quadrants_owner_reset_hook(self)
-
-    ChartAnalysisSectionsController._install_quadrants_refresh_hook = install_with_reset
-    ChartAnalysisSectionsController._quadrants_reset_bridge_installed = True

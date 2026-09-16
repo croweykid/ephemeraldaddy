@@ -2,9 +2,8 @@
 """Stable public facade for Fantasy RPG Predictions.
 
 The established implementation lives in ``dnd_predictions_core``. This facade
-changes only Stat Block population norms: Chart View must use the selected
-persisted Predictions norms snapshot and must never fall back to a live database
-scan when that snapshot section is unavailable.
+keeps Stat Block population norms snapshot-only and makes Fantasy RPG Alignment
+self-refreshing whenever its visible section is rendered.
 """
 
 from __future__ import annotations
@@ -35,5 +34,47 @@ def _snapshot_only_db_norm_stat_averages(_norm_charts: Any) -> dict[str, float]:
 # untouched while making Stat Block fail closed if its snapshot provider returns
 # no complete stored baseline.
 _core._calculate_db_norm_stat_averages = _snapshot_only_db_norm_stat_averages
+
+
+_CoreDndPredictionPanelAdapter = _core.DndPredictionPanelAdapter
+
+
+class DndPredictionPanelAdapter(_CoreDndPredictionPanelAdapter):
+    """Ensure Alignment is current whenever its visible section renders."""
+
+    _ephemeraldaddy_alignment_auto_refresh = True
+
+    def render(
+        self,
+        chart: Any | None,
+        metric_panel_renderer: Any,
+        visible_sections: set[str] | None = None,
+    ) -> Any:
+        effective_sections = set(
+            visible_sections
+            or {"dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment"}
+        )
+        if (
+            "dnd_alignment" in effective_sections
+            and self.alignment_layout is not None
+            and chart is not None
+            and not self.is_placeholder_chart(chart)
+        ):
+            try:
+                self.cache_alignment_metadata(chart)
+            except Exception as exc:  # pragma: no cover - defensive UI path
+                _core.logger.warning(
+                    "Automatic Fantasy RPG Alignment calculation failed: %s",
+                    exc,
+                    exc_info=True,
+                )
+        return super().render(
+            chart,
+            metric_panel_renderer,
+            visible_sections=visible_sections,
+        )
+
+
+_core.DndPredictionPanelAdapter = DndPredictionPanelAdapter
 
 del _name

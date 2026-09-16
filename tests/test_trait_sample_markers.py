@@ -94,6 +94,52 @@ def test_marker_installer_emits_no_marker_when_exclusion_policy_is_enabled(monke
     assert captured["rank_html"] == "<a href='trait:Ascribed'>Ascribed</a>"
 
 
+def test_unknown_sample_marker_marks_missing_and_empty_canonical_provenance(monkeypatch) -> None:
+    core, captured = _fake_core()
+    owner = SimpleNamespace(_traits_prediction_chart=SimpleNamespace(chart_uid="UID-1"))
+    core._trait_prediction_rows_from_metadata = lambda traits, metadata: [
+        {"name": "Legacy Missing", "likelihood": 90.0, "deviation": 40.0},
+        {"name": "Empty Sample", "likelihood": 80.0, "deviation": 30.0},
+        {"name": "Known Sample", "likelihood": 70.0, "deviation": 20.0},
+    ]
+    traits = [
+        {
+            "name": "Legacy Missing",
+            "profile": {"chartUIDs": ["UID-1"]},
+        },
+        {
+            "name": "Empty Sample",
+            "profile": {"sample_uids": []},
+        },
+        {
+            "name": "Known Sample",
+            "profile": {"sample_uids": ["UID-X"]},
+        },
+    ]
+
+    monkeypatch.setattr(
+        trait_sample_markers,
+        "ascribed_trait_names_for_chart",
+        lambda chart, traits: {"Legacy Missing"},
+    )
+    monkeypatch.setattr(
+        trait_sample_markers,
+        "predictions_exclude_ascribed_enabled",
+        lambda owner: False,
+    )
+
+    trait_sample_markers.install_trait_sample_markers(core)
+    core._apply_traits_prediction_metadata(owner, traits, {})
+
+    rows = captured["rows"]
+    assert rows[0]["name"] == "Legacy Missing"
+    assert rows[0]["display_name"] == "❓ Legacy Missing"
+    assert rows[1]["name"] == "Empty Sample"
+    assert rows[1]["display_name"] == "❓ Empty Sample"
+    assert rows[2]["name"] == "Known Sample"
+    assert rows[2]["display_name"] == "Known Sample"
+
+
 def test_legitimate_fairy_prefix_is_preserved_for_chart_info(monkeypatch) -> None:
     core, captured = _fake_core()
     owner = SimpleNamespace(_traits_prediction_chart=SimpleNamespace(chart_uid="UID-1"))

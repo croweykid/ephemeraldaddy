@@ -345,6 +345,7 @@ def configure_main_window_chrome(
     chart_menu.addSeparator()
     _bind_menu_action(chart_menu, "🐉 BaZi Chart", window, "on_open_bazi_window")
     _bind_menu_action(chart_menu, "🌎 Personal Transit", window, "on_get_current_transits")
+    _bind_menu_action(chart_menu, "Sidereal Chart Editor", window, "on_open_sidereal_chart")
     _bind_menu_callback(chart_menu, "🗓 Personal Timeline", lambda: _open_personal_timeline(window))
     _bind_menu_action(chart_menu, "Synastry Chart", window, "on_get_synastry_chart")
     if _is_human_design_menu_enabled(window):
@@ -434,6 +435,7 @@ def configure_manage_dialog_chrome(
     charts_menu.addSeparator()
     _bind_menu_action(charts_menu, "Synastry Chart", dialog, "_on_generate_composite_chart")
     _bind_menu_action(charts_menu, "🐉 BaZi Chart", dialog, "_on_menu_open_bazi_window")
+    _bind_menu_action(charts_menu, "Sidereal Chart Editor", dialog, "_on_menu_open_sidereal_chart")
     if _is_human_design_menu_enabled(dialog):
         human_design_menu = charts_menu.addMenu("🪷 Human Design Chart")
         _bind_menu_action(human_design_menu, "Human Design Chart", dialog, "_on_menu_get_human_design_info")

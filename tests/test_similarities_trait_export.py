@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+import json
 from collections import OrderedDict
+from datetime import datetime
 
+import pytest
+
+from ephemeraldaddy.analysis import traits
 from ephemeraldaddy.analysis.traits import parse_trait_file
-from ephemeraldaddy.gui.features.charts import exporters
-from ephemeraldaddy.gui.features.similarities.trait_export import (
+from ephemeraldaddy.gui.features.charts import exporters]
+from ephemeraldaddy.gui.features.charts.database_norms_cache import analytical_mapping_signature
+\from ephemeraldaddy.gui.features.similarities.trait_export import (
     build_similarities_trait_export_payload,
     compact_gender_distribution_weights,
 )
 from ephemeraldaddy.gui.features.charts.similarities_export import (
     format_similarities_json_export_payload,
 )
+
+
+_FIXED_EXPORTED_AT = "2026-09-13T00:35:08Z"
 
 
 def _export_sections():
@@ -35,6 +44,21 @@ def _gender_distribution():
             ("significantCategories", ["Female", "Male"]),
         ]
     )
+
+
+def test_final_trait_builder_puts_export_datetime_first() -> None:
+    payload = build_similarities_trait_export_payload(
+        "Timestamped Trait",
+        _export_sections(),
+        exported_at=_FIXED_EXPORTED_AT,
+    )
+
+    profile = payload["Timestamped Trait"]
+    assert list(profile)[:2] == ["exported_at", "name"]
+    assert profile["exported_at"] == _FIXED_EXPORTED_AT
+
+    text = format_similarities_json_export_payload(payload)
+    assert text.index('"exported_at"') < text.index('"name"')
 
 
 def test_final_trait_builder_formats_sample_uids_and_compact_gender_weights() -> None:
@@ -141,6 +165,7 @@ def test_final_builder_keeps_dissimilarity_bundle_metadata_free() -> None:
     )
 
     bundle = payload["Pair"]
+    assert "exported_at" not in bundle
     assert "sample_uids" not in bundle
     assert "chartUIDs" not in bundle
     assert "genderDistribution" not in bundle
@@ -152,6 +177,7 @@ def test_trait_parser_preserves_compact_export_metadata(tmp_path) -> None:
         _export_sections(),
         sample_uids=["UID-A", "UID-B"],
         gender_distribution=_gender_distribution(),
+        exported_at=_FIXED_EXPORTED_AT,
     )
     export_path = tmp_path / "parser_trait.py"
     export_path.write_text(
@@ -161,8 +187,47 @@ def test_trait_parser_preserves_compact_export_metadata(tmp_path) -> None:
 
     profile = parse_trait_file(export_path)["Parser Trait"]
 
+    assert profile["exported_at"] == _FIXED_EXPORTED_AT
     assert profile["sample_uids"] == ["UID-A", "UID-B"]
     assert profile["genderDistribution"] == {"Female": 40, "Male": -40}
+
+
+@pytest.mark.parametrize("suffix", [".json", ".py"])
+def test_add_trait_import_preserves_original_export_datetime(tmp_path, monkeypatch, suffix) -> None:
+    monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path / "installed_traits")
+    monkeypatch.setattr(traits, "DEFAULT_TRAITS_PATH", tmp_path / "missing_default_traits.json")
+    payload = build_similarities_trait_export_payload(
+        "Exported Trait",
+        _export_sections(),
+        exported_at=_FIXED_EXPORTED_AT,
+    )
+    source = tmp_path / f"exported_trait{suffix}"
+    if suffix == ".json":
+        source.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    else:
+        source.write_text(format_similarities_json_export_payload(payload), encoding="utf-8")
+
+    installed = traits.install_trait_file(source, "Imported Trait")
+    installed_profile = traits.parse_trait_file(installed)["Imported Trait"]
+
+    assert installed_profile["exported_at"] == _FIXED_EXPORTED_AT
+    item = next(item for item in traits.list_traits() if item["name"] == "Imported Trait")
+    assert item["profile"]["exported_at"] == _FIXED_EXPORTED_AT
+
+
+def test_export_datetime_does_not_change_analytical_trait_signature() -> None:
+    older = {
+        "name": "Same Trait",
+        "exported_at": "2026-09-12T10:00:00Z",
+        "signs": {"Aries": 10},
+    }
+    newer = {
+        "name": "Same Trait",
+        "exported_at": "2026-09-13T10:00:00Z",
+        "signs": {"Aries": 10},
+    }
+
+    assert analytical_mapping_signature(older) == analytical_mapping_signature(newer)
 
 
 def test_python_export_dialog_writes_source_sample_metadata(tmp_path, monkeypatch) -> None:
@@ -197,6 +262,8 @@ def test_python_export_dialog_writes_source_sample_metadata(tmp_path, monkeypatc
     )
 
     text = export_path.read_text(encoding="utf-8")
+    assert '"exported_at": ' in text
+    assert text.index('"exported_at"') < text.index('"name"')
     assert '"sample_uids": [' in text
     assert '"UID-1"' in text
     assert '"UID-2"' in text
@@ -208,5 +275,7 @@ def test_python_export_dialog_writes_source_sample_metadata(tmp_path, monkeypatc
     assert '"chartUIDs"' not in text
 
     parsed = parse_trait_file(export_path)["Dialog Trait"]
+    assert parsed["exported_at"].endswith("Z")
+    datetime.fromisoformat(parsed["exported_at"].replace("Z", "+00:00"))
     assert parsed["sample_uids"] == ["UID-1", "UID-2"]
     assert parsed["genderDistribution"] == {"Female": 40, "Male": -40}
