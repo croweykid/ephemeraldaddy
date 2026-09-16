@@ -11,17 +11,21 @@ from matplotlib import font_manager as mpl_font_manager
 
 from ephemeraldaddy.core.astrology import sign_for_longitude
 from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
+from ephemeraldaddy.core.sidereal import (
+    NAKSHATRA_NAMES,
+    nakshatra_position,
+    nakshatra_position_for_chart,
+)
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
-    NAKSHATRA_RANGES,
     GRECOROMAN_ELEMENTS,
     ZODIAC_NAMES,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
-_NAKSHATRA_NAME_SET = {str(name) for name, *_ in NAKSHATRA_RANGES}
+_NAKSHATRA_NAME_SET = set(NAKSHATRA_NAMES)
 _NAKSHATRA_ABBREVIATION_LOOKUP: dict[str, str] = {}
 
 
@@ -102,17 +106,13 @@ def sign_degrees(sign: str, deg: int, minutes: int) -> float:
 
 
 def get_nakshatra(lon: float) -> str:
-    lon = lon % 360.0
-    for name, start_sign, start_deg, start_min, end_sign, end_deg, end_min in NAKSHATRA_RANGES:
-        start = sign_degrees(start_sign, start_deg, start_min)
-        end = sign_degrees(end_sign, end_deg, end_min)
-        if start <= end:
-            if start <= lon < end:
-                return name
-        else:
-            if lon >= start or lon < end:
-                return name
-    return "Unknown"
+    """Return the nakshatra for an already-sidereal longitude."""
+    return nakshatra_position(float(lon)).name
+
+
+def get_chart_nakshatra(chart: object, body: str, lon: float | None = None) -> str:
+    """Return a placement's nakshatra using the chart's coordinate context."""
+    return nakshatra_position_for_chart(chart, body, lon).name
 
 
 

@@ -69,6 +69,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     format_degree_minutes,
     format_longitude,
     get_nakshatra,
+    get_chart_nakshatra,
     sign_for_longitude,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, format_chart_header
@@ -919,7 +920,7 @@ def format_chart_text(
         if retrogrades.get(body):
             pretty = f"{pretty}Я"
             degree_text = f"{degree_text}Я"
-        nakshatra = get_nakshatra(lon)
+        nakshatra = get_chart_nakshatra(chart, body, lon)
         #nakshatra_with_info = f"{nakshatra} ⓘ"
 
         if use_houses:
@@ -1739,7 +1740,7 @@ def format_compact_transit_chart_text(
         degree_text = _degree_in_sign_text(lon)
         if retrogrades.get(body):
             degree_text = f"{degree_text}Я" #was using (Я) previously.
-        nakshatra = get_nakshatra(lon)
+        nakshatra = get_chart_nakshatra(chart, body, lon)
         columns = [
             _pad_display_column(glyph, body_width),
             _pad_display_column(sign_glyph, sign_width),

@@ -27,7 +27,6 @@ from ephemeraldaddy.core.interpretations import (
     HOUSE_CUSP_BLEND_DEGREES,
     MODES,
     NAKSHATRA_PLANET_COLOR,
-    NAKSHATRA_RANGES,
     NATAL_WEIGHT,
     NATURAL_HOUSE_PLANET_BONUS,
     NATURAL_HOUSE_PLANETS,
@@ -48,7 +47,8 @@ from ephemeraldaddy.core.interpretations import (
     aspect_orb_allowance,
     normalize_body_name,
 )
-from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES
+from ephemeraldaddy.gui.features.charts.presentation import get_chart_nakshatra, sign_for_longitude
 from ephemeraldaddy.analysis.body_dynamics_reworked import (
     BODY_PAIR_DYNAMICS,
     PAIR_TYPE_DISTRIBUTION,
@@ -564,7 +564,7 @@ def calculate_dominant_element_weights(chart: Chart) -> dict[str, float]:
     return element_counts
 
 def calculate_nakshatra_prevalence_counts(chart: Chart) -> dict[str, int]:
-    nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
+    nakshatras = list(NAKSHATRA_NAMES)
     counts = {name: 0 for name in nakshatras}
     use_houses = chart_uses_houses(chart)
     for body in PLANET_ORDER:
@@ -573,14 +573,14 @@ def calculate_nakshatra_prevalence_counts(chart: Chart) -> dict[str, int]:
         lon = chart.positions.get(body)
         if lon is None:
             continue
-        nakshatra = get_nakshatra(lon)
+        nakshatra = get_chart_nakshatra(chart, body, lon)
         if nakshatra in counts:
             counts[nakshatra] += NATAL_WEIGHT.get(body, 1)
     return counts
 
 
 def calculate_dominant_nakshatra_weights(chart: Chart) -> dict[str, float]:
-    nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
+    nakshatras = list(NAKSHATRA_NAMES)
     weighted_counts = {name: 0.0 for name in nakshatras}
     use_houses = chart_uses_houses(chart)
     houses = getattr(chart, "houses", None) if use_houses else None
@@ -595,7 +595,7 @@ def calculate_dominant_nakshatra_weights(chart: Chart) -> dict[str, float]:
             continue
         house_num = house_for_longitude(houses, lon)
         weight = planet_weight(body, lon, houses, house_num)
-        nakshatra = get_nakshatra(lon)
+        nakshatra = get_chart_nakshatra(chart, body, lon)
         if nakshatra in weighted_counts:
             weighted_counts[nakshatra] += weight
 
@@ -610,8 +610,8 @@ def calculate_dominant_nakshatra_weights(chart: Chart) -> dict[str, float]:
         aspect_strength = _aspect_strength(aspect)
         if aspect_strength <= 0:
             continue
-        nakshatra_1 = get_nakshatra(chart.positions[p1])
-        nakshatra_2 = get_nakshatra(chart.positions[p2])
+        nakshatra_1 = get_chart_nakshatra(chart, p1, chart.positions[p1])
+        nakshatra_2 = get_chart_nakshatra(chart, p2, chart.positions[p2])
         if nakshatra_1 in weighted_counts:
             weighted_counts[nakshatra_1] += aspect_strength
         if nakshatra_2 in weighted_counts:
@@ -644,7 +644,7 @@ def calculate_sidereal_planet_prevalence_counts(chart: Chart) -> dict[str, float
             continue
         house_num = house_for_longitude(houses, lon)
         weight = planet_weight(body, lon, houses, house_num)
-        nakshatra = get_nakshatra(lon)
+        nakshatra = get_chart_nakshatra(chart, body, lon)
         planet_name, _color = NAKSHATRA_PLANET_COLOR.get(nakshatra, (None, None))
         if planet_name in counts:
             counts[planet_name] += float(weight)

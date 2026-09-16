@@ -2,6 +2,7 @@ import datetime as dt
 
 import pytest
 
+from ephemeraldaddy.analysis import nakshatra_metrics
 from ephemeraldaddy.core import sidereal
 
 
@@ -158,6 +159,46 @@ def test_nakshatra_boundaries(longitude, name, pada):
     result = sidereal.nakshatra_position(longitude)
     assert result.name == name
     assert result.pada == pada
+
+
+def test_nakshatra_exact_second_sector_boundary_is_bharani():
+    assert sidereal.nakshatra_position(13 + 20 / 60).name == "Bharani"
+
+
+def test_tropical_and_lahiri_shifted_longitudes_resolve_to_same_nakshatra():
+    moment = dt.datetime(2000, 1, 1, 12, tzinfo=UTC)
+    tropical_longitude = 24.0
+    shift = sidereal.lahiri_ayanamsha(moment)
+
+    tropical = sidereal.nakshatra_position_for_zodiac(
+        tropical_longitude,
+        context=sidereal.ZodiacContext("tropical"),
+        dt=moment,
+    )
+    projected = sidereal.nakshatra_position_for_zodiac(
+        tropical_longitude - shift,
+        context=sidereal.ZodiacContext("sidereal", "lahiri"),
+    )
+
+    assert tropical == projected
+    assert projected.name == "Ashwini"
+
+
+def test_sidereal_analytics_use_precomputed_chart_nakshatras():
+    class SiderealAnalyticsChart:
+        zodiac = "sidereal"
+        ayanamsha = "lahiri"
+        positions = {"Sun": 0.0}
+        nakshatras = {
+            "Sun": sidereal.NakshatraPosition(0, "Ashwini", 1, 0.0),
+        }
+
+    weights = nakshatra_metrics._fallback_dominant_nakshatra_weights(
+        SiderealAnalyticsChart()
+    )
+
+    assert weights["Ashwini"] > 0
+    assert weights["Uttara Bhadrapada"] == 0
 
 
 def test_zodiac_context_rejects_collapsed_or_unsupported_configuration():
