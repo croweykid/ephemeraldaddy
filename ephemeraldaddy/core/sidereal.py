@@ -119,6 +119,33 @@ def lahiri_ayanamsha(dt: _dt.datetime) -> float:
         return float(value) % 360.0
 
 
+def planetary_positions_for_zodiac(
+    dt: _dt.datetime,
+    latitude: float,
+    longitude: float,
+    context: ZodiacContext | None = None,
+) -> dict[str, float]:
+    """Return planetary longitudes in the requested coordinate system.
+
+    This is the pure, non-persisting coordinate seam for hypothetical samples
+    such as unknown-time sign checks and Time Sensitivity variants. Sidereal
+    samples use Swiss Ephemeris' date-sensitive Lahiri ayanamsha, exactly like
+    persisted Sidereal D1 calculation.
+    """
+
+    selected = context or ZodiacContext()
+    tropical = planetary_positions(dt, latitude, longitude)
+    if selected.zodiac == "tropical":
+        return {name: float(value) % 360.0 for name, value in tropical.items()}
+    if selected.ayanamsha != LAHIRI:
+        raise ValueError(f"Unsupported sidereal ayanamsha {selected.ayanamsha!r}")
+    shift = lahiri_ayanamsha(dt)
+    return {
+        name: (float(value) - shift) % 360.0
+        for name, value in tropical.items()
+    }
+
+
 def nakshatra_position(longitude: float) -> NakshatraPosition:
     """Map a sidereal longitude to one of 27 nakshatras and four padas."""
 
@@ -181,8 +208,12 @@ def calculate_lahiri_d1(
         raise ValueError("A canonical source recalculation token is required")
 
     shift = lahiri_ayanamsha(dt)
-    tropical = planetary_positions(dt, latitude, longitude)
-    positions = {name: (float(value) - shift) % 360.0 for name, value in tropical.items()}
+    positions = planetary_positions_for_zodiac(
+        dt,
+        latitude,
+        longitude,
+        ZodiacContext("sidereal", LAHIRI),
+    )
     house_cusps: tuple[float, ...] | None = None
     ascendant = mc = None
     if uses_houses:
