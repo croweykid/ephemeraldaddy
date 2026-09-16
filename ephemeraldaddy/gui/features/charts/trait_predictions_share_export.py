@@ -11,6 +11,8 @@ from PySide6.QtWidgets import QComboBox, QFileDialog, QTableView, QToolButton
 
 from ephemeraldaddy.gui.style import configure_share_export_icon_button
 
+from ephemeraldaddy.gui.features.charts.exporters import sanitize_export_token
+
 
 def _share_icon_path() -> str | None:
     icon_path = Path(__file__).resolve().parents[3] / "graphics" / "share_icon2.png"
@@ -48,7 +50,12 @@ def _export_visible_traits(owner: Any, table: QTableView) -> None:
     combo = getattr(owner, "traits_prediction_mode_combo", None)
     mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
     direction = "below" if mode == "below" else "above"
-    default_name = f"traits-{direction}-db-average.csv"
+    chart = getattr(owner, "_latest_chart", None)
+    chart_name = sanitize_export_token(
+        str(getattr(chart, "name", "") or ""),
+        fallback="chart",
+    )
+    default_name = f"ed_{chart_name}_traits-{direction}-db-norm.csv"
 
     path, _selected_filter = QFileDialog.getSaveFileName(
         owner,
