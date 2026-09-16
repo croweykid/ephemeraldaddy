@@ -924,7 +924,12 @@ def result_to_dict(result: TimeSensitivityResult) -> dict[str, Any]:
 
 
 def _config_hash(config: dict[str, Any]) -> str:
-    payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
+    normalized = dict(config)
+    zodiac = str(normalized.get("zodiac") or "").strip().lower()
+    if zodiac in {"", "tropical"}:
+        normalized.pop("zodiac", None)
+        normalized.pop("ayanamsha", None)
+    payload = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
