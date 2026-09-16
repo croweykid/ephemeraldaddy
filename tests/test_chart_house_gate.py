@@ -63,7 +63,7 @@ def test_invalid_exact_rectification_does_not_enable_houses():
     assert _effective_chart_datetime(chart) is None
 
 
-def test_valid_rectification_range_enables_houses_and_uses_midpoint():
+def test_valid_rectification_range_keeps_houses_disabled_but_uses_midpoint():
     chart = _chart(
         birthtime_unknown=True,
         rectification_range_used=True,
@@ -71,7 +71,7 @@ def test_valid_rectification_range_enables_houses_and_uses_midpoint():
         rectification_range_end_minute=8 * 60 + 50,
     )
 
-    assert chart_uses_houses(chart)
+    assert not chart_uses_houses(chart)
     assert _effective_chart_datetime(chart) == BASE_DT.replace(
         hour=8, minute=30, second=0, microsecond=0
     )
