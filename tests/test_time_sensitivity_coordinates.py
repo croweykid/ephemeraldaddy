@@ -104,6 +104,17 @@ def test_time_sensitivity_config_resolves_active_coordinate_context():
     ) != time_sensitivity._config_hash(asdict(sidereal_config))
 
 
+def test_tropical_cache_hash_matches_pre_context_config_shape():
+    current = asdict(TimeSensitivityConfig())
+    legacy = dict(current)
+    legacy.pop("zodiac")
+    legacy.pop("ayanamsha")
+
+    assert time_sensitivity._config_hash(current) == time_sensitivity._config_hash(
+        legacy
+    )
+
+
 def test_time_sensitivity_cache_separates_tropical_and_sidereal_same_uid(tmp_path):
     tropical = _source_chart(zodiac="tropical", ayanamsha=None)
     sidereal = _source_chart()
