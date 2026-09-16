@@ -9,12 +9,12 @@ from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.interpretations import (
     GENDER_OPTIONS,
     GENERATIONAL_COHORTS,
-    NAKSHATRA_RANGES,
     RELATION_TYPE,
     RODDEN_RATING,
     SENTIMENT_OPTIONS,
     ZODIAC_NAMES,
 )
+from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES
 from ephemeraldaddy.gui.features.charts.provenance import SOURCE_OPTIONS
 
 GENERATION_UNKNOWN_OPTION = "unknown"

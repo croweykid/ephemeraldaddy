@@ -492,7 +492,7 @@ from ephemeraldaddy.gui.features.chart_editor.astrology_mode import (
     apply_chart_editor_mode,
     chart_for_astrology_context,
 )
-from ephemeraldaddy.core.sidereal import ZodiacContext
+from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES, ZodiacContext
 from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
     refresh_material_relatives_completer,
 )
@@ -715,7 +715,6 @@ from ephemeraldaddy.core.interpretations import (
     NATURAL_HOUSE_PLANETS,
     NATURAL_HOUSE_SIGNS,
     NAKSHATRA_PLANET_COLOR,
-    NAKSHATRA_RANGES,
     MODE_COLORS,
     ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
@@ -1031,7 +1030,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     format_nakshatra_description_text as _format_nakshatra_description_text,
     format_percent as _format_percent,
     format_transit_range as _format_transit_range,
-    get_nakshatra as _get_nakshatra,
+    get_chart_nakshatra as _get_chart_nakshatra,
     sign_degrees as _sign_degrees,
     sign_for_longitude as _sign_for_longitude,
 )
@@ -6952,7 +6951,7 @@ class ManageChartsDialog(
                 lon = chart.positions.get(body)
                 if lon is None:
                     continue
-                nakshatra = _get_nakshatra(lon)
+                nakshatra = _get_chart_nakshatra(chart, body, lon)
                 weighted_counts[nakshatra] = weighted_counts.get(nakshatra, 0) + (
                     NATAL_WEIGHT.get(body, 1)
                 )
@@ -7163,7 +7162,7 @@ class ManageChartsDialog(
                     lon = chart.positions.get(body)
                     if lon is None:
                         continue
-                    nak = _get_nakshatra(lon)
+                    nak = _get_chart_nakshatra(chart, body, lon)
                     weighted_counts[nak] = weighted_counts.get(nak, 0) + NATAL_WEIGHT.get(body, 1)
                 top_three = {
                     name
@@ -8392,12 +8391,12 @@ class ManageChartsDialog(
             },
             "element_prevalence_total_count": 0.0,
             "nakshatra_prevalence_totals": {
-                name: 0.0 for name, *_ in NAKSHATRA_RANGES
+                name: 0.0 for name in NAKSHATRA_NAMES
             },
             "nakshatra_prevalence_total_count": 0.0,
-            "dominant_nakshatra_totals": {name: 0.0 for name, *_ in NAKSHATRA_RANGES},
+            "dominant_nakshatra_totals": {name: 0.0 for name in NAKSHATRA_NAMES},
             "dominant_nakshatra_total_weight": 0.0,
-            "dominant_nakshatra_frequency_totals": {name: 0.0 for name, *_ in NAKSHATRA_RANGES},
+            "dominant_nakshatra_frequency_totals": {name: 0.0 for name in NAKSHATRA_NAMES},
             "position_sign_totals_by_body": {
                 body: {sign: 0 for sign in ZODIAC_NAMES}
                 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
@@ -8563,7 +8562,7 @@ class ManageChartsDialog(
                 snapshot["element_prevalence_total_count"] += count
 
             nakshatra_prevalence_counts = _calculate_nakshatra_prevalence_counts(chart)
-            for nakshatra_name, *_ in NAKSHATRA_RANGES:
+            for nakshatra_name in NAKSHATRA_NAMES:
                 count = float(nakshatra_prevalence_counts.get(nakshatra_name, 0.0))
                 snapshot["nakshatra_prevalence_totals"][nakshatra_name] += count
                 snapshot["nakshatra_prevalence_total_count"] += count
@@ -8578,7 +8577,7 @@ class ManageChartsDialog(
                 snapshot["position_sign_totals_by_body"][body][sign] += 1
                 snapshot["position_sign_count_by_body"][body] += 1
                 snapshot_add_decan(snapshot, body, float(lon))
-                snapshot_add_nakshatra(snapshot, body, float(lon))
+                snapshot_add_nakshatra(snapshot, chart, body, float(lon))
 
             dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
             if not getattr(chart, "dominant_sign_weights", None):
@@ -8648,7 +8647,7 @@ class ManageChartsDialog(
                 snapshot["dominant_mode_total_weight"] += 1.0
 
             dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-            for nakshatra_name, *_ in NAKSHATRA_RANGES:
+            for nakshatra_name in NAKSHATRA_NAMES:
                 nakshatra_weight = float(dominant_nakshatra_weights.get(nakshatra_name, 0.0))
                 if nakshatra_weight <= 0:
                     continue
@@ -8884,7 +8883,7 @@ class ManageChartsDialog(
         totals["nakshatra_prevalence_total_count"] += direction * float(
             snapshot.get("nakshatra_prevalence_total_count", 0.0)
         )
-        for nakshatra_name, *_ in NAKSHATRA_RANGES:
+        for nakshatra_name in NAKSHATRA_NAMES:
             totals["nakshatra_prevalence_totals"][nakshatra_name] += direction * float(
                 snapshot["nakshatra_prevalence_totals"].get(nakshatra_name, 0.0)
             )
@@ -9522,7 +9521,7 @@ class ManageChartsDialog(
                 )
                 for house_num in range(1, 13)
             }
-            dominant_nakshatra_labels = [name for name, *_ in NAKSHATRA_RANGES]
+            dominant_nakshatra_labels = list(NAKSHATRA_NAMES)
             selection_top3_dominant_nakshatras = {
                 name: (
                     selection_cache["dominant_nakshatra_frequency_totals"][name] / loaded_charts
@@ -10686,7 +10685,7 @@ class ManageChartsDialog(
                     for label in prevalence_labels
                 }
             elif prevalence_mode == "nakshatra_prevalence":
-                prevalence_labels = [name for name, *_ in NAKSHATRA_RANGES]
+                prevalence_labels = list(NAKSHATRA_NAMES)
                 selection_prevalence = {
                     label: (
                         selection_cache["nakshatra_prevalence_totals"][label]
@@ -20630,7 +20629,7 @@ class ManageChartsDialog(
         if nakshatra == "Any":
             return True
         dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-        nakshatra_names = [str(nakshatra_name) for nakshatra_name, *_ in NAKSHATRA_RANGES]
+        nakshatra_names = list(NAKSHATRA_NAMES)
         if nakshatra not in nakshatra_names:
             return False
         total_weight = sum(
@@ -27621,7 +27620,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 if mode == "nakshatra_prevalence"
                 else _calculate_dominant_nakshatra_weights(chart)
             )
-            return [[name, counts.get(name, 0)] for name, *_ in NAKSHATRA_RANGES]
+            return [[name, counts.get(name, 0)] for name in NAKSHATRA_NAMES]
         if chart_key == "modal_distribution":
             mode = self._chart_analysis_selected_mode(chart_key, "dominant_modes")
             counts = (
@@ -27898,7 +27897,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if mode == "nakshatra_prevalence"
             else _calculate_dominant_nakshatra_weights(chart)
         )
-        ranked_nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
+        ranked_nakshatras = list(NAKSHATRA_NAMES)
         sorted_nakshatras = sorted(
             ranked_nakshatras,
             key=lambda key: float(ranked_weights.get(key, 0.0)),
@@ -28608,7 +28607,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         ax.figure.subplots_adjust(**STANDARD_NCV_PIE_CHART["subplots_adjust"]) #ax.figure.subplots_adjust(left=0.12, right=0.88, bottom=0.26, top=0.92)
 
     def _draw_nakshatra_wordcloud(self, ax, chart: Chart) -> None:
-        nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
+        nakshatras = list(NAKSHATRA_NAMES)
         mode = self._chart_analysis_selected_mode("nakshatra_prevalence", "nakshatra_prevalence")
         counts = (
             _calculate_nakshatra_prevalence_counts(chart)
@@ -35811,7 +35810,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     NAKSHATRA_PLANET_COLOR.get(name, (None, "#6fa8dc"))[1],
                     f"chart-analysis:nakshatra:{name}",
                 )
-                for name, *_ in NAKSHATRA_RANGES
+                for name in NAKSHATRA_NAMES
             ],
         )
 

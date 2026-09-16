@@ -216,7 +216,7 @@ def test_human_design_failure_keeps_astrological_snapshot(monkeypatch):
     monkeypatch.setattr(hourly_scan, "calculate_human_design", fail_human_design)
     warnings = []
     chart = SimpleNamespace(
-        dt=datetime(2000, 1, 1, 1, 3),
+        dt=datetime(2000, 1, 1, 1, 3, tzinfo=timezone.utc),
         positions={"Moon": 31.0},
         aspects=[],
         houses=[],

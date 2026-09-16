@@ -225,7 +225,6 @@ from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     MODE_COLORS,
     HOUSE_COLORS,
-    NAKSHATRA_RANGES,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     RELATION_TYPE,
@@ -233,6 +232,7 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     ZODIAC_NAMES,
 )
+from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES
 from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
     derive_human_design_profile,
@@ -265,6 +265,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     format_element_description_html,
     format_nakshatra_description_html,
     format_percent as _format_percent,
+    get_chart_nakshatra,
     get_nakshatra,
 )
 from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
@@ -459,7 +460,7 @@ def decans_empty_cache_fields() -> dict[str, Any]:
 
 
 def nakshatras_empty_cache_fields() -> dict[str, Any]:
-    nakshatra_labels = [str(name) for name, *_ in NAKSHATRA_RANGES]
+    nakshatra_labels = list(NAKSHATRA_NAMES)
     return {
         "position_nakshatra_totals_by_body": {
             body: {label: 0 for label in nakshatra_labels}
@@ -477,8 +478,10 @@ def snapshot_add_decan(snapshot: dict[str, Any], body: str, longitude: float) ->
     snapshot["position_decan_count_by_body"][body] += 1
 
 
-def snapshot_add_nakshatra(snapshot: dict[str, Any], body: str, longitude: float) -> None:
-    nakshatra_name = str(get_nakshatra(float(longitude))).strip()
+def snapshot_add_nakshatra(
+    snapshot: dict[str, Any], chart: object, body: str, longitude: float
+) -> None:
+    nakshatra_name = str(get_chart_nakshatra(chart, body, float(longitude))).strip()
     if not nakshatra_name:
         return
     totals_by_body = snapshot.get("position_nakshatra_totals_by_body", {})
@@ -553,7 +556,7 @@ def render_nakshatras_chart(
     baseline_mode: str = "database",
 ) -> None:
     nakshatras_mode = dialog._nakshatras_mode
-    labels = [str(name) for name, *_ in NAKSHATRA_RANGES]
+    labels = list(NAKSHATRA_NAMES)
     selection_totals = selection_cache["position_nakshatra_totals_by_body"].get(nakshatras_mode, {})
     database_totals = database_cache["position_nakshatra_totals_by_body"].get(nakshatras_mode, {})
     selection_counts = [int(selection_totals.get(label, 0)) for label in labels]
@@ -1040,7 +1043,7 @@ class DatabaseAnalyticsChartsMixin:
     ) -> set[str]:
         if not dominant_weights:
             return set()
-        nakshatra_order = [name for name, *_ in NAKSHATRA_RANGES]
+        nakshatra_order = list(NAKSHATRA_NAMES)
         ranked = sorted(
             (
                 (name, float(weight))
@@ -1621,7 +1624,11 @@ class DatabaseAnalyticsChartsMixin:
                     }
                     include = bool(set(signs) & element_signs.get(label_text, set()))
                 elif mode == "nakshatra_prevalence":
-                    include = any(str(get_nakshatra(float(lon))).strip() == label_text for lon in positions.values())
+                    include = any(
+                        str(get_chart_nakshatra(chart, body, float(lon))).strip()
+                        == label_text
+                        for body, lon in positions.items()
+                    )
                 elif mode == "house_prevalence":
                     house_counts = _calculate_house_prevalence_counts(chart)
                     include = label_text.removeprefix("House ").isdigit() and float(
@@ -1689,7 +1696,11 @@ class DatabaseAnalyticsChartsMixin:
             elif chart_key == "nakshatras":
                 body = str(chart_mode or getattr(self, "_nakshatras_mode", "Moon"))
                 longitude = (getattr(chart, "positions", None) or {}).get(body)
-                include = longitude is not None and str(get_nakshatra(float(longitude))).strip() == label_text
+                include = (
+                    longitude is not None
+                    and str(get_chart_nakshatra(chart, body, float(longitude))).strip()
+                    == label_text
+                )
             elif chart_key in {
                 "alignment_summary",
                 "social_score_summary",
@@ -2042,7 +2053,7 @@ class DatabaseAnalyticsChartsMixin:
             return "Element"
         if MODE_COLORS.get(label_key):
             return "Mode / modality"
-        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES}:
+        if clean_label in set(NAKSHATRA_NAMES):
             return "Nakshatra"
         if clean_label in RELATION_TYPE:
             return "Relationship classification"
@@ -2138,7 +2149,7 @@ class DatabaseAnalyticsChartsMixin:
             return builder_host._build_element_popout_info(chart, clean_label)
         if MODE_COLORS.get(clean_label.casefold()) and hasattr(builder_host, "_build_mode_popout_info"):
             return builder_host._build_mode_popout_info(chart, clean_label)
-        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES} and hasattr(
+        if clean_label in set(NAKSHATRA_NAMES) and hasattr(
             builder_host, "_build_nakshatra_popout_info"
         ):
             return builder_host._build_nakshatra_popout_info(chart, clean_label)
@@ -2281,7 +2292,7 @@ class DatabaseAnalyticsChartsMixin:
             return f"{clean_label} is an elemental category; this bar compares that element's share in the analytics."
         if MODE_COLORS.get(label_key):
             return f"{clean_label} is a mode/modality category; this bar compares how often Cardinal, Fixed, or Mutable emphasis appears."
-        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES}:
+        if clean_label in set(NAKSHATRA_NAMES):
             return f"{clean_label} is a nakshatra category; this bar compares how often placements or dominance fall in that lunar mansion."
         if clean_label in RELATION_TYPE:
             return f"{clean_label} is a relationship classification assigned to charts; this bar compares its frequency."

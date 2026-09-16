@@ -13,11 +13,11 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, Literal
 
-from ephemeraldaddy.analysis.time_sensitivity import _get_nakshatra
 from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES, aspect_orb_factor
+from ephemeraldaddy.core.sidereal import nakshatra_position_for_chart
 from ephemeraldaddy.core.timeutils import timezone_from_latlon
 from ephemeraldaddy.core.zodiac_projection import (
     apply_transient_zodiac_context,
@@ -258,7 +258,7 @@ def _snapshot(
             relevant_aspects[key] = factor
 
     nakshatras = {
-        body: _get_nakshatra(float(positions[body]))
+        body: nakshatra_position_for_chart(chart, body, float(positions[body])).name
         for body in body_signs
         if body in positions
     }

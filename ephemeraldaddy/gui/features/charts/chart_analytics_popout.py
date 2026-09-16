@@ -505,10 +505,10 @@ def build_nakshatra_dominance_section_html(
     from ephemeraldaddy.gui.features.charts.metrics import (
         _aspect_strength,
         chart_uses_houses,
-        get_nakshatra,
         house_for_longitude,
         planet_weight,
     )
+    from ephemeraldaddy.gui.features.charts.presentation import get_chart_nakshatra
 
     target = str(nakshatra_name or "").strip()
     use_houses = chart_uses_houses(chart)
@@ -520,7 +520,7 @@ def build_nakshatra_dominance_section_html(
     placement_lines: list[str] = []
     for body in bodies:
         lon = chart.positions.get(body)
-        if lon is None or get_nakshatra(lon) != target:
+        if lon is None or get_chart_nakshatra(chart, body, lon) != target:
             continue
         house_num = house_for_longitude(houses, lon)
         weight = planet_weight(body, lon, houses, house_num)
@@ -541,7 +541,10 @@ def build_nakshatra_dominance_section_html(
         lon2 = chart.positions.get(p2)
         if lon1 is None or lon2 is None:
             continue
-        if target not in {get_nakshatra(lon1), get_nakshatra(lon2)}:
+        if target not in {
+            get_chart_nakshatra(chart, p1, lon1),
+            get_chart_nakshatra(chart, p2, lon2),
+        }:
             continue
         aspect_weight = _aspect_strength(aspect)
         if aspect_weight <= 0:

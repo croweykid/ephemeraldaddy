@@ -15,11 +15,8 @@ from typing import Any, Iterable
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.db import DB_DIR
 from ephemeraldaddy.core.human_design_system import calculate_human_design
-from ephemeraldaddy.core.interpretations import (
-    NAKSHATRA_RANGES,
-    PLANET_ORDER,
-    ZODIAC_NAMES,
-)
+from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES
+from ephemeraldaddy.core.sidereal import nakshatra_position_for_chart
 from ephemeraldaddy.core.zodiac_projection import (
     apply_transient_zodiac_context,
     zodiac_context_for_chart,
@@ -218,7 +215,9 @@ def _categorical_snapshot(chart: Chart) -> dict[str, Any]:
     return {
         "Sun": body_signs.get("Sun", ""),
         "Nakshatra": (
-            _get_nakshatra(float(positions["Moon"])) if "Moon" in positions else ""
+            nakshatra_position_for_chart(chart, "Moon", float(positions["Moon"])).name
+            if "Moon" in positions
+            else ""
         ),
         "AS": angle_signs.get("AS", ""),
         "body_signs": body_signs,
@@ -228,33 +227,6 @@ def _categorical_snapshot(chart: Chart) -> dict[str, Any]:
 
 def _sign_for_longitude(lon: float) -> str:
     return ZODIAC_NAMES[int((float(lon) % 360.0) // 30)]
-
-
-def _get_nakshatra(lon: float) -> str:
-    lon = float(lon) % 360.0
-    for (
-        name,
-        start_sign,
-        start_deg,
-        start_min,
-        end_sign,
-        end_deg,
-        end_min,
-    ) in NAKSHATRA_RANGES:
-        start = _sign_degrees(start_sign, start_deg, start_min)
-        end = _sign_degrees(end_sign, end_deg, end_min)
-        start_f = float(start) % 360.0
-        end_f = float(end) % 360.0
-        if start_f <= end_f:
-            if start_f <= lon < end_f:
-                return str(name)
-        elif lon >= start_f or lon < end_f:
-            return str(name)
-    return str(NAKSHATRA_RANGES[-1][0])
-
-
-def _sign_degrees(sign: str, deg: int, minutes: int) -> float:
-    return (ZODIAC_NAMES.index(sign) * 30.0) + float(deg) + (float(minutes) / 60.0)
 
 
 def _percent_delta(range_delta: float, baseline: float) -> float:

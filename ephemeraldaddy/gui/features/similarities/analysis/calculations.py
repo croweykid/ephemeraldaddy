@@ -54,7 +54,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     dominant_mode_labels_from_weights,
     house_for_longitude,
 )
-from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.gui.features.charts.presentation import get_chart_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.similarities_export import similarities_label_has_excluded_bodies
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.features.charts.progress_cancel import (
@@ -462,7 +462,7 @@ def build_similarity_factor_counts_for_charts(
             lon = chart.positions.get(body)
             if lon is None:
                 continue
-            nakshatra = get_nakshatra(lon)
+            nakshatra = get_chart_nakshatra(chart, body, lon)
             nakshatra_weights[nakshatra] = nakshatra_weights.get(nakshatra, 0) + NATAL_WEIGHT.get(body, 1)
         for name, _weight in sorted(nakshatra_weights.items(), key=lambda item: item[1], reverse=True)[:3]:
             add("Dominant nakshatras in contrast", name)

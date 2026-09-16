@@ -38,11 +38,25 @@ def test_save_time_sensitivity_result_uses_sidecar_sqlite(tmp_path):
     assert db_path.exists()
 
 
-def test_time_sensitivity_nakshatra_lookup_accepts_full_range_rows():
-    from ephemeraldaddy.analysis.time_sensitivity import _get_nakshatra
+def test_time_sensitivity_nakshatra_lookup_uses_chart_coordinate_context():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
 
-    assert _get_nakshatra(24.0) == "Ashwini"
-    assert _get_nakshatra(37.2) == "Bharani"
+    from ephemeraldaddy.analysis.time_sensitivity import _categorical_snapshot
+
+    tropical = SimpleNamespace(
+        dt=datetime(2000, 1, 1, 12, tzinfo=UTC),
+        zodiac="tropical",
+        positions={"Moon": 24.0},
+    )
+    sidereal = SimpleNamespace(
+        zodiac="sidereal",
+        ayanamsha="lahiri",
+        positions={"Moon": 24.0 - 23.853222486},
+    )
+
+    assert _categorical_snapshot(tropical)["Nakshatra"] == "Ashwini"
+    assert _categorical_snapshot(sidereal)["Nakshatra"] == "Ashwini"
 
 
 def test_compute_time_sensitivity_keeps_numeric_samples_when_human_design_fails(

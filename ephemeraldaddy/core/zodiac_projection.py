@@ -17,6 +17,7 @@ from ephemeraldaddy.core.sidereal import (
     ZodiacContext,
     _sidereal_houses,
     planetary_positions_for_zodiac,
+    nakshatra_position,
 )
 
 
@@ -60,6 +61,7 @@ def apply_transient_zodiac_context(
         chart.zodiac = "tropical"
         chart.division = "D1"
         chart.ayanamsha = None
+        chart.nakshatras = {}
         return chart
 
     dt = getattr(chart, "dt", None)
@@ -94,6 +96,10 @@ def apply_transient_zodiac_context(
     chart.zodiac = context.zodiac
     chart.division = "D1"
     chart.ayanamsha = context.ayanamsha
+    chart.nakshatras = {
+        body: nakshatra_position(longitude)
+        for body, longitude in positions.items()
+    }
 
     modal_distribution = getattr(chart, "_modal_distribution", None)
     if callable(modal_distribution):
