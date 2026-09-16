@@ -627,7 +627,7 @@ SIGN_ELEMENTS = {
     "Pisces": "Water",
 }
 
-NAKSHATRA_RANGES = [
+NAKSHATRA_RANGES = [ #based on tropical ranges
     ("Ashwini", "Aries", 23, 51, "Taurus", 7, 11),
     ("Bharani", "Taurus", 7, 11, "Taurus", 20, 31),
     ("Krittika", "Taurus", 20, 31, "Gemini", 3, 51),
@@ -655,6 +655,36 @@ NAKSHATRA_RANGES = [
     ("Purva Bhadrapada", "Pisces", 13, 51, "Pisces", 27, 11),
     ("Uttara Bhadrapada", "Pisces", 27, 11, "Aries", 10, 31),
     ("Revati", "Aries", 10, 31, "Aries", 23, 51),
+]
+
+NAKSHATRA_RANGES_SIDEREAL = [
+    ("Ashwini", "Aries", 0, 0, "Aries", 13, 20),
+    ("Bharani", "Aries", 13, 20, "Aries", 26, 40),
+    ("Krittika", "Aries", 26, 40, "Taurus", 10, 0),
+    ("Rohini", "Taurus", 10, 0, "Taurus", 23, 20),
+    ("Mrigashira", "Taurus", 23, 20, "Gemini", 6, 40),
+    ("Ardra", "Gemini", 6, 40, "Gemini", 20, 0),
+    ("Punarvasu", "Gemini", 20, 0, "Cancer", 3, 20),
+    ("Pushya", "Cancer", 3, 20, "Cancer", 16, 40),
+    ("Ashlesha", "Cancer", 16, 40, "Leo", 0, 0),
+    ("Magha", "Leo", 0, 0, "Leo", 13, 20),
+    ("Purva Phalguni", "Leo", 13, 20, "Leo", 26, 40),
+    ("Uttara Phalguni", "Leo", 26, 40, "Virgo", 10, 0),
+    ("Hasta", "Virgo", 10, 0, "Virgo", 23, 20),
+    ("Chitra", "Virgo", 23, 20, "Libra", 6, 40),
+    ("Swati", "Libra", 6, 40, "Libra", 20, 0),
+    ("Vishakha", "Libra", 20, 0, "Scorpio", 3, 20),
+    ("Anuradha", "Scorpio", 3, 20, "Scorpio", 16, 40),
+    ("Jyestha", "Scorpio", 16, 40, "Sagittarius", 0, 0),
+    ("Mula", "Sagittarius", 0, 0, "Sagittarius", 13, 20),
+    ("Purva Ashadha", "Sagittarius", 13, 20, "Sagittarius", 26, 40),
+    ("Uttara Ashadha", "Sagittarius", 26, 40, "Capricorn", 10, 0),
+    ("Shravana", "Capricorn", 10, 0, "Capricorn", 23, 20),
+    ("Dhanishta", "Capricorn", 23, 20, "Aquarius", 6, 40),
+    ("Shatabhisha", "Aquarius", 6, 40, "Aquarius", 20, 0),
+    ("Purva Bhadrapada", "Aquarius", 20, 0, "Pisces", 3, 20),
+    ("Uttara Bhadrapada", "Pisces", 3, 20, "Pisces", 16, 40),
+    ("Revati", "Pisces", 16, 40, "Aries", 0, 0),
 ]
 
 
