@@ -1594,6 +1594,7 @@ from ephemeraldaddy.gui.settings.modules.ocean_predictor import (
     configure_ocean_predictor_from_settings,
 )
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
+    invalidate_traits_prediction_view as _invalidate_traits_prediction_view,
     render_traits_predictions as _render_traits_predictions,
     stop_traits_prediction_refresh_workers as _stop_traits_prediction_refresh_workers,
 )
@@ -33810,6 +33811,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._chart_edit_session.mark_prediction_flush_complete()
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = current_chart_uid == normalized_chart_uid
+        if not is_same_chart_request:
+            _invalidate_traits_prediction_view(self)
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
