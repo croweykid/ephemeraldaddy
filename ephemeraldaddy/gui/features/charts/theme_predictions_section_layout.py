@@ -6,7 +6,7 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QModelIndex, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QModelIndex, QSortFilterProxyModel, QTimer, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -122,6 +122,8 @@ def _set_caption_style(label: QLabel) -> None:
 
 def _configure_table_columns(table: QTableView) -> None:
     header = table.horizontalHeader()
+    table.setWordWrap(True)
+    table.setTextElideMode(Qt.ElideNone)
     header.setStretchLastSection(False)
     header.setSectionResizeMode(0, QHeaderView.Stretch)
     header.setSectionResizeMode(1, QHeaderView.Fixed)
@@ -132,6 +134,15 @@ def _configure_table_columns(table: QTableView) -> None:
         metrics.horizontalAdvance("0000000000"),
     )
     table.setColumnWidth(1, percent_width + 12)
+    if not getattr(table, "_ephemeraldaddy_theme_wrap_resize_connected", False):
+        header.sectionResized.connect(
+            lambda section, _old_width, _new_width, table=table: (
+                QTimer.singleShot(0, table.resizeRowsToContents)
+                if section == 0
+                else None
+            )
+        )
+        table._ephemeraldaddy_theme_wrap_resize_connected = True
 
 
 def _clone_theme_table(

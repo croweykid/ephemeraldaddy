@@ -38,6 +38,26 @@ def test_theme_chart_share_column_is_fixed_while_theme_name_stretches():
     assert 'metrics.horizontalAdvance("% of chart")' in LAYOUT_SOURCE
 
 
+def test_all_theme_tables_wrap_long_names_and_remeasure_when_width_changes():
+    configure = LAYOUT_SOURCE.split("def _configure_table_columns", 1)[1].split(
+        "\ndef ", 1
+    )[0]
+    clone = LAYOUT_SOURCE.split("def _clone_theme_table", 1)[1].split(
+        "\ndef ", 1
+    )[0]
+    upgrade = LAYOUT_SOURCE.split("def _upgrade_theme_section", 1)[1].split(
+        "\ndef ", 1
+    )[0]
+
+    assert "table.setWordWrap(True)" in configure
+    assert "table.setTextElideMode(Qt.ElideNone)" in configure
+    assert "header.sectionResized.connect(" in configure
+    assert "QTimer.singleShot(0, table.resizeRowsToContents)" in configure
+    assert "if section == 0" in configure
+    assert "_configure_table_columns(table)" in clone
+    assert "_configure_table_columns(chart_table)" in upgrade
+
+
 def test_theme_caption_precedes_right_aligned_controls_and_export_is_live():
     assert "layout.insertWidget(0, caption)" in LAYOUT_SOURCE
     assert "layout.insertWidget(1, header_row)" in LAYOUT_SOURCE
