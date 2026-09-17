@@ -33811,8 +33811,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._chart_edit_session.mark_prediction_flush_complete()
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = current_chart_uid == normalized_chart_uid
-        if not is_same_chart_request:
-            _invalidate_traits_prediction_view(self)
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
@@ -33878,6 +33876,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             return False
 
+        # Do not blank the active chart for a stale/deleted UID.  Once both the
+        # target record and its local row are valid, discard cheap lazy-panel
+        # presentation state before adopting the replacement chart.
+        if not is_same_chart_request:
+            _invalidate_traits_prediction_view(self)
         set_current_chart_by_uid(normalized_chart_uid)
         self._pending_render_chart = None
         self._similar_charts_request_id = None

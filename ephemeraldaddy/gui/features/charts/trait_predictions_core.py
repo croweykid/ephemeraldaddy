@@ -1962,6 +1962,7 @@ def invalidate_traits_prediction_view(owner: Any) -> None:
     owner._traits_prediction_render_token = object()
     owner._traits_prediction_last_render_chart_token = ""
     _cancel_traits_prediction_worker_jobs(owner)
+    _set_traits_header_action(owner, "calculate")
 
     _set_traits_prediction_rows(owner, [])
     table = getattr(owner, "traits_prediction_table", None)

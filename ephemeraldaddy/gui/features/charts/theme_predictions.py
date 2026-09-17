@@ -197,6 +197,31 @@ def _set_theme_status(owner: Any, message: str) -> None:
         label.setMinimumHeight(label.sizeHint().height())
 
 
+def invalidate_theme_prediction_view(owner: Any) -> None:
+    """Discard Themes presentation state without loading norms or scoring a chart."""
+    owner._theme_prediction_last_render_chart_token = ""
+    owner._themes_prediction_unavailability_reason = ""
+    owner._themes_prediction_chart = None
+    owner._theme_prediction_subtheme_scores = {}
+    owner._theme_prediction_family_scores = {}
+    owner._theme_prediction_db_averages = {}
+    owner._theme_prediction_activation_context = None
+    owner._theme_prediction_evidence_by_family = {}
+    owner._theme_prediction_subtheme_chart_shares = {}
+    owner._theme_prediction_family_chart_shares = {}
+    owner._theme_prediction_share_norms = {}
+    owner._theme_prediction_availability_key = None
+    owner._theme_prediction_fallback_directions = set()
+
+    model = getattr(owner, "_themes_prediction_rows_model", None)
+    if hasattr(model, "set_rows"):
+        model.set_rows([])
+    table = getattr(owner, "themes_prediction_table", None)
+    if isinstance(table, QTableView):
+        table.setVisible(False)
+    _set_theme_status(owner, "")
+
+
 def _refresh_theme_prediction_filter(owner: Any) -> None:
     proxy = getattr(owner, "_themes_prediction_filter_model", None)
     if isinstance(proxy, QSortFilterProxyModel):
@@ -498,6 +523,7 @@ def install_theme_predictions(trait_core: Any) -> None:
     if getattr(trait_core, "_ephemeraldaddy_theme_predictions_installed", False):
         return
     original_configure = trait_core.configure_traits_prediction_table
+    original_invalidate = trait_core.invalidate_traits_prediction_view
 
     def configure_traits_prediction_table(owner: Any, table: QTableView) -> None:
         original_configure(owner, table)
@@ -514,6 +540,11 @@ def install_theme_predictions(trait_core: Any) -> None:
         # is valid before inserting the sibling Themes section.
         QTimer.singleShot(0, ensure_after_parenting)
 
+    def invalidate_traits_prediction_view(owner: Any) -> None:
+        original_invalidate(owner)
+        invalidate_theme_prediction_view(owner)
+
     trait_core.configure_traits_prediction_table = configure_traits_prediction_table
+    trait_core.invalidate_traits_prediction_view = invalidate_traits_prediction_view
     trait_core._ephemeraldaddy_theme_predictions_installed = True
     _extend_right_panel_stack()
