@@ -21,7 +21,7 @@ def test_batch_tag_updates_refresh_open_property_manager_widgets():
         "def _bind_batch_enter_apply", 1
     )[0]
     assert "coordinator = getattr(self, \"_property_manager_coordinator\", None)" in finalize_body
-    assert "coordinator.refresh_open_widgets()" in finalize_body
+    assert 'coordinator.refresh_open_widgets(changed_fields={"tags"})' in finalize_body
 
 
 def test_metadata_label_dialog_exposes_usage_refresh_entrypoint():

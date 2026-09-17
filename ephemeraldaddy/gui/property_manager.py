@@ -106,14 +106,19 @@ class PropertyManagerCoordinator:
         self._open_widgets = [ref for ref in self._open_widgets if ref() is not None]
         self._open_widgets.append(weakref.ref(dialog))
 
-    def refresh_open_widgets(self) -> None:
+    def refresh_open_widgets(self, *, changed_fields: set[str] | None = None) -> None:
         live_refs: list[weakref.ReferenceType[ManageMetadataLabelsDialog]] = []
         for dialog_ref in self._open_widgets:
             dialog = dialog_ref()
             if dialog is None:
                 continue
             live_refs.append(dialog_ref)
-            if dialog.isVisible():
+            current_field = getattr(dialog, "_active_field", None)
+            field = current_field() if callable(current_field) else None
+            if (
+                dialog.isVisible()
+                and (not changed_fields or field is None or field in changed_fields)
+            ):
                 dialog.refresh_usage()
         self._open_widgets = live_refs
 
