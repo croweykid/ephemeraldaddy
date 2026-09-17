@@ -492,7 +492,7 @@ from ephemeraldaddy.gui.features.chart_editor.astrology_mode import (
     apply_chart_editor_mode,
     chart_for_astrology_context,
 )
-from ephemeraldaddy.core.sidereal import ZodiacContext
+from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES, ZodiacContext
 from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
     refresh_material_relatives_completer,
 )
@@ -703,6 +703,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_KEYWORDS,
     DOMINANT_BODY_MEANINGS,
     SIGN_KEYWORDS,
+    SIGN_KEYWORDS_CANONICAL,
     ASPECT_KEYWORDS,
     ELEMENT_COLORS,
     GRECOROMAN_ELEMENTS,
@@ -715,7 +716,6 @@ from ephemeraldaddy.core.interpretations import (
     NATURAL_HOUSE_PLANETS,
     NATURAL_HOUSE_SIGNS,
     NAKSHATRA_PLANET_COLOR,
-    NAKSHATRA_RANGES,
     MODE_COLORS,
     ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
@@ -1031,7 +1031,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     format_nakshatra_description_text as _format_nakshatra_description_text,
     format_percent as _format_percent,
     format_transit_range as _format_transit_range,
-    get_nakshatra as _get_nakshatra,
+    get_chart_nakshatra as _get_chart_nakshatra,
     sign_degrees as _sign_degrees,
     sign_for_longitude as _sign_for_longitude,
 )
@@ -1371,7 +1371,7 @@ DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
 CHART_RENDER_INTERACTIVE_DELAY_MS = 100
 CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
-DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 3
+DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 4
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
 from ephemeraldaddy.gui.widgets.search_controls import (
     GENERATION_FILTER_OPTIONS,
@@ -6952,7 +6952,7 @@ class ManageChartsDialog(
                 lon = chart.positions.get(body)
                 if lon is None:
                     continue
-                nakshatra = _get_nakshatra(lon)
+                nakshatra = _get_chart_nakshatra(chart, body, lon)
                 weighted_counts[nakshatra] = weighted_counts.get(nakshatra, 0) + (
                     NATAL_WEIGHT.get(body, 1)
                 )
@@ -7163,7 +7163,7 @@ class ManageChartsDialog(
                     lon = chart.positions.get(body)
                     if lon is None:
                         continue
-                    nak = _get_nakshatra(lon)
+                    nak = _get_chart_nakshatra(chart, body, lon)
                     weighted_counts[nak] = weighted_counts.get(nak, 0) + NATAL_WEIGHT.get(body, 1)
                 top_three = {
                     name
@@ -8392,12 +8392,12 @@ class ManageChartsDialog(
             },
             "element_prevalence_total_count": 0.0,
             "nakshatra_prevalence_totals": {
-                name: 0.0 for name, *_ in NAKSHATRA_RANGES
+                name: 0.0 for name in NAKSHATRA_NAMES
             },
             "nakshatra_prevalence_total_count": 0.0,
-            "dominant_nakshatra_totals": {name: 0.0 for name, *_ in NAKSHATRA_RANGES},
+            "dominant_nakshatra_totals": {name: 0.0 for name in NAKSHATRA_NAMES},
             "dominant_nakshatra_total_weight": 0.0,
-            "dominant_nakshatra_frequency_totals": {name: 0.0 for name, *_ in NAKSHATRA_RANGES},
+            "dominant_nakshatra_frequency_totals": {name: 0.0 for name in NAKSHATRA_NAMES},
             "position_sign_totals_by_body": {
                 body: {sign: 0 for sign in ZODIAC_NAMES}
                 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
@@ -8563,7 +8563,7 @@ class ManageChartsDialog(
                 snapshot["element_prevalence_total_count"] += count
 
             nakshatra_prevalence_counts = _calculate_nakshatra_prevalence_counts(chart)
-            for nakshatra_name, *_ in NAKSHATRA_RANGES:
+            for nakshatra_name in NAKSHATRA_NAMES:
                 count = float(nakshatra_prevalence_counts.get(nakshatra_name, 0.0))
                 snapshot["nakshatra_prevalence_totals"][nakshatra_name] += count
                 snapshot["nakshatra_prevalence_total_count"] += count
@@ -8578,7 +8578,7 @@ class ManageChartsDialog(
                 snapshot["position_sign_totals_by_body"][body][sign] += 1
                 snapshot["position_sign_count_by_body"][body] += 1
                 snapshot_add_decan(snapshot, body, float(lon))
-                snapshot_add_nakshatra(snapshot, body, float(lon))
+                snapshot_add_nakshatra(snapshot, chart, body, float(lon))
 
             dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
             if not getattr(chart, "dominant_sign_weights", None):
@@ -8648,7 +8648,7 @@ class ManageChartsDialog(
                 snapshot["dominant_mode_total_weight"] += 1.0
 
             dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-            for nakshatra_name, *_ in NAKSHATRA_RANGES:
+            for nakshatra_name in NAKSHATRA_NAMES:
                 nakshatra_weight = float(dominant_nakshatra_weights.get(nakshatra_name, 0.0))
                 if nakshatra_weight <= 0:
                     continue
@@ -8884,7 +8884,7 @@ class ManageChartsDialog(
         totals["nakshatra_prevalence_total_count"] += direction * float(
             snapshot.get("nakshatra_prevalence_total_count", 0.0)
         )
-        for nakshatra_name, *_ in NAKSHATRA_RANGES:
+        for nakshatra_name in NAKSHATRA_NAMES:
             totals["nakshatra_prevalence_totals"][nakshatra_name] += direction * float(
                 snapshot["nakshatra_prevalence_totals"].get(nakshatra_name, 0.0)
             )
@@ -9522,7 +9522,7 @@ class ManageChartsDialog(
                 )
                 for house_num in range(1, 13)
             }
-            dominant_nakshatra_labels = [name for name, *_ in NAKSHATRA_RANGES]
+            dominant_nakshatra_labels = list(NAKSHATRA_NAMES)
             selection_top3_dominant_nakshatras = {
                 name: (
                     selection_cache["dominant_nakshatra_frequency_totals"][name] / loaded_charts
@@ -10686,7 +10686,7 @@ class ManageChartsDialog(
                     for label in prevalence_labels
                 }
             elif prevalence_mode == "nakshatra_prevalence":
-                prevalence_labels = [name for name, *_ in NAKSHATRA_RANGES]
+                prevalence_labels = list(NAKSHATRA_NAMES)
                 selection_prevalence = {
                     label: (
                         selection_cache["nakshatra_prevalence_totals"][label]
@@ -20630,7 +20630,7 @@ class ManageChartsDialog(
         if nakshatra == "Any":
             return True
         dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-        nakshatra_names = [str(nakshatra_name) for nakshatra_name, *_ in NAKSHATRA_RANGES]
+        nakshatra_names = list(NAKSHATRA_NAMES)
         if nakshatra not in nakshatra_names:
             return False
         total_weight = sum(
@@ -27621,7 +27621,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 if mode == "nakshatra_prevalence"
                 else _calculate_dominant_nakshatra_weights(chart)
             )
-            return [[name, counts.get(name, 0)] for name, *_ in NAKSHATRA_RANGES]
+            return [[name, counts.get(name, 0)] for name in NAKSHATRA_NAMES]
         if chart_key == "modal_distribution":
             mode = self._chart_analysis_selected_mode(chart_key, "dominant_modes")
             counts = (
@@ -27898,7 +27898,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if mode == "nakshatra_prevalence"
             else _calculate_dominant_nakshatra_weights(chart)
         )
-        ranked_nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
+        ranked_nakshatras = list(NAKSHATRA_NAMES)
         sorted_nakshatras = sorted(
             ranked_nakshatras,
             key=lambda key: float(ranked_weights.get(key, 0.0)),
@@ -28608,7 +28608,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         ax.figure.subplots_adjust(**STANDARD_NCV_PIE_CHART["subplots_adjust"]) #ax.figure.subplots_adjust(left=0.12, right=0.88, bottom=0.26, top=0.92)
 
     def _draw_nakshatra_wordcloud(self, ax, chart: Chart) -> None:
-        nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
+        nakshatras = list(NAKSHATRA_NAMES)
         mode = self._chart_analysis_selected_mode("nakshatra_prevalence", "nakshatra_prevalence")
         counts = (
             _calculate_nakshatra_prevalence_counts(chart)
@@ -30027,6 +30027,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             chart_positions=getattr(chart, "positions", {}) or {},
                             position_info_map=position_info_map,
                             sign_for_longitude=_sign_for_longitude,
+                            zodiac=str(getattr(chart, "zodiac", "tropical") or "tropical"),
                         )
                         append_plugin_paragraphs(self.chart_info_output, paragraphs)
                     return True
@@ -30187,6 +30188,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
+        chart = getattr(self, "_latest_chart", None)
+        if str(getattr(chart, "zodiac", "tropical") or "tropical").lower() == "sidereal":
+            self._show_sign_keyword_info(sign, body_name=body)
+            return
         model = build_position_sentence_model(
             body,
             sign,
@@ -30320,14 +30325,32 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         body_key = str(body_name or "").strip()
         body_color = PLANET_COLORS.get(body_key) if body_key else None
         set_chart_info_contrast_background(self.chart_info_output, body_color)
-        sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
-        best_keywords = [
-            str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
+        chart = getattr(self, "_latest_chart", None)
+        is_sidereal = str(getattr(chart, "zodiac", "tropical") or "tropical").lower() == "sidereal"
+        if is_sidereal:
+            sign_keywords = SIGN_KEYWORDS_CANONICAL.get(sign_key.casefold(), {})
+            keyword_sections = [
+                ("Function", [sign_keywords.get("function", "")]),
+                ("Adverbs", sign_keywords.get("adverbs", [])),
+                ("Talents", sign_keywords.get("talents", [])),
+                ("Challenges", sign_keywords.get("challenges", [])),
+                ("Greatest Fears", sign_keywords.get("greatest_fears", [])),
+                ("Motivations", sign_keywords.get("motivations", [])),
+            ]
+        else:
+            sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
+            keyword_sections = [
+                ("At Best", sign_keywords.get("best", [])),
+                ("At Worst", sign_keywords.get("worst", [])),
+            ]
+        keyword_sections = [
+            (
+                label,
+                [str(item).strip() for item in values if str(item).strip()],
+            )
+            for label, values in keyword_sections
         ]
-        worst_keywords = [
-            str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
-        ]
-        if not (best_keywords or worst_keywords):
+        if not any(values for _label, values in keyword_sections):
             self.chart_info_output.setPlainText(f"{sign_key}\n\nNo keyword data available.")
             return
         self.chart_info_output.clear()
@@ -30354,7 +30377,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         plain_fmt.setFontItalic(False)
 
         position_description = (
-            get_position_description(body_key, sign_key) if body_key else None
+            get_position_description(body_key, sign_key)
+            if body_key and not is_sidereal
+            else None
         )
         if position_description:
             cursor.insertText(position_description, plain_fmt)
@@ -30376,7 +30401,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             cursor.insertText("is...\n\n", plain_fmt)
         else:
             sign_position_segments: list[tuple[str, str | None]] = []
-            chart = self._latest_chart
             if chart is not None:
                 use_houses = _chart_uses_houses(chart)
                 houses = getattr(chart, "houses", None) if use_houses else None
@@ -30434,17 +30458,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 cursor.insertText("\n\n", plain_fmt)
             else:
                 cursor.insertText(f"No chart placements in {sign_key}\n\n", plain_fmt)
-        if best_keywords:
-            cursor.insertText("At Best:", header_fmt)
-            cursor.insertText("\n", plain_fmt)
-            for keyword in best_keywords:
-                cursor.insertText(f"• {keyword}\n", plain_fmt)
-        if worst_keywords:
-            if best_keywords:
+        populated_sections = [item for item in keyword_sections if item[1]]
+        for section_index, (label, keywords) in enumerate(populated_sections):
+            if section_index:
                 cursor.insertText("\n", plain_fmt)
-            cursor.insertText("At Worst:", header_fmt)
+            cursor.insertText(f"{label}:", header_fmt)
             cursor.insertText("\n", plain_fmt)
-            for keyword in worst_keywords:
+            for keyword in keywords:
                 cursor.insertText(f"• {keyword}\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
         reset_cursor = self.chart_info_output.textCursor()
@@ -34929,9 +34949,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             # that tab. Opening Chart View should leave quick navigation back to
             # Database View responsive instead of front-loading hidden panel work.
             try:
-                time_sensitivity_token = self._chart_analytics_cache_token(chart)
+                time_sensitivity_token = (
+                    self._chart_analytics_cache_token(chart),
+                    str(getattr(chart, "zodiac", "tropical") or "tropical").lower(),
+                    str(getattr(chart, "ayanamsha", "") or "").lower(),
+                )
             except Exception:
-                time_sensitivity_token = str(id(chart))
+                time_sensitivity_token = (str(id(chart)), "", "")
             if getattr(self, "_time_sensitivity_last_refresh_token", None) != time_sensitivity_token:
                 time_sensitivity_panel.refresh_for_current_chart()
                 self._time_sensitivity_last_refresh_token = time_sensitivity_token
@@ -35811,7 +35835,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     NAKSHATRA_PLANET_COLOR.get(name, (None, "#6fa8dc"))[1],
                     f"chart-analysis:nakshatra:{name}",
                 )
-                for name, *_ in NAKSHATRA_RANGES
+                for name in NAKSHATRA_NAMES
             ],
         )
 

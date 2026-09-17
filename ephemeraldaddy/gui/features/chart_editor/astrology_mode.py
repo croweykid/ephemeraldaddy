@@ -37,6 +37,7 @@ def chart_for_astrology_context(chart: object, context: ZodiacContext) -> object
     display_chart.houses = list(sidereal.house_cusps or ())
     display_chart.housesPo = []
     display_chart.aspects = [dict(aspect) for aspect in sidereal.aspects]
+    display_chart.nakshatras = dict(sidereal.nakshatras)
     display_chart.zodiac = sidereal.zodiac
     display_chart.division = sidereal.division
     display_chart.ayanamsha = sidereal.ayanamsha

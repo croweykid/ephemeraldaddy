@@ -21,12 +21,12 @@ from ephemeraldaddy.core.interpretations import (
     HOUSE_COLORS,
     MODE_COLORS,
     NAKSHATRA_PLANET_COLOR,
-    NAKSHATRA_RANGES,
     PLANET_COLORS,
     SIGN_COLORS,
     WEIRDNESS_SCALE,
     ZODIAC_NAMES,
 )
+from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_element_weights,
     calculate_dominant_house_weights,
@@ -43,7 +43,7 @@ ELEMENT_SHARE_THRESHOLD = 0.50
 MODE_SHARE_THRESHOLD = 0.65
 MIN_NORM_SAMPLE_SIZE = 5
 
-DISTINGUISHING_METRICS_SCHEMA_VERSION = 2
+DISTINGUISHING_METRICS_SCHEMA_VERSION = 3
 DISTINGUISHING_FORMULA_VERSION = 3
 WEIRDNESS_FACTOR_COUNT_WEIGHT = 0.08
 
@@ -245,7 +245,7 @@ def _metric_groups(chart: Chart) -> tuple[_MetricGroup, ...]:
             "nakshatras",
             "nakshatra", #weight
             calculate_dominant_nakshatra_weights,
-            tuple(str(name) for name, *_rest in NAKSHATRA_RANGES),
+            NAKSHATRA_NAMES,
         ),
     ]
     if chart_uses_houses(chart):

@@ -291,15 +291,23 @@ def _normalize_chart_info_paragraphs(value: Any) -> list[list[dict[str, Any]]]:
 def chart_info_plugin_paragraphs(context: Mapping[str, Any]) -> list[list[dict[str, Any]]]:
     """Collect Chart Info supplements from enabled plugins that register the hook."""
     collected: list[list[dict[str, Any]]] = []
+    handler_context = dict(context)
+    excluded_names = {
+        str(name).strip().casefold()
+        for name in handler_context.pop("excluded_plugin_names", ())
+        if str(name).strip()
+    }
     revision = plugin_revision()
     for manifest, module in _loaded_python_plugins(revision):
+        if str(manifest.get("name", "")).strip().casefold() in excluded_names:
+            continue
         if "chart_info" not in manifest.get("hooks", ()):
             continue
         handler = getattr(module, "chart_info", None)
         if not callable(handler):
             continue
         try:
-            result = handler(dict(context))
+            result = handler(dict(handler_context))
         except Exception:
             # A local optional plugin must never take down Chart Editor.
             continue

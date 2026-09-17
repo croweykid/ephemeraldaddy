@@ -1,5 +1,7 @@
 from pathlib import Path
+from types import SimpleNamespace
 
+from ephemeraldaddy.analysis import plugins
 from ephemeraldaddy.gui.features.chart_information import plugin_context
 
 
@@ -62,7 +64,62 @@ def test_position_context_is_built_without_a_window_or_qt(monkeypatch):
         "chart_uses_houses": False,
         "chart_signs": {"Sun": "Aries", "Moon": "Taurus"},
         "chart_sign_options": {"Sun": ("Aries",), "Moon": ("Taurus",)},
+        "zodiac": "tropical",
     }
+
+
+def test_sidereal_position_context_excludes_tropical_hot_takes(monkeypatch):
+    captured = None
+
+    def capture(context):
+        nonlocal captured
+        captured = context
+        return []
+
+    monkeypatch.setattr(plugin_context, "chart_info_plugin_paragraphs", capture)
+    plugin_context.position_plugin_paragraphs(
+        body="Sun",
+        sign="Aries",
+        house_num=None,
+        chart_positions={"Sun": 5.0},
+        sign_for_longitude=lambda _longitude: "Aries",
+        zodiac="sidereal",
+    )
+
+    assert captured["zodiac"] == "sidereal"
+    assert captured["excluded_plugin_names"] == ("Sun-Moon Hot Takes",)
+
+
+def test_generic_dispatch_skips_only_named_excluded_plugin(monkeypatch):
+    calls = []
+
+    def handler(context):
+        calls.append(context)
+        return [[{"text": "supplement"}]]
+
+    loaded = [
+        (
+            {"name": "Sun-Moon Hot Takes", "hooks": ["chart_info"]},
+            SimpleNamespace(chart_info=handler),
+        ),
+        (
+            {"name": "Sidereal Supplement", "hooks": ["chart_info"]},
+            SimpleNamespace(chart_info=handler),
+        ),
+    ]
+    monkeypatch.setattr(plugins, "plugin_revision", lambda: 1)
+    monkeypatch.setattr(plugins, "_loaded_python_plugins", lambda _revision: loaded)
+
+    paragraphs = plugins.chart_info_plugin_paragraphs(
+        {
+            "target": "position",
+            "zodiac": "sidereal",
+            "excluded_plugin_names": ("Sun-Moon Hot Takes",),
+        }
+    )
+
+    assert paragraphs == [[{"text": "supplement"}]]
+    assert calls == [{"target": "position", "zodiac": "sidereal"}]
 
 
 def test_position_context_ignores_missing_or_invalid_luminary_positions(monkeypatch):

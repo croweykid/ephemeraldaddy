@@ -89,7 +89,7 @@ def test_database_metrics_dirty_and_snapshot_state_is_uid_keyed():
     assert "_database_metrics_lucy_goosey_uids: set[str]" in source
     assert "_database_metric_snapshots:" not in source
     assert "_database_metrics_lucy_goosey_ids" not in source
-    assert "DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 3" in APP_SOURCE
+    assert "DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 4" in APP_SOURCE
 
 
 def test_active_and_displayed_row_caches_are_uid_keyed():

@@ -2000,7 +2000,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
     from ephemeraldaddy.gui.widgets.search_controls import (
         ASPECT_DEFS, DND_CLASSES, FAMILY_SUBTYPES, GENERATION_FILTER_OPTIONS,
-        HD_CHANNELS, NAKSHATRA_RANGES, RODDEN_RATING, SEARCH_GENDER_GUESSED_OPTIONS,
+        HD_CHANNELS, NAKSHATRA_NAMES, RODDEN_RATING, SEARCH_GENDER_GUESSED_OPTIONS,
         SEARCH_GENDER_OPTIONS, SEARCH_RELATIONSHIP_TYPE_OPTIONS, SEARCH_SENTIMENT_OPTIONS,
         SOURCE_OPTIONS, SPECIES_FAMILIES, ZODIAC_NAMES,
     )
@@ -2716,7 +2716,7 @@ def build_dbv_search_panel(window) -> "QWidget":
             nakshatra_combo = QComboBox()
             apply_default_dropdown_style(nakshatra_combo)
             nakshatra_combo.addItem("Any", "Any")
-            for nakshatra_name, *_ in NAKSHATRA_RANGES:
+            for nakshatra_name in NAKSHATRA_NAMES:
                 nakshatra_combo.addItem(compact_nakshatra_label(str(nakshatra_name)), str(nakshatra_name))
             narrow_dropdown_for_not_option(nakshatra_combo)
             nakshatra_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)

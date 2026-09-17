@@ -68,3 +68,19 @@ def test_schema_v16_clears_cached_dominant_weights_for_sign_formula_change():
 
     assert user_version == db.SCHEMA_VERSION
     assert _cached_weights(conn, "Sign Formula Cache") == ("", "", "")
+
+
+def test_schema_v22_clears_only_stale_nakshatra_weights():
+    conn = sqlite3.connect(":memory:")
+    db._create_charts_table(conn)
+    conn.execute("PRAGMA user_version = 21")
+    _insert_cached_chart(conn, "Nakshatra Formula Cache")
+
+    db._ensure_schema(conn)
+
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    assert _cached_weights(conn, "Nakshatra Formula Cache") == (
+        '{"Scorpio": 1.0}',
+        '{"Moon": 1.0}',
+        "",
+    )

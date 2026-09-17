@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from ephemeraldaddy.core.sidereal import ZodiacContext
+from ephemeraldaddy.core.sidereal import NakshatraPosition, ZodiacContext
 from ephemeraldaddy.gui.features.chart_editor import astrology_mode
 
 
@@ -19,6 +19,7 @@ def test_sidereal_display_chart_is_a_copy_with_shared_uid(monkeypatch):
         retrogrades={"Mercury": True},
         house_cusps=None,
         aspects=(),
+        nakshatras={"Sun": NakshatraPosition(25, "Uttara Bhadrapada", 4, 12.0)},
         zodiac="sidereal",
         division="D1",
         ayanamsha="lahiri",
@@ -37,6 +38,7 @@ def test_sidereal_display_chart_is_a_copy_with_shared_uid(monkeypatch):
     assert display.positions == {"Sun": 346.0}
     assert chart.positions == {"Sun": 10.0}
     assert display.houses == []
+    assert display.nakshatras["Sun"].name == "Uttara Bhadrapada"
     assert display._tropical_source_chart is chart
 
 
@@ -55,6 +57,7 @@ def test_switching_sidereal_display_back_to_tropical_restores_original_coordinat
         retrogrades={},
         house_cusps=None,
         aspects=(),
+        nakshatras={"Sun": NakshatraPosition(25, "Uttara Bhadrapada", 4, 12.0)},
         zodiac="sidereal",
         division="D1",
         ayanamsha="lahiri",

@@ -12,6 +12,7 @@ style_stub.ARROW_STYLES = {"classic": "→"}
 style_stub.format_chart_header = lambda _key, *, birth_place, lat, lon: f"Place: {birth_place} | {lat:.4f}, {lon:.4f}"
 style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first
 
+from ephemeraldaddy.gui.features.charts import text_summary
 from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
 
 
@@ -84,3 +85,31 @@ def test_chart_data_joy_house_click_target_records_responsible_body():
             "span_end": joy_house_entries[0]["span_end"],
         }
     ]
+
+
+def test_unknown_time_row_shows_nakshatra_change_without_sign_change(monkeypatch):
+    chart = _chart(birthtime_unknown=True)
+    chart.zodiac = "sidereal"
+    chart.ayanamsha = "lahiri"
+    chart.unknown_signs = []
+
+    def sampled_positions(sample_dt, *_args, **_kwargs):
+        return {"Moon": 13.2 if sample_dt.hour == 0 else 13.4}
+
+    monkeypatch.setattr(text_summary, "planetary_positions_for_zodiac", sampled_positions)
+
+    variants = text_summary._format_time_variant_signs(chart)
+
+    assert "Moon" in variants
+    assert "Ashwini" in variants["Moon"]["text"]
+    assert "Bharani" in variants["Moon"]["text"]
+    assert "->" in variants["Moon"]["text"]
+
+
+def test_unknown_time_tropical_chart_renders_draconic_nakshatras_from_chart_date():
+    chart = _chart(birthtime_unknown=True)
+    chart.positions.update({"Rahu": 10.0, "Ketu": 190.0})
+
+    summary, _position_info, _aspect_info, _species_info = format_chart_text(chart)
+
+    assert "POSITIONS (Draconic)" in summary

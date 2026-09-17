@@ -57,6 +57,12 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
     ZODIAC_SIGNS,
 )
+from ephemeraldaddy.core.sidereal import (
+    LAHIRI,
+    ZodiacContext,
+    nakshatra_position_for_zodiac,
+    planetary_positions_for_zodiac,
+)
 from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.gui.features.charts.aspect_sorting import sort_natal_aspects
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -68,7 +74,7 @@ from ephemeraldaddy.gui.features.charts.provenance import chart_is_hypothetical
 from ephemeraldaddy.gui.features.charts.presentation import (
     format_degree_minutes,
     format_longitude,
-    get_nakshatra,
+    get_chart_nakshatra,
     sign_for_longitude,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, format_chart_header
@@ -213,7 +219,7 @@ def _format_time_variant_signs(
     if bool(getattr(chart, "retcon_time_used", False)):
         return {}
     apply_unknown_sign_metadata(chart)
-    if not bool(getattr(chart, "signs_unknown", False)):
+    if not bool(getattr(chart, "birthtime_unknown", False)):
         return {}
     tzinfo = chart.dt.tzinfo
     if tzinfo is None:
@@ -237,7 +243,14 @@ def _format_time_variant_signs(
         sample_icons = {"start": "🌅", "end": "🌌"}
 
     base_date = chart.dt.date()
-    sampled_positions: list[tuple[str, dict[str, float]]] = []
+    zodiac = str(getattr(chart, "zodiac", "tropical") or "tropical").lower()
+    ayanamsha = (
+        str(getattr(chart, "ayanamsha", LAHIRI) or LAHIRI)
+        if zodiac == "sidereal"
+        else None
+    )
+    context = ZodiacContext(zodiac, ayanamsha)
+    sampled_positions: list[tuple[str, datetime.datetime, dict[str, float]]] = []
     for label, minute in sample_minutes:
         sample_dt = datetime.datetime(
             base_date.year,
@@ -247,46 +260,68 @@ def _format_time_variant_signs(
             minute % 60,
             tzinfo=tzinfo,
         )
-        sample_positions = planetary_positions(sample_dt, chart.lat, chart.lon)
+        sample_positions = planetary_positions_for_zodiac(
+            sample_dt, chart.lat, chart.lon, context
+        )
         if draconic:
             sample_positions = calculate_draconic_positions(sample_positions)
-        sampled_positions.append((label, sample_positions))
+        sampled_positions.append((label, sample_dt, sample_positions))
 
     if not sampled_positions:
         return {}
     ordered_names = [
         body
         for body in PLANET_ORDER
-        if all(body in positions for _label, positions in sampled_positions)
+        if all(body in positions for _label, _dt, positions in sampled_positions)
     ]
     extras = sorted(
-        set.intersection(*(set(positions) for _label, positions in sampled_positions)).difference(
+        set.intersection(*(set(positions) for _label, _dt, positions in sampled_positions)).difference(
             ordered_names
         )
     )
     ordered_names.extend(extras)
     lines: dict[str, dict[str, object]] = {}
     for body in ordered_names:
-        if not draconic and body not in set(getattr(chart, "unknown_signs", []) or []):
-            continue
         samples = [
-            (label, positions[body], sign_for_longitude(positions[body]))
-            for label, positions in sampled_positions
+            (
+                label,
+                sample_dt,
+                positions[body],
+                sign_for_longitude(positions[body]),
+                nakshatra_position_for_zodiac(
+                    positions[body],
+                    context=context,
+                    dt=sample_dt,
+                ).name,
+            )
+            for label, sample_dt, positions in sampled_positions
         ]
-        if len({sign for _label, _lon, sign in samples}) <= 1:
+        if (
+            len({sign for _label, _dt, _lon, sign, _nakshatra in samples}) <= 1
+            and len(
+                {
+                    nakshatra
+                    for _label, _dt, _lon, _sign, nakshatra in samples
+                }
+            )
+            <= 1
+        ):
             continue
 
-        collapsed_samples: list[tuple[str, float, str]] = []
+        collapsed_samples: list[tuple[str, datetime.datetime, float, str, str]] = []
         for index, sample in enumerate(samples):
             is_endpoint = index == 0 or index == len(samples) - 1
-            if is_endpoint or not collapsed_samples or collapsed_samples[-1][2] != sample[2]:
+            if (
+                is_endpoint
+                or not collapsed_samples
+                or collapsed_samples[-1][3:] != sample[3:]
+            ):
                 collapsed_samples.append(sample)
         pieces: list[str] = []
         info: list[dict[str, object]] = []
         search_start = 0
-        for label, lon, sign in collapsed_samples:
+        for label, _sample_dt, lon, sign, nakshatra in collapsed_samples:
             pretty = format_longitude(lon)
-            nakshatra = get_nakshatra(lon)
             icon = sample_icons.get(label, "")
             piece = f"{icon}{pretty} ({nakshatra})ⓘ"
             pieces.append(piece)
@@ -919,7 +954,7 @@ def format_chart_text(
         if retrogrades.get(body):
             pretty = f"{pretty}Я"
             degree_text = f"{degree_text}Я"
-        nakshatra = get_nakshatra(lon)
+        nakshatra = get_chart_nakshatra(chart, body, lon)
         #nakshatra_with_info = f"{nakshatra} ⓘ"
 
         if use_houses:
@@ -1448,7 +1483,23 @@ def format_chart_text(
             degree_text = _degree_in_sign_text(lon)
             if retrogrades.get(body):
                 degree_text = f"{degree_text}Я"
-            nakshatra = get_nakshatra(lon)
+            chart_zodiac = str(
+                getattr(chart, "zodiac", "tropical") or "tropical"
+            ).lower()
+            chart_context = ZodiacContext(
+                chart_zodiac,
+                (
+                    str(getattr(chart, "ayanamsha", LAHIRI) or LAHIRI)
+                    if chart_zodiac == "sidereal"
+                    else None
+                ),
+            )
+            nakshatra_dt = _effective_chart_datetime(chart) or getattr(chart, "dt", None)
+            nakshatra = nakshatra_position_for_zodiac(
+                lon,
+                context=chart_context,
+                dt=nakshatra_dt,
+            ).name
 
             if use_houses:
                 house_num = (
@@ -1739,7 +1790,7 @@ def format_compact_transit_chart_text(
         degree_text = _degree_in_sign_text(lon)
         if retrogrades.get(body):
             degree_text = f"{degree_text}Я" #was using (Я) previously.
-        nakshatra = get_nakshatra(lon)
+        nakshatra = get_chart_nakshatra(chart, body, lon)
         columns = [
             _pad_display_column(glyph, body_width),
             _pad_display_column(sign_glyph, sign_width),

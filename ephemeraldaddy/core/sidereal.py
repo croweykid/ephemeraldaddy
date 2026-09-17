@@ -159,6 +159,74 @@ def nakshatra_position(longitude: float) -> NakshatraPosition:
     return NakshatraPosition(index, NAKSHATRA_NAMES[index], pada, within)
 
 
+def nakshatra_position_for_zodiac(
+    longitude: float,
+    *,
+    context: ZodiacContext,
+    dt: _dt.datetime | None = None,
+    ayanamsha_degrees: float | None = None,
+) -> NakshatraPosition:
+    """Resolve a longitude after projecting it into sidereal coordinates.
+
+    Nakshatra sectors themselves are always the same 27 equal sidereal
+    sectors.  Only the coordinate supplied to them differs: an already
+    sidereal longitude is used directly, while a tropical longitude requires
+    the date-sensitive Lahiri shift.
+    """
+
+    sidereal_longitude = float(longitude)
+    if context.zodiac == "tropical":
+        if ayanamsha_degrees is None:
+            if dt is None:
+                raise ValueError(
+                    "A chart datetime or ayanamsha is required for a tropical nakshatra"
+                )
+            ayanamsha_degrees = lahiri_ayanamsha(dt)
+        sidereal_longitude -= float(ayanamsha_degrees)
+    return nakshatra_position(sidereal_longitude)
+
+
+def nakshatra_position_for_chart(
+    chart: object,
+    body: str,
+    longitude: float | None = None,
+) -> NakshatraPosition:
+    """Resolve a chart placement, preferring its persisted sidereal result."""
+
+    precomputed = getattr(chart, "nakshatras", None) or {}
+    existing = precomputed.get(body) if hasattr(precomputed, "get") else None
+    if isinstance(existing, NakshatraPosition):
+        return existing
+
+    if longitude is None:
+        positions = getattr(chart, "positions", None) or {}
+        longitude = positions.get(body)
+    if longitude is None:
+        raise ValueError(f"No longitude is available for {body!r}")
+
+    zodiac = str(getattr(chart, "zodiac", "tropical") or "tropical").lower()
+    if zodiac == "sidereal":
+        context = ZodiacContext("sidereal", getattr(chart, "ayanamsha", LAHIRI) or LAHIRI)
+        return nakshatra_position_for_zodiac(float(longitude), context=context)
+
+    # Import locally: core.chart uses sidereal projection helpers itself.
+    from ephemeraldaddy.core.chart import _effective_chart_datetime
+
+    effective_dt = _effective_chart_datetime(chart)
+    if effective_dt is None:
+        # Unknown-time charts deliberately have no *effective* datetime for
+        # houses, but their stored datetime still supplies the calendar date
+        # required by the slowly varying Lahiri ayanamsha.
+        effective_dt = getattr(chart, "dt", None)
+    if not isinstance(effective_dt, _dt.datetime):
+        raise ValueError("A chart datetime is required for a tropical nakshatra")
+    return nakshatra_position_for_zodiac(
+        float(longitude),
+        context=ZodiacContext("tropical"),
+        dt=effective_dt,
+    )
+
+
 def source_recalculation_token(
     *,
     canonical_astro_token: object,

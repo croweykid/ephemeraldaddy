@@ -1,4 +1,5 @@
 from ephemeraldaddy.analysis.time_sensitivity import (
+    TIME_SENSITIVITY_ALGORITHM_VERSION,
     TimeSensitivityConfig,
     TimeSensitivityResult,
     save_time_sensitivity_result,
@@ -38,11 +39,25 @@ def test_save_time_sensitivity_result_uses_sidecar_sqlite(tmp_path):
     assert db_path.exists()
 
 
-def test_time_sensitivity_nakshatra_lookup_accepts_full_range_rows():
-    from ephemeraldaddy.analysis.time_sensitivity import _get_nakshatra
+def test_time_sensitivity_nakshatra_lookup_uses_chart_coordinate_context():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
 
-    assert _get_nakshatra(24.0) == "Ashwini"
-    assert _get_nakshatra(37.2) == "Bharani"
+    from ephemeraldaddy.analysis.time_sensitivity import _categorical_snapshot
+
+    tropical = SimpleNamespace(
+        dt=datetime(2000, 1, 1, 12, tzinfo=UTC),
+        zodiac="tropical",
+        positions={"Moon": 24.0},
+    )
+    sidereal = SimpleNamespace(
+        zodiac="sidereal",
+        ayanamsha="lahiri",
+        positions={"Moon": 24.0 - 23.853222486},
+    )
+
+    assert _categorical_snapshot(tropical)["Nakshatra"] == "Ashwini"
+    assert _categorical_snapshot(sidereal)["Nakshatra"] == "Ashwini"
 
 
 def test_compute_time_sensitivity_keeps_numeric_samples_when_human_design_fails(
@@ -210,7 +225,7 @@ def test_time_sensitivity_result_loads_by_birth_date_not_chart_uid(tmp_path):
         chart_uid="FIRST",
         chart_name="First",
         birth_date_key="04-05-2001",
-        algorithm_version="time-sensitivity-v2",
+        algorithm_version=TIME_SENSITIVITY_ALGORITHM_VERSION,
         computed_at="2026-06-20T00:00:00Z",
         config=config.__dict__,
         sample_count=49,
@@ -246,7 +261,7 @@ def test_time_sensitivity_result_prefers_exact_chart_uid_before_birth_date(tmp_p
     db_path = tmp_path / "time_sensitivity.db"
     shared = dict(
         birth_date_key="04-05-2001",
-        algorithm_version="time-sensitivity-v2",
+        algorithm_version=TIME_SENSITIVITY_ALGORITHM_VERSION,
         computed_at="2026-06-20T00:00:00Z",
         config=config.__dict__,
         sample_count=49,

@@ -11,6 +11,10 @@ from matplotlib import font_manager as mpl_font_manager
 
 from ephemeraldaddy.core.astrology import sign_for_longitude
 from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
+from ephemeraldaddy.core.sidereal import (
+    NAKSHATRA_NAMES,
+    nakshatra_position_for_chart,
+)
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     NAKSHATRA_PLANET_COLOR,
@@ -21,7 +25,7 @@ from ephemeraldaddy.core.interpretations import (
 )
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
-_NAKSHATRA_NAME_SET = {str(name) for name, *_ in NAKSHATRA_RANGES}
+_NAKSHATRA_NAME_SET = set(NAKSHATRA_NAMES)
 _NAKSHATRA_ABBREVIATION_LOOKUP: dict[str, str] = {}
 
 
@@ -102,17 +106,25 @@ def sign_degrees(sign: str, deg: int, minutes: int) -> float:
 
 
 def get_nakshatra(lon: float) -> str:
-    lon = lon % 360.0
+    """Legacy approximate lookup for context-free tropical coordinates.
+
+    Chart-aware callers must use :func:`get_chart_nakshatra`; this fallback is
+    retained for aggregate tropical grids that have no chart date.
+    """
+    normalized = float(lon) % 360.0
     for name, start_sign, start_deg, start_min, end_sign, end_deg, end_min in NAKSHATRA_RANGES:
         start = sign_degrees(start_sign, start_deg, start_min)
         end = sign_degrees(end_sign, end_deg, end_min)
-        if start <= end:
-            if start <= lon < end:
-                return name
-        else:
-            if lon >= start or lon < end:
-                return name
+        if start <= end and start <= normalized < end:
+            return str(name)
+        if start > end and (normalized >= start or normalized < end):
+            return str(name)
     return "Unknown"
+
+
+def get_chart_nakshatra(chart: object, body: str, lon: float | None = None) -> str:
+    """Return a placement's nakshatra using the chart's coordinate context."""
+    return nakshatra_position_for_chart(chart, body, lon).name
 
 
 

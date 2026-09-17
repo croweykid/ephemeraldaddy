@@ -23,7 +23,7 @@ def _indented_method_source(source: str, name: str) -> str:
 
 
 def test_uid_finalization_migration_is_schema_versioned_and_marked():
-    assert "SCHEMA_VERSION = 20" in DB_SOURCE
+    assert "SCHEMA_VERSION = 22" in DB_SOURCE
     assert 'UID_FINALIZATION_MIGRATION_KEY = "chart_uid_finalization_v1"' in DB_SOURCE
     assert "CREATE TABLE IF NOT EXISTS app_migrations" in DB_SOURCE
     ensure_schema = _method_source(DB_SOURCE, "_ensure_schema")

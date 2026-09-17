@@ -16,6 +16,7 @@ def position_plugin_paragraphs(
     chart_positions: Mapping[str, Any],
     sign_for_longitude: Callable[[float], str],
     position_info_map: Mapping[int, list[dict[str, object]]] | None = None,
+    zodiac: str = "tropical",
 ) -> list[list[dict[str, Any]]]:
     """Dispatch the generic hook with primitive data for one chart position."""
     chart_sign_options: dict[str, list[str]] = {"Sun": [], "Moon": []}
@@ -52,18 +53,21 @@ def position_plugin_paragraphs(
         if options
     }
 
-    return chart_info_plugin_paragraphs(
-        {
-            "target": "position",
-            "body": body,
-            "sign": sign,
-            "house_num": house_num,
-            "chart_uses_houses": house_num is not None,
-            "chart_signs": chart_signs,
-            "chart_sign_options": {
-                luminary: tuple(options)
-                for luminary, options in chart_sign_options.items()
-                if options
-            },
-        }
-    )
+    normalized_zodiac = str(zodiac or "tropical").strip().lower()
+    context: dict[str, Any] = {
+        "target": "position",
+        "body": body,
+        "sign": sign,
+        "house_num": house_num,
+        "chart_uses_houses": house_num is not None,
+        "chart_signs": chart_signs,
+        "chart_sign_options": {
+            luminary: tuple(options)
+            for luminary, options in chart_sign_options.items()
+            if options
+        },
+        "zodiac": normalized_zodiac,
+    }
+    if normalized_zodiac == "sidereal":
+        context["excluded_plugin_names"] = ("Sun-Moon Hot Takes",)
+    return chart_info_plugin_paragraphs(context)

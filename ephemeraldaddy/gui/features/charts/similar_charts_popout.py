@@ -68,13 +68,13 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_COLORS,
     SIGN_COLORS,
     MODE_COLORS,
-    NAKSHATRA_RANGES,
     SENTIMENT_SCALE,
     aspect_pair_weight,
     aspect_score,
 )
+from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES
 from ephemeraldaddy.gui.app_text_search import install_app_text_search
-from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.gui.features.charts.presentation import get_chart_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.provenance import chart_row_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.progress_cancel import (
     OperationCanceled,
@@ -631,7 +631,7 @@ _SIMILARITY_TOKEN_COLORS.update(
     {str(center): str(data.get("color") or "#cccccc") for center, data in HD_CENTERS.items()}
 )
 _NAKSHATRA_INDEX_BY_NAME: dict[str, int] = {
-    str(name): idx for idx, (name, *_range_data) in enumerate(NAKSHATRA_RANGES)
+    str(name): idx for idx, name in enumerate(NAKSHATRA_NAMES)
 }
 _DEFAULT_ALGORITHM_COMPONENT_WEIGHTS: dict[str, float] = {
     "placement": 0.38,
@@ -1535,8 +1535,8 @@ def _nakshatra_difference_lines(subject_chart: Any, compared_chart: Any) -> list
 
 
 def _nakshatra_name_for_index(index: int) -> str:
-    if 0 <= index < len(NAKSHATRA_RANGES):
-        return str(NAKSHATRA_RANGES[index][0])
+    if 0 <= index < len(NAKSHATRA_NAMES):
+        return str(NAKSHATRA_NAMES[index])
     return f"Nakshatra #{index + 1}"
 
 
@@ -1549,7 +1549,7 @@ def _nakshatra_weight_profile(chart: Any) -> dict[int, float]:
         longitude = positions.get(body)
         if longitude is None:
             continue
-        nakshatra_name = get_nakshatra(longitude)
+        nakshatra_name = get_chart_nakshatra(chart, body, longitude)
         if not nakshatra_name:
             continue
         nakshatra_index = _NAKSHATRA_INDEX_BY_NAME.get(str(nakshatra_name))
@@ -2454,7 +2454,7 @@ def build_similarity_reasoning_panel_html(
         normalized_mode = clean_token.lower()
         if normalized_mode in MODE_COLORS or normalized_mode in MODES:
             return f"chart-info:mode:{normalized_mode}"
-        nakshatra_names = {str(item[0]) for item in NAKSHATRA_RANGES if item}
+        nakshatra_names = set(NAKSHATRA_NAMES)
         if clean_token in nakshatra_names:
             return f"chart-info:nakshatra:{clean_token}"
         return ""
