@@ -1594,6 +1594,7 @@ from ephemeraldaddy.gui.settings.modules.ocean_predictor import (
     configure_ocean_predictor_from_settings,
 )
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
+    invalidate_traits_prediction_view as _invalidate_traits_prediction_view,
     render_traits_predictions as _render_traits_predictions,
     stop_traits_prediction_refresh_workers as _stop_traits_prediction_refresh_workers,
 )
@@ -33875,6 +33876,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             return False
 
+        # Do not blank the active chart for a stale/deleted UID.  Once both the
+        # target record and its local row are valid, discard cheap lazy-panel
+        # presentation state before adopting the replacement chart.
+        if not is_same_chart_request:
+            _invalidate_traits_prediction_view(self)
         set_current_chart_by_uid(normalized_chart_uid)
         self._pending_render_chart = None
         self._similar_charts_request_id = None

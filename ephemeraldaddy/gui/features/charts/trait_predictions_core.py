@@ -1952,6 +1952,48 @@ def _cancel_traits_prediction_worker_jobs(owner: Any, *, wait_msecs: int | None 
             continue
 
 
+def invalidate_traits_prediction_view(owner: Any) -> None:
+    """Cheaply discard Traits presentation state when Chart View changes UID.
+
+    This deliberately does not inspect traits, prediction caches, or the new
+    chart.  The existing lazy render path remains responsible for doing that
+    work if and when the Predictions/Traits UI is accessed.
+    """
+    owner._traits_prediction_render_token = object()
+    owner._traits_prediction_last_render_chart_token = ""
+    _cancel_traits_prediction_worker_jobs(owner)
+    _set_traits_header_action(owner, "calculate")
+
+    _set_traits_prediction_rows(owner, [])
+    table = getattr(owner, "traits_prediction_table", None)
+    if isinstance(table, QTableView):
+        table.setVisible(False)
+
+    label = getattr(owner, "traits_prediction_label", None)
+    if isinstance(label, QLabel):
+        stop_prediction_loading_blink(label)
+        stop_prediction_loading_ellipsis(label)
+        label.setText("")
+        label.setToolTip("")
+        label.setVisible(False)
+    updated_label = getattr(owner, "traits_prediction_updated_label", None)
+    if isinstance(updated_label, QLabel):
+        updated_label.setText("")
+
+    owner._traits_prediction_above_avg_html = ""
+    owner._traits_prediction_below_avg_html = ""
+    owner._traits_prediction_chart = None
+    owner._traits_prediction_trait_lookup = {}
+    owner._traits_prediction_failure_detail = ""
+    owner._traits_prediction_pending_chart = None
+    owner._traits_prediction_pending_traits = None
+    owner._traits_prediction_pending_signatures = None
+    owner._traits_prediction_pending_metadata = None
+    owner._traits_prediction_pending_cache_key = ""
+    owner._traits_prediction_pending_metadata_cache_key = ""
+    owner._traits_prediction_active_cache_key = ""
+
+
 def stop_traits_prediction_refresh_workers(owner: Any, wait_msecs: int | None = None) -> None:
     """Stop Chart View trait prediction refresh threads before their owner is destroyed."""
     owner._traits_prediction_render_token = object()
