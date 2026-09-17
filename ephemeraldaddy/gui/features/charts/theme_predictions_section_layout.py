@@ -120,7 +120,7 @@ def _set_caption_style(label: QLabel) -> None:
     label.setContentsMargins(0, 0, 0, 0)
 
 
-def _configure_table_columns(table: QTableView) -> None:
+def _configure_table_columns(theme_predictions: Any, table: QTableView) -> None:
     header = table.horizontalHeader()
     table.setWordWrap(True)
     table.setTextElideMode(Qt.ElideNone)
@@ -135,13 +135,21 @@ def _configure_table_columns(table: QTableView) -> None:
     )
     table.setColumnWidth(1, percent_width + 12)
     if not getattr(table, "_ephemeraldaddy_theme_wrap_resize_connected", False):
-        header.sectionResized.connect(
-            lambda section, _old_width, _new_width, table=table: (
-                QTimer.singleShot(0, table.resizeRowsToContents)
-                if section == 0
-                else None
+        def resize_wrapped_rows(
+            section: int,
+            _old_width: int,
+            _new_width: int,
+        ) -> None:
+            if section != 0:
+                return
+            QTimer.singleShot(
+                0,
+                lambda: theme_predictions._resize_theme_prediction_table_to_contents(
+                    table
+                ),
             )
-        )
+
+        header.sectionResized.connect(resize_wrapped_rows)
         table._ephemeraldaddy_theme_wrap_resize_connected = True
 
 
@@ -172,7 +180,7 @@ def _clone_theme_table(
         "border: 0; padding: 3px 6px; }"
         "QTableView::item { padding: 2px 6px; }"
     )
-    _configure_table_columns(table)
+    _configure_table_columns(theme_predictions, table)
     return table
 
 
@@ -398,7 +406,7 @@ def _upgrade_theme_section(theme_predictions: Any, owner: Any) -> None:
     chart_proxy.setSourceModel(source_model)
     chart_table.setModel(chart_proxy)
     chart_table.sortByColumn(1, Qt.DescendingOrder)
-    _configure_table_columns(chart_table)
+    _configure_table_columns(theme_predictions, chart_table)
     owner._themes_chart_dominance_proxy = chart_proxy
     owner._themes_prediction_filter_model = chart_proxy
 

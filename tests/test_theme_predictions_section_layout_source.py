@@ -52,10 +52,11 @@ def test_all_theme_tables_wrap_long_names_and_remeasure_when_width_changes():
     assert "table.setWordWrap(True)" in configure
     assert "table.setTextElideMode(Qt.ElideNone)" in configure
     assert "header.sectionResized.connect(" in configure
-    assert "QTimer.singleShot(0, table.resizeRowsToContents)" in configure
-    assert "if section == 0" in configure
-    assert "_configure_table_columns(table)" in clone
-    assert "_configure_table_columns(chart_table)" in upgrade
+    assert "if section != 0" in configure
+    assert "theme_predictions._resize_theme_prediction_table_to_contents(" in configure
+    assert "table.resizeRowsToContents" not in configure
+    assert "_configure_table_columns(theme_predictions, table)" in clone
+    assert "_configure_table_columns(theme_predictions, chart_table)" in upgrade
 
 
 def test_theme_caption_precedes_right_aligned_controls_and_export_is_live():
