@@ -5,6 +5,10 @@ DB_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/core/db.py").
 DB_ANALYTICS_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/features/charts/database_analytics.py").read_text()
 
 
+def test_nakshatra_formula_change_bumps_persistent_cache_version():
+    assert "DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 4" in APP_SOURCE
+
+
 def _method_source(source: str, name: str, *, indented: bool = True) -> str:
     indent = "    " if indented else ""
     marker = f"{indent}def {name}"

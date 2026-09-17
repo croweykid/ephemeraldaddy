@@ -52,6 +52,22 @@ def test_distinguishing_factor_html_does_not_truncate_significant_factors():
     assert "for factor in factors[:12]:" not in source
 
 
+def test_old_distinguishing_nakshatra_cache_schema_is_rejected(
+    tmp_path, _lightweight_distinguishing_factor_imports
+):
+    distinguishing_factors = _lightweight_distinguishing_factor_imports
+    cache_path = tmp_path / ".distinguishing_metrics_cache.json"
+    cache_path.write_text(
+        '{"schema_version":2,"charts":{"1":{"payload":{"groups":{"nakshatras":{}}}}}}',
+        encoding="utf-8",
+    )
+
+    loaded = distinguishing_factors.load_distinguishing_metric_cache(cache_path)
+
+    assert distinguishing_factors.DISTINGUISHING_METRICS_SCHEMA_VERSION == 3
+    assert loaded == {"schema_version": 3, "charts": {}}
+
+
 def test_incarnation_cross_info_uses_cross_type_for_angle_description():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 

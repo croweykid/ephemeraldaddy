@@ -277,7 +277,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 CHART_UID_LENGTH = 16
 UID_FINALIZATION_MIGRATION_KEY = "chart_uid_finalization_v1"
@@ -2246,6 +2246,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 21:
         _create_sidereal_chart_data_table(conn)
         conn.execute("PRAGMA user_version = 21")
+        user_version = 21
+
+    if user_version < 22:
+        if _charts_table_exists(conn):
+            _clear_dominant_nakshatra_weight_cache(conn)
+        conn.execute("PRAGMA user_version = 22")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -7024,6 +7030,11 @@ def _clear_dominant_weight_caches(conn: sqlite3.Connection) -> None:
             dominant_nakshatra_weights = ''
         """
     )
+
+
+def _clear_dominant_nakshatra_weight_cache(conn: sqlite3.Connection) -> None:
+    """Invalidate weights produced by the retired fixed tropical ranges."""
+    conn.execute("UPDATE charts SET dominant_nakshatra_weights = ''")
 
 
 def invalidate_all_dominant_weight_caches() -> None:
