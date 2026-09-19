@@ -113,6 +113,9 @@ class PropertyManagerCoordinator:
             if dialog is None:
                 continue
             live_refs.append(dialog_ref)
+            # ManageMetadataLabelsDialog caches every field in _usage_data and
+            # changing tabs does not reload it. Refresh the complete model so a
+            # currently hidden Tags tab cannot become stale when selected later.
             if dialog.isVisible():
                 dialog.refresh_usage()
         self._open_widgets = live_refs
