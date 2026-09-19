@@ -13020,21 +13020,21 @@ class ManageChartsDialog(
             and self._is_database_metrics_section_expanded("tag_distribution")
         )
 
-    def _refresh_tag_distribution_after_batch_tag_update(self, changed_ids: set[int]) -> None:
+    def _refresh_tag_distribution_after_batch_tag_update(self, changed_uids: set[str]) -> None:
         if not self._should_refresh_tag_distribution_for_batch_tag_update():
             self._batch_tagging_debug_log("phase2c_tag_distribution_refresh_skipped_collapsed")
             return
-        self._pending_tag_distribution_changed_ids = set(
-            getattr(self, "_pending_tag_distribution_changed_ids", set())
-        ) | set(changed_ids)
+        self._pending_tag_distribution_changed_uids = set(
+            getattr(self, "_pending_tag_distribution_changed_uids", set())
+        ) | set(changed_uids)
         if getattr(self, "_tag_distribution_refresh_pending", False):
             return
         self._tag_distribution_refresh_pending = True
 
         def _render_pending_tag_distribution() -> None:
             self._tag_distribution_refresh_pending = False
-            pending_ids = set(self._pending_tag_distribution_changed_ids)
-            self._pending_tag_distribution_changed_ids.clear()
+            pending_uids = set(self._pending_tag_distribution_changed_uids)
+            self._pending_tag_distribution_changed_uids.clear()
             if not self._should_refresh_tag_distribution_for_batch_tag_update():
                 return
             chart_ids = self._selected_local_row_ids()
@@ -13050,26 +13050,36 @@ class ManageChartsDialog(
                 should_refresh=lambda section_key: section_key == "tag_distribution",
             )
             self._batch_tagging_debug_log(
-                "phase2c_tag_distribution_refreshed changed_ids=%s",
-                sorted(pending_ids),
+                "phase2c_tag_distribution_refreshed changed_uids=%s",
+                sorted(pending_uids),
             )
 
         QTimer.singleShot(0, _render_pending_tag_distribution)
 
     def _patch_chart_row_tags(
         self,
-        changed_ids: set[int],
+        changed_uids: set[str],
         *,
         added_tags: list[str] | None = None,
         removed_tags: list[str] | None = None,
     ) -> None:
         """Patch the lightweight roster projection without rereading the database."""
+        normalized_changed_uids = {
+            uid
+            for raw_uid in changed_uids
+            if (uid := self._normalized_chart_uid_key(raw_uid))
+        }
         added = normalize_tag_list(added_tags or [])
         removed_keys = {tag.casefold() for tag in normalize_tag_list(removed_tags or [])}
         for row_index, row in enumerate(self._chart_rows):
-            if not row or int(row[0]) not in changed_ids:
+            if not row:
                 continue
             mutable_row = list(row)
+            chart_uid = self._normalized_chart_uid_key(
+                mutable_row[30] if len(mutable_row) > 30 else None
+            )
+            if chart_uid not in normalized_changed_uids:
+                continue
             if len(mutable_row) <= 25:
                 mutable_row.extend([None] * (26 - len(mutable_row)))
             tags = parse_tag_text(str(mutable_row[25] or ""))
@@ -13079,14 +13089,13 @@ class ManageChartsDialog(
             mutable_row[25] = ", ".join(tags)
             patched_row = tuple(mutable_row)
             self._chart_rows[row_index] = patched_row
-            chart_uid = self._normalized_chart_uid_key(mutable_row[30] if len(mutable_row) > 30 else None)
             if chart_uid:
                 if chart_uid in self._active_chart_rows_by_uid:
                     self._active_chart_rows_by_uid[chart_uid] = patched_row
                 if chart_uid in self._displayed_chart_rows_by_uid:
                     self._displayed_chart_rows_by_uid[chart_uid] = patched_row
 
-    def _refresh_roster_after_tag_change(self, changed_ids: set[int]) -> None:
+    def _refresh_roster_after_tag_change(self, changed_uids: set[str]) -> None:
         """Reevaluate tag filters from patched rows, avoiding general hydration."""
         if not self._has_active_search_tag_filters():
             return
@@ -13094,6 +13103,7 @@ class ManageChartsDialog(
             self.list_widget,
             selected_uids=self._selected_chart_uids(),
         )
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
         self._populate_list(refresh_metrics=False, changed_ids=changed_ids)
         restore_chart_roster_view_state(self.list_widget, roster_state)
         QTimer.singleShot(
@@ -13379,8 +13389,8 @@ class ManageChartsDialog(
                 continue
             cached_chart.tags = existing_tags + [tag_value]
             self._chart_cache[chart_id] = cached_chart
-        self._patch_chart_row_tags(changed_ids, added_tags=[tag_value])
-        self._finalize_batch_tag_updates(changed_ids, added_tags=[tag_value])
+        self._patch_chart_row_tags(changed_uids, added_tags=[tag_value])
+        self._finalize_batch_tag_updates(changed_uids, added_tags=[tag_value])
 
     @staticmethod
     def _parse_integer_filter_text(raw_value: str | None) -> int | None:
@@ -13531,18 +13541,18 @@ class ManageChartsDialog(
                 if tag.casefold() != normalized_remove_key
             ]
             self._chart_cache[chart_id] = cached_chart
-        self._patch_chart_row_tags(changed_ids, removed_tags=[tag_to_remove])
-        self._finalize_batch_tag_updates(changed_ids)
+        self._patch_chart_row_tags(changed_uids, removed_tags=[tag_to_remove])
+        self._finalize_batch_tag_updates(changed_uids)
 
     def _finalize_batch_tag_updates(
         self,
-        changed_ids: set[int],
+        changed_uids: set[str],
         *,
         added_tags: list[str] | None = None,
     ) -> None:
         self._batch_tagging_debug_log(
-            "phase1_saved changed_ids=%s selection_count=%s",
-            sorted(changed_ids),
+            "phase1_saved changed_uids=%s selection_count=%s",
+            sorted(changed_uids),
             len(self._selected_local_row_ids()),
         )
         try:
@@ -13554,12 +13564,12 @@ class ManageChartsDialog(
                 self._batch_tagging_debug_log("phase2a_tag_completers_updated")
             self._update_batch_tag_state()
             self._batch_tagging_debug_log("phase2b_batch_tag_state_updated")
-            self._refresh_tag_distribution_after_batch_tag_update(changed_ids)
+            self._refresh_tag_distribution_after_batch_tag_update(changed_uids)
             coordinator = getattr(self, "_property_manager_coordinator", None)
             if coordinator is not None:
-                coordinator.refresh_open_widgets(changed_fields={"tags"})
+                coordinator.refresh_open_widgets()
             if self._has_active_search_tag_filters():
-                self._refresh_roster_after_tag_change(changed_ids)
+                self._refresh_roster_after_tag_change(changed_uids)
                 self._update_batch_tag_state()
                 self._batch_tagging_debug_log("phase2c_tag_filter_refresh_complete")
             else:
@@ -14312,8 +14322,8 @@ class ManageChartsDialog(
                 continue
             cached_chart.tags = existing_tags + [tag_to_add]
             self._chart_cache[chart_id] = cached_chart
-        self._patch_chart_row_tags(changed_ids, added_tags=[tag_to_add])
-        self._finalize_batch_tag_updates(changed_ids, added_tags=[tag_to_add])
+        self._patch_chart_row_tags(changed_uids, added_tags=[tag_to_add])
+        self._finalize_batch_tag_updates(changed_uids, added_tags=[tag_to_add])
 
     def _update_batch_alignment_score_label(self, value: int) -> None:
         self.batch_alignment_score_label.setText(f"Alignment score: {int(value)}")

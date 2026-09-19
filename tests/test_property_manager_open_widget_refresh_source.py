@@ -21,9 +21,18 @@ def test_batch_tag_updates_refresh_open_property_manager_widgets():
         "def _bind_batch_enter_apply", 1
     )[0]
     assert "coordinator = getattr(self, \"_property_manager_coordinator\", None)" in finalize_body
-    assert 'coordinator.refresh_open_widgets(changed_fields={"tags"})' in finalize_body
+    assert "coordinator.refresh_open_widgets()" in finalize_body
 
 
 def test_metadata_label_dialog_exposes_usage_refresh_entrypoint():
     assert "def refresh_usage(self) -> None:" in DEV_TOOLS_SOURCE
     assert "self._reload_usage()" in DEV_TOOLS_SOURCE
+
+
+def test_open_manager_refresh_does_not_skip_inactive_cached_fields():
+    method = PROPERTY_MANAGER_SOURCE.split("def refresh_open_widgets", 1)[1].split(
+        "def launch", 1
+    )[0]
+    assert "dialog.refresh_usage()" in method
+    assert "_active_field" not in method
+    assert "field in changed_fields" not in method
