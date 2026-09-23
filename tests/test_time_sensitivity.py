@@ -989,7 +989,7 @@ def test_time_sensitivity_sign_info_starts_with_each_body_active_period():
 
 
 def test_time_sensitivity_algorithm_version_invalidates_pre_body_span_results():
-    assert TIME_SENSITIVITY_ALGORITHM_VERSION == "time-sensitivity-v13"
+    assert TIME_SENSITIVITY_ALGORITHM_VERSION == "time-sensitivity-v14"
 
 
 def test_human_design_property_links_report_each_sampled_time_span():

@@ -92,6 +92,9 @@ def apply_transient_zodiac_context(
     chart.retrogrades = planetary_retrogrades(dt)
     chart.houses = list(houses)
     chart.housesPo = []
+    add_part_of_fortune = getattr(chart, "_add_part_of_fortune", None)
+    if callable(add_part_of_fortune):
+        add_part_of_fortune()
     chart.aspects = find_aspects(positions)
     chart.zodiac = context.zodiac
     chart.division = "D1"

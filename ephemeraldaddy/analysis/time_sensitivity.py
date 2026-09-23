@@ -22,7 +22,7 @@ from ephemeraldaddy.core.zodiac_projection import (
     zodiac_context_for_chart,
 )
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v13"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v14"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
