@@ -70,6 +70,17 @@ def _assert_lahiri_reference(variant):
     assert tuple(variant.houses) == pytest.approx(
         _SWISS_J2000_LONDON_LAHIRI_CUSPS, abs=1e-8
     )
+    expected_fortune = (
+        variant.positions["AS"]
+        + variant.positions["Moon"]
+        - variant.positions["Sun"]
+    ) % 360.0
+    assert variant.positions["Part of Fortune"] == pytest.approx(
+        expected_fortune, abs=1e-8
+    )
+    assert time_sensitivity._categorical_snapshot(variant)["body_signs"][
+        "Part of Fortune"
+    ] == time_sensitivity._sign_for_longitude(expected_fortune)
 
 
 def test_broad_time_sensitivity_variant_uses_native_sidereal_geometry():
@@ -155,7 +166,7 @@ def test_time_sensitivity_cache_separates_tropical_and_sidereal_same_uid(tmp_pat
     assert sidereal_loaded.overall["marker"] == "sidereal"
 
 
-def test_v11_cache_is_invalidated_after_nakshatra_algorithm_change(tmp_path):
+def test_old_cache_is_invalidated_after_time_sensitivity_algorithm_change(tmp_path):
     chart = _source_chart(zodiac="tropical", ayanamsha=None)
     config = time_sensitivity._resolved_config(chart, TimeSensitivityConfig())
     db_path = tmp_path / "time_sensitivity.db"
@@ -177,7 +188,7 @@ def test_v11_cache_is_invalidated_after_nakshatra_algorithm_change(tmp_path):
     )
     save_time_sensitivity_result(stale, db_path)
 
-    assert TIME_SENSITIVITY_ALGORITHM_VERSION == "time-sensitivity-v12"
+    assert TIME_SENSITIVITY_ALGORITHM_VERSION == "time-sensitivity-v14"
     assert load_time_sensitivity_result_for_chart(
         chart, TimeSensitivityConfig(), db_path
     ) is None

@@ -673,6 +673,22 @@ def build_time_sensitivity_sign_info_text(
         for item in sign_keywords.get("worst", [])
         if str(item).strip()
     ]
+    active_period_lines = []
+    overall = getattr(result, "overall", {}) if result is not None else {}
+    spans_by_category = (
+        overall.get("categorical_value_spans", {})
+        if isinstance(overall, dict)
+        else {}
+    )
+    if isinstance(spans_by_category, dict):
+        for category in (f"{body} sign" for body in PLANET_ORDER):
+            spans = time_sensitivity_categorical_spans(result, category, sign_key)
+            if spans:
+                body = category.removesuffix(" sign")
+                active_period_lines.append(
+                    f"{_display_body_name(body)} in {sign_key}: "
+                    f"{_format_categorical_time_spans(spans)}"
+                )
     placements = []
     possible = []
     if chart is not None:
@@ -680,7 +696,10 @@ def build_time_sensitivity_sign_info_text(
         for body in PLANET_ORDER:
             if str(sign_by_body.get(body, "")).strip().title() == sign_key:
                 placements.append(_display_body_name(body))
-        for category, label in (("Sun sign", "Sun"), ("Ascendant", "Ascendant")):
+        for category, label in (
+            *((f"{body} sign", body) for body in PLANET_ORDER),
+            ("Ascendant", "Ascendant"),
+        ):
             if time_sensitivity_categorical_spans(result, category, sign_key):
                 display_label = (
                     _display_body_name(label) if label != "Ascendant" else label
@@ -697,7 +716,10 @@ def build_time_sensitivity_sign_info_text(
         )
     if not placement_line:
         placement_line = f"No chart placements in {sign_key}"
-    lines = [sign_key, "", placement_line, ""]
+    lines = [sign_key, ""]
+    if active_period_lines:
+        lines.extend([*active_period_lines, ""])
+    lines.extend([placement_line, ""])
     if best_keywords:
         lines.extend(["At best:", *(f"• {keyword}" for keyword in best_keywords)])
     if worst_keywords:

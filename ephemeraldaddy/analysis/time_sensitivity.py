@@ -22,7 +22,7 @@ from ephemeraldaddy.core.zodiac_projection import (
     zodiac_context_for_chart,
 )
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v12"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v14"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -789,19 +789,26 @@ def compute_time_sensitivity(
     stability = max(0.0, 100.0 - max_delta)
 
     categorical_sources = {
-        "Sun sign": "Sun",
+        **{f"{body} sign": body for body in BODY_SIGN_CONFIDENCE_KEYS},
         "Moon nakshatra": "Nakshatra",
         "Ascendant": "AS",
     }
+
+    def categorical_value(sample: dict[str, Any], source_key: str) -> str:
+        categorical = sample["categorical"]
+        if source_key in BODY_SIGN_CONFIDENCE_KEYS:
+            return str(categorical.get("body_signs", {}).get(source_key, ""))
+        return str(categorical.get(source_key, ""))
+
     categorical_values = {
-        label: [sample["categorical"].get(source_key, "") for sample in samples]
+        label: [categorical_value(sample, source_key) for sample in samples]
         for label, source_key in categorical_sources.items()
     }
     categorical_value_spans = {
         label: {
             value: _matching_spans(
                 [
-                    (sample["time"], sample["categorical"].get(source_key, ""))
+                    (sample["time"], categorical_value(sample, source_key))
                     for sample in samples
                 ],
                 lambda candidate, expected=value: candidate == expected,

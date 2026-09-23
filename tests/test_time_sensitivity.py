@@ -950,6 +950,48 @@ def test_time_sensitivity_ascendant_info_keeps_disjoint_midnight_spans():
     assert "from 00:00 to 23:59" not in text
 
 
+def test_time_sensitivity_sign_info_starts_with_each_body_active_period():
+    import pytest
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version=TIME_SENSITIVITY_ALGORITHM_VERSION,
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=49,
+        baseline_time="12:00",
+        overall={
+            "categorical_value_spans": {
+                "Moon sign": {"Aries": ["00:00–02:30", "22:00–23:59"]},
+                "Mercury sign": {"Aries": ["08:00–12:30"]},
+            }
+        },
+        numeric_ranges={},
+        human_design={},
+        stable=[],
+        variable=["Moon sign: Aries / Taurus", "Mercury sign: Pisces / Aries"],
+        warnings=[],
+    )
+
+    text = panel_module.build_time_sensitivity_sign_info_text(result, None, "Aries")
+
+    assert text.startswith(
+        "Aries\n\n"
+        "Moon in Aries: from 00:00 to 02:30 and from 22:00 to 23:59\n"
+        "Mercury in Aries: from 08:00 to 12:30\n\n"
+    )
+
+
+def test_time_sensitivity_algorithm_version_invalidates_pre_body_span_results():
+    assert TIME_SENSITIVITY_ALGORITHM_VERSION == "time-sensitivity-v14"
+
+
 def test_human_design_property_links_report_each_sampled_time_span():
     import pytest
 
