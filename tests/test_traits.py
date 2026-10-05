@@ -32,6 +32,27 @@ def test_parse_similarities_python_export_preserves_trait_profile(tmp_path):
     assert parsed["Selection"]["channels"] == {(1, 8): 3}
 
 
+def test_parse_legacy_list_channel_keys_as_tuples(tmp_path):
+    source = tmp_path / "legacy_trait.json"
+    source.write_text(
+        '''{
+    "Selection": {
+        "name": "Selection",
+        "channels": {
+            [19, 49]: 5,
+            [1, 8]: 4,
+        },
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    parsed = traits.parse_trait_file(source)
+
+    assert parsed["Selection"]["channels"] == {(19, 49): 5, (1, 8): 4}
+
+
 def test_parse_exact_similarities_python_export_assignment(tmp_path):
     source = tmp_path / "similarities_export.py"
     source.write_text(
