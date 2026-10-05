@@ -114,7 +114,7 @@ TRAIT_ROW_ANTITHETICAL_ROLE = Qt.UserRole + 5
 _ANTI_TRAIT_FACTOR_KEYS = (
     "antisigns", "antihouses", "antibodies", "antielements", "antimodes",
     "antinakshatras", "antipositions", "antiaspects", "antigates",
-    "antigate_lines", "antichannels", "anticenters", "antiprofiles",
+    "antigate_lines", "antichannels", "antihdtypes", "anticenters", "antiprofiles",
     "antiauthorities", "antibazisigns",
 )
 
@@ -371,11 +371,15 @@ def _trait_rank_row(
     color: str,
     db_average: float,
     db_deviation: float,
+    source_name: str | None = None,
+    antithetical: bool = False,
 ) -> str:
     safe_name = html.escape(name)
     pct = max(0.0, min(100.0, percentage))
     safe_color = html.escape(normalize_trait_color(color))
-    safe_href = html.escape(f"trait:{urllib.parse.quote(name, safe='')}", quote=True)
+    link_name = source_name if source_name is not None else name
+    link_kind = "antitrait" if antithetical else "trait"
+    safe_href = html.escape(f"{link_kind}:{urllib.parse.quote(link_name, safe='')}", quote=True)
     difference_text = html.escape(_format_signed_percentage(db_deviation))
     percentage_color = _percentage_color(pct, 0.0, 100.0)
     difference_color = _percentage_color(db_deviation, -100.0, 100.0)
@@ -558,9 +562,13 @@ def _on_trait_prediction_link_activated(owner: Any, target: str) -> None:
             QMessageBox.information(owner, "Traits that failed to load", detail)
         return
     parts = str(target or "").split(":", 1)
-    if len(parts) != 2 or parts[0] != "trait":
+    if len(parts) != 2 or parts[0] not in {"trait", "antitrait"}:
         return
-    _show_trait_chart_info(owner, urllib.parse.unquote(parts[1]))
+    _show_trait_chart_info(
+        owner,
+        urllib.parse.unquote(parts[1]),
+        antithetical=parts[0] == "antitrait",
+    )
 
 
 def _configure_traits_prediction_label(owner: Any, label: QLabel) -> None:
@@ -1775,44 +1783,60 @@ def _set_traits_prediction_rows(owner: Any, rows: list[dict[str, Any]]) -> None:
     _refresh_traits_prediction_filter(owner)
 
 
+def _prediction_rows_html_table(title: str, rows: list[dict[str, Any]]) -> str:
+    if rows:
+        body = "".join(
+            _trait_rank_row(
+                str(row.get("display_name") or row.get("name") or ""),
+                float(row.get("likelihood", 0.0)),
+                color=str(row.get("color") or DEFAULT_TRAIT_COLOR),
+                db_average=float(row.get("database_average", 0.0)),
+                db_deviation=float(row.get("deviation", 0.0)),
+                source_name=str(row.get("name") or ""),
+                antithetical=bool(row.get("antithetical", False)),
+            )
+            for row in rows
+        )
+    else:
+        body = (
+            "<tr><td colspan='3' style='padding:3px 0; color:#9a9a9a;'>"
+            "No traits meet the 5% deviation threshold."
+            "</td></tr>"
+        )
+    return (
+        f"<div style='padding-bottom:3px;'><b>{html.escape(title)}</b></div>"
+        "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
+        f"{_traits_table_header()}{body}"
+        "</table>"
+    )
+
+
 def _trait_predictions_html_from_metadata(
     traits: list[dict[str, Any]],
     metadata: dict[str, Any],
 ) -> tuple[str, str]:
     likelihoods = dict(metadata.get("likelihoods", {}))
     database_averages = dict(metadata.get("database_averages", {}))
-    db_deviations = dict(metadata.get("deviations", {}))
     if not likelihoods:
         message = "No scorable traits uploaded."
         return message, message
     if not database_averages:
         message = "Trait predictions unavailable until database trait averages can be calculated."
         return message, message
-    color_by_name = {
-        str(trait.get("name", "")): normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
-        for trait in traits
-    }
-    threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
-    above_avg_traits = sorted(
-        (
-            (name, float(likelihoods[name]), float(database_averages[name]), float(db_deviation))
-            for name, db_deviation in db_deviations.items()
-            if db_deviation >= threshold
-        ),
-        key=lambda item: item[3],
+
+    rows = _trait_prediction_rows_from_metadata(traits, metadata)
+    above_rows = sorted(
+        (row for row in rows if str(row.get("direction")) == "above"),
+        key=lambda row: float(row.get("deviation", 0.0)),
         reverse=True,
     )
-    below_avg_traits = sorted(
-        (
-            (name, float(likelihoods[name]), float(database_averages[name]), float(db_deviation))
-            for name, db_deviation in db_deviations.items()
-            if db_deviation <= -threshold
-        ),
-        key=lambda item: item[3],
+    below_rows = sorted(
+        (row for row in rows if str(row.get("direction")) == "below"),
+        key=lambda row: float(row.get("deviation", 0.0)),
     )
     return (
-        _trait_table("Above avg traits", above_avg_traits, color_by_name) + _trait_failure_footnote(metadata),
-        _trait_table("Below avg traits", below_avg_traits, color_by_name) + _trait_failure_footnote(metadata),
+        _prediction_rows_html_table("Above avg traits", above_rows) + _trait_failure_footnote(metadata),
+        _prediction_rows_html_table("Below avg traits", below_rows) + _trait_failure_footnote(metadata),
     )
 
 
