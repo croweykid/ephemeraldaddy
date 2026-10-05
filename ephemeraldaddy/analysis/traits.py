@@ -555,12 +555,33 @@ def _python_literal_candidates(text: str) -> list[str]:
     return candidates
 
 
+class _TraitLiteralKeyNormalizer(ast.NodeTransformer):
+    """Make legacy list-shaped mapping keys hashable before literal evaluation."""
+
+    def visit_Dict(self, node: ast.Dict) -> ast.AST:
+        self.generic_visit(node)
+        normalized_keys: list[ast.expr | None] = []
+        for key in node.keys:
+            if isinstance(key, ast.List):
+                key = ast.copy_location(ast.Tuple(elts=key.elts, ctx=ast.Load()), key)
+            normalized_keys.append(key)
+        node.keys = normalized_keys
+        return node
+
+
+def _literal_eval_trait_node(node: ast.AST) -> Any:
+    normalized = _TraitLiteralKeyNormalizer().visit(node)
+    ast.fix_missing_locations(normalized)
+    return ast.literal_eval(normalized)
+
+
 def _extract_literal_from_python(text: str) -> Any:
     last_error: Exception | None = None
     for cleaned_text in _python_literal_candidates(text):
         try:
-            return ast.literal_eval(cleaned_text)
-        except (SyntaxError, ValueError) as exc:
+            expression = ast.parse(cleaned_text, mode="eval")
+            return _literal_eval_trait_node(expression.body)
+        except (SyntaxError, ValueError, TypeError) as exc:
             last_error = exc
         try:
             module = ast.parse(cleaned_text)
@@ -578,8 +599,8 @@ def _extract_literal_from_python(text: str) -> Any:
             if value_node is None:
                 continue
             try:
-                return ast.literal_eval(value_node)
-            except (SyntaxError, ValueError) as exc:
+                return _literal_eval_trait_node(value_node)
+            except (SyntaxError, ValueError, TypeError) as exc:
                 last_error = exc
                 continue
     if last_error is not None:
