@@ -109,6 +109,30 @@ TRAIT_ROW_NAME_ROLE = Qt.UserRole + 1
 TRAIT_ROW_COLOR_ROLE = Qt.UserRole + 2
 TRAIT_ROW_DEVIATION_ROLE = Qt.UserRole + 3
 TRAIT_ROW_DIRECTION_ROLE = Qt.UserRole + 4
+TRAIT_ROW_ANTITHETICAL_ROLE = Qt.UserRole + 5
+
+_ANTI_TRAIT_FACTOR_KEYS = (
+    "antisigns", "antihouses", "antibodies", "antielements", "antimodes",
+    "antinakshatras", "antipositions", "antiaspects", "antigates",
+    "antigate_lines", "antichannels", "anticenters", "antiprofiles",
+    "antiauthorities", "antibazisigns",
+)
+
+
+def _antithetical_trait_name(trait: dict[str, Any]) -> str:
+    """Return the explicit antithetical display label when this trait opts in."""
+    profile = trait.get("profile", {})
+    if not isinstance(profile, dict) or "antithetical_trait" not in profile:
+        return ""
+    raw_name = profile.get("antithetical_trait")
+    if raw_name is None:
+        return ""
+    name = str(raw_name).strip()
+    if not name:
+        return ""
+    if not any(bool(profile.get(key)) for key in _ANTI_TRAIT_FACTOR_KEYS):
+        return ""
+    return name
 
 
 class _TraitPredictionRowsModel(QAbstractTableModel):
@@ -169,12 +193,17 @@ class _TraitPredictionRowsModel(QAbstractTableModel):
         if role == TRAIT_ROW_DEVIATION_ROLE:
             return float(row.get("deviation", 0.0))
         if role == TRAIT_ROW_DIRECTION_ROLE:
+            explicit_direction = str(row.get("direction", "") or "")
+            if explicit_direction:
+                return explicit_direction
             deviation = float(row.get("deviation", 0.0))
             if deviation >= TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD:
                 return "above"
             if deviation <= -TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD:
                 return "below"
             return "neutral"
+        if role == TRAIT_ROW_ANTITHETICAL_ROLE:
+            return bool(row.get("antithetical", False))
         return None
 
 
@@ -260,10 +289,12 @@ def _handle_trait_prediction_row_clicked(owner: Any, index: QModelIndex) -> None
     if isinstance(model, QSortFilterProxyModel):
         source_index = model.mapToSource(index)
         name = source_index.data(TRAIT_ROW_NAME_ROLE)
+        antithetical = bool(source_index.data(TRAIT_ROW_ANTITHETICAL_ROLE))
     else:
         name = index.data(TRAIT_ROW_NAME_ROLE)
+        antithetical = bool(index.data(TRAIT_ROW_ANTITHETICAL_ROLE))
     if name:
-        _show_trait_chart_info(owner, str(name))
+        _show_trait_chart_info(owner, str(name), antithetical=antithetical)
 
 
 def _refresh_traits_prediction_filter(owner: Any) -> None:
@@ -393,10 +424,22 @@ def _trait_sample_count(trait: dict[str, Any]) -> int:
     return trait_sample_total(samples, trait_name=str(trait.get("name", "")))
 
 
-def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
-    name = str(trait.get("name", "")).strip() or "Trait"
+def _trait_info_html(
+    trait: dict[str, Any],
+    chart: Any | None = None,
+    *,
+    antithetical: bool = False,
+) -> str:
+    profile = trait.get("profile", {})
+    if not isinstance(profile, dict):
+        profile = {}
+    if antithetical:
+        name = _antithetical_trait_name(trait) or str(trait.get("name", "")).strip() or "Trait"
+        description = str(profile.get("antitrait_description") or "").strip() or "no antitrait description provided"
+    else:
+        name = str(trait.get("name", "")).strip() or "Trait"
+        description = str(trait.get("description", "")).strip() or "no description provided"
     color = normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
-    description = str(trait.get("description", "")).strip() or "no description provided"
     sample_count = _trait_sample_count(trait)
     evidence_html = ""
     if chart is not None:
@@ -406,11 +449,14 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
             if chart_name
             else "Matching factors in this chart:"
         )
-        profile = trait.get("profile", {})
         matches = matched_weighted_criteria(chart, profile)
         evidence = build_trait_factor_evidence(chart, profile, matches=matches)
-        positive = list(evidence.supporting)
-        negative = list(evidence.counter_factors)
+        if antithetical:
+            positive = list(evidence.counter_factors)
+            negative = list(evidence.supporting)
+        else:
+            positive = list(evidence.supporting)
+            negative = list(evidence.counter_factors)
         missing = list(evidence.missing)
 
         def _dominance_labels(polarity: str) -> set[str]:
@@ -450,7 +496,7 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
         if positive:
             evidence_html += (
                 "<div style='font-size:12px; font-weight:700; color:#9fd6aa;'>Supporting:</div>"
-                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(positive, '#d9f2de', polarity='positive')}</ul>"
+                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(positive, '#d9f2de', polarity='negative' if antithetical else 'positive')}</ul>"
             )
         if not positive and not negative:
             evidence_html += (
@@ -465,7 +511,7 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
         if negative:
             evidence_html += (
                 "<div style='margin-top:5px; font-size:9px; color:#e1a1a1;'>COUNTER-FACTORS</div>"
-                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(negative, '#f0d3d3', polarity='negative')}</ul>"
+                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(negative, '#f0d3d3', polarity='positive' if antithetical else 'negative')}</ul>"
             )
     return (
         f"<div style='font-size:18px; font-weight:700; color:{html.escape(color)};'>"
@@ -482,7 +528,7 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
     )
 
 
-def _show_trait_chart_info(owner: Any, trait_name: str) -> None:
+def _show_trait_chart_info(owner: Any, trait_name: str, *, antithetical: bool = False) -> None:
     trait_lookup = getattr(owner, "_traits_prediction_trait_lookup", {}) or {}
     trait = trait_lookup.get(str(trait_name or "").casefold())
     if trait is None:
@@ -492,7 +538,14 @@ def _show_trait_chart_info(owner: Any, trait_name: str) -> None:
         set_mode("chart_info")
     output = getattr(owner, "chart_info_output", None)
     if isinstance(output, QWidget) or hasattr(output, "setHtml") or hasattr(output, "setPlainText"):
-        set_chart_info_html(output, _trait_info_html(trait, getattr(owner, "_traits_prediction_chart", None)))
+        set_chart_info_html(
+            output,
+            _trait_info_html(
+                trait,
+                getattr(owner, "_traits_prediction_chart", None),
+                antithetical=antithetical,
+            ),
+        )
 
 
 def _on_trait_prediction_link_activated(owner: Any, target: str) -> None:
@@ -915,6 +968,12 @@ def _trait_display_signature_payload(traits: list[dict[str, Any]]) -> dict[str, 
                 "uid": str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
                 "name": str(trait.get("name", "")).strip(),
                 "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+                "antithetical_trait": str(
+                    (trait.get("profile", {}) or {}).get("antithetical_trait") or ""
+                ).strip(),
+                "antitrait_description": str(
+                    (trait.get("profile", {}) or {}).get("antitrait_description") or ""
+                ).strip(),
             }
             for trait in traits
         ],
@@ -1659,9 +1718,14 @@ def _trait_prediction_rows_from_metadata(
     likelihoods = dict(metadata.get("likelihoods", {}))
     database_averages = dict(metadata.get("database_averages", {}))
     db_deviations = dict(metadata.get("deviations", {}))
-    color_by_name = {
-        str(trait.get("name", "")): normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
+    trait_by_name = {
+        str(trait.get("name", "")): trait
         for trait in traits
+        if str(trait.get("name", "")).strip()
+    }
+    color_by_name = {
+        name: normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
+        for name, trait in trait_by_name.items()
     }
     rows: list[dict[str, Any]] = []
     for name, db_deviation in db_deviations.items():
@@ -1670,12 +1734,30 @@ def _trait_prediction_rows_from_metadata(
         deviation = float(db_deviation)
         if abs(deviation) < TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD:
             continue
+        trait = trait_by_name.get(str(name), {})
+        antithetical_name = _antithetical_trait_name(trait) if deviation <= -TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD else ""
+        if antithetical_name:
+            rows.append(
+                {
+                    "name": str(name),
+                    "display_name": antithetical_name,
+                    "likelihood": 100.0 - float(likelihoods[name]),
+                    "database_average": 100.0 - float(database_averages[name]),
+                    "deviation": -deviation,
+                    "direction": "above",
+                    "antithetical": True,
+                    "color": color_by_name.get(str(name), DEFAULT_TRAIT_COLOR),
+                }
+            )
+            continue
         rows.append(
             {
                 "name": str(name),
                 "likelihood": float(likelihoods[name]),
                 "database_average": float(database_averages[name]),
                 "deviation": deviation,
+                "direction": "above" if deviation >= TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD else "below",
+                "antithetical": False,
                 "color": color_by_name.get(str(name), DEFAULT_TRAIT_COLOR),
             }
         )
