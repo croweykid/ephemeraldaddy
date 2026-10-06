@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import csv
 from threading import Event
 from copy import deepcopy
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer, QSignalBlocker
 from PySide6.QtWidgets import (
     QAbstractItemView, QFileDialog, QHBoxLayout, QLabel, QMessageBox, QInputDialog, QDialog,
     QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
@@ -168,6 +169,7 @@ class BatchWebImportWindow(QWidget):
         ))
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.table)
+        self.table.itemChanged.connect(self._table_item_changed)
 
     def _set_busy(self, busy):
         self._busy = busy
@@ -228,8 +230,13 @@ class BatchWebImportWindow(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "Load CSV", "", "CSV (*.csv)")
         if not path:
             return
-        with open(path, newline="", encoding="utf-8-sig") as stream:
-            seeds = load_seeds(stream)
+        try:
+            with open(path, newline="", encoding="utf-8-sig") as stream:
+                seeds = load_seeds(stream)
+        except (OSError, UnicodeError, ValueError, csv.Error) as exc:
+            self.progress.setText("CSV load failed; the current batch has been kept.")
+            QMessageBox.warning(self, "Could not load CSV", f"{exc}\n\nThe current batch has been kept.")
+            return
         self.seeds = seeds
         self.names.setPlainText("\n".join(seed.name for seed in seeds))
         self.rows = []
@@ -259,25 +266,55 @@ class BatchWebImportWindow(QWidget):
             return
         self.rows.append(row)
         index = self.table.rowCount()
-        self.table.insertRow(index)
         values = (
             "", row.name, row.birth_date, row.birth_time or "unknown", row.birth_place,
             "; ".join(row.sources), row.biography, row.error_text,
         )
-        for column, value in enumerate(values):
-            self.table.setItem(index, column, QTableWidgetItem(value))
-        self.table.item(index, 0).setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-        self.table.item(index, 0).setCheckState(Qt.Unchecked)
+        with QSignalBlocker(self.table):
+            self.table.insertRow(index)
+            for column, value in enumerate(values):
+                self.table.setItem(index, column, QTableWidgetItem(value))
+            self.table.item(index, 0).setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+            self.table.item(index, 0).setCheckState(Qt.Unchecked)
+            self.table.item(index, 7).setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+
+    def _sync_row(self, index):
+        row = self.rows[index]
+        with QSignalBlocker(self.table):
+            checkbox = self.table.item(index, 0)
+            if row.imported_uid is None:
+                row.set_birth_fields(*(self.table.item(index, column).text() for column in range(1, 5)))
+                row.sources = [source.strip() for source in self.table.item(index, 5).text().split(";") if source.strip()]
+                row.biography = self.table.item(index, 6).text()
+            errors = row.validation_errors()
+            row.included = checkbox.checkState() == Qt.Checked and not errors
+            if not row.included:
+                checkbox.setCheckState(Qt.Unchecked)
+            self.table.item(index, 7).setText(row.error_text)
+            checkbox.setToolTip(" ".join(errors))
+        return errors
 
     def _sync(self):
-        for index, row in enumerate(self.rows):
-            if row.imported_uid is not None:
-                continue
-            row.set_birth_fields(*(self.table.item(index, column).text() for column in range(1, 5)))
-            row.sources = [source.strip() for source in self.table.item(index, 5).text().split(";") if source.strip()]
-            row.biography = self.table.item(index, 6).text()
-            row.included = self.table.item(index, 0).checkState() == Qt.Checked
-            self.table.item(index, 7).setText(row.error_text)
+        for index in range(len(self.rows)):
+            self._sync_row(index)
+
+    @Slot(QTableWidgetItem)
+    def _table_item_changed(self, item):
+        index, column = item.row(), item.column()
+        if self._busy or index < 0 or index >= len(self.rows) or column < 0 or column > 6:
+            return
+        was_checked = self.table.item(index, 0).checkState() == Qt.Checked
+        errors = self._sync_row(index)
+        if was_checked and errors:
+            error = errors[0]
+            field = next((label for prefix, label in (
+                ("Name", "Name"), ("Birth date", "Birth Date"),
+                ("Birth time", "Birth Time"), ("Birth place", "Birth Place"),
+            ) if error.startswith(prefix)), None)
+            if field:
+                self.progress.setText(f"Please correct the {field} field before selecting. {error}")
+            else:
+                self.progress.setText(f"Please resolve this row before selecting. {error}")
 
     def validate_all(self):
         self._validate_places(range(len(self.rows)))
@@ -315,7 +352,7 @@ class BatchWebImportWindow(QWidget):
         if len(matches) > 1:
             self.rows[index].place = None
             self._place_choices.append((index, query, matches))
-            self.table.item(index, 7).setText(self.rows[index].error_text)
+            self._sync_row(index)
         else:
             self._set_place_result(index, query, matches[0] if matches else None, error)
 
@@ -327,10 +364,11 @@ class BatchWebImportWindow(QWidget):
             self._place_cache[_place_key(query)] = place
             self._place_cache[_place_key(place.label)] = place
             row.birth_place = place.label
-            self.table.item(index, 4).setText(place.label)
+            with QSignalBlocker(self.table):
+                self.table.item(index, 4).setText(place.label)
         elif error:
             row.blocking_errors.append(error)
-        self.table.item(index, 7).setText(row.error_text)
+        self._sync_row(index)
 
     def _show_next_place_choice(self):
         while self._place_choices and not self._close_pending:

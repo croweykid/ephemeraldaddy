@@ -17,6 +17,20 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
+@pytest.fixture(autouse=True)
+def dispose_batch_windows(app):
+    yield
+    # close() hides ordinary QWidget windows without deleting them. Dispose
+    # their native objects between tests, rather than leaving Qt ownership
+    # cycles for Python's collector while a later test runs a worker.
+    for window in app.topLevelWidgets():
+        if isinstance(window, module.BatchWebImportWindow):
+            window.close()
+            spin_until(app, lambda: window.worker_thread is None)
+            window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 def spin_until(app, predicate):
     deadline = monotonic() + 5
     while not predicate() and monotonic() < deadline:
@@ -175,6 +189,91 @@ def test_failures_csv_loads_rows_without_overwriting_edits_or_requesting_profile
     window._sync()
     assert restored.biography == 'More repairs'
     assert restored.sources == ['https://example.com/repaired-source']
+    window.close()
+
+
+@pytest.mark.parametrize('failure', ['unreadable', 'invalid_utf8', 'missing_name', 'csv_error'])
+def test_csv_load_errors_report_failure_preserve_batch_and_allow_retry(app, tmp_path, monkeypatch, failure):
+    import csv
+    from ephemeraldaddy.io.web_profile.models import BatchImportSeed, ValidatedPlace
+    path = tmp_path / 'input.csv'
+    if failure == 'invalid_utf8':
+        path.write_bytes(b'name\n\xff\n')
+    elif failure == 'missing_name':
+        path.write_text('alias\nA\n', encoding='utf-8')
+    elif failure == 'csv_error':
+        path.write_text('name\nNew\n', encoding='utf-8')
+    # An absent file exercises the unreadable-file path.
+    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *a: (str(path), 'CSV'))
+    warnings = []
+    monkeypatch.setattr(module.QMessageBox, 'warning', lambda *args: warnings.append(args[1:]))
+    loader = module.load_seeds
+    if failure == 'csv_error':
+        def fail(stream):
+            raise csv.Error('CSV parser failed')
+        monkeypatch.setattr(module, 'load_seeds', fail)
+    window = module.BatchWebImportWindow()
+    row = BatchImportRow('Previous', 'Previous', '2000-01-01', birth_place='Here',
+                         place=ValidatedPlace('Here', 1, 2))
+    window.add_row(row)
+    window.table.item(0, 0).setCheckState(Qt.Checked)
+    window.names.setPlainText('Previous names')
+    seeds = [BatchImportSeed('Previous')]
+    window.seeds = seeds
+    window._place_cache['here'] = row.place
+    contents = [window.table.item(0, column).text() for column in range(8)]
+    window.load_csv()
+    assert len(warnings) == 1 and warnings[0][0] == 'Could not load CSV'
+    assert 'current batch has been kept' in warnings[0][1]
+    assert 'CSV load failed' in window.progress.text()
+    assert window.rows == [row] and window.rows[0] is row and window.seeds is seeds
+    assert window.names.toPlainText() == 'Previous names'
+    assert window._place_cache == {'here': row.place}
+    assert row.included and window.table.item(0, 0).checkState() == Qt.Checked
+    assert [window.table.item(0, column).text() for column in range(8)] == contents
+    assert not window._busy and window.worker is None
+    # A subsequent successful load replaces the batch normally.
+    monkeypatch.setattr(module, 'load_seeds', loader)
+    path.write_text('name,birth_date,birth_place\nNew,2001-02-03,There\n', encoding='utf-8')
+    window.load_csv()
+    assert len(warnings) == 1
+    assert [row.name for row in window.rows] == ['New']
+    assert window.names.toPlainText() == 'New'
+    assert not window.rows[0].included
+    assert 'CSV loaded' in window.progress.text()
+    window.close()
+
+
+@pytest.mark.parametrize('column,value,error,field', [
+    (1, '', 'Name is blank.', 'Name'),
+    (2, 'bad', 'Birth date is invalid.', 'Birth Date'),
+    (3, '12:00+00:00', 'Birth time is invalid.', 'Birth Time'),
+    (4, 'Elsewhere', 'Birth place has not been validated.', 'Birth Place'),
+])
+def test_include_rejects_invalid_rows_and_edits_clear_selected_state(app, column, value, error, field):
+    from ephemeraldaddy.io.web_profile.models import ValidatedPlace
+    window = module.BatchWebImportWindow()
+    row = BatchImportRow('A', 'A', '2000-01-01', 'unknown', 'Here', place=ValidatedPlace('Here', 1, 2))
+    window.add_row(row)
+    checkbox = window.table.item(0, 0)
+    checkbox.setCheckState(Qt.Checked)
+    assert row.included
+    window.table.item(0, 6).setText('Biography edit keeps valid selection')
+    assert row.included and checkbox.checkState() == Qt.Checked
+    window.table.item(0, column).setText(value)
+    assert not row.included and checkbox.checkState() == Qt.Unchecked
+    assert error in window.table.item(0, 7).text()
+    assert field in window.progress.text()
+    checkbox.setCheckState(Qt.Checked)
+    assert not row.included and checkbox.checkState() == Qt.Unchecked
+    assert error in checkbox.toolTip()
+    # Repair remains editable and can be included again after validation.
+    window.table.item(0, column).setText({1: 'A', 2: '2000-01-01', 3: 'unknown', 4: 'Here'}[column])
+    if column == 4:
+        window._set_place_result(0, 'Here', ValidatedPlace('Here', 1, 2))
+    checkbox.setCheckState(Qt.Checked)
+    assert row.included and checkbox.checkState() == Qt.Checked
+    assert not row.validation_errors()
     window.close()
 
 
