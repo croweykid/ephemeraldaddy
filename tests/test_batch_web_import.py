@@ -83,6 +83,19 @@ def test_name_only_csv_still_uses_profile_lookup():
     assert not seed.restored
 
 
+def test_mixed_csv_restoration_depends_on_each_rows_repair_data():
+    seeds = load_seeds(io.StringIO(
+        'name,birth_date,birth_time,birth_place,bio,sources,error,notes\n'
+        'Template,,,,,,,Keep metadata\n'
+        'Unknown clock,,unknown,,,,,\n'
+        'Repaired,2000-01-02,,Here,,,,\n'
+        'Biography only,,,,Manual biography,,,\n'
+        'Failed lookup,,,,,,No profile could be resolved.,\n'
+    ))
+    assert [seed.restored for seed in seeds] == [False, False, True, True, True]
+    assert seeds[0].notes == 'Keep metadata'
+
+
 def test_manual_repair_clears_lookup_diagnostics_only_when_fields_are_valid():
     row = BatchImportRow('A', 'A', lookup_errors=['No profile could be resolved.'])
     row.set_birth_fields('Repaired', 'bad', 'unknown', 'Here')

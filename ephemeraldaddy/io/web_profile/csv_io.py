@@ -17,11 +17,14 @@ def load_seeds(stream: TextIO) -> list[BatchImportSeed]:
     headers = {str(name).strip().lower(): name for name in (reader.fieldnames or [])}
     if "name" not in headers:
         raise ValueError("CSV must contain a name column")
-    restored = any(key in headers for key in ("birth_date", "birth_time", "birth_place", "bio", "sources"))
     result = []
     for raw in reader:
         get = lambda key: str(raw.get(headers.get(key, ""), "") or "").strip()
         if get("name"):
+            restored = (
+                any(get(key) for key in ("birth_date", "birth_place", "bio", "sources", "data_rating", "error"))
+                or get("birth_time").lower() not in ("", "unknown")
+            )
             result.append(BatchImportSeed(
                 name=get("name"), alias=get("alias"), from_whence=get("from"),
                 tags=tuple(parse_tags(get("tags"))), notes=get("notes"),

@@ -3,7 +3,7 @@ from __future__ import annotations
 from threading import Event
 from copy import deepcopy
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer, QSignalBlocker
 from PySide6.QtWidgets import (
     QAbstractItemView, QFileDialog, QHBoxLayout, QLabel, QMessageBox, QInputDialog, QDialog,
     QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
@@ -35,9 +35,10 @@ class _BatchWorker(QObject):
 
 
 class _LookupWorker(_BatchWorker):
-    def __init__(self, seeds):
+    def __init__(self, seeds, *, indices=None):
         super().__init__()
         self.seeds = seeds
+        self.indices = indices
 
     @Slot()
     def run(self):
@@ -56,7 +57,7 @@ class _LookupWorker(_BatchWorker):
                         row = service.lookup(seed)
                     if self.cancel_event.is_set():
                         break
-                    self.result.emit(row)
+                    self.result.emit(row if self.indices is None else (self.indices[index - 1], row))
         finally:
             self.finished.emit()
 
@@ -131,6 +132,7 @@ class BatchWebImportWindow(QWidget):
         self.owner = owner
         self.rows = []
         self.seeds = []
+        self._csv_edited_indices = set()
         self.worker = None
         self.worker_thread = None
         self._close_pending = False
@@ -168,6 +170,7 @@ class BatchWebImportWindow(QWidget):
         ))
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.table)
+        self.table.itemChanged.connect(self._table_item_changed)
 
     def _set_busy(self, busy):
         self._busy = busy
@@ -233,25 +236,40 @@ class BatchWebImportWindow(QWidget):
         self.seeds = seeds
         self.names.setPlainText("\n".join(seed.name for seed in seeds))
         self.rows = []
+        self._csv_edited_indices.clear()
         self.table.setRowCount(0)
         for seed in seeds:
-            if seed.restored:
-                self.add_row(seed.to_row())
-        self.progress.setText("CSV loaded; restored rows can be edited and validated.")
+            self.add_row(seed.to_row())
+        self.progress.setText("CSV loaded; look up unresolved names, or edit and validate restored rows.")
 
     def lookup(self):
         if self._busy:
             return
-        # Repair CSVs are already resolved input: do not overwrite manual edits.
-        if self.seeds and all(seed.restored for seed in self.seeds):
-            self.progress.setText("Edit restored rows, then validate their birth places.")
+        if self.seeds:
+            self._sync()
+            indices = [index for index, seed in enumerate(self.seeds)
+                       if not seed.restored and index not in self._csv_edited_indices
+                       and self.rows[index].imported_uid is None]
+            if not indices:
+                self.progress.setText("Edit restored rows, then validate their birth places.")
+                return
+            # Replace only unresolved CSV entries; repaired/edited rows stay put.
+            self._start_worker(
+                _LookupWorker([self.seeds[index] for index in indices], indices=indices),
+                self._apply_lookup_result, "Lookup complete",
+            )
             return
-        seeds = self.seeds or parse_pasted_names(self.names.toPlainText())
+        seeds = parse_pasted_names(self.names.toPlainText())
         if not seeds:
             return
         self.rows = []
         self.table.setRowCount(0)
         self._start_worker(_LookupWorker(seeds), self.add_row, "Lookup complete")
+
+    def _apply_lookup_result(self, result):
+        index, row = result
+        self.rows[index] = row
+        self._display_row(index, row)
 
     @Slot(object)
     def add_row(self, row):
@@ -259,25 +277,70 @@ class BatchWebImportWindow(QWidget):
             return
         self.rows.append(row)
         index = self.table.rowCount()
-        self.table.insertRow(index)
+        with QSignalBlocker(self.table):
+            self.table.insertRow(index)
+        self._display_row(index, row)
+
+    def _display_row(self, index, row):
         values = (
             "", row.name, row.birth_date, row.birth_time or "unknown", row.birth_place,
             "; ".join(row.sources), row.biography, row.error_text,
         )
-        for column, value in enumerate(values):
-            self.table.setItem(index, column, QTableWidgetItem(value))
-        self.table.item(index, 0).setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-        self.table.item(index, 0).setCheckState(Qt.Unchecked)
+        with QSignalBlocker(self.table):
+            for column, value in enumerate(values):
+                self.table.setItem(index, column, QTableWidgetItem(value))
+            checkbox = self.table.item(index, 0)
+            checkbox.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+            checkbox.setCheckState(Qt.Checked if row.included and row.importable else Qt.Unchecked)
+            self.table.item(index, 7).setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            if row.imported_uid is not None:
+                self._lock_imported_row(index)
+
+    def _lock_imported_row(self, index):
+        self.table.item(index, 0).setFlags(Qt.NoItemFlags)
+        for column in range(1, 7):
+            item = self.table.item(index, column)
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
+    def _sync_row(self, index):
+        row = self.rows[index]
+        with QSignalBlocker(self.table):
+            checkbox = self.table.item(index, 0)
+            if row.imported_uid is None:
+                row.set_birth_fields(*(self.table.item(index, column).text() for column in range(1, 5)))
+                row.sources = [source.strip() for source in self.table.item(index, 5).text().split(";") if source.strip()]
+                row.biography = self.table.item(index, 6).text()
+            errors = row.validation_errors()
+            row.included = checkbox.checkState() == Qt.Checked and not errors
+            if not row.included:
+                checkbox.setCheckState(Qt.Unchecked)
+            self.table.item(index, 7).setText(row.error_text)
+            checkbox.setToolTip(" ".join(errors))
+        return errors
 
     def _sync(self):
-        for index, row in enumerate(self.rows):
-            if row.imported_uid is not None:
-                continue
-            row.set_birth_fields(*(self.table.item(index, column).text() for column in range(1, 5)))
-            row.sources = [source.strip() for source in self.table.item(index, 5).text().split(";") if source.strip()]
-            row.biography = self.table.item(index, 6).text()
-            row.included = self.table.item(index, 0).checkState() == Qt.Checked
-            self.table.item(index, 7).setText(row.error_text)
+        for index in range(len(self.rows)):
+            self._sync_row(index)
+
+    @Slot(QTableWidgetItem)
+    def _table_item_changed(self, item):
+        index, column = item.row(), item.column()
+        if self._busy or index < 0 or index >= len(self.rows) or column < 0 or column > 6:
+            return
+        if self.seeds and column in range(1, 7):
+            self._csv_edited_indices.add(index)
+        was_checked = self.table.item(index, 0).checkState() == Qt.Checked
+        errors = self._sync_row(index)
+        if was_checked and errors:
+            error = errors[0]
+            field = next((label for prefix, label in (
+                ("Name", "Name"), ("Birth date", "Birth Date"),
+                ("Birth time", "Birth Time"), ("Birth place", "Birth Place"),
+            ) if error.startswith(prefix)), None)
+            if field:
+                self.progress.setText(f"Please correct the {field} field before selecting. {error}")
+            else:
+                self.progress.setText(f"Please resolve this row before selecting. {error}")
 
     def validate_all(self):
         self._validate_places(range(len(self.rows)))
@@ -315,7 +378,7 @@ class BatchWebImportWindow(QWidget):
         if len(matches) > 1:
             self.rows[index].place = None
             self._place_choices.append((index, query, matches))
-            self.table.item(index, 7).setText(self.rows[index].error_text)
+            self._sync_row(index)
         else:
             self._set_place_result(index, query, matches[0] if matches else None, error)
 
@@ -327,10 +390,11 @@ class BatchWebImportWindow(QWidget):
             self._place_cache[_place_key(query)] = place
             self._place_cache[_place_key(place.label)] = place
             row.birth_place = place.label
-            self.table.item(index, 4).setText(place.label)
+            with QSignalBlocker(self.table):
+                self.table.item(index, 4).setText(place.label)
         elif error:
             row.blocking_errors.append(error)
-        self.table.item(index, 7).setText(row.error_text)
+        self._sync_row(index)
 
     def _show_next_place_choice(self):
         while self._place_choices and not self._close_pending:
@@ -398,14 +462,11 @@ class BatchWebImportWindow(QWidget):
             return
         _, index, row = result
         self.rows[index] = row
-        checkbox = self.table.item(index, 0)
-        checkbox.setCheckState(Qt.Unchecked)
-        if row.imported_uid is not None:
-            checkbox.setFlags(Qt.NoItemFlags)
-            for column in range(1, 7):
-                item = self.table.item(index, column)
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-        self.table.item(index, 7).setText(row.error_text)
+        with QSignalBlocker(self.table):
+            self.table.item(index, 0).setCheckState(Qt.Unchecked)
+            if row.imported_uid is not None:
+                self._lock_imported_row(index)
+            self.table.item(index, 7).setText(row.error_text)
 
     def _finish_import(self):
         uids, error = self._import_summary or ([], "")

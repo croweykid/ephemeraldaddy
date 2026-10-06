@@ -17,6 +17,20 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
+@pytest.fixture(autouse=True)
+def dispose_batch_windows(app):
+    yield
+    # close() hides ordinary QWidget windows without deleting them. Dispose
+    # their native objects between tests, rather than leaving Qt ownership
+    # cycles for Python's collector while a later test runs a worker.
+    for window in app.topLevelWidgets():
+        if isinstance(window, module.BatchWebImportWindow):
+            window.close()
+            spin_until(app, lambda: window.worker_thread is None)
+            window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 def spin_until(app, predicate):
     deadline = monotonic() + 5
     while not predicate() and monotonic() < deadline:
@@ -175,6 +189,66 @@ def test_failures_csv_loads_rows_without_overwriting_edits_or_requesting_profile
     window._sync()
     assert restored.biography == 'More repairs'
     assert restored.sources == ['https://example.com/repaired-source']
+    window.close()
+
+
+def test_mixed_csv_looks_up_only_unresolved_rows_and_preserves_repairs(app, tmp_path, monkeypatch):
+    path = tmp_path / 'mixed.csv'
+    path.write_text('name,birth_date,birth_place,bio\nRestored,2000-01-01,Here,Manual bio\nUnresolved,,,\nEdited,,,\n', encoding='utf-8')
+    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *args: (str(path), 'CSV'))
+    calls = []
+    class Service:
+        def lookup(self, seed):
+            calls.append(seed.name)
+            return BatchImportRow(seed.name, 'Resolved name', '2001-02-03', birth_place='There')
+    monkeypatch.setattr(module, 'WebProfileLookupService', Service)
+    window = module.BatchWebImportWindow()
+    window.load_csv()
+    restored, unresolved, edited = window.rows
+    window.table.item(0, 6).setText('Repaired bio')
+    window.table.item(2, 2).setText('1999-04-05')
+    window.lookup()
+    spin_until(app, lambda: not window._busy)
+    assert calls == ['Unresolved']
+    assert window.rows[0] is restored and restored.biography == 'Repaired bio'
+    assert window.rows[2] is edited and edited.birth_date == '1999-04-05'
+    assert window.rows[1] is not unresolved
+    assert window.rows[1].birth_date == '2001-02-03'
+    assert window.table.item(1, 1).text() == 'Resolved name'
+    assert [row.requested_name for row in window.rows] == ['Restored', 'Unresolved', 'Edited']
+    window.close()
+
+
+@pytest.mark.parametrize('column,value,error,field', [
+    (1, '', 'Name is blank.', 'Name'),
+    (2, 'bad', 'Birth date is invalid.', 'Birth Date'),
+    (3, '12:00+00:00', 'Birth time is invalid.', 'Birth Time'),
+    (4, 'Elsewhere', 'Birth place has not been validated.', 'Birth Place'),
+])
+def test_include_rejects_invalid_rows_and_edits_clear_selected_state(app, column, value, error, field):
+    from ephemeraldaddy.io.web_profile.models import ValidatedPlace
+    window = module.BatchWebImportWindow()
+    row = BatchImportRow('A', 'A', '2000-01-01', 'unknown', 'Here', place=ValidatedPlace('Here', 1, 2))
+    window.add_row(row)
+    checkbox = window.table.item(0, 0)
+    checkbox.setCheckState(Qt.Checked)
+    assert row.included
+    window.table.item(0, 6).setText('Biography edit keeps valid selection')
+    assert row.included and checkbox.checkState() == Qt.Checked
+    window.table.item(0, column).setText(value)
+    assert not row.included and checkbox.checkState() == Qt.Unchecked
+    assert error in window.table.item(0, 7).text()
+    assert field in window.progress.text()
+    checkbox.setCheckState(Qt.Checked)
+    assert not row.included and checkbox.checkState() == Qt.Unchecked
+    assert error in checkbox.toolTip()
+    # Repair remains editable and can be included again after validation.
+    window.table.item(0, column).setText({1: 'A', 2: '2000-01-01', 3: 'unknown', 4: 'Here'}[column])
+    if column == 4:
+        window._set_place_result(0, 'Here', ValidatedPlace('Here', 1, 2))
+    checkbox.setCheckState(Qt.Checked)
+    assert row.included and checkbox.checkState() == Qt.Checked
+    assert not row.validation_errors()
     window.close()
 
 
