@@ -164,3 +164,41 @@ def test_import_rejects_birth_times_outside_local_hh_mm(clock, monkeypatch):
 @pytest.mark.parametrize('clock', ['00:00', '23:59', '', 'unknown', 'UNKNOWN'])
 def test_batch_accepts_valid_local_times_and_unknown(clock):
     assert valid_row(clock).importable
+
+
+def test_real_chart_build_and_import_work_without_gui_dependencies(tmp_path):
+    import subprocess
+    import sys
+    import textwrap
+    script = textwrap.dedent('''
+        import sys
+        from pathlib import Path
+        from importlib.abc import MetaPathFinder
+        class NoGui(MetaPathFinder):
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname.startswith(('ephemeraldaddy.gui', 'PySide6', 'matplotlib')):
+                    raise ImportError('Unexpected GUI dependency: ' + fullname)
+        sys.meta_path.insert(0, NoGui())
+        from ephemeraldaddy.core import db
+        from ephemeraldaddy.core.chart import chart_uses_houses
+        from ephemeraldaddy.io.web_profile.import_service import build_chart, import_rows
+        from ephemeraldaddy.io.web_profile.models import BatchImportRow, ValidatedPlace
+        db.DB_DIR = Path(sys.argv[1])
+        db.DB_PATH = db.DB_DIR / 'headless.db'
+        rows = []
+        for clock in ('03:04', 'unknown'):
+            row = BatchImportRow('A', 'A', '2000-01-01', clock, 'New York',
+                                 place=ValidatedPlace('New York', 40.7128, -74.0060), included=True)
+            chart = build_chart(row)
+            assert chart_uses_houses(chart) == (clock != 'unknown')
+            if clock == 'unknown':
+                assert not chart.houses and 'AS' not in chart.positions
+            for kind in ('sign', 'planet', 'nakshatra', 'element'):
+                assert sum(getattr(chart, f'dominant_{kind}_weights').values()) > 0
+            rows.append(row)
+        uids, failures = import_rows(rows, backup=lambda **kw: None)
+        assert len(uids) == 2 and not failures
+        assert not any(name.startswith(('ephemeraldaddy.gui', 'PySide6', 'matplotlib')) for name in sys.modules)
+    ''')
+    result = subprocess.run([sys.executable, '-c', script, str(tmp_path)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
