@@ -16229,6 +16229,7 @@ class ManageChartsDialog(
         self._suppress_filter_refresh = True
         try:
             self._clear_batch_edits()
+            self.auto_generated_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.birthtime_unknown_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self.living_checkbox is not None:
@@ -17830,12 +17831,13 @@ class ManageChartsDialog(
             if chart_uid:
                 metadata[chart_uid] = (_DISTINGUISHING_FORMULA_VERSION, norm_signature)
             mutable_row = list(row)
-            if len(mutable_row) < 34:
+            if len(mutable_row) != 33 and len(mutable_row) < 34:
                 mutable_row.extend([None] * (34 - len(mutable_row)))
             mutable_row[31] = float(weirdness_score)
-            mutable_row[32] = _DISTINGUISHING_FORMULA_VERSION
-            mutable_row[33] = norm_signature
-            hydrated_rows.append(tuple(mutable_row[:34]))
+            if len(mutable_row) != 33:
+                mutable_row[32] = _DISTINGUISHING_FORMULA_VERSION
+                mutable_row[33] = norm_signature
+            hydrated_rows.append(tuple(mutable_row))
         return hydrated_rows
     def _refresh_charts(
         self,
@@ -17923,34 +17925,15 @@ class ManageChartsDialog(
     def _normalize_chart_row(
         self,
         row: tuple | list | None,
-    ) -> tuple[
-        int,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-        int,
-        int,
-        int,
-        int | None,
-        int,
-        int | None,
-        int,
-        str,
-        int,
-        int,
-        int | None,
-        int | None,
-        int | None,
-        int | None,
-        int | None,
-    ] | None:
+    ) -> tuple[Any, ...] | None:
+        """Keep roster fields, including provenance, when normalizing raw rows."""
         if not row:
             return None
         original_row_length = len(row)
         padded = list(row)
+        auto_generated = bool(row[35]) if original_row_length > 35 else (
+            bool(row[32]) if original_row_length == 33 else False
+        )
         if len(padded) < 34:
             padded.extend([None] * (34 - len(padded)))
         chart_uid = padded[30]
@@ -17962,7 +17945,7 @@ class ManageChartsDialog(
             except (TypeError, ValueError):
                 weirdness_score = None
         normalized_chart_uid = str(chart_uid or "").strip().upper()
-        if normalized_chart_uid:
+        if normalized_chart_uid and original_row_length != 33:
             metadata = getattr(self, "_weirdness_cache_metadata_by_uid", None)
             if metadata is None:
                 metadata = {}
@@ -18008,6 +17991,7 @@ class ManageChartsDialog(
             padded[29],
             chart_uid,
             float(weirdness_score) if weirdness_score is not None else None,
+            auto_generated,
         )
 
     def _populate_list(
@@ -18176,6 +18160,7 @@ class ManageChartsDialog(
                     _dominant_mode,
                     _chart_uid,
                     _weirdness_score,
+                    _auto_generated,
                 ) = chart_row
                 item_chart_uid = str(_chart_uid or "").strip().upper()
                 if has_active_chart_filters:
@@ -18221,6 +18206,7 @@ class ManageChartsDialog(
                     _dominant_mode,
                     _chart_uid,
                     _weirdness_score,
+                    _auto_generated,
                 )
                 display_position = rendered_row_count + 1
                 if item_chart_uid:
@@ -18712,6 +18698,15 @@ class ManageChartsDialog(
     ) -> bool:
         if human_design_search_selections is None:
             human_design_search_selections = snapshot_human_design_search_selections(self)
+        provenance_control = getattr(self, "auto_generated_checkbox", None)
+        provenance_mode = provenance_control.mode() if provenance_control else QuadStateSlider.MODE_EMPTY
+        auto_generated = bool(chart_row[32]) if len(chart_row) == 33 else (
+            bool(chart_row[35]) if len(chart_row) > 35 else False
+        )
+        if provenance_mode == QuadStateSlider.MODE_TRUE and not auto_generated:
+            return False
+        if provenance_mode == QuadStateSlider.MODE_FALSE and auto_generated:
+            return False
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
         hidden_charts_state = (
             self.hidden_charts_checkbox.mode()

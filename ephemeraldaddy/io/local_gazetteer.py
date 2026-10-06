@@ -39,11 +39,15 @@ class GazetteerResult:
 class LocalGazetteer:
     def __init__(self, path: Path) -> None:
         self.path = path
-        self._conn = sqlite3.connect(str(path))
+        # The singleton is shared by GUI searches and background validation.
+        # Serialize connection access when allowing calls from either thread.
+        self._connection_lock = threading.RLock()
+        self._conn = sqlite3.connect(str(path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
 
     def close(self) -> None:
-        self._conn.close()
+        with self._connection_lock:
+            self._conn.close()
 
     def _has_fts_table(self) -> bool:
         row = self._conn.execute(
@@ -56,45 +60,46 @@ class LocalGazetteer:
         return " ".join(f'"{token}"*' for token in tokens)
 
     def search(self, query: str, limit: int = 5) -> List[GazetteerResult]:
-        tokens = _tokenize(query)
-        if not tokens:
-            return []
+        with self._connection_lock:
+            tokens = _tokenize(query)
+            if not tokens:
+                return []
 
-        if self._has_fts_table():
-            fts_query = self._fts_query(tokens)
-            rows = self._conn.execute(
-                """
-                SELECT p.label, p.latitude, p.longitude, p.population
-                FROM places_fts f
-                JOIN places p ON p.id = f.rowid
-                WHERE places_fts MATCH ?
-                ORDER BY p.population DESC, p.label ASC
-                LIMIT ?
-                """,
-                (fts_query, limit),
-            ).fetchall()
-        else:
-            conditions = " AND ".join(["search_text LIKE ?" for _ in tokens])
-            params = [f"%{token}%" for token in tokens]
-            sql = (
-                "SELECT label, latitude, longitude, population "
-                "FROM places "
-                f"WHERE {conditions} "
-                "ORDER BY population DESC, label ASC "
-                "LIMIT ?"
-            )
-            params.append(limit)
-            rows = self._conn.execute(sql, params).fetchall()
+            if self._has_fts_table():
+                fts_query = self._fts_query(tokens)
+                rows = self._conn.execute(
+                    """
+                    SELECT p.label, p.latitude, p.longitude, p.population
+                    FROM places_fts f
+                    JOIN places p ON p.id = f.rowid
+                    WHERE places_fts MATCH ?
+                    ORDER BY p.population DESC, p.label ASC
+                    LIMIT ?
+                    """,
+                    (fts_query, limit),
+                ).fetchall()
+            else:
+                conditions = " AND ".join(["search_text LIKE ?" for _ in tokens])
+                params = [f"%{token}%" for token in tokens]
+                sql = (
+                    "SELECT label, latitude, longitude, population "
+                    "FROM places "
+                    f"WHERE {conditions} "
+                    "ORDER BY population DESC, label ASC "
+                    "LIMIT ?"
+                )
+                params.append(limit)
+                rows = self._conn.execute(sql, params).fetchall()
 
-        return [
-            GazetteerResult(
-                label=row["label"],
-                latitude=row["latitude"],
-                longitude=row["longitude"],
-                population=row["population"],
-            )
-            for row in rows
-        ]
+            return [
+                GazetteerResult(
+                    label=row["label"],
+                    latitude=row["latitude"],
+                    longitude=row["longitude"],
+                    population=row["population"],
+                )
+                for row in rows
+            ]
 
     def geocode(self, query: str) -> Optional[GazetteerResult]:
         results = self.search(query, limit=1)
