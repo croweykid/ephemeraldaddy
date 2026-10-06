@@ -15,3 +15,21 @@ def test_startup_database_refresh_runs_before_loading_widget_completes():
     assert "refresh_after_show()" in startup_branch
     assert 'progress_callback("Database View is ready.", 99)' in startup_branch
     assert "QTimer.singleShot(350, refresh_after_show)" not in method
+
+
+def test_pending_chart_changes_clear_only_after_database_rows_refresh():
+    """Deferred Chart View edits must remain pending until row hydration succeeds."""
+    source = _controller_source()
+    method = source.split("def open_manage_charts", 1)[1].split(
+        "class EphemerisPrefetchController", 1
+    )[0]
+
+    schedule_index = method.index("QTimer.singleShot(0, refresh_and_record)")
+    async_callback = method[method.index("def refresh_and_record()") : schedule_index]
+    assert async_callback.index("refresh_after_show()") < async_callback.index(
+        "self._clear_pending_changed_refreshes()"
+    )
+    assert (
+        "self._clear_pending_changed_refreshes()\n"
+        "        apply_launch_window_policy"
+    ) not in method

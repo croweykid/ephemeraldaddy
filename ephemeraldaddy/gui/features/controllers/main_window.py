@@ -674,7 +674,6 @@ class ChartsController:
                 )
         if progress_callback:
             progress_callback("Showing Database View shell…", 88)
-        self._clear_pending_changed_refreshes()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
         use_launch_pulse = not bool(getattr(dialog, "_launch_foreground_completed", False))
         if was_visible:
@@ -700,6 +699,7 @@ class ChartsController:
                     app.processEvents()
                 try:
                     refresh_after_show()
+                    self._clear_pending_changed_refreshes()
                     if app is not None:
                         app.processEvents()
                 except BaseException:
@@ -719,6 +719,7 @@ class ChartsController:
                 def refresh_and_record() -> None:
                     try:
                         refresh_after_show()
+                        self._clear_pending_changed_refreshes()
                     except BaseException:
                         open_timing.complete(
                             was_visible=was_visible,
@@ -734,6 +735,9 @@ class ChartsController:
 
                 QTimer.singleShot(0, refresh_and_record)
         else:
+            # No row hydration is owed. Pending edits are otherwise
+            # acknowledged only after their refresh succeeds.
+            self._clear_pending_changed_refreshes()
             open_timing.complete(
                 was_visible=was_visible,
                 refresh_reason=refresh_reason,

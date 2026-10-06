@@ -277,7 +277,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 CHART_UID_LENGTH = 16
 UID_FINALIZATION_MIGRATION_KEY = "chart_uid_finalization_v1"
@@ -590,6 +590,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             death_minute      INTEGER,
             death_place       TEXT,
             profile_pic       TEXT,
+            auto_generated    INTEGER NOT NULL DEFAULT 0,
             created_at        TEXT NOT NULL,
             is_current        INTEGER NOT NULL DEFAULT 0
         )
@@ -1397,6 +1398,11 @@ def finalize_chart_uid_migration(conn: sqlite3.Connection) -> dict[str, Any]:
 
 def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
     columns = _table_columns(conn, "charts")
+    if "auto_generated" not in columns:
+        conn.execute(
+            "ALTER TABLE charts ADD COLUMN auto_generated INTEGER NOT NULL DEFAULT 0"
+        )
+        columns.add("auto_generated")
     added_year_first_encountered = False
     added_familiarity = False
     if "chart_uid" not in columns:
@@ -2252,6 +2258,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         if _charts_table_exists(conn):
             _clear_dominant_nakshatra_weight_cache(conn)
         conn.execute("PRAGMA user_version = 22")
+        user_version = 22
+
+    if user_version < 23:
+        _migrate_charts_columns(conn)
+        conn.execute("PRAGMA user_version = 23")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -4124,6 +4135,7 @@ def save_chart(
     rectification_range_used: Optional[bool] = None,
     rectification_range_start_minute: Optional[int] = None,
     rectification_range_end_minute: Optional[int] = None,
+    auto_generated: Optional[bool] = None,
 ) -> int:
     """
     Persist a chart to the local DB.
@@ -4217,8 +4229,9 @@ def save_chart(
                  death_hour,
                  death_minute,
                  death_place,
+                 auto_generated,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -4355,6 +4368,7 @@ def save_chart(
                 death_hour if death_hour is not None else getattr(chart, "death_hour", None),
                 death_minute if death_minute is not None else getattr(chart, "death_minute", None),
                 death_place if death_place is not None else getattr(chart, "death_place", None),
+                int(bool(auto_generated if auto_generated is not None else getattr(chart, "auto_generated", False))),
                 datetime.now(timezone.utc).isoformat(timespec="seconds"),
             ),
         )
@@ -5109,7 +5123,8 @@ def list_charts() -> List[
                chart_uid,
                weirdness_score,
                weirdness_formula_version,
-               weirdness_norm_signature
+               weirdness_norm_signature,
+               auto_generated
         FROM charts
         ORDER BY created_at DESC
         """
@@ -5191,6 +5206,7 @@ def list_charts() -> List[
                 int(row["weirdness_formula_version"]) if row["weirdness_formula_version"] is not None else None,
                 str(row["weirdness_norm_signature"] or ""),
                 row["chart_uid"],
+                int(row["auto_generated"] or 0),
             )
         )
     return rows
@@ -6159,6 +6175,7 @@ def _chart_row_projection(columns: set[str]) -> str:
     mbti_projection = "mbti" if "mbti" in columns else "'[\"?\", \"?\", \"?\", \"?\"]' AS mbti"
     quotes_projection = "quotes" if "quotes" in columns else "NULL AS quotes"
     profile_pic_projection = "profile_pic" if "profile_pic" in columns else "NULL AS profile_pic"
+    auto_generated_projection = ("auto_generated" if "auto_generated" in columns else "0 AS auto_generated")
     human_design_profile_projection = (
         "human_design_profile"
         if "human_design_profile" in columns
@@ -6190,7 +6207,7 @@ def _chart_row_projection(columns: set[str]) -> str:
                COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
-               {profile_pic_projection}
+               {profile_pic_projection}, {auto_generated_projection}
     """
 
 def _chart_from_row(chart_id: int, row):
@@ -6290,6 +6307,7 @@ def _chart_from_row(chart_id: int, row):
         death_minute,
         death_place,
         profile_pic,
+        auto_generated,
     ) = row_values
 
     if bool(is_placeholder):
@@ -6496,6 +6514,7 @@ def _chart_from_row(chart_id: int, row):
     chart.chart_data_source = chart_data_source or ""
     chart.alternate_chart_uid = alternate_chart_uid or ""
     chart.profile_pic = str(profile_pic or "").strip()
+    chart.auto_generated = bool(auto_generated)
     chart.positive_sentiment_intensity = _normalize_optional_sentiment_metric(
         positive_sentiment_intensity
     )
