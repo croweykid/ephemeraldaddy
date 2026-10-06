@@ -92,8 +92,17 @@ def test_mixed_csv_restoration_depends_on_each_rows_repair_data():
         'Biography only,,,,Manual biography,,,\n'
         'Failed lookup,,,,,,No profile could be resolved.,\n'
     ))
-    assert [seed.restored for seed in seeds] == [False, False, True, True, True]
+    assert [seed.restored for seed in seeds] == [False, False, True, True, False]
     assert seeds[0].notes == 'Keep metadata'
+
+
+def test_lookup_failure_csv_does_not_suppress_retry():
+    row = BatchImportRow('Misspelled', 'Misspelled', lookup_errors=['No profile could be resolved.'])
+    stream = io.StringIO()
+    export_failures([row], stream)
+    stream.seek(0)
+    seed, = load_seeds(stream)
+    assert not seed.restored
 
 
 def test_manual_repair_clears_lookup_diagnostics_only_when_fields_are_valid():

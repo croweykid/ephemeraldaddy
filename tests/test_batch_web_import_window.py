@@ -475,6 +475,34 @@ def test_import_is_backgrounded_applies_on_gui_and_locks_success(app, monkeypatc
     owner.close()
 
 
+def test_failure_export_error_reports_and_releases_import_window(app, monkeypatch, tmp_path):
+    from ephemeraldaddy.io.web_profile.models import ValidatedPlace
+    warnings = []
+    monkeypatch.setattr(module.QFileDialog, 'getSaveFileName', lambda *a: (str(tmp_path / 'failures.csv'), 'CSV'))
+    monkeypatch.setattr(module, 'export_failures', lambda *a: (_ for _ in ()).throw(OSError('disk full')))
+    monkeypatch.setattr(module.QMessageBox, 'warning', lambda *args: warnings.append(args[2]))
+    monkeypatch.setattr(module.QMessageBox, 'information', lambda *a: pytest.fail('success dialog after failed export'))
+
+    def importing(rows, *, on_result, **kwargs):
+        row = rows[0]
+        row.save_error = 'Chart save failed: database locked'
+        row.included = False
+        on_result(row)
+        return [], [row]
+
+    monkeypatch.setattr(module, 'import_rows', importing)
+    window = module.BatchWebImportWindow()
+    window.add_row(BatchImportRow('A', 'A', '2000-01-01', birth_place='Here', place=ValidatedPlace('Here', 1, 2)))
+    window.table.item(0, 0).setCheckState(Qt.Checked)
+    window.do_import()
+    spin_until(app, lambda: window.worker_thread is None)
+    assert not window._busy
+    assert warnings == ['Could not export failures: disk full']
+    assert 'Could not export failures' in window.progress.text()
+    assert window.rows[0].save_error == 'Chart save failed: database locked'
+    window.close()
+
+
 def test_real_chart_import_and_database_save_run_safely_in_worker(app, tmp_path, monkeypatch):
     from threading import get_ident
     import sqlite3

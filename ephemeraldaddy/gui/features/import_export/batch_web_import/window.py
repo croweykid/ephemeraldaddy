@@ -488,12 +488,22 @@ class BatchWebImportWindow(QWidget):
             return
         failures = [row for row in self.rows if row.imported_uid is None
                     and (row.validation_errors() or row.save_error)]
+        export_error = None
         if failures:
-            path, _ = QFileDialog.getSaveFileName(self, "Export failures", "batch-import-failures.csv", "CSV (*.csv)")
-            if path:
-                export_failures(failures, path)
+            try:
+                path, _ = QFileDialog.getSaveFileName(
+                    self, "Export failures", "batch-import-failures.csv", "CSV (*.csv)"
+                )
+                if path:
+                    export_failures(failures, path)
+            except Exception as exc:
+                export_error = f"Could not export failures: {exc}"
+                self._completion_text = export_error
+                self.progress.setText(export_error)
         if error:
             QMessageBox.warning(self, "Batch Import", f"Import stopped: {error}")
+        elif export_error:
+            QMessageBox.warning(self, "Batch Import", export_error)
         else:
             QMessageBox.information(self, "Batch Import", f"Imported {len(uids)} chart(s).")
 

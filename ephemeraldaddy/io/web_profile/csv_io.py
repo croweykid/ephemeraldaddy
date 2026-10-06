@@ -22,7 +22,7 @@ def load_seeds(stream: TextIO) -> list[BatchImportSeed]:
         get = lambda key: str(raw.get(headers.get(key, ""), "") or "").strip()
         if get("name"):
             restored = (
-                any(get(key) for key in ("birth_date", "birth_place", "bio", "sources", "data_rating", "error"))
+                any(get(key) for key in ("birth_date", "birth_place", "bio", "sources", "data_rating"))
                 or get("birth_time").lower() not in ("", "unknown")
             )
             result.append(BatchImportSeed(
