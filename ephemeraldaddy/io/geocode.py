@@ -87,11 +87,13 @@ def _online_search_enabled() -> bool:
         "yes",
     }
 
-def search_locations(query: str, limit: int = 5) -> List[Tuple[str, float, float]]:
+def search_locations(query: str, limit: int = 5, *, allow_online: bool | None = None) -> List[Tuple[str, float, float]]:
     """
     Return up to `limit` candidate locations for a free-text query.
 
     Each item: (label, lat, lon)
+    allow_online overrides the search preference, while gazetteer-only mode
+    still prevents online requests.
     """
     q = (query or "").strip()
     if not q:
@@ -100,11 +102,12 @@ def search_locations(query: str, limit: int = 5) -> List[Tuple[str, float, float
     logger.debug("Location search started (id=%s query=%r limit=%s).", lookup_id, q, limit)
 
     sources = resolve_search_sources()
+    online_enabled = _online_search_enabled() if allow_online is None else allow_online
     results: List[Tuple[str, float, float]] = []
 
     if "local" in sources:
         results = local_search_locations(q, limit=limit)
-        if results or not _online_search_enabled():
+        if results or not online_enabled:
             logger.debug(
                 "Location search resolved via local source (id=%s result_count=%s).",
                 lookup_id,
@@ -112,7 +115,7 @@ def search_locations(query: str, limit: int = 5) -> List[Tuple[str, float, float
             )
             return results
 
-    if "online" not in sources or not _online_search_enabled():
+    if "online" not in sources or not online_enabled:
         logger.debug("Location search had no online fallback (id=%s).", lookup_id)
         return []
 

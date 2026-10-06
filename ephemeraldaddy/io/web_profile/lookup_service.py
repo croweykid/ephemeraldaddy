@@ -57,10 +57,10 @@ class WebProfileLookupService:
                         candidates.append((candidate, candidate_date))
                 title = self.wiki_match(candidates, factual_date) if factual_date else None
                 if not title:
-                    row.blocking_errors.append("Multiple Wikipedia entries found: " + "; ".join(options))
+                    row.lookup_errors.append("Multiple Wikipedia entries found: " + "; ".join(options))
                     return row
             if status == "not_found":
-                if not factual_date: row.blocking_errors.append("No Astrotheme profile or Wikipedia article found.")
+                if not factual_date: row.lookup_errors.append("No Astrotheme profile or Wikipedia article found.")
                 return row
             if title:
                 if not factual_date:
@@ -79,5 +79,5 @@ class WebProfileLookupService:
                     row.warnings.append(f"Wikipedia biography: {exc}")
         except Exception as exc:
             row.warnings.append(f"Wikipedia: {exc}")
-            if not factual_date: row.blocking_errors.append("No profile could be resolved.")
+            if not factual_date: row.lookup_errors.append("No profile could be resolved.")
         return row

@@ -55,20 +55,35 @@ class BatchImportRow:
     blocking_errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     included: bool = False
+    lookup_errors: list[str] = field(default_factory=list)
+    manually_repaired: bool = False
+    save_error: str = ""
+    imported_uid: str | None = None
 
     def clear_place_errors(self) -> None:
         self.blocking_errors[:] = [
             error for error in self.blocking_errors
-            if not error.startswith("Birth place could not be resolved:")
+            if not error.startswith(("Birth place could not be resolved:", "Birth place selection required."))
         ]
 
     def set_birth_place(self, value: str) -> None:
         value = value.strip()
         if value != self.birth_place:
+            self.manually_repaired = True
             self.clear_place_errors()
             self.place = None
             self.included = False
         self.birth_place = value
+
+    def set_birth_fields(self, name: str, day: str, clock: str, place: str) -> None:
+        def normalized_clock(value):
+            return "" if value.strip().lower() in ("", "unknown") else value.strip()
+        before = (self.name.strip(), self.birth_date.strip(), normalized_clock(self.birth_time))
+        after = (name.strip(), day.strip(), normalized_clock(clock))
+        if before != after:
+            self.manually_repaired = True
+        self.name, self.birth_date, self.birth_time = name.strip(), day.strip(), clock.strip()
+        self.set_birth_place(place)
 
     def validation_errors(self) -> list[str]:
         errors: list[str] = []
@@ -80,7 +95,12 @@ class BatchImportRow:
             except ValueError: errors.append("Birth time is invalid.")
         if not self.birth_place.strip(): errors.append("Birth place is blank.")
         elif self.place is None: errors.append("Birth place has not been validated.")
-        return list(dict.fromkeys([*self.blocking_errors, *errors]))
+        if self.manually_repaired and not errors and self.lookup_errors:
+            self.warnings.extend(f"Original lookup: {error}" for error in self.lookup_errors)
+            self.lookup_errors.clear()
+        if self.imported_uid is not None:
+            errors.append("Already imported.")
+        return list(dict.fromkeys([*self.blocking_errors, *self.lookup_errors, *errors]))
 
     @property
     def importable(self) -> bool:
@@ -88,4 +108,4 @@ class BatchImportRow:
 
     @property
     def error_text(self) -> str:
-        return " ".join([*self.validation_errors(), *self.warnings])
+        return " ".join(filter(None, [*self.validation_errors(), self.save_error, *self.warnings]))
