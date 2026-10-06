@@ -114,3 +114,21 @@ def test_failed_backup_aborts_before_building_or_saving(monkeypatch):
     with pytest.raises(OSError, match='backup unavailable'):
         service.import_rows([row], backup=fail)
     assert row.imported_uid is None and row.included
+
+
+@pytest.mark.parametrize('clock', [
+    '12:00+00:00', '12:00-05:00', '12:00Z', '12:00:00', '12:00:00.5',
+    '1200', '12', '1:00', '24:00', '12:60',
+])
+def test_import_rejects_birth_times_outside_local_hh_mm(clock, monkeypatch):
+    row = valid_row(clock)
+    monkeypatch.setattr(service, 'Chart', lambda *a, **kw: pytest.fail('constructed an invalid clock'))
+    assert 'Birth time is invalid.' in row.validation_errors()
+    with pytest.raises(ValueError, match='Birth time is invalid'):
+        service.build_chart(row)
+    assert service.import_rows([row], backup=lambda **kw: pytest.fail('backed up invalid row')) == ([], [])
+
+
+@pytest.mark.parametrize('clock', ['00:00', '23:59', '', 'unknown', 'UNKNOWN'])
+def test_batch_accepts_valid_local_times_and_unknown(clock):
+    assert valid_row(clock).importable

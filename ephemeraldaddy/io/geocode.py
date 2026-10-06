@@ -20,6 +20,7 @@ from ephemeraldaddy.io.local_gazetteer import (
     local_search_locations,
     resolve_search_sources,
 )
+from ephemeraldaddy.io.web_profile.pacing import pace_remote_request
 
 _geolocator = None
 logger = logging.getLogger(__name__)
@@ -120,6 +121,8 @@ def search_locations(query: str, limit: int = 5, *, allow_online: bool | None = 
         return []
 
     geocoder = _get_geolocator()
+    # Local hits and disabled online fallbacks never consume a pacing slot.
+    pace_remote_request()
     try:
         matches = geocoder.geocode(q, exactly_one=False, addressdetails=True, limit=limit)
     except Exception as exc:
