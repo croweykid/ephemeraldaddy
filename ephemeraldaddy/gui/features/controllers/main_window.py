@@ -21,6 +21,7 @@ from ephemeraldaddy.gui.features.charts.quadrants import (
     draw_quadrants,
 )
 from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOpenTiming
+from ephemeraldaddy.gui.features.database_view.pending_refresh import PendingChartRefreshSnapshot
 from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWorker
 from ephemeraldaddy.gui.style import (
     apply_button_cursor,
@@ -600,8 +601,8 @@ class ChartsController:
         confirm_discard_or_save: Callable[[], bool],
         get_or_create_manage_dialog: Callable[[], QWidget],
         raise_manage_dialog: Callable[[], None],
-        get_pending_changed_refreshes: Callable[[], tuple[set[int], set[int], bool]],
-        clear_pending_changed_refreshes: Callable[[], None],
+        get_pending_changed_refreshes: Callable[[], tuple[set[int], set[int], bool, PendingChartRefreshSnapshot]],
+        clear_pending_changed_refreshes: Callable[[PendingChartRefreshSnapshot], None],
     ) -> None:
         self._confirm_discard_or_save = confirm_discard_or_save
         self._get_or_create_manage_dialog = get_or_create_manage_dialog
@@ -630,7 +631,7 @@ class ChartsController:
             progress_callback("Preparing Database View shell…", 72)
         dialog = self._get_or_create_manage_dialog()
         open_timing.phase("dialog_shell")
-        pending_metric_ids, pending_lightweight_ids, force_full_refresh = (
+        pending_metric_ids, pending_lightweight_ids, force_full_refresh, pending_snapshot = (
             self._get_pending_changed_refreshes()
         )
         pending_ids = set(pending_metric_ids) | set(pending_lightweight_ids)
@@ -699,7 +700,7 @@ class ChartsController:
                     app.processEvents()
                 try:
                     refresh_after_show()
-                    self._clear_pending_changed_refreshes()
+                    self._clear_pending_changed_refreshes(pending_snapshot)
                     if app is not None:
                         app.processEvents()
                 except BaseException:
@@ -719,7 +720,7 @@ class ChartsController:
                 def refresh_and_record() -> None:
                     try:
                         refresh_after_show()
-                        self._clear_pending_changed_refreshes()
+                        self._clear_pending_changed_refreshes(pending_snapshot)
                     except BaseException:
                         open_timing.complete(
                             was_visible=was_visible,
@@ -737,7 +738,7 @@ class ChartsController:
         else:
             # No row hydration is owed. Pending edits are otherwise
             # acknowledged only after their refresh succeeds.
-            self._clear_pending_changed_refreshes()
+            self._clear_pending_changed_refreshes(pending_snapshot)
             open_timing.complete(
                 was_visible=was_visible,
                 refresh_reason=refresh_reason,

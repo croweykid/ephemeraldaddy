@@ -1265,6 +1265,9 @@ from ephemeraldaddy.gui.features.controllers.main_window import (
     EphemerisPrefetchController,
     RetconDialogController,
 )
+from ephemeraldaddy.gui.features.database_view.pending_refresh import (
+    PendingChartChange, PendingChartRefreshSnapshot, acknowledge_refresh_snapshot,
+)
 from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOpenTiming
 from ephemeraldaddy.gui.features.charts.section_availability import (
     is_chart_analysis_section_available,
@@ -24142,8 +24145,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
         self._size_checker_popup: SizeCheckerPopup | None = None
-        self._manage_charts_pending_changed_uids: dict[str, bool] = {}
+        self._manage_charts_pending_changed_uids: dict[str, PendingChartChange] = {}
         self._manage_charts_full_refresh_pending = False
+        self._manage_charts_full_refresh_token: object | None = None
         self._prediction_norms_revision = 0
         self._charts_controller = ChartsController(
             confirm_discard_or_save=self._confirm_discard_or_save,
@@ -34247,15 +34251,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         previous_requires_metrics = bool(
             self._manage_charts_pending_changed_uids.get(normalized_uid, False)
         )
-        self._manage_charts_pending_changed_uids[normalized_uid] = (
+        self._manage_charts_pending_changed_uids[normalized_uid] = PendingChartChange(
             previous_requires_metrics or bool(refresh_metrics)
         )
         if deleted:
             # Deleted UIDs cannot resolve to local row IDs. Force Database View to
             # rehydrate its rows and analytics instead of leaving a stale row.
             self._manage_charts_full_refresh_pending = True
+            self._manage_charts_full_refresh_token = object()
 
-    def _pending_manage_chart_refreshes(self) -> tuple[set[int], set[int], bool]:
+    def _pending_manage_chart_refreshes(self) -> tuple[set[int], set[int], bool, PendingChartRefreshSnapshot]:
         """Return pending Database View refresh IDs split by metrics requirements.
 
         Pending state is stored by UID because Chart UIDs are the stable source
@@ -34263,9 +34268,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         so this method resolves UIDs at the boundary and separates lightweight
         row-only refreshes from analytics/metrics refreshes.
         """
+        force_full_refresh = bool(self._manage_charts_full_refresh_pending)
+        snapshot = PendingChartRefreshSnapshot(
+            dict(self._manage_charts_pending_changed_uids),
+            self._manage_charts_full_refresh_token if force_full_refresh else None,
+        )
         metric_ids: set[int] = set()
         lightweight_ids: set[int] = set()
-        for chart_uid, requires_metrics in list(self._manage_charts_pending_changed_uids.items()):
+        for chart_uid, requires_metrics in snapshot.changed_uids.items():
             chart_id = get_chart_id_by_uid(chart_uid)
             if chart_id is None:
                 continue
@@ -34274,11 +34284,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             else:
                 lightweight_ids.add(int(chart_id))
         lightweight_ids.difference_update(metric_ids)
-        return metric_ids, lightweight_ids, bool(self._manage_charts_full_refresh_pending)
+        return metric_ids, lightweight_ids, force_full_refresh, snapshot
 
-    def _clear_pending_manage_chart_refreshes(self) -> None:
-        self._manage_charts_pending_changed_uids.clear()
-        self._manage_charts_full_refresh_pending = False
+    def _clear_pending_manage_chart_refreshes(self, snapshot: PendingChartRefreshSnapshot) -> None:
+        if acknowledge_refresh_snapshot(
+            self._manage_charts_pending_changed_uids,
+            self._manage_charts_full_refresh_token,
+            snapshot,
+        ):
+            self._manage_charts_full_refresh_pending = False
+            self._manage_charts_full_refresh_token = None
 
     def _get_or_create_manage_charts_dialog(self) -> ManageChartsDialog:
         # Be tolerant of partially initialized/restored MainWindow instances;

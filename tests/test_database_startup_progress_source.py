@@ -27,9 +27,9 @@ def test_pending_chart_changes_clear_only_after_database_rows_refresh():
     schedule_index = method.index("QTimer.singleShot(0, refresh_and_record)")
     async_callback = method[method.index("def refresh_and_record()") : schedule_index]
     assert async_callback.index("refresh_after_show()") < async_callback.index(
-        "self._clear_pending_changed_refreshes()"
+        "self._clear_pending_changed_refreshes(pending_snapshot)"
     )
     assert (
-        "self._clear_pending_changed_refreshes()\n"
+        "self._clear_pending_changed_refreshes(pending_snapshot)\n"
         "        apply_launch_window_policy"
     ) not in method
