@@ -1253,6 +1253,10 @@ def has_active_chart_filters(window) -> bool:
             or not hasattr(window, "hidden_charts_checkbox")
             or window.hidden_charts_checkbox.mode() == QuadStateSlider.MODE_EMPTY
         )
+        and (
+            not hasattr(window, "auto_generated_checkbox")
+            or window.auto_generated_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+        )
         and window.birthtime_unknown_checkbox.mode() == QuadStateSlider.MODE_EMPTY
         and window.retconned_checkbox.mode() == QuadStateSlider.MODE_EMPTY
         and (window.living_checkbox is None or window.living_checkbox.mode() == QuadStateSlider.MODE_EMPTY)
@@ -2400,6 +2404,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     birth_status_mode_row.addWidget(window.birth_status_filter_and)
     birth_status_mode_row.addWidget(window.birth_status_filter_or)
     birth_info_status_layout.addLayout(birth_status_mode_row)
+
+    window.auto_generated_checkbox = QuadStateSlider("Auto-generated")
+    window.auto_generated_checkbox.modeChanged.connect(window._on_filter_changed)
+    birth_info_status_layout.addWidget(window.auto_generated_checkbox)
 
     birth_filters_row = QHBoxLayout()
     window.birthtime_unknown_checkbox = QuadStateSlider("unknown")

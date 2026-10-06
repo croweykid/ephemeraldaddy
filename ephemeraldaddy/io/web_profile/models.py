@@ -39,9 +39,16 @@ class BatchImportRow:
     warnings: list[str] = field(default_factory=list)
     included: bool = False
 
+    def clear_place_errors(self) -> None:
+        self.blocking_errors[:] = [
+            error for error in self.blocking_errors
+            if not error.startswith("Birth place could not be resolved:")
+        ]
+
     def set_birth_place(self, value: str) -> None:
         value = value.strip()
         if value != self.birth_place:
+            self.clear_place_errors()
             self.place = None
             self.included = False
         self.birth_place = value

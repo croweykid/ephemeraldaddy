@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
+from ephemeraldaddy.io.web_profile.pacing import paced_urlopen
 
 WIKIPEDIA_API_URL = "https://en.wikipedia.org/w/api.php"
 WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
@@ -23,7 +24,7 @@ WIKIDATA_DAY_PRECISION = 11
 
 def _wikipedia_http_get_json(url: str) -> dict[str, Any]:
     request = Request(url, headers={"User-Agent": WIKIPEDIA_USER_AGENT})
-    with urlopen(request, timeout=WIKIPEDIA_HTTP_TIMEOUT_SECONDS) as response:
+    with paced_urlopen(urlopen, request, timeout=WIKIPEDIA_HTTP_TIMEOUT_SECONDS) as response:
         payload = response.read()
     return json.loads(payload.decode("utf-8", errors="replace"))
 
