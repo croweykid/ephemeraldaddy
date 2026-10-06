@@ -209,13 +209,78 @@ def test_mixed_csv_looks_up_only_unresolved_rows_and_preserves_repairs(app, tmp_
     window.table.item(2, 2).setText('1999-04-05')
     window.lookup()
     spin_until(app, lambda: not window._busy)
-    assert calls == ['Unresolved']
+    assert calls == ['Unresolved', 'Edited']
     assert window.rows[0] is restored and restored.biography == 'Repaired bio'
-    assert window.rows[2] is edited and edited.birth_date == '1999-04-05'
+    assert window.rows[2].birth_date == edited.birth_date == '1999-04-05'
     assert window.rows[1] is not unresolved
     assert window.rows[1].birth_date == '2001-02-03'
     assert window.table.item(1, 1).text() == 'Resolved name'
     assert [row.requested_name for row in window.rows] == ['Restored', 'Unresolved', 'Edited']
+    window.close()
+
+
+def test_corrected_csv_name_is_looked_up_and_each_manual_field_survives(app, tmp_path, monkeypatch):
+    from ephemeraldaddy.io.web_profile.models import ValidatedPlace
+    path = tmp_path / 'names.csv'
+    path.write_text('name,alias,notes\nMisspelled,Alias,Keep notes\n', encoding='utf-8')
+    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *a: (str(path), 'CSV'))
+    calls = []
+    class Service:
+        def lookup(self, seed):
+            calls.append((seed.name, seed.alias, seed.notes))
+            return BatchImportRow(seed.name, 'Provider name', '2000-01-01', '12:00', 'Provider place',
+                                  biography='Provider bio', sources=['https://provider.example'],
+                                  alias=seed.alias, notes=seed.notes, data_rating='AA')
+    monkeypatch.setattr(module, 'WebProfileLookupService', Service)
+    window = module.BatchWebImportWindow()
+    window.load_csv()
+    for column, value in [(1, 'Correct name'), (2, '1999-04-05'), (3, ''), (3, 'unknown'),
+                          (4, 'Manual town'), (5, 'https://manual.example'), (6, 'Manual bio')]:
+        window.table.item(0, column).setText(value)
+    place = ValidatedPlace('Manual town', 3, 4)
+    window._set_place_result(0, 'Manual town', place)
+    window.table.item(0, 0).setCheckState(Qt.Checked)
+    window.lookup()
+    spin_until(app, lambda: not window._busy)
+    row, = window.rows
+    assert calls == [('Correct name', 'Alias', 'Keep notes')]
+    assert (row.name, row.birth_date, row.birth_time, row.birth_place) == ('Correct name', '1999-04-05', 'unknown', 'Manual town')
+    assert row.place is place and row.importable and row.included
+    assert row.sources == ['https://manual.example'] and row.biography == 'Manual bio'
+    assert row.data_rating == 'AA' and row.notes == 'Keep notes' and row.alias == 'Alias'
+    # Explicit clearing also survives a subsequent provider result.
+    window.table.item(0, 5).setText('')
+    window.table.item(0, 6).setText('')
+    window.lookup()
+    spin_until(app, lambda: not window._busy)
+    assert len(calls) == 2 and window.rows[0].birth_time == 'unknown'
+    assert window.rows[0].biography == '' and window.rows[0].sources == []
+    window.rows[0].imported_uid = 'saved-uid'
+    window.lookup()
+    assert window.worker is None and len(calls) == 2
+    window.close()
+
+
+def test_name_only_csv_edit_uses_corrected_name_and_fills_missing_birth_data(app, tmp_path, monkeypatch):
+    path = tmp_path / 'names.csv'
+    path.write_text('name\nMisspelled\n', encoding='utf-8')
+    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *a: (str(path), 'CSV'))
+    calls = []
+    class Service:
+        def lookup(self, seed):
+            calls.append(seed.name)
+            return BatchImportRow(seed.name, 'Canonical name', '2000-01-01', '12:00', 'Found place', biography='Found bio')
+    monkeypatch.setattr(module, 'WebProfileLookupService', Service)
+    window = module.BatchWebImportWindow()
+    window.load_csv()
+    window.table.item(0, 1).setText('Correct name')
+    window.lookup()
+    spin_until(app, lambda: not window._busy)
+    assert calls == ['Correct name']
+    row, = window.rows
+    assert row.name == 'Correct name'
+    assert (row.birth_date, row.birth_time, row.birth_place, row.biography) == ('2000-01-01', '12:00', 'Found place', 'Found bio')
+    assert row.place is None and not row.included
     window.close()
 
 

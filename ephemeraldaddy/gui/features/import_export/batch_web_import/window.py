@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from threading import Event
 from copy import deepcopy
+from dataclasses import replace
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer, QSignalBlocker
 from PySide6.QtWidgets import (
@@ -132,7 +133,7 @@ class BatchWebImportWindow(QWidget):
         self.owner = owner
         self.rows = []
         self.seeds = []
-        self._csv_edited_indices = set()
+        self._csv_edited_fields = {}
         self.worker = None
         self.worker_thread = None
         self._close_pending = False
@@ -236,7 +237,7 @@ class BatchWebImportWindow(QWidget):
         self.seeds = seeds
         self.names.setPlainText("\n".join(seed.name for seed in seeds))
         self.rows = []
-        self._csv_edited_indices.clear()
+        self._csv_edited_fields.clear()
         self.table.setRowCount(0)
         for seed in seeds:
             self.add_row(seed.to_row())
@@ -248,14 +249,15 @@ class BatchWebImportWindow(QWidget):
         if self.seeds:
             self._sync()
             indices = [index for index, seed in enumerate(self.seeds)
-                       if not seed.restored and index not in self._csv_edited_indices
+                       if not seed.restored and self.rows[index].name.strip()
                        and self.rows[index].imported_uid is None]
             if not indices:
                 self.progress.setText("Edit restored rows, then validate their birth places.")
                 return
-            # Replace only unresolved CSV entries; repaired/edited rows stay put.
+            # Query corrected names, then merge results with per-field repairs.
             self._start_worker(
-                _LookupWorker([self.seeds[index] for index in indices], indices=indices),
+                _LookupWorker([replace(self.seeds[index], name=self.rows[index].name)
+                               for index in indices], indices=indices),
                 self._apply_lookup_result, "Lookup complete",
             )
             return
@@ -268,6 +270,14 @@ class BatchWebImportWindow(QWidget):
 
     def _apply_lookup_result(self, result):
         index, row = result
+        previous = self.rows[index]
+        fields = self._csv_edited_fields.get(index, set())
+        for field in fields:
+            setattr(row, field, deepcopy(getattr(previous, field)))
+        if "birth_place" in fields:
+            row.place = previous.place
+        row.manually_repaired = previous.manually_repaired
+        row.included = previous.included and row.importable
         self.rows[index] = row
         self._display_row(index, row)
 
@@ -328,7 +338,8 @@ class BatchWebImportWindow(QWidget):
         if self._busy or index < 0 or index >= len(self.rows) or column < 0 or column > 6:
             return
         if self.seeds and column in range(1, 7):
-            self._csv_edited_indices.add(index)
+            field = ("name", "birth_date", "birth_time", "birth_place", "sources", "biography")[column - 1]
+            self._csv_edited_fields.setdefault(index, set()).add(field)
         was_checked = self.table.item(index, 0).checkState() == Qt.Checked
         errors = self._sync_row(index)
         if was_checked and errors:
