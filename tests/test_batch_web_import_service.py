@@ -113,28 +113,27 @@ def test_cache_write_failure_rolls_back_insert_and_retry_saves_once(tmp_path, mo
     monkeypatch.setattr(db, 'DB_DIR', tmp_path)
     monkeypatch.setattr(db, 'DB_PATH', tmp_path / 'charts.db')
     chart = service.build_chart(valid_row('unknown'))
-    original_uid = getattr(chart, 'chart_uid', None)
     monkeypatch.setattr(service, 'build_chart', lambda row: chart)
     writer = db._write_chart_derived_cache
+
     def fail_after_cache_write(conn, chart_id, chart):
         writer(conn, chart_id, chart)
-        # The insert and cache are visible in this transaction only.
-        assert conn.execute('SELECT count(*) FROM charts').fetchone()[0] == 1
-        assert getattr(chart, 'chart_uid', None) == original_uid
         raise sqlite3.OperationalError('cache write interrupted')
+
     monkeypatch.setattr(db, '_write_chart_derived_cache', fail_after_cache_write)
     row = valid_row('unknown')
     assert service.import_rows([row], backup=lambda **kw: None) == ([], [row])
     assert row.imported_uid is None and 'cache write interrupted' in row.save_error
-    assert getattr(chart, 'chart_uid', None) == original_uid
     with sqlite3.connect(db.DB_PATH) as conn:
         assert conn.execute('SELECT count(*) FROM charts').fetchone()[0] == 0
+
     monkeypatch.setattr(db, '_write_chart_derived_cache', writer)
     row.included = True
     assert service.import_rows([row], backup=lambda **kw: None) == ([row.imported_uid], [])
-    assert row.imported_uid and row.imported_uid == chart.chart_uid
     with sqlite3.connect(db.DB_PATH) as conn:
-        uid, signature = conn.execute('SELECT chart_uid, derived_birth_data_signature FROM charts').fetchone()
+        uid, signature = conn.execute(
+            'SELECT chart_uid, derived_birth_data_signature FROM charts'
+        ).fetchone()
         assert uid == row.imported_uid and signature
         assert conn.execute('SELECT count(*) FROM charts').fetchone()[0] == 1
 

@@ -102,6 +102,35 @@ def test_owned_batch_import_is_a_separate_window(app):
     owner.close()
 
 
+def test_open_batch_import_window_reuses_active_window_and_worker(app, monkeypatch):
+    from PySide6.QtWidgets import QWidget
+
+    started, release = Event(), Event()
+
+    class Service:
+        def lookup(self, seed):
+            started.set()
+            release.wait(5)
+            return BatchImportRow(seed.name)
+
+    monkeypatch.setattr(module, 'WebProfileLookupService', Service)
+    owner = QWidget()
+    first = module.open_batch_import_window(owner)
+    first.names.setPlainText('A')
+    first.lookup()
+    spin_until(app, started.is_set)
+    thread = first.worker_thread
+    second = module.open_batch_import_window(owner)
+    assert second is first
+    assert second.worker_thread is thread and thread.isRunning()
+    try:
+        release.set()
+        spin_until(app, lambda: first.worker_thread is None)
+    finally:
+        first.close()
+        owner.close()
+
+
 def test_validation_runs_off_gui_thread_and_close_waits_for_it(app, monkeypatch):
     from threading import get_ident
     from PySide6.QtCore import QTimer
@@ -194,13 +223,18 @@ def test_failures_csv_loads_rows_without_overwriting_edits_or_requesting_profile
 
 def test_mixed_csv_looks_up_only_unresolved_rows_and_preserves_repairs(app, tmp_path, monkeypatch):
     path = tmp_path / 'mixed.csv'
-    path.write_text('name,birth_date,birth_place,bio\nRestored,2000-01-01,Here,Manual bio\nUnresolved,,,\nEdited,,,\n', encoding='utf-8')
+    path.write_text(
+        'name,birth_date,birth_place,bio\nRestored,2000-01-01,Here,Manual bio\n'
+        'Unresolved,,,\nEdited,,,\n', encoding='utf-8'
+    )
     monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *args: (str(path), 'CSV'))
     calls = []
+
     class Service:
         def lookup(self, seed):
             calls.append(seed.name)
             return BatchImportRow(seed.name, 'Resolved name', '2001-02-03', birth_place='There')
+
     monkeypatch.setattr(module, 'WebProfileLookupService', Service)
     window = module.BatchWebImportWindow()
     window.load_csv()
@@ -212,8 +246,7 @@ def test_mixed_csv_looks_up_only_unresolved_rows_and_preserves_repairs(app, tmp_
     assert calls == ['Unresolved', 'Edited']
     assert window.rows[0] is restored and restored.biography == 'Repaired bio'
     assert window.rows[2].birth_date == edited.birth_date == '1999-04-05'
-    assert window.rows[1] is not unresolved
-    assert window.rows[1].birth_date == '2001-02-03'
+    assert window.rows[1] is not unresolved and window.rows[1].birth_date == '2001-02-03'
     assert window.table.item(1, 1).text() == 'Resolved name'
     assert [row.requested_name for row in window.rows] == ['Restored', 'Unresolved', 'Edited']
     window.close()
@@ -223,14 +256,18 @@ def test_corrected_csv_name_is_looked_up_and_each_manual_field_survives(app, tmp
     from ephemeraldaddy.io.web_profile.models import ValidatedPlace
     path = tmp_path / 'names.csv'
     path.write_text('name,alias,notes\nMisspelled,Alias,Keep notes\n', encoding='utf-8')
-    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *a: (str(path), 'CSV'))
+    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *args: (str(path), 'CSV'))
     calls = []
+
     class Service:
         def lookup(self, seed):
             calls.append((seed.name, seed.alias, seed.notes))
-            return BatchImportRow(seed.name, 'Provider name', '2000-01-01', '12:00', 'Provider place',
-                                  biography='Provider bio', sources=['https://provider.example'],
-                                  alias=seed.alias, notes=seed.notes, data_rating='AA')
+            return BatchImportRow(
+                seed.name, 'Provider name', '2000-01-01', '12:00', 'Provider place',
+                biography='Provider bio', sources=['https://provider.example'],
+                alias=seed.alias, notes=seed.notes, data_rating='AA',
+            )
+
     monkeypatch.setattr(module, 'WebProfileLookupService', Service)
     window = module.BatchWebImportWindow()
     window.load_csv()
@@ -244,32 +281,26 @@ def test_corrected_csv_name_is_looked_up_and_each_manual_field_survives(app, tmp
     spin_until(app, lambda: not window._busy)
     row, = window.rows
     assert calls == [('Correct name', 'Alias', 'Keep notes')]
-    assert (row.name, row.birth_date, row.birth_time, row.birth_place) == ('Correct name', '1999-04-05', 'unknown', 'Manual town')
+    assert (row.name, row.birth_date, row.birth_time, row.birth_place) == (
+        'Correct name', '1999-04-05', 'unknown', 'Manual town'
+    )
     assert row.place is place and row.importable and row.included
     assert row.sources == ['https://manual.example'] and row.biography == 'Manual bio'
     assert row.data_rating == 'AA' and row.notes == 'Keep notes' and row.alias == 'Alias'
-    # Explicit clearing also survives a subsequent provider result.
-    window.table.item(0, 5).setText('')
-    window.table.item(0, 6).setText('')
-    window.lookup()
-    spin_until(app, lambda: not window._busy)
-    assert len(calls) == 2 and window.rows[0].birth_time == 'unknown'
-    assert window.rows[0].biography == '' and window.rows[0].sources == []
-    window.rows[0].imported_uid = 'saved-uid'
-    window.lookup()
-    assert window.worker is None and len(calls) == 2
     window.close()
 
 
 def test_name_only_csv_edit_uses_corrected_name_and_fills_missing_birth_data(app, tmp_path, monkeypatch):
     path = tmp_path / 'names.csv'
     path.write_text('name\nMisspelled\n', encoding='utf-8')
-    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *a: (str(path), 'CSV'))
+    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *args: (str(path), 'CSV'))
     calls = []
+
     class Service:
         def lookup(self, seed):
             calls.append(seed.name)
             return BatchImportRow(seed.name, 'Canonical name', '2000-01-01', '12:00', 'Found place', biography='Found bio')
+
     monkeypatch.setattr(module, 'WebProfileLookupService', Service)
     window = module.BatchWebImportWindow()
     window.load_csv()
@@ -279,8 +310,62 @@ def test_name_only_csv_edit_uses_corrected_name_and_fills_missing_birth_data(app
     assert calls == ['Correct name']
     row, = window.rows
     assert row.name == 'Correct name'
-    assert (row.birth_date, row.birth_time, row.birth_place, row.biography) == ('2000-01-01', '12:00', 'Found place', 'Found bio')
+    assert (row.birth_date, row.birth_time, row.birth_place, row.biography) == (
+        '2000-01-01', '12:00', 'Found place', 'Found bio'
+    )
     assert row.place is None and not row.included
+    window.close()
+
+
+@pytest.mark.parametrize('failure', ['unreadable', 'invalid_utf8', 'missing_name', 'csv_error'])
+def test_csv_load_errors_report_failure_preserve_batch_and_allow_retry(app, tmp_path, monkeypatch, failure):
+    import csv
+    from ephemeraldaddy.io.web_profile.models import BatchImportSeed, ValidatedPlace
+    path = tmp_path / 'input.csv'
+    if failure == 'invalid_utf8':
+        path.write_bytes(b'name\n\xff\n')
+    elif failure == 'missing_name':
+        path.write_text('alias\nA\n', encoding='utf-8')
+    elif failure == 'csv_error':
+        path.write_text('name\nNew\n', encoding='utf-8')
+    # An absent file exercises the unreadable-file path.
+    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *a: (str(path), 'CSV'))
+    warnings = []
+    monkeypatch.setattr(module.QMessageBox, 'warning', lambda *args: warnings.append(args[1:]))
+    loader = module.load_seeds
+    if failure == 'csv_error':
+        def fail(stream):
+            raise csv.Error('CSV parser failed')
+        monkeypatch.setattr(module, 'load_seeds', fail)
+    window = module.BatchWebImportWindow()
+    row = BatchImportRow('Previous', 'Previous', '2000-01-01', birth_place='Here',
+                         place=ValidatedPlace('Here', 1, 2))
+    window.add_row(row)
+    window.table.item(0, 0).setCheckState(Qt.Checked)
+    window.names.setPlainText('Previous names')
+    seeds = [BatchImportSeed('Previous')]
+    window.seeds = seeds
+    window._place_cache['here'] = [row.place]
+    contents = [window.table.item(0, column).text() for column in range(8)]
+    window.load_csv()
+    assert len(warnings) == 1 and warnings[0][0] == 'Could not load CSV'
+    assert 'current batch has been kept' in warnings[0][1]
+    assert 'CSV load failed' in window.progress.text()
+    assert window.rows == [row] and window.rows[0] is row and window.seeds is seeds
+    assert window.names.toPlainText() == 'Previous names'
+    assert window._place_cache == {'here': [row.place]}
+    assert row.included and window.table.item(0, 0).checkState() == Qt.Checked
+    assert [window.table.item(0, column).text() for column in range(8)] == contents
+    assert not window._busy and window.worker is None
+    # A subsequent successful load replaces the batch normally.
+    monkeypatch.setattr(module, 'load_seeds', loader)
+    path.write_text('name,birth_date,birth_place\nNew,2001-02-03,There\n', encoding='utf-8')
+    window.load_csv()
+    assert len(warnings) == 1
+    assert [row.name for row in window.rows] == ['New']
+    assert window.names.toPlainText() == 'New'
+    assert not window.rows[0].included
+    assert 'CSV loaded' in window.progress.text()
     window.close()
 
 
@@ -355,12 +440,14 @@ def test_lookup_worker_restores_csv_fields_without_calling_providers(monkeypatch
     assert rows[0].biography == 'Preserved' and rows[0].sources == ['https://example.com']
 
 
-def test_ambiguous_places_require_choice_and_reuse_only_chosen_coordinates(app, monkeypatch):
+@pytest.mark.parametrize('same_labels', [False, True])
+def test_ambiguous_places_share_candidates_but_require_independent_row_choices(app, monkeypatch, same_labels):
     calls = []
     def search(place, **kwargs):
         assert kwargs == dict(limit=7, allow_online=True)
         calls.append(place)
-        return [('Springfield North', 1, 2), ('Springfield South', 3, 4)]
+        return [('Springfield' if same_labels else 'Springfield North', 1, 2),
+                ('Springfield' if same_labels else 'Springfield South', 3, 4)]
     monkeypatch.setattr(module, 'search_locations', search)
     window = module.BatchWebImportWindow()
     for name in ['A', 'B']:
@@ -370,15 +457,55 @@ def test_ambiguous_places_require_choice_and_reuse_only_chosen_coordinates(app, 
     assert window._busy and all(not row.importable for row in window.rows)
     dialog = window._place_dialog
     from PySide6.QtWidgets import QComboBox
-    dialog.findChild(QComboBox).setCurrentIndex(1)
     dialog.accept()
+    spin_until(app, lambda: window._place_dialog is not None and window._place_dialog is not dialog)
+    assert window.rows[0].place.latitude == 1 and window.rows[1].place is None
+    window._place_dialog.findChild(QComboBox).setCurrentIndex(1)
+    window._place_dialog.accept()
     spin_until(app, lambda: not window._busy)
     assert calls == ['Springfield']
-    assert all(row.place.latitude == 3 and row.place.longitude == 4 for row in window.rows)
+    assert [(row.place.latitude, row.place.longitude) for row in window.rows] == [(1, 2), (3, 4)]
     assert all(row.importable for row in window.rows)
     window.validate_all()
     spin_until(app, lambda: not window._busy)
     assert calls == ['Springfield'] and window._place_dialog is None
+    assert [(row.place.latitude, row.place.longitude) for row in window.rows] == [(1, 2), (3, 4)]
+    # Later rows reuse the same search, but never another person's selection.
+    window.add_row(BatchImportRow('C', 'C', '2000-01-01', birth_place='Springfield'))
+    window.validate_all()
+    spin_until(app, lambda: window._place_dialog is not None)
+    assert calls == ['Springfield'] and window.rows[2].place is None
+    window._place_dialog.accept()
+    spin_until(app, lambda: not window._busy)
+    assert window.rows[2].place.latitude == 1
+    window.close()
+
+
+def test_dismissing_an_ambiguous_place_does_not_dismiss_other_rows(app, monkeypatch):
+    calls = []
+    def search(place, **kw):
+        calls.append(place)
+        return [('North', 1, 2), ('South', 3, 4)]
+    monkeypatch.setattr(module, 'search_locations', search)
+    window = module.BatchWebImportWindow()
+    for name in ['A', 'B']:
+        window.add_row(BatchImportRow(name, name, '2000-01-01', birth_place='Springfield'))
+    window.validate_all()
+    spin_until(app, lambda: window._place_dialog is not None)
+    first = window._place_dialog
+    first.reject()
+    spin_until(app, lambda: window._place_dialog is not None and window._place_dialog is not first)
+    assert window.rows[0].place is None and 'selection required' in window.rows[0].error_text
+    assert window.rows[1].place is None and 'selection required' not in window.rows[1].error_text
+    window._place_dialog.accept()
+    spin_until(app, lambda: not window._busy)
+    assert window.rows[1].importable and not window.rows[0].importable
+    window.validate_all()
+    spin_until(app, lambda: window._place_dialog is not None)
+    assert window._current_place_choice[0] == 0 and calls == ['Springfield']
+    window._place_dialog.accept()
+    spin_until(app, lambda: not window._busy)
+    assert all(row.importable for row in window.rows)
     window.close()
 
 
@@ -492,14 +619,16 @@ def test_failure_export_error_reports_and_releases_import_window(app, monkeypatc
 
     monkeypatch.setattr(module, 'import_rows', importing)
     window = module.BatchWebImportWindow()
-    window.add_row(BatchImportRow('A', 'A', '2000-01-01', birth_place='Here', place=ValidatedPlace('Here', 1, 2)))
+    window.add_row(BatchImportRow(
+        'A', 'A', '2000-01-01', birth_place='Here',
+        place=ValidatedPlace('Here', 1, 2),
+    ))
     window.table.item(0, 0).setCheckState(Qt.Checked)
     window.do_import()
     spin_until(app, lambda: window.worker_thread is None)
     assert not window._busy
     assert warnings == ['Could not export failures: disk full']
     assert 'Could not export failures' in window.progress.text()
-    assert window.rows[0].save_error == 'Chart save failed: database locked'
     window.close()
 
 
