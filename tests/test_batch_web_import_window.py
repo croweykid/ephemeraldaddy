@@ -102,6 +102,35 @@ def test_owned_batch_import_is_a_separate_window(app):
     owner.close()
 
 
+def test_open_batch_import_window_reuses_active_window_and_worker(app, monkeypatch):
+    from PySide6.QtWidgets import QWidget
+
+    started, release = Event(), Event()
+
+    class Service:
+        def lookup(self, seed):
+            started.set()
+            release.wait(5)
+            return BatchImportRow(seed.name)
+
+    monkeypatch.setattr(module, 'WebProfileLookupService', Service)
+    owner = QWidget()
+    first = module.open_batch_import_window(owner)
+    first.names.setPlainText('A')
+    first.lookup()
+    spin_until(app, started.is_set)
+    thread = first.worker_thread
+    second = module.open_batch_import_window(owner)
+    assert second is first
+    assert second.worker_thread is thread and thread.isRunning()
+    try:
+        release.set()
+        spin_until(app, lambda: first.worker_thread is None)
+    finally:
+        first.close()
+        owner.close()
+
+
 def test_validation_runs_off_gui_thread_and_close_waits_for_it(app, monkeypatch):
     from threading import get_ident
     from PySide6.QtCore import QTimer
@@ -220,7 +249,7 @@ def test_csv_load_errors_report_failure_preserve_batch_and_allow_retry(app, tmp_
     window.names.setPlainText('Previous names')
     seeds = [BatchImportSeed('Previous')]
     window.seeds = seeds
-    window._place_cache['here'] = row.place
+    window._place_cache['here'] = [row.place]
     contents = [window.table.item(0, column).text() for column in range(8)]
     window.load_csv()
     assert len(warnings) == 1 and warnings[0][0] == 'Could not load CSV'
@@ -228,7 +257,7 @@ def test_csv_load_errors_report_failure_preserve_batch_and_allow_retry(app, tmp_
     assert 'CSV load failed' in window.progress.text()
     assert window.rows == [row] and window.rows[0] is row and window.seeds is seeds
     assert window.names.toPlainText() == 'Previous names'
-    assert window._place_cache == {'here': row.place}
+    assert window._place_cache == {'here': [row.place]}
     assert row.included and window.table.item(0, 0).checkState() == Qt.Checked
     assert [window.table.item(0, column).text() for column in range(8)] == contents
     assert not window._busy and window.worker is None
@@ -315,12 +344,14 @@ def test_lookup_worker_restores_csv_fields_without_calling_providers(monkeypatch
     assert rows[0].biography == 'Preserved' and rows[0].sources == ['https://example.com']
 
 
-def test_ambiguous_places_require_choice_and_reuse_only_chosen_coordinates(app, monkeypatch):
+@pytest.mark.parametrize('same_labels', [False, True])
+def test_ambiguous_places_share_candidates_but_require_independent_row_choices(app, monkeypatch, same_labels):
     calls = []
     def search(place, **kwargs):
         assert kwargs == dict(limit=7, allow_online=True)
         calls.append(place)
-        return [('Springfield North', 1, 2), ('Springfield South', 3, 4)]
+        return [('Springfield' if same_labels else 'Springfield North', 1, 2),
+                ('Springfield' if same_labels else 'Springfield South', 3, 4)]
     monkeypatch.setattr(module, 'search_locations', search)
     window = module.BatchWebImportWindow()
     for name in ['A', 'B']:
@@ -330,15 +361,55 @@ def test_ambiguous_places_require_choice_and_reuse_only_chosen_coordinates(app, 
     assert window._busy and all(not row.importable for row in window.rows)
     dialog = window._place_dialog
     from PySide6.QtWidgets import QComboBox
-    dialog.findChild(QComboBox).setCurrentIndex(1)
     dialog.accept()
+    spin_until(app, lambda: window._place_dialog is not None and window._place_dialog is not dialog)
+    assert window.rows[0].place.latitude == 1 and window.rows[1].place is None
+    window._place_dialog.findChild(QComboBox).setCurrentIndex(1)
+    window._place_dialog.accept()
     spin_until(app, lambda: not window._busy)
     assert calls == ['Springfield']
-    assert all(row.place.latitude == 3 and row.place.longitude == 4 for row in window.rows)
+    assert [(row.place.latitude, row.place.longitude) for row in window.rows] == [(1, 2), (3, 4)]
     assert all(row.importable for row in window.rows)
     window.validate_all()
     spin_until(app, lambda: not window._busy)
     assert calls == ['Springfield'] and window._place_dialog is None
+    assert [(row.place.latitude, row.place.longitude) for row in window.rows] == [(1, 2), (3, 4)]
+    # Later rows reuse the same search, but never another person's selection.
+    window.add_row(BatchImportRow('C', 'C', '2000-01-01', birth_place='Springfield'))
+    window.validate_all()
+    spin_until(app, lambda: window._place_dialog is not None)
+    assert calls == ['Springfield'] and window.rows[2].place is None
+    window._place_dialog.accept()
+    spin_until(app, lambda: not window._busy)
+    assert window.rows[2].place.latitude == 1
+    window.close()
+
+
+def test_dismissing_an_ambiguous_place_does_not_dismiss_other_rows(app, monkeypatch):
+    calls = []
+    def search(place, **kw):
+        calls.append(place)
+        return [('North', 1, 2), ('South', 3, 4)]
+    monkeypatch.setattr(module, 'search_locations', search)
+    window = module.BatchWebImportWindow()
+    for name in ['A', 'B']:
+        window.add_row(BatchImportRow(name, name, '2000-01-01', birth_place='Springfield'))
+    window.validate_all()
+    spin_until(app, lambda: window._place_dialog is not None)
+    first = window._place_dialog
+    first.reject()
+    spin_until(app, lambda: window._place_dialog is not None and window._place_dialog is not first)
+    assert window.rows[0].place is None and 'selection required' in window.rows[0].error_text
+    assert window.rows[1].place is None and 'selection required' not in window.rows[1].error_text
+    window._place_dialog.accept()
+    spin_until(app, lambda: not window._busy)
+    assert window.rows[1].importable and not window.rows[0].importable
+    window.validate_all()
+    spin_until(app, lambda: window._place_dialog is not None)
+    assert window._current_place_choice[0] == 0 and calls == ['Springfield']
+    window._place_dialog.accept()
+    spin_until(app, lambda: not window._busy)
+    assert all(row.importable for row in window.rows)
     window.close()
 
 

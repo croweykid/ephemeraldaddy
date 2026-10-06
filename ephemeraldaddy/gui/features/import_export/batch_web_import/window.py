@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QFileDialog, QHBoxLayout, QLabel, QMessageBox, QInputDialog, QDialog,
     QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
 )
+from shiboken6 import isValid
 
 from ephemeraldaddy.io.geocode import search_locations
 from ephemeraldaddy.io.web_profile.csv_io import load_seeds, parse_pasted_names, export_failures
@@ -70,8 +71,9 @@ class _PlaceValidationWorker(_BatchWorker):
 
     @Slot()
     def run(self):
-        # Unchosen candidates and failures are reused only during this pass.
-        candidates, errors = {}, {}
+        # Cache search candidates, never a row's choice among ambiguous matches.
+        # Failures are reused only during this pass so retries remain possible.
+        errors = {}
         try:
             with paced_requests(self.cancel_event):
                 for index, query in self.places:
@@ -79,22 +81,18 @@ class _PlaceValidationWorker(_BatchWorker):
                         break
                     self.progress.emit(f"Validating birth place {index + 1}")
                     key = _place_key(query)
-                    if key in self.cache:
-                        matches = [self.cache[key]]
-                    else:
-                        if key not in candidates and key not in errors:
-                            try:
-                                matches = [ValidatedPlace(label, lat, lon) for label, lat, lon
-                                           in search_locations(query, limit=7, allow_online=True)]
-                                if not matches:
-                                    raise ValueError("No matches found")
-                                candidates[key] = matches
-                                if len(matches) == 1:
-                                    self.cache[key] = matches[0]
-                                    self.cache[_place_key(matches[0].label)] = matches[0]
-                            except Exception as exc:
-                                errors[key] = f"Birth place could not be resolved: {exc}"
-                        matches = candidates.get(key, [])
+                    if key not in self.cache and key not in errors:
+                        try:
+                            matches = [ValidatedPlace(label, lat, lon) for label, lat, lon
+                                       in search_locations(query, limit=7, allow_online=True)]
+                            if not matches:
+                                raise ValueError("No matches found")
+                            self.cache[key] = matches
+                            if len(matches) == 1:
+                                self.cache.setdefault(_place_key(matches[0].label), matches)
+                        except Exception as exc:
+                            errors[key] = f"Birth place could not be resolved: {exc}"
+                    matches = self.cache.get(key, [])
                     if self.cancel_event.is_set():
                         break
                     self.result.emit((index, query, matches, errors.get(key, "")))
@@ -139,7 +137,6 @@ class BatchWebImportWindow(QWidget):
         self._busy = False
         self._place_choices = []
         self._place_dialog = None
-        self._declined_places = set()
         self._import_summary = None
         self.setWindowTitle("Batch Import")
         self.resize(1200, 650)
@@ -328,13 +325,14 @@ class BatchWebImportWindow(QWidget):
         self._sync()
         places = []
         self._place_choices = []
-        self._declined_places = set()
         for index in indices:
             row = self.rows[index]
             if row.imported_uid is not None:
                 continue
             row.clear_place_errors()
             self.table.item(index, 7).setText(row.error_text)
+            if row.place is not None:
+                continue
             places.append((index, row.birth_place))
         if places:
             self._start_worker(
@@ -349,6 +347,10 @@ class BatchWebImportWindow(QWidget):
             return
         if self.table.item(index, 4).text().strip() != query:
             return
+        if matches:
+            self._place_cache[_place_key(query)] = matches
+            if len(matches) == 1:
+                self._place_cache.setdefault(_place_key(matches[0].label), matches)
         if len(matches) > 1:
             self.rows[index].place = None
             self._place_choices.append((index, query, matches))
@@ -361,8 +363,6 @@ class BatchWebImportWindow(QWidget):
         row.clear_place_errors()
         row.place = place
         if place is not None:
-            self._place_cache[_place_key(query)] = place
-            self._place_cache[_place_key(place.label)] = place
             row.birth_place = place.label
             with QSignalBlocker(self.table):
                 self.table.item(index, 4).setText(place.label)
@@ -374,13 +374,6 @@ class BatchWebImportWindow(QWidget):
         while self._place_choices and not self._close_pending:
             index, query, matches = self._place_choices.pop(0)
             if self.table.item(index, 4).text().strip() != query:
-                continue
-            key = _place_key(query)
-            if key in self._place_cache:
-                self._set_place_result(index, query, self._place_cache[key])
-                continue
-            if key in self._declined_places:
-                self._set_place_result(index, query, None, "Birth place selection required.")
                 continue
             self._current_place_choice = (index, query, matches)
             dialog = QInputDialog(self)
@@ -407,7 +400,6 @@ class BatchWebImportWindow(QWidget):
                 choice = int(dialog.textValue().split(".", 1)[0]) - 1
                 self._set_place_result(index, query, matches[choice])
             else:
-                self._declined_places.add(_place_key(query))
                 self._set_place_result(index, query, None, "Birth place selection required.")
         dialog.deleteLater()
         self._show_next_place_choice()
@@ -482,9 +474,22 @@ class BatchWebImportWindow(QWidget):
 
 
 def open_batch_import_window(owner):
-    window = BatchWebImportWindow(owner)
-    window.setAttribute(Qt.WA_DeleteOnClose, True)
-    window.show()
+    window = getattr(owner, "_batch_web_import_window", None)
+    if not isinstance(window, BatchWebImportWindow) or not isValid(window):
+        window = BatchWebImportWindow(owner)
+        window.setAttribute(Qt.WA_DeleteOnClose, True)
+        owner._batch_web_import_window = window
+        def clear_reference():
+            if getattr(owner, "_batch_web_import_window", None) is window:
+                owner._batch_web_import_window = None
+        window.destroyed.connect(clear_reference)
+    if window.isMinimized():
+        window.showNormal()
+    else:
+        window.show()
     window.raise_()
-    owner._batch_web_import_window = window
+    window.activateWindow()
+    if window._place_dialog is not None:
+        window._place_dialog.raise_()
+        window._place_dialog.activateWindow()
     return window
