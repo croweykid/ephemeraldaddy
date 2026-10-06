@@ -11,6 +11,23 @@ class BatchImportSeed:
     from_whence: str = ""
     tags: tuple[str, ...] = ()
     notes: str = ""
+    birth_date: str = ""
+    birth_time: str = ""
+    birth_place: str = ""
+    biography: str = ""
+    sources: tuple[str, ...] = ()
+    data_rating: str = ""
+    restored: bool = False
+
+    def to_row(self) -> BatchImportRow:
+        return BatchImportRow(
+            requested_name=self.name, name=self.name,
+            alias=self.alias, from_whence=self.from_whence,
+            tags=list(self.tags), notes=self.notes,
+            birth_date=self.birth_date, birth_time=self.birth_time,
+            birth_place=self.birth_place, biography=self.biography,
+            sources=list(self.sources), data_rating=self.data_rating,
+        )
 
 
 @dataclass(frozen=True)

@@ -57,3 +57,27 @@ def test_place_error_is_cleared_without_removing_other_errors():
     row.set_birth_place('Correct')
     row.place = ValidatedPlace('Correct', 1, 2)
     assert row.validation_errors() == ['Other issue']
+
+
+def test_failures_csv_round_trip_retains_resolved_fields_and_requires_new_place_validation():
+    row = BatchImportRow('Requested', 'Repaired', '2000-01-02', '03:04', 'Edited place',
+                         biography='Edited biography', sources=['https://one.example', 'https://two.example'],
+                         alias='Alias', from_whence='Web', tags=['x', 'y'], notes='Edited notes', data_rating='AA')
+    row.blocking_errors = ['Birth place could not be resolved: temporary outage']
+    stream = io.StringIO()
+    export_failures([row], stream)
+    stream.seek(0)
+    seed, = load_seeds(stream)
+    restored = seed.to_row()
+    assert seed.restored
+    for field in ('name', 'birth_date', 'birth_time', 'birth_place', 'biography', 'sources',
+                  'alias', 'from_whence', 'tags', 'notes', 'data_rating'):
+        assert getattr(restored, field) == getattr(row, field)
+    assert restored.blocking_errors == []
+    assert restored.place is None and not restored.included
+    assert restored.validation_errors() == ['Birth place has not been validated.']
+
+
+def test_name_only_csv_still_uses_profile_lookup():
+    seed, = load_seeds(io.StringIO('name,notes\nA,note\n'))
+    assert not seed.restored
