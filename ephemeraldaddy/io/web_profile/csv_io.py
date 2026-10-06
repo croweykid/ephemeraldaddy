@@ -42,7 +42,8 @@ def export_failures(rows: Iterable[BatchImportRow], target: str | Path | TextIO)
         writer = csv.DictWriter(stream, fieldnames=("name", "alias", "from", "tags", "notes", "birth_date", "birth_time", "birth_place", "bio", "sources", "data_rating", "error"))
         writer.writeheader()
         for row in rows:
-            if row.importable and not row.included: continue
+            if row.imported_uid is not None: continue
+            if row.importable and not row.included and not row.save_error: continue
             writer.writerow({"name": row.name, "alias": row.alias, "from": row.from_whence, "tags": ", ".join(row.tags), "notes": row.notes, "birth_date": row.birth_date, "birth_time": row.birth_time or "unknown", "birth_place": row.birth_place, "bio": row.biography, "sources": "; ".join(row.sources), "data_rating": row.data_rating, "error": row.error_text})
     finally:
         if close: stream.close()

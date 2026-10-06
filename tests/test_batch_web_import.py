@@ -81,3 +81,24 @@ def test_failures_csv_round_trip_retains_resolved_fields_and_requires_new_place_
 def test_name_only_csv_still_uses_profile_lookup():
     seed, = load_seeds(io.StringIO('name,notes\nA,note\n'))
     assert not seed.restored
+
+
+def test_manual_repair_clears_lookup_diagnostics_only_when_fields_are_valid():
+    row = BatchImportRow('A', 'A', lookup_errors=['No profile could be resolved.'])
+    row.set_birth_fields('Repaired', 'bad', 'unknown', 'Here')
+    row.place = ValidatedPlace('Here', 1, 2)
+    assert not row.importable and row.lookup_errors
+    row.set_birth_fields('Repaired', '2000-01-01', 'unknown', 'Here')
+    assert row.importable and not row.lookup_errors
+    assert 'Original lookup: No profile' in row.error_text
+
+
+def test_ambiguity_requires_actual_manual_edit_even_with_valid_provider_fields():
+    row = BatchImportRow('A', 'A', '2000-01-01', '', 'Here',
+                         place=ValidatedPlace('Here', 1, 2), lookup_errors=['Ambiguous profile'])
+    row.set_birth_fields('A', '2000-01-01', 'unknown', 'Here')
+    assert not row.importable and not row.manually_repaired
+    row.set_birth_fields('Correct person', '2000-01-01', 'unknown', 'Here')
+    assert row.importable
+    row.blocking_errors.append('Other issue')
+    assert not row.importable
