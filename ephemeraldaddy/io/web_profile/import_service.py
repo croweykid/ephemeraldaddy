@@ -24,7 +24,7 @@ def build_chart(row: BatchImportRow) -> Chart:
     chart.chart_type = CHART_TYPE_PUBLIC_DB
     chart.relationship_types = ["public figure"]
     apply_time_specific_metadata_policy(chart)
-    from ephemeraldaddy.gui.features.charts.metrics import (
+    from ephemeraldaddy.core.chart_metrics import (
         calculate_dominant_sign_weights, calculate_dominant_planet_weights,
         calculate_dominant_nakshatra_weights, calculate_dominant_element_weights,
     )

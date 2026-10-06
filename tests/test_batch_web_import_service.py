@@ -107,6 +107,37 @@ def test_import_persists_public_type_relationships_and_dominance(tmp_path, monke
     assert stored[5] == 1
 
 
+def test_cache_write_failure_rolls_back_insert_and_retry_saves_once(tmp_path, monkeypatch):
+    import sqlite3
+    from ephemeraldaddy.core import db
+    monkeypatch.setattr(db, 'DB_DIR', tmp_path)
+    monkeypatch.setattr(db, 'DB_PATH', tmp_path / 'charts.db')
+    chart = service.build_chart(valid_row('unknown'))
+    monkeypatch.setattr(service, 'build_chart', lambda row: chart)
+    writer = db._write_chart_derived_cache
+
+    def fail_after_cache_write(conn, chart_id, chart):
+        writer(conn, chart_id, chart)
+        raise sqlite3.OperationalError('cache write interrupted')
+
+    monkeypatch.setattr(db, '_write_chart_derived_cache', fail_after_cache_write)
+    row = valid_row('unknown')
+    assert service.import_rows([row], backup=lambda **kw: None) == ([], [row])
+    assert row.imported_uid is None and 'cache write interrupted' in row.save_error
+    with sqlite3.connect(db.DB_PATH) as conn:
+        assert conn.execute('SELECT count(*) FROM charts').fetchone()[0] == 0
+
+    monkeypatch.setattr(db, '_write_chart_derived_cache', writer)
+    row.included = True
+    assert service.import_rows([row], backup=lambda **kw: None) == ([row.imported_uid], [])
+    with sqlite3.connect(db.DB_PATH) as conn:
+        uid, signature = conn.execute(
+            'SELECT chart_uid, derived_birth_data_signature FROM charts'
+        ).fetchone()
+        assert uid == row.imported_uid and signature
+        assert conn.execute('SELECT count(*) FROM charts').fetchone()[0] == 1
+
+
 def test_failed_backup_aborts_before_building_or_saving(monkeypatch):
     monkeypatch.setattr(service, 'build_chart', lambda row: pytest.fail('built after failed backup'))
     def fail(**kw): raise OSError('backup unavailable')
@@ -132,3 +163,41 @@ def test_import_rejects_birth_times_outside_local_hh_mm(clock, monkeypatch):
 @pytest.mark.parametrize('clock', ['00:00', '23:59', '', 'unknown', 'UNKNOWN'])
 def test_batch_accepts_valid_local_times_and_unknown(clock):
     assert valid_row(clock).importable
+
+
+def test_real_chart_build_and_import_work_without_gui_dependencies(tmp_path):
+    import subprocess
+    import sys
+    import textwrap
+    script = textwrap.dedent('''
+        import sys
+        from pathlib import Path
+        from importlib.abc import MetaPathFinder
+        class NoGui(MetaPathFinder):
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname.startswith(('ephemeraldaddy.gui', 'PySide6', 'matplotlib')):
+                    raise ImportError('Unexpected GUI dependency: ' + fullname)
+        sys.meta_path.insert(0, NoGui())
+        from ephemeraldaddy.core import db
+        from ephemeraldaddy.core.chart import chart_uses_houses
+        from ephemeraldaddy.io.web_profile.import_service import build_chart, import_rows
+        from ephemeraldaddy.io.web_profile.models import BatchImportRow, ValidatedPlace
+        db.DB_DIR = Path(sys.argv[1])
+        db.DB_PATH = db.DB_DIR / 'headless.db'
+        rows = []
+        for clock in ('03:04', 'unknown'):
+            row = BatchImportRow('A', 'A', '2000-01-01', clock, 'New York',
+                                 place=ValidatedPlace('New York', 40.7128, -74.0060), included=True)
+            chart = build_chart(row)
+            assert chart_uses_houses(chart) == (clock != 'unknown')
+            if clock == 'unknown':
+                assert not chart.houses and 'AS' not in chart.positions
+            for kind in ('sign', 'planet', 'nakshatra', 'element'):
+                assert sum(getattr(chart, f'dominant_{kind}_weights').values()) > 0
+            rows.append(row)
+        uids, failures = import_rows(rows, backup=lambda **kw: None)
+        assert len(uids) == 2 and not failures
+        assert not any(name.startswith(('ephemeraldaddy.gui', 'PySide6', 'matplotlib')) for name in sys.modules)
+    ''')
+    result = subprocess.run([sys.executable, '-c', script, str(tmp_path)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr

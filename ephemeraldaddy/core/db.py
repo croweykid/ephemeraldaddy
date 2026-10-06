@@ -12,6 +12,7 @@ import sys
 import threading
 import uuid
 import logging
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2553,45 +2554,47 @@ def _parse_derived_list(value: str | None) -> list[Any]:
     return _parse_derived_payload(value, list).value
 
 
+def _write_chart_derived_cache(conn: sqlite3.Connection, chart_id: int, chart: Any) -> None:
+    """Write cache data within the caller's chart transaction."""
+    columns = _table_columns(conn, "charts")
+    required = {
+        "derived_birth_data_signature",
+        "derived_positions",
+        "derived_retrogrades",
+        "derived_houses",
+        "derived_houses_po",
+        "derived_aspects",
+    }
+    if not required.issubset(columns):
+        return
+    conn.execute(
+        """
+        UPDATE charts
+        SET derived_birth_data_signature = ?,
+            derived_positions = ?,
+            derived_retrogrades = ?,
+            derived_houses = ?,
+            derived_houses_po = ?,
+            derived_aspects = ?
+        WHERE id = ?
+        """,
+        (
+            _chart_birth_data_signature(chart, birth_place=getattr(chart, "birth_place", None)),
+            _serialize_derived_payload(getattr(chart, "positions", {})),
+            _serialize_derived_payload(getattr(chart, "retrogrades", {})),
+            _serialize_derived_payload(getattr(chart, "houses", [])),
+            _serialize_derived_payload(getattr(chart, "housesPo", [])),
+            _serialize_derived_payload(getattr(chart, "aspects", [])),
+            int(chart_id),
+        ),
+    )
+
+
 def _persist_chart_derived_cache(chart_id: int, chart: Any) -> None:
     """Persist recalculated derived data so later Chart View loads can hydrate quickly."""
-    conn = _get_conn()
-    try:
-        columns = _table_columns(conn, "charts")
-        required = {
-            "derived_birth_data_signature",
-            "derived_positions",
-            "derived_retrogrades",
-            "derived_houses",
-            "derived_houses_po",
-            "derived_aspects",
-        }
-        if not required.issubset(columns):
-            return
-        with conn:
-            conn.execute(
-                """
-                UPDATE charts
-                SET derived_birth_data_signature = ?,
-                    derived_positions = ?,
-                    derived_retrogrades = ?,
-                    derived_houses = ?,
-                    derived_houses_po = ?,
-                    derived_aspects = ?
-                WHERE id = ?
-                """,
-                (
-                    _chart_birth_data_signature(chart, birth_place=getattr(chart, "birth_place", None)),
-                    _serialize_derived_payload(getattr(chart, "positions", {})),
-                    _serialize_derived_payload(getattr(chart, "retrogrades", {})),
-                    _serialize_derived_payload(getattr(chart, "houses", [])),
-                    _serialize_derived_payload(getattr(chart, "housesPo", [])),
-                    _serialize_derived_payload(getattr(chart, "aspects", [])),
-                    int(chart_id),
-                ),
-            )
-    finally:
-        conn.close()
+    with closing(_get_conn()) as conn, conn:
+        _write_chart_derived_cache(conn, chart_id, chart)
+
 
 def _serialize_weight_map(weights: Optional[dict[str, float]]) -> Optional[str]:
     if weights is None:
@@ -4191,7 +4194,7 @@ def save_chart(
     bazi_metadata = _resolve_bazi_metadata(chart)
     body_dynamics_roles = _resolve_body_dynamics_roles(chart)
     conn = _get_conn()
-    with conn:
+    with closing(conn), conn:
         cur = conn.execute(
             """
             INSERT INTO charts
@@ -4388,16 +4391,16 @@ def save_chart(
             "UPDATE charts SET chart_uid = ? WHERE id = ?",
             (chart_uid, int(chart_id)),
         )
-        setattr(chart, "chart_uid", chart_uid)
         _sync_reciprocal_reminds_me_of_links(
             conn,
             chart_uid,
             getattr(chart, "reminds_me_of", None),
         )
-    if birth_place is not None:
-        setattr(chart, "birth_place", birth_place)
-    conn.close()
-    _persist_chart_derived_cache(int(chart_id), chart)
+        if birth_place is not None:
+            setattr(chart, "birth_place", birth_place)
+        _write_chart_derived_cache(conn, int(chart_id), chart)
+    # Publish the UID only after both the row and its cache have committed.
+    setattr(chart, "chart_uid", chart_uid)
     return chart_id
 
 
