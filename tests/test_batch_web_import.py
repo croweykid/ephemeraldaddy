@@ -33,3 +33,27 @@ def test_wikipedia_ambiguity_blocks_without_unique_date_match():
     service=WebProfileLookupService(astro_search=lambda n:(_ for _ in ()).throw(ValueError('no')),astro_parse=None,wiki_resolve=lambda n:{'status':'multiple','options':['A','B']},wiki_birth=lambda t:{},wiki_blurb=lambda t:{},wiki_match=lambda o,d:None)
     row=service.lookup(parse_pasted_names('A')[0])
     assert 'Multiple Wikipedia entries' in row.error_text and not row.importable
+
+
+def test_wikipedia_candidates_are_dated_before_matching():
+    from ephemeraldaddy.gui.wikipedia_blurb_getter import unique_title_matching_birth_date
+    service = WebProfileLookupService(
+        astro_search=lambda name: 'astro',
+        astro_parse=lambda url: dict(birth_year=2000, birth_month=1, birth_day=2, time_unknown=True),
+        wiki_resolve=lambda name: dict(status='multiple', options=['Wrong', 'Right']),
+        wiki_birth=lambda title: dict(birth_year=2000, birth_month=1, birth_day=2 if title == 'Right' else 3),
+        wiki_match=unique_title_matching_birth_date,
+        wiki_blurb=lambda title: dict(text='Matched biography'),
+    )
+    row = service.lookup(parse_pasted_names('A')[0])
+    assert row.biography == 'Matched biography'
+    assert row.sources[-1].endswith('/Right')
+    assert not row.blocking_errors
+
+
+def test_place_error_is_cleared_without_removing_other_errors():
+    row = BatchImportRow('A', 'A', '2000-01-01', birth_place='Wrong')
+    row.blocking_errors = ['Birth place could not be resolved: unavailable', 'Other issue']
+    row.set_birth_place('Correct')
+    row.place = ValidatedPlace('Correct', 1, 2)
+    assert row.validation_errors() == ['Other issue']

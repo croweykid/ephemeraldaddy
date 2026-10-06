@@ -43,7 +43,19 @@ class WebProfileLookupService:
             title = resolution.get("title")
             if status == "multiple":
                 options = list(resolution.get("options") or [])
-                title = self.wiki_match(options, factual_date) if factual_date else None
+                candidates = []
+                if factual_date:
+                    for candidate in options:
+                        candidate_date = None
+                        try:
+                            birth = self.wiki_birth(candidate)
+                            year, month, day = (birth.get(key) for key in ("birth_year", "birth_month", "birth_day"))
+                            if year and month and day:
+                                candidate_date = date(int(year), int(month), int(day))
+                        except Exception as exc:
+                            row.warnings.append(f"Wikipedia birth data for {candidate}: {exc}")
+                        candidates.append((candidate, candidate_date))
+                title = self.wiki_match(candidates, factual_date) if factual_date else None
                 if not title:
                     row.blocking_errors.append("Multiple Wikipedia entries found: " + "; ".join(options))
                     return row

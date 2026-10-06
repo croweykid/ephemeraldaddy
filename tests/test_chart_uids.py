@@ -827,3 +827,23 @@ def test_get_chart_ids_by_uid_chunks_large_uid_batches(tmp_path, monkeypatch):
     conn.close()
 
     assert db.get_chart_ids_by_uid(reversed(expected.keys())) == expected
+
+
+@pytest.mark.parametrize('auto_generated', [0, 1])
+def test_database_transfer_preserves_provenance(tmp_path, monkeypatch, auto_generated):
+    source_path = tmp_path / 'source.db'
+    monkeypatch.setattr(db, 'DB_DIR', tmp_path)
+    monkeypatch.setattr(db, 'DB_PATH', source_path)
+    conn = db._get_conn()
+    with conn:
+        _insert_minimal_chart(conn, chart_uid='PROVENANCE000001')
+        conn.execute('UPDATE charts SET auto_generated = ?', (auto_generated,))
+    conn.close()
+    exported = db.export_database_with_chart_property_selection(tmp_path / 'export.db', [])
+    with sqlite3.connect(exported) as conn:
+        assert conn.execute('SELECT auto_generated FROM charts').fetchone()[0] == auto_generated
+    monkeypatch.setattr(db, 'DB_PATH', tmp_path / 'target.db')
+    result = db.append_database(exported)
+    assert result['imported'] == 1
+    with sqlite3.connect(db.DB_PATH) as conn:
+        assert conn.execute('SELECT auto_generated FROM charts').fetchone()[0] == auto_generated
