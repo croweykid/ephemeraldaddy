@@ -6316,6 +6316,7 @@ def _chart_from_row(chart_id: int, row):
         placeholder = SimpleNamespace()
         placeholder.id = int(chart_id)
         placeholder.chart_uid = str(chart_uid or "")
+        placeholder.auto_generated = bool(auto_generated)
         placeholder.name = name
         placeholder.alias = alias
         placeholder.from_whence = from_whence

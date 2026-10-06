@@ -847,3 +847,17 @@ def test_database_transfer_preserves_provenance(tmp_path, monkeypatch, auto_gene
     assert result['imported'] == 1
     with sqlite3.connect(db.DB_PATH) as conn:
         assert conn.execute('SELECT auto_generated FROM charts').fetchone()[0] == auto_generated
+
+
+@pytest.mark.parametrize('auto_generated', [0, 1])
+def test_placeholder_shell_hydrates_provenance(tmp_path, monkeypatch, auto_generated):
+    monkeypatch.setattr(db, 'DB_DIR', tmp_path)
+    monkeypatch.setattr(db, 'DB_PATH', tmp_path / 'placeholder.db')
+    conn = db._get_conn()
+    with conn:
+        _insert_minimal_chart(conn, chart_uid='PLACEHOLDER000001', is_placeholder=True)
+        conn.execute('UPDATE charts SET auto_generated = ?', (auto_generated,))
+    conn.close()
+    chart = db.load_chart_by_uid('PLACEHOLDER000001')
+    assert chart.is_placeholder is True
+    assert chart.auto_generated is bool(auto_generated)
