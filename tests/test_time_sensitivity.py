@@ -1,3 +1,5 @@
+from html.parser import HTMLParser
+
 from ephemeraldaddy.analysis.time_sensitivity import (
     TIME_SENSITIVITY_ALGORITHM_VERSION,
     TimeSensitivityConfig,
@@ -5,6 +7,38 @@ from ephemeraldaddy.analysis.time_sensitivity import (
     save_time_sensitivity_result,
     scan_times,
 )
+
+
+def _html_table_rows(html):
+    """Read cell text and style without relying on HTML attribute order."""
+    class TableParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.rows = []
+            self.row = None
+            self.cell = None
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "tr":
+                self.row = []
+            elif tag == "td":
+                self.cell = ["", dict(attrs).get("style", "")]
+
+        def handle_data(self, data):
+            if self.cell is not None:
+                self.cell[0] += data
+
+        def handle_endtag(self, tag):
+            if tag == "td":
+                self.row.append(tuple(self.cell))
+                self.cell = None
+            elif tag == "tr" and self.row:
+                self.rows.append(self.row)
+                self.row = None
+
+    parser = TableParser()
+    parser.feed(html)
+    return parser.rows
 
 
 def test_scan_times_includes_half_hours_plus_day_end():
@@ -373,17 +407,13 @@ def test_save_time_sensitivity_does_not_delete_other_empty_uid_dates(tmp_path):
     assert dates == ["04-05-2001", "04-06-2001"]
 
 
-def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
+def test_time_sensitivity_sections_color_code_deltas_and_link_factors():
     import pytest
 
     panel_module = pytest.importorskip(
         "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
         exc_type=ImportError,
     )
-    format_time_sensitivity_result_html = (
-        panel_module.format_time_sensitivity_result_html
-    )
-
     result = TimeSensitivityResult(
         chart_uid="CHARTUID",
         chart_name="Example",
@@ -448,12 +478,15 @@ def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
         warnings=[],
     )
 
-    html = format_time_sensitivity_result_html(result)
+    # The panel renders dominance in separate sections, outside the overview.
+    html = panel_module.format_time_sensitivity_result_html(result)
+    for group in ("dominant_sign_weights", "dominant_element_weights"):
+        html += panel_module._numeric_group_table_html(result, group)
 
     assert "distinguishing-factor:sign:Aries" in html
     assert "distinguishing-factor:element:Fire" in html
-    assert "distinguishing-factor:gate:1" in html
-    assert "distinguishing-factor:gate-line:1:1" in html
+    assert "distinguishing-factor:ts-gate:1" in html
+    assert "distinguishing-factor:ts-gate-line:1:1" in html
     assert "color:#b7ff00" in html
     assert "color:#7a0000" in html
     assert "text-decoration: underline" not in html
@@ -493,11 +526,11 @@ def test_overall_time_sensitivity_lists_all_definite_human_design_values():
 
     html = panel_module._summary_html(result)
 
-    assert "HD Gates:" in html and "distinguishing-factor:gate:1" in html
-    assert "distinguishing-factor:gate:7" in html
+    assert "HD Gates:" in html and "distinguishing-factor:ts-gate:1" in html
+    assert "distinguishing-factor:ts-gate:7" in html
     assert html.count("HD Gates:") == 1
-    assert "HD Gate Lines:" in html and "distinguishing-factor:gate-line:1:3" in html
-    assert "distinguishing-factor:gate-line:7:2" in html
+    assert "HD Gate Lines:" in html and "distinguishing-factor:ts-gate-line:1:3" in html
+    assert "distinguishing-factor:ts-gate-line:7:2" in html
     assert html.count("HD Gate Lines:") == 1
     assert "HD Channels:" in html and "distinguishing-factor:hd-channel:1-8" in html
     assert "distinguishing-factor:hd-channel:7-31" in html
@@ -520,10 +553,6 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
         "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
         exc_type=ImportError,
     )
-    format_time_sensitivity_result_html = (
-        panel_module.format_time_sensitivity_result_html
-    )
-
     result = TimeSensitivityResult(
         chart_uid="CHARTUID",
         chart_name="Example",
@@ -541,23 +570,23 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
             "dominant_sign_weights": {
                 "Aries": {
                     "min": 1.0,
-                    "max": 3.0,
+                    "max": 6.0,
                     "baseline": 1.0,
-                    "delta": 2.0,
-                    "percent_delta": 200.0,
+                    "delta": 5.0,
+                    "percent_delta": 500.0,
                     "max_decrease_percent": 0.0,
-                    "max_increase_percent": 200.0,
+                    "max_increase_percent": 500.0,
                     "label": "Highly variable",
                     "peak_times": ["12:00"],
                 },
                 "Taurus": {
                     "min": 2.0,
-                    "max": 2.5,
+                    "max": 5.0,
                     "baseline": 2.0,
-                    "delta": 0.5,
-                    "percent_delta": 25.0,
+                    "delta": 3.0,
+                    "percent_delta": 150.0,
                     "max_decrease_percent": 0.0,
-                    "max_increase_percent": 25.0,
+                    "max_increase_percent": 150.0,
                     "label": "Variable",
                     "peak_times": ["00:00"],
                 },
@@ -569,11 +598,17 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
         warnings=[],
     )
 
-    html = format_time_sensitivity_result_html(result)
-    taurus_item = html[html.index("Taurus") : html.index("Taurus") + 500]
+    html = panel_module._numeric_group_table_html(result, "dominant_sign_weights")
+    rows = _html_table_rows(html)
+    taurus = next(row for row in rows if row[0][0] == "Taurus")
+    aries = next(row for row in rows if row[0][0] == "Aries")
 
-    assert "<span style='color:#b7ff00;'>2.00</span>" in taurus_item
-    assert "<span style='color:#7a0000;'>2.50</span>" in taurus_item
+    # Taurus has the higher minimum and the lower maximum; each column needs
+    # its own scale. The assertions bind colors to values in the actual cells.
+    assert taurus[1] == ("2", "color:#b7ff00;")
+    assert taurus[2] == ("5", "color:#7a0000;")
+    assert aries[1] == ("1", "color:#7a0000;")
+    assert aries[2] == ("6", "color:#b7ff00;")
 
 
 def test_body_sign_confidence_keys_follow_planet_order_without_angles():
@@ -657,7 +692,7 @@ def test_time_sensitivity_confidence_uses_ascertainment_percent_and_bright_green
     assert panel_module._confidence_color(100) == "#00ff00"
 
 
-def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
+def test_time_sensitivity_popout_factor_info_shows_statistics_and_extreme_times():
     import pytest
 
     panel_module = pytest.importorskip(
@@ -697,16 +732,12 @@ def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
     )
 
     assert "Ashwini" in html
-    assert "Min dominance" in html
-    assert "2" in html
-    assert "Most likely weight" in html
-    assert "5" in html
-    assert "Max dominance" in html
-    assert "7" in html
-    assert "Trench time" in html
-    assert "00:30" in html
-    assert "Peak time" in html
-    assert "23:30" in html
+    assert "Min Dominance:</span> 2 at 00:30" in html
+    assert "Mode:</span> 5" in html
+    assert "Median:</span> 5" in html
+    assert "Mean:</span> 5" in html
+    assert "Max Dominance:</span> 7 at 23:30" in html
+    assert "75%" in html  # The mode tooltip retains its sampled frequency.
 
 
 def test_time_sensitivity_popout_charts_include_all_numeric_factor_click_targets():
@@ -1107,3 +1138,38 @@ def test_human_design_cache_invalidates_when_rectified_time_changes(monkeypatch)
     assert calls == [(False, 12, 0), (True, 1, 2)]
     sys.modules.pop("ephemeraldaddy.analysis.human_design", None)
     sys.modules.pop("ephemeraldaddy.analysis.human_design_reference", None)
+
+
+def test_time_sensitivity_popout_statistics_use_sampled_weights():
+    import pytest
+
+    panel = pytest.importorskip(
+        'ephemeraldaddy.gui.features.charts.time_sensitivity_panel',
+        exc_type=ImportError,
+    )
+    result = TimeSensitivityResult(
+        chart_uid='CHARTUID', chart_name='Example', birth_date_key='01-01-2000',
+        algorithm_version=TIME_SENSITIVITY_ALGORITHM_VERSION,
+        computed_at='2026-10-06T00:00:00Z', config=TimeSensitivityConfig().__dict__,
+        sample_count=5, baseline_time='12:00', overall={},
+        numeric_ranges={'dominant_sign_weights': {'Aries': {
+            'min': 2.0, 'max': 20.0,
+            'most_likely_weight': {'weight': 5.0, 'count': 2, 'percent': 40.0},
+            'weight_samples': [
+                {'time': clock, 'weight': weight}
+                for clock, weight in [('00:00', 2), ('06:00', 5), ('12:00', 5),
+                                      ('18:00', 8), ('23:59', 20)]
+            ],
+            'trough_times': ['00:00'], 'peak_times': ['23:59'],
+        }}},
+        human_design={}, stable=[], variable=[], warnings=[],
+    )
+
+    html = panel._time_sensitivity_factor_info_html(result, 'dominant_sign_weights', 'Aries')
+
+    assert 'Min Dominance:</span> 2 at 00:00' in html
+    assert 'Mode:</span> 5' in html
+    assert 'Median:</span> 5' in html
+    assert 'Mean:</span> 8' in html
+    assert 'Max Dominance:</span> 20 at 23:59' in html
+    assert '40%' in html
