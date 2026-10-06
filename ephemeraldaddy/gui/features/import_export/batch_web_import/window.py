@@ -202,6 +202,10 @@ class BatchWebImportWindow(QWidget):
 
     @Slot()
     def _worker_finished(self):
+        # finished can arrive while native thread cleanup is still running.
+        # Join that cleanup before dropping the Python worker reference, so it
+        # cannot race the worker's deferred QObject deletion on another thread.
+        self.worker_thread.wait()
         was_import = isinstance(self.worker, _ImportWorker)
         self.worker = None
         self._result_handler = None

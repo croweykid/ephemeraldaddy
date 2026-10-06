@@ -364,3 +364,51 @@ def test_real_chart_import_and_database_save_run_safely_in_worker(app, tmp_path,
     window.do_import()
     assert len(threads) == 1
     window.close()
+
+
+def test_worker_is_released_only_after_native_thread_cleanup(app, monkeypatch):
+    started, release, cleanup_done = Event(), Event(), Event()
+    observed = []
+    def search(place, **kwargs):
+        started.set()
+        release.wait(5)
+        return [('Here', 1, 2)]
+    def native_cleanup():
+        # A direct finished handler models cleanup that outlives delivery of
+        # the window's queued finished handler.
+        Event().wait(0.05)
+        cleanup_done.set()
+    class Window(module.BatchWebImportWindow):
+        def _finish_task(self):
+            observed.append(cleanup_done.is_set())
+            super()._finish_task()
+    monkeypatch.setattr(module, 'search_locations', search)
+    window = Window()
+    window.add_row(BatchImportRow('A', 'A', '2000-01-01', birth_place='Here'))
+    window.validate_all()
+    # Hold references so the failing implementation reports the ordering error
+    # rather than crashing during cross-thread QObject destruction.
+    worker, thread = window.worker, window.worker_thread
+    try:
+        spin_until(app, started.is_set)
+        thread.finished.connect(native_cleanup, Qt.DirectConnection)
+    finally:
+        release.set()
+        spin_until(app, lambda: window.worker_thread is None)
+        thread.wait()
+    assert worker.cancel_event.is_set() is False
+    assert cleanup_done.is_set() and observed == [True]
+    window.close()
+
+
+def test_repeated_validation_can_restart_workers_without_cleanup_races(app, monkeypatch):
+    calls = []
+    monkeypatch.setattr(module, 'search_locations', lambda place, **kw: (calls.append(place) or [('Here', 1, 2)]))
+    window = module.BatchWebImportWindow()
+    window.add_row(BatchImportRow('A', 'A', '2000-01-01', birth_place='Here'))
+    for _ in range(100):
+        window.validate_all()
+        spin_until(app, lambda: not window._busy)
+        assert window.worker_thread is None and window.rows[0].importable
+    assert calls == ['Here']
+    window.close()
