@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, time
+import re
 
 
 @dataclass(frozen=True)
@@ -91,7 +92,10 @@ class BatchImportRow:
         try: date.fromisoformat(self.birth_date)
         except ValueError: errors.append("Birth date is invalid.")
         if self.birth_time.strip() and self.birth_time.strip().lower() != "unknown":
-            try: time.fromisoformat(self.birth_time)
+            try:
+                if not re.fullmatch(r"[0-9]{2}:[0-9]{2}", self.birth_time):
+                    raise ValueError("Birth time must be local HH:MM")
+                time.fromisoformat(self.birth_time)
             except ValueError: errors.append("Birth time is invalid.")
         if not self.birth_place.strip(): errors.append("Birth place is blank.")
         elif self.place is None: errors.append("Birth place has not been validated.")

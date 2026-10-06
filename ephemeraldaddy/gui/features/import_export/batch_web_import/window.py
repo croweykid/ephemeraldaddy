@@ -14,7 +14,7 @@ from ephemeraldaddy.io.web_profile.csv_io import load_seeds, parse_pasted_names,
 from ephemeraldaddy.io.web_profile.import_service import import_rows
 from ephemeraldaddy.io.web_profile.lookup_service import WebProfileLookupService
 from ephemeraldaddy.io.web_profile.models import ValidatedPlace
-from ephemeraldaddy.io.web_profile.pacing import paced_requests, RequestPacer
+from ephemeraldaddy.io.web_profile.pacing import paced_requests
 
 
 def _place_key(value):
@@ -71,34 +71,32 @@ class _PlaceValidationWorker(_BatchWorker):
     def run(self):
         # Unchosen candidates and failures are reused only during this pass.
         candidates, errors = {}, {}
-        pacer = RequestPacer()
         try:
-            for index, query in self.places:
-                if self.cancel_event.is_set():
-                    break
-                self.progress.emit(f"Validating birth place {index + 1}")
-                key = _place_key(query)
-                if key in self.cache:
-                    matches = [self.cache[key]]
-                else:
-                    if key not in candidates and key not in errors:
-                        try:
-                            if not pacer.pace(self.cancel_event):
-                                break
-                            matches = [ValidatedPlace(label, lat, lon) for label, lat, lon
-                                       in search_locations(query, limit=7, allow_online=True)]
-                            if not matches:
-                                raise ValueError("No matches found")
-                            candidates[key] = matches
-                            if len(matches) == 1:
-                                self.cache[key] = matches[0]
-                                self.cache[_place_key(matches[0].label)] = matches[0]
-                        except Exception as exc:
-                            errors[key] = f"Birth place could not be resolved: {exc}"
-                    matches = candidates.get(key, [])
-                if self.cancel_event.is_set():
-                    break
-                self.result.emit((index, query, matches, errors.get(key, "")))
+            with paced_requests(self.cancel_event):
+                for index, query in self.places:
+                    if self.cancel_event.is_set():
+                        break
+                    self.progress.emit(f"Validating birth place {index + 1}")
+                    key = _place_key(query)
+                    if key in self.cache:
+                        matches = [self.cache[key]]
+                    else:
+                        if key not in candidates and key not in errors:
+                            try:
+                                matches = [ValidatedPlace(label, lat, lon) for label, lat, lon
+                                           in search_locations(query, limit=7, allow_online=True)]
+                                if not matches:
+                                    raise ValueError("No matches found")
+                                candidates[key] = matches
+                                if len(matches) == 1:
+                                    self.cache[key] = matches[0]
+                                    self.cache[_place_key(matches[0].label)] = matches[0]
+                            except Exception as exc:
+                                errors[key] = f"Birth place could not be resolved: {exc}"
+                        matches = candidates.get(key, [])
+                    if self.cancel_event.is_set():
+                        break
+                    self.result.emit((index, query, matches, errors.get(key, "")))
         finally:
             self.finished.emit()
 

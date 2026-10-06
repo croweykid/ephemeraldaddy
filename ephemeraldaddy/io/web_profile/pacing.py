@@ -42,6 +42,15 @@ def paced_requests(cancel_event, pacer=None):
         _request_policy.reset(token)
 
 
+def pace_remote_request() -> None:
+    """Pace an actual remote call when running inside a batch lookup policy."""
+    policy = _request_policy.get()
+    if policy is not None:
+        pacer, cancelled = policy
+        if cancelled.is_set() or not pacer.pace(cancelled):
+            raise LookupCancelled("Lookup cancelled")
+
+
 def _retry_delay(value):
     try:
         return max(0.0, float(value))
