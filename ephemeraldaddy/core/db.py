@@ -55,6 +55,8 @@ from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SE
 from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
 from ephemeraldaddy.core.diagnostics import report_recoverable_error
+from ephemeraldaddy.core import birthplace_repository
+from ephemeraldaddy.analysis.birthplace import needs_locality_lookup
 
 logger = logging.getLogger(__name__)
 
@@ -279,7 +281,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 
 CHART_UID_LENGTH = 16
 UID_FINALIZATION_MIGRATION_KEY = "chart_uid_finalization_v1"
@@ -2122,6 +2124,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _backfill_non_placeholder_birth_date_parts(conn)
         _create_chart_change_log(conn)
     _create_app_migrations_table(conn)
+    birthplace_repository.create_schema(conn)
     _create_duplicate_exclusions_table(conn)
     _create_chart_trait_metadata_table(conn)
     _create_dnd_prediction_metadata_table(conn)
@@ -2265,6 +2268,10 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 23:
         _migrate_charts_columns(conn)
         conn.execute("PRAGMA user_version = 23")
+
+    if user_version < 24:
+        birthplace_repository.create_schema(conn)
+        conn.execute("PRAGMA user_version = 24")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -5129,12 +5136,14 @@ def list_charts() -> List[
                weirdness_score,
                weirdness_formula_version,
                weirdness_norm_signature,
-               auto_generated
+               auto_generated,
+               lat, lon
         FROM charts
         ORDER BY created_at DESC
         """
     )
     raw_rows = cur.fetchall()
+    locality_cache = birthplace_repository.load_cached(conn)
     conn.close()
 
     rows: List[
@@ -5181,7 +5190,12 @@ def list_charts() -> List[
                 row["alias"],
                 row["gender"],
                 str(row["datetime_iso"] or ""),
-                row["birth_place"],
+                birthplace_repository.cached_or_parsed(
+                    birthplace_repository.BirthplaceSource(
+                        str(row["chart_uid"] or ""), str(row["birth_place"] or ""),
+                        row["lat"], row["lon"],
+                    ), locality_cache,
+                ).label,
                 str(row["created_at"] or ""),
                 int(row["used_utc_fallback"] or 0),
                 int(row["birthtime_unknown"] or 0),
@@ -6900,18 +6914,84 @@ def load_chart_rows_for_uids(chart_uids: Iterable[str | None]) -> dict[str, sqli
 
 
 def load_charts(chart_ids: Iterable[int]) -> dict[int, Chart]:
-    """Load many charts with a single SELECT and reconstruct them in memory."""
+    """Batch-load factual chart rows and locality metadata without per-row IO."""
     rows_by_id = load_chart_rows_for_ids(chart_ids)
-    return {chart_id: _chart_from_row(chart_id, row) for chart_id, row in rows_by_id.items()}
+    charts = {chart_id: _chart_from_row(chart_id, row) for chart_id, row in rows_by_id.items()}
+    _attach_birthplace_localities(charts.values())
+    return charts
 
 
 def load_charts_by_uids(chart_uids: Iterable[str | None]) -> dict[str, Chart]:
     """Load many charts by stable chart UID and reconstruct them in memory."""
     rows_by_uid = load_chart_rows_for_uids(chart_uids)
-    return {
+    charts = {
         chart_uid: _chart_from_row(int(row["id"]), row)
         for chart_uid, row in rows_by_uid.items()
     }
+    _attach_birthplace_localities(charts.values())
+    return charts
+
+
+def _attach_birthplace_localities(charts) -> None:
+    charts = list(charts)
+    if not charts:
+        return
+    with closing(_get_conn()) as conn:
+        cache = birthplace_repository.load_cached(
+            conn, [getattr(chart, "chart_uid", "") for chart in charts],
+        )
+    for chart in charts:
+        source = birthplace_repository.BirthplaceSource(
+            str(getattr(chart, "chart_uid", "") or ""),
+            str(getattr(chart, "birth_place", "") or ""),
+            getattr(chart, "lat", None), getattr(chart, "lon", None),
+        )
+        chart.birthplace_locality = birthplace_repository.cached_or_parsed(source, cache)
+        chart._birthplace_locality_source = (source.raw, source.latitude, source.longitude)
+
+
+def repair_birthplace_localities(resolve_coordinates, *, cancel_event, attempted, on_changed=None) -> set[str]:
+    """Backfill locality metadata without touching factual birth rows or caches."""
+    database_path = DB_PATH
+    with closing(_get_conn()) as conn:
+        cached = birthplace_repository.load_cached(conn)
+        sources = [
+            birthplace_repository.BirthplaceSource(str(uid), str(raw or ""), lat, lon)
+            for uid, raw, lat, lon in conn.execute(
+                "SELECT chart_uid, birth_place, lat, lon FROM charts WHERE chart_uid IS NOT NULL"
+            )
+        ]
+    changed = set()
+    unpublished = set()
+    resolved_coordinates = {}
+    for source in sources:
+        if cancel_event.is_set():
+            break
+        if DB_PATH != database_path:
+            break
+        if (source.key in cached or source.key in attempted or not source.raw
+                or not source.has_coordinates or not needs_locality_lookup(source.raw)):
+            continue
+        attempted.add(source.key)
+        try:
+            coordinates = (source.latitude, source.longitude)
+            if coordinates not in resolved_coordinates:
+                resolved_coordinates[coordinates] = resolve_coordinates(*coordinates)
+            locality = resolved_coordinates[coordinates]
+            if cancel_event.is_set() or DB_PATH != database_path:
+                break
+            with closing(_get_conn()) as conn, conn:
+                if birthplace_repository.store_if_current(conn, source, locality):
+                    changed.add(source.chart_uid)
+                    unpublished.add(source.chart_uid)
+            if on_changed and len(unpublished) >= 20:
+                on_changed(unpublished.copy())
+                unpublished.clear()
+        except Exception as exc:
+            logger.info("Birthplace locality unresolved for UID %s: %s", source.chart_uid, exc)
+    if on_changed and unpublished:
+        on_changed(unpublished)
+    return changed
 
 
 def load_chart(chart_id: int):

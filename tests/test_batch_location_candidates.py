@@ -11,12 +11,14 @@ def test_batch_search_enables_online_candidates_without_changing_default(monkeyp
     class Geocoder:
         def geocode(self, query, **kwargs):
             calls.append((query, kwargs))
-            return [SimpleNamespace(address='North', latitude=1, longitude=2),
-                    SimpleNamespace(address='South', latitude=3, longitude=4)]
+            return [SimpleNamespace(address='North', latitude=1, longitude=2,
+                                    raw={"address": {"city": "North", "country_code": "us"}}),
+                    SimpleNamespace(address='South', latitude=3, longitude=4,
+                                    raw={"address": {"city": "South", "country_code": "us"}})]
     monkeypatch.setattr(geocode, '_get_geolocator', Geocoder)
     assert geocode.search_locations('Springfield', limit=7) == []
     assert calls == []
-    assert geocode.search_locations('Springfield', limit=7, allow_online=True) == [('North', 1, 2), ('South', 3, 4)]
+    assert geocode.search_locations('Springfield', limit=7, allow_online=True) == [('North, USA', 1, 2), ('South, USA', 3, 4)]
     assert calls == [('Springfield', dict(exactly_one=False, addressdetails=True, limit=7))]
 
 
@@ -71,7 +73,8 @@ def test_online_fallbacks_are_paced_while_local_hits_and_cache_hits_are_free(mon
     class Geocoder:
         def geocode(self, query, **kw):
             online.append((query, now[0]))
-            return [SimpleNamespace(address=query, latitude=1, longitude=2)]
+            return [SimpleNamespace(address=query, latitude=1, longitude=2,
+                                    raw={"address": {"city": query, "country_code": "us"}})]
     monkeypatch.setattr(geocode, '_get_geolocator', Geocoder)
     places = ['Local A', 'Online A', 'Local B', 'Online B', 'Online A', 'Online C']
     worker = window._PlaceValidationWorker(list(enumerate(places)), {})
@@ -97,7 +100,8 @@ def test_cancel_during_online_pacing_prevents_network_call(monkeypatch):
     class Geocoder:
         def geocode(self, query, **kw):
             online.append(query)
-            return [SimpleNamespace(address=query, latitude=1, longitude=2)]
+            return [SimpleNamespace(address=query, latitude=1, longitude=2,
+                                    raw={"address": {"city": query, "country_code": "us"}})]
     monkeypatch.setattr(geocode, '_get_geolocator', Geocoder)
     with paced_requests(event, RequestPacer(clock=lambda: 0)):
         geocode.search_locations('First', allow_online=True)
