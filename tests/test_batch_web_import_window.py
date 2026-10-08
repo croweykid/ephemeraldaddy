@@ -225,7 +225,7 @@ def test_mixed_csv_looks_up_only_unresolved_rows_and_preserves_repairs(app, tmp_
     path = tmp_path / 'mixed.csv'
     path.write_text(
         'name,birth_date,birth_place,bio\nRestored,2000-01-01,Here,Manual bio\n'
-        'Unresolved,,,\nEdited,,,\n', encoding='utf-8'
+        'Unresolved,,,Biography only\nEdited,1999-01-01,,\n', encoding='utf-8'
     )
     monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *args: (str(path), 'CSV'))
     calls = []

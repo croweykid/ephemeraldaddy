@@ -1,4 +1,5 @@
 import io
+import pytest
 from datetime import date
 from ephemeraldaddy.io.web_profile.csv_io import load_seeds, parse_pasted_names, export_failures
 from ephemeraldaddy.io.web_profile.models import BatchImportRow, ValidatedPlace
@@ -92,7 +93,7 @@ def test_mixed_csv_restoration_depends_on_each_rows_repair_data():
         'Biography only,,,,Manual biography,,,\n'
         'Failed lookup,,,,,,No profile could be resolved.,\n'
     ))
-    assert [seed.restored for seed in seeds] == [False, False, True, True, False]
+    assert [seed.restored for seed in seeds] == [False, False, True, False, False]
     assert seeds[0].notes == 'Keep metadata'
 
 
@@ -103,6 +104,84 @@ def test_lookup_failure_csv_does_not_suppress_retry():
     stream.seek(0)
     seed, = load_seeds(stream)
     assert not seed.restored
+
+
+@pytest.mark.parametrize("field,value", [
+    ("bio", "Manual biography"),
+    ("sources", "https://example.org"),
+    ("data_rating", "AA"),
+    ("birth_date", "2000-01-02"),
+    ("birth_place", "Here"),
+    ("birth_time", "03:04"),
+])
+def test_partial_csv_data_keeps_lookup_enabled(field, value):
+    seed, = load_seeds(io.StringIO(f"name,{field}\nA,{value}\n"))
+    assert not seed.restored
+    attribute = "biography" if field == "bio" else field
+    expected = (value,) if field == "sources" else value
+    assert getattr(seed, attribute) == expected
+
+
+@pytest.mark.parametrize("day,place,restored", [
+    ("", "", False),
+    ("2000-01-02", "", False),
+    ("bad", "Here", False),
+    ("2000-02-30", "Here", False),
+    ("2000-01-02", "   ", False),
+    ("2000-01-02", "Here", True),
+])
+def test_csv_restoration_requires_valid_date_and_place(day, place, restored):
+    seed, = load_seeds(io.StringIO(
+        f"name,birth_date,birth_place,birth_time\nA,{day},{place},unknown\n"
+    ))
+    assert seed.restored is restored
+
+
+@pytest.mark.parametrize("astro_place", ["", "   "])
+def test_wikipedia_backfills_missing_place_without_replacing_astrotheme_data(astro_place):
+    calls = []
+    def wiki_birth(title):
+        calls.append(title)
+        # A malformed Wikipedia date must not interfere with place enrichment.
+        return dict(birth_year="bad", birth_month=9, birth_day=9, birth_place="Wiki place")
+    service = WebProfileLookupService(
+        astro_search=lambda name: "astro",
+        astro_parse=lambda url: dict(
+            name="Resolved", birth_year=2000, birth_month=1, birth_day=2,
+            time_unknown=False, birth_hour=3, birth_minute=4,
+            birth_place=astro_place, data_rating="AA",
+        ),
+        wiki_resolve=lambda name: dict(status="single", title="Wiki"),
+        wiki_birth=wiki_birth,
+        wiki_blurb=lambda title: dict(text="Bio"),
+        wiki_match=lambda options, day: None,
+    )
+    row = service.lookup(parse_pasted_names("A")[0])
+    assert calls == ["Wiki"]
+    assert (row.name, row.birth_date, row.birth_time, row.birth_place, row.data_rating) == (
+        "Resolved", "2000-01-02", "03:04", "Wiki place", "AA"
+    )
+    assert row.biography == "Bio"
+    row.place = ValidatedPlace("Wiki place", 1, 2)
+    assert row.importable
+
+
+def test_wikipedia_supplies_birth_data_when_astrotheme_is_unavailable():
+    def unavailable(name):
+        raise ValueError("No Astrotheme profile")
+    service = WebProfileLookupService(
+        astro_search=unavailable, astro_parse=lambda url: {},
+        wiki_resolve=lambda name: dict(status="single", title="Wiki"),
+        wiki_birth=lambda title: dict(
+            birth_year=2000, birth_month=1, birth_day=2, birth_place="Wiki place"
+        ),
+        wiki_blurb=lambda title: dict(text="Bio"),
+        wiki_match=lambda options, day: None,
+    )
+    row = service.lookup(parse_pasted_names("A")[0])
+    assert (row.name, row.birth_date, row.birth_time, row.birth_place) == (
+        "Wiki", "2000-01-02", "", "Wiki place"
+    )
 
 
 def test_manual_repair_clears_lookup_diagnostics_only_when_fields_are_valid():
