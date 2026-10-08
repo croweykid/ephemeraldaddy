@@ -63,11 +63,14 @@ class WebProfileLookupService:
                 if not factual_date: row.lookup_errors.append("No Astrotheme profile or Wikipedia article found.")
                 return row
             if title:
-                if not factual_date:
+                if not factual_date or not row.birth_place.strip():
                     birth = self.wiki_birth(title)
-                    year, month, day = birth.get("birth_year"), birth.get("birth_month"), birth.get("birth_day")
-                    if year and month and day: row.birth_date = date(int(year), int(month), int(day)).isoformat()
-                    row.birth_place = str(birth.get("birth_place") or row.birth_place)
+                    if not factual_date:
+                        year, month, day = birth.get("birth_year"), birth.get("birth_month"), birth.get("birth_day")
+                        if year and month and day: row.birth_date = date(int(year), int(month), int(day)).isoformat()
+                    if not row.birth_place.strip():
+                        row.birth_place = str(birth.get("birth_place") or "")
+                if not factual_date:
                     row.name = str(title)
                     row.birth_time = ""
                 row.sources.append("https://en.wikipedia.org/wiki/" + quote(str(title).replace(" ", "_")))
