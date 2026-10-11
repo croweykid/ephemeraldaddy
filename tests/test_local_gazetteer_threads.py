@@ -19,6 +19,8 @@ def test_gazetteer_connection_supports_background_validation(tmp_path, fts):
         assert gazetteer.geocode('Here').latitude == 1
         with ThreadPoolExecutor(max_workers=2) as executor:
             results = list(executor.map(gazetteer.geocode, ['Here'] * 8))
+            labels = list(executor.map(lambda _: gazetteer.labels_at_coordinates(1, 2), range(8)))
         assert all(result.longitude == 2 for result in results)
+        assert labels == [['Here']] * 8
     finally:
         gazetteer.close()

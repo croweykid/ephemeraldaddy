@@ -33,6 +33,7 @@ def test_structured_locality_uses_settlement_and_region_not_feature_names(addres
     ("Paris, Île-de-France, France", "Paris, Île-de-France, France", "Paris"),
     ("Paris, 11, FR", "Paris, France", "Paris"),
     ("New York, New York, US", "New York, New York, USA", "New York"),
+    ("Washington, District of Columbia, USA", "Washington, District of Columbia, USA", "Washington"),
     ("Paris, France", "Paris, France", "Paris"),
     ("Kinshasa, Kinshasa, Congo, The Democratic Republic of the",
      "Kinshasa, Kinshasa, Congo, The Democratic Republic of the", "Kinshasa"),

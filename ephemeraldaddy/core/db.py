@@ -56,7 +56,7 @@ from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
 from ephemeraldaddy.core.diagnostics import report_recoverable_error
 from ephemeraldaddy.core import birthplace_repository
-from ephemeraldaddy.analysis.birthplace import needs_locality_lookup
+from ephemeraldaddy.analysis.birthplace import needs_locality_lookup, locality_from_gazetteer_location
 
 logger = logging.getLogger(__name__)
 
@@ -2295,6 +2295,7 @@ def init_db_once(*, force: bool = False) -> None:
         conn = _connect_raw()
         try:
             _ensure_schema(conn)
+            birthplace_repository.purge_unowned(conn)
             conn.commit()
             if not _AUTO_BACKUP_CREATED:
                 backup_database()
@@ -3565,10 +3566,7 @@ def export_database_with_chart_property_selection(
                     "DELETE FROM charts WHERE id NOT IN (SELECT id FROM selected_export_ids)"
                 )
             if _table_columns(conn, "chart_birthplace_localities"):
-                conn.execute(
-                    "DELETE FROM chart_birthplace_localities WHERE NOT EXISTS "
-                    "(SELECT 1 FROM charts WHERE charts.chart_uid = chart_birthplace_localities.chart_uid)"
-                )
+                birthplace_repository.purge_unowned(conn)
             for column in excluded_columns:
                 reset_value = _resolve_chart_export_reset_value(
                     column,
@@ -4414,6 +4412,9 @@ def save_chart(
             "UPDATE charts SET chart_uid = ? WHERE id = ?",
             (chart_uid, int(chart_id)),
         )
+        birthplace_repository.store_gazetteer_if_current(
+            conn, birthplace_repository.BirthplaceSource(chart_uid, str(birth_place or ""), chart.lat, chart.lon),
+        )
         _sync_reciprocal_reminds_me_of_links(
             conn,
             chart_uid,
@@ -4779,6 +4780,11 @@ def update_chart(
             conn,
             getattr(chart, "chart_uid", None),
             getattr(chart, "reminds_me_of", None),
+        )
+        birthplace_repository.store_gazetteer_if_current(
+            conn, birthplace_repository.BirthplaceSource(
+                str(getattr(chart, "chart_uid", "") or ""), str(resolved_birth_place or ""), chart.lat, chart.lon,
+            ),
         )
     if resolved_birth_place is not None:
         setattr(chart, "birth_place", resolved_birth_place)
@@ -5421,7 +5427,7 @@ def delete_charts(chart_ids: List[int]) -> int:
 
     placeholders = ", ".join("?" for _ in chart_ids)
     conn = _get_conn()
-    with conn:
+    with closing(conn), conn:
         _create_chart_trait_metadata_table(conn)
         uid_rows = conn.execute(
             f"SELECT chart_uid FROM charts WHERE id IN ({placeholders})",
@@ -5432,6 +5438,10 @@ def delete_charts(chart_ids: List[int]) -> int:
             uid_placeholders = ", ".join("?" for _ in chart_uids)
             conn.execute(
                 f"DELETE FROM chart_trait_metadata WHERE chart_uid IN ({uid_placeholders})",
+                chart_uids,
+            )
+            conn.execute(
+                f"DELETE FROM chart_birthplace_localities WHERE chart_uid IN ({uid_placeholders})",
                 chart_uids,
             )
             conn.execute(
@@ -5454,7 +5464,6 @@ def delete_charts(chart_ids: List[int]) -> int:
             """,
             chart_ids + chart_ids,
         )
-    conn.close()
     return cur.rowcount
 
 
@@ -6991,9 +7000,11 @@ def repair_birthplace_localities(resolve_coordinates, *, cancel_event, attempted
         attempted.add(source.key)
         try:
             coordinates = (source.latitude, source.longitude)
-            if coordinates not in resolved_coordinates:
-                resolved_coordinates[coordinates] = resolve_coordinates(*coordinates)
-            locality = resolved_coordinates[coordinates]
+            locality = locality_from_gazetteer_location(source.raw, *coordinates)
+            if locality is None:
+                if coordinates not in resolved_coordinates:
+                    resolved_coordinates[coordinates] = resolve_coordinates(*coordinates)
+                locality = resolved_coordinates[coordinates]
             if cancel_event.is_set() or DB_PATH != database_path:
                 break
             with closing(_get_conn()) as conn, conn:

@@ -6,7 +6,9 @@ from dataclasses import dataclass
 import math
 import sqlite3
 
-from ephemeraldaddy.analysis.birthplace import BirthplaceLocality, locality_from_text
+from ephemeraldaddy.analysis.birthplace import (
+    BirthplaceLocality, locality_for_saved_place, locality_from_gazetteer_location,
+)
 
 
 @dataclass(frozen=True)
@@ -63,8 +65,23 @@ def load_cached(conn: sqlite3.Connection, chart_uids=None) -> dict[tuple, Birthp
     }
 
 
+def purge_unowned(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "DELETE FROM chart_birthplace_localities WHERE NOT EXISTS "
+        "(SELECT 1 FROM charts WHERE charts.chart_uid = chart_birthplace_localities.chart_uid)"
+    )
+
+
 def cached_or_parsed(source: BirthplaceSource, cache: dict) -> BirthplaceLocality:
-    return cache.get(source.key, locality_from_text(source.raw))
+    cached = cache.get(source.key)
+    if cached is not None:
+        return cached
+    return locality_for_saved_place(source.raw, source.latitude, source.longitude)
+
+
+def store_gazetteer_if_current(conn, source: BirthplaceSource) -> bool:
+    locality = locality_from_gazetteer_location(source.raw, source.latitude, source.longitude)
+    return locality is not None and store_if_current(conn, source, locality)
 
 
 def store_if_current(conn, source: BirthplaceSource, locality: BirthplaceLocality) -> bool:

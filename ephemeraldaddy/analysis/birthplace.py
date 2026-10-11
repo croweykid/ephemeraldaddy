@@ -101,7 +101,8 @@ def locality_from_text(raw: str) -> BirthplaceLocality:
     # A simple city/region/country label is trustworthy; a street-address
     # hierarchy is not, even if its first token happens to look like a city.
     if (len(local) <= 2 and (not local or not _address_token(local[0]))
-            and (len(local) < 2 or local[1].isdigit() or not _address_token(local[1]))):
+            and (len(local) < 2 or local[1].isdigit()
+                 or local[1].casefold() == region.casefold() or not _address_token(local[1]))):
         city = local[0] if local else ""
         if len(local) == 2:
             region = _region(local[1], country) if not local[1].isdigit() else ""
@@ -115,17 +116,40 @@ def birthplace_label(raw: str) -> str:
     return locality_from_text(raw).label
 
 
-def gazetteer_label(raw: str) -> str:
+def gazetteer_locality(raw: str) -> BirthplaceLocality:
     """The populated-place dataset supplies a city, even for unusual names."""
     parts = [part.strip() for part in raw.split(",") if part.strip()]
     if not parts:
-        return ""
+        return BirthplaceLocality()
     country = normalize_country(parts[-1]) if len(parts) > 1 else ""
     region = parts[1] if len(parts) >= 3 and not parts[1].isdigit() else ""
     return BirthplaceLocality(
         normalize_city(parts[0], country) or "", _region(region, country or ""),
         country or "",
-    ).label
+    )
+
+
+def gazetteer_label(raw: str) -> str:
+    return gazetteer_locality(raw).label
+
+
+def locality_from_gazetteer_location(raw: str, latitude, longitude) -> BirthplaceLocality | None:
+    """Recover trusted locality only from an exact saved label and point."""
+    if not raw or latitude is None or longitude is None:
+        return None
+    from ephemeraldaddy.io.local_gazetteer import local_labels_at_coordinates
+    for label in local_labels_at_coordinates(latitude, longitude):
+        locality = gazetteer_locality(label)
+        if raw.strip().casefold() in (label.strip().casefold(), locality.label.casefold()):
+            return locality
+    return None
+
+
+def locality_for_saved_place(raw: str, latitude, longitude) -> BirthplaceLocality:
+    locality = locality_from_text(raw)
+    if locality.city:
+        return locality
+    return locality_from_gazetteer_location(raw, latitude, longitude) or locality
 
 
 def needs_locality_lookup(raw: str) -> bool:
@@ -143,4 +167,4 @@ def chart_locality(chart) -> BirthplaceLocality:
               getattr(chart, "lat", None), getattr(chart, "lon", None))
     if getattr(chart, "_birthplace_locality_source", None) == source:
         return chart.birthplace_locality
-    return locality_from_text(source[0])
+    return locality_for_saved_place(*source)

@@ -6,6 +6,7 @@ import pytest
 
 from ephemeraldaddy.analysis.birthplace import BirthplaceLocality, chart_locality
 from ephemeraldaddy.core import backups, db, birthplace_repository as repository
+from ephemeraldaddy.io import geocode, local_gazetteer
 
 
 RAW = "United States Post Office, 12 Main Street, Atlanta, Fulton County, Georgia, 30303, United States"
@@ -293,3 +294,166 @@ def test_append_locality_failure_rolls_back_chart_rows_and_completion_log(saved_
         assert conn.execute("SELECT * FROM charts").fetchall() == before
         assert conn.execute("SELECT * FROM chart_birthplace_localities").fetchall() == before_localities
         assert conn.execute("SELECT COUNT(*) FROM backup_append_log").fetchone() == (0,)
+
+
+@pytest.mark.parametrize("api", ["uids", "legacy"])
+def test_chart_deletion_removes_owned_localities_and_preserves_other_charts(saved_db, tmp_path, api):
+    other_uid = "0123456789ABCDEF"
+    with sqlite3.connect(saved_db) as conn:
+        conn.execute(
+            "INSERT INTO charts(chart_uid, name, birth_place, datetime_iso, lat, lon, created_at) "
+            "SELECT ?, 'Retained', birth_place, datetime_iso, lat, lon, created_at FROM charts",
+            (other_uid,),
+        )
+        for uid in (UID, other_uid):
+            assert repository.store_if_current(
+                conn, repository.BirthplaceSource(uid, RAW, 33.7491, -84.3882),
+                BirthplaceLocality("Atlanta", "Georgia", "USA"),
+            )
+        selected_id = conn.execute("SELECT id FROM charts WHERE chart_uid = ?", (UID,)).fetchone()[0]
+    deleted = db.delete_charts_by_uids([UID, "missing"]) if api == "uids" else db.delete_charts([selected_id])
+    assert deleted == 1
+    with sqlite3.connect(saved_db) as conn:
+        assert conn.execute("SELECT chart_uid FROM charts").fetchall() == [(other_uid,)]
+        assert conn.execute("SELECT chart_uid FROM chart_birthplace_localities").fetchall() == [(other_uid,)]
+        assert not repository.store_if_current(
+            conn, repository.BirthplaceSource(UID, RAW, 33.7491, -84.3882),
+            BirthplaceLocality("Atlanta", "Georgia", "USA"),
+        )
+    backup = db.backup_database(tmp_path / "after-delete.db")
+    with sqlite3.connect(backup) as conn:
+        assert conn.execute("SELECT chart_uid FROM chart_birthplace_localities").fetchall() == [(other_uid,)]
+
+
+def test_failed_chart_deletion_rolls_back_locality_cleanup(saved_db):
+    with sqlite3.connect(saved_db) as conn:
+        assert repository.store_if_current(
+            conn, repository.BirthplaceSource(UID, RAW, 33.7491, -84.3882),
+            BirthplaceLocality("Atlanta", "Georgia", "USA"),
+        )
+        before = conn.execute("SELECT * FROM chart_birthplace_localities").fetchall()
+        conn.execute("CREATE TRIGGER prevent_delete BEFORE DELETE ON charts "
+                     "BEGIN SELECT RAISE(ABORT, 'Deletion failed'); END")
+    with pytest.raises(sqlite3.IntegrityError, match="Deletion failed"):
+        db.delete_charts_by_uids([UID])
+    with sqlite3.connect(saved_db) as conn:
+        assert conn.execute("SELECT chart_uid FROM charts").fetchall() == [(UID,)]
+        assert conn.execute("SELECT * FROM chart_birthplace_localities").fetchall() == before
+
+
+def test_database_initialization_purges_localities_from_earlier_deletions(saved_db, tmp_path):
+    with sqlite3.connect(saved_db) as conn:
+        assert repository.store_if_current(
+            conn, repository.BirthplaceSource(UID, RAW, 33.7491, -84.3882),
+            BirthplaceLocality("Atlanta", "Georgia", "USA"),
+        )
+        before = conn.execute("SELECT * FROM chart_birthplace_localities").fetchall()
+        conn.execute("INSERT INTO chart_birthplace_localities VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     ("DELETED0123456789", "Private building", 1, 2, "Private city", "Region", "Country"))
+    db.init_db_once(force=True)
+    backup = db.backup_database(tmp_path / "initialized.db")
+    for path in (saved_db, backup):
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT * FROM chart_birthplace_localities").fetchall() == before
+
+
+@pytest.fixture
+def populated_places(tmp_path, monkeypatch):
+    path = tmp_path / "gazetteer.sqlite"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE places(id INTEGER PRIMARY KEY, label TEXT, latitude REAL, "
+                     "longitude REAL, population INTEGER, search_text TEXT)")
+        conn.executemany("INSERT INTO places VALUES (?, ?, ?, ?, ?, ?)", [
+            (1, "Washington, DC, US", 38.89511, -77.03637, 689545, "washington dc us"),
+            (2, "Hospital, 02, CR", 9.934, -84.084, 10000, "hospital 02 cr"),
+        ])
+    gazetteer = local_gazetteer.LocalGazetteer(path)
+    monkeypatch.setenv("EPHEMERALDADDY_GAZETTEER_DB", str(path))
+    monkeypatch.setenv("EPHEMERALDADDY_GAZETTEER_ONLY", "1")
+    monkeypatch.setattr(local_gazetteer, "_LOCAL_GAZETTEER", gazetteer)
+    monkeypatch.setattr(local_gazetteer, "_LOCAL_GAZETTEER_ERROR", None)
+    monkeypatch.setattr(local_gazetteer, "_download_and_build", lambda *args: pytest.fail("Downloaded while reading a birthplace"))
+    monkeypatch.setattr(geocode, "_get_geolocator", lambda: pytest.fail("Requested online geocoding"))
+    yield path
+    current = local_gazetteer._LOCAL_GAZETTEER
+    if current is not None and current is not gazetteer:
+        current.close()
+    gazetteer.close()
+
+
+@pytest.mark.parametrize("query,expected", [
+    ("Washington", ("Washington", "District of Columbia", "USA")),
+    ("Hospital", ("Hospital", "", "Costa Rica")),
+])
+@pytest.mark.parametrize("operation", ["save", "update", "existing"])
+def test_gazetteer_cities_survive_saved_chart_round_trip_and_offline_backfill(
+    saved_db, populated_places, monkeypatch, tmp_path, query, expected, operation,
+):
+    lat, lon, label = geocode.geocode_location(query)
+    assert geocode.search_locations(query) == [(label, lat, lon)]
+    assert label == ", ".join(part for part in expected if part)
+    chart = db.load_chart_by_uid(UID)
+    chart.lat, chart.lon, chart.birth_place = lat, lon, str(label)
+    uid = UID
+    if operation == "save":
+        db.save_chart(chart, birth_place=str(label), is_placeholder=True)
+        uid = chart.chart_uid
+    elif operation == "update":
+        db.update_chart_by_uid(uid, chart, birth_place=str(label))
+    else:
+        with sqlite3.connect(saved_db) as conn:
+            conn.execute("UPDATE charts SET birth_place = ?, lat = ?, lon = ? WHERE chart_uid = ?",
+                         (str(label), lat, lon, uid))
+
+    assert chart_locality(db.load_chart_by_uid(uid)).components == tuple(part or None for part in expected)
+    assert label in [row[5] for row in db.list_charts()]
+    from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
+    loaded = db.load_chart_by_uid(uid)
+    class Analytics(DatabaseAnalyticsChartsMixin):
+        def _get_chart_for_filter(self, chart_id):
+            return loaded
+        def _is_placeholder_chart(self, chart):
+            return True
+    counts = Analytics()._collect_birth_analytics([1])
+    assert counts["city_counts"] == {expected[0]: 1}
+    assert counts["country_counts"] == {expected[2]: 1}
+    if operation == "existing":
+        # A restarted app can verify an old saved result using the existing file.
+        monkeypatch.setattr(local_gazetteer, "_LOCAL_GAZETTEER", None)
+        changed = db.repair_birthplace_localities(
+            lambda *args: None, cancel_event=Event(), attempted=set(),
+        )
+        assert uid in changed
+    with sqlite3.connect(saved_db) as conn:
+        assert conn.execute(
+            "SELECT city, region, country FROM chart_birthplace_localities WHERE chart_uid = ?", (uid,),
+        ).fetchone() == expected
+    # Persisted provenance survives even if the gazetteer later becomes unavailable.
+    current = local_gazetteer._LOCAL_GAZETTEER
+    if current is not None and operation == "existing":
+        current.close()
+    monkeypatch.setattr(local_gazetteer, "_LOCAL_GAZETTEER", None)
+    monkeypatch.setenv("EPHEMERALDADDY_GAZETTEER_DB", str(tmp_path / "missing-gazetteer.sqlite"))
+    assert chart_locality(db.load_chart_by_uid(uid)).components == tuple(part or None for part in expected)
+
+
+@pytest.mark.parametrize("raw,lat,lon", [
+    ("Hospital, Costa Rica", 9.935, -84.084),
+    ("Hospital, Costa Rica", 9.934, -84.085),
+    ("Government Building, Costa Rica", 9.934, -84.084),
+])
+def test_gazetteer_does_not_confirm_a_nearby_city_or_a_different_label(populated_places, raw, lat, lon):
+    chart = SimpleNamespace(birth_place=raw, lat=lat, lon=lon)
+    assert chart_locality(chart).city == ""
+
+
+def test_reading_saved_birthplace_does_not_build_or_download_a_missing_gazetteer(tmp_path, monkeypatch):
+    path = tmp_path / "missing-gazetteer.sqlite"
+    monkeypatch.setenv("EPHEMERALDADDY_GAZETTEER_DB", str(path))
+    monkeypatch.setattr(local_gazetteer, "_LOCAL_GAZETTEER", None)
+    monkeypatch.setattr(local_gazetteer, "_LOCAL_GAZETTEER_ERROR", None)
+    monkeypatch.setattr(local_gazetteer, "build_db", lambda *args: pytest.fail("Built a gazetteer during display"))
+    monkeypatch.setattr(local_gazetteer, "_download_and_build", lambda *args: pytest.fail("Downloaded during display"))
+    chart = SimpleNamespace(birth_place="Hospital, Costa Rica", lat=9.934, lon=-84.084)
+    assert chart_locality(chart).city == ""
+    assert not path.exists()
