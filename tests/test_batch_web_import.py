@@ -122,6 +122,116 @@ def test_partial_csv_data_keeps_lookup_enabled(field, value):
     assert getattr(seed, attribute) == expected
 
 
+@pytest.mark.parametrize("wiki_failure", ["not_found", "multiple", "resolve_error", "birth_error"])
+def test_partial_csv_survives_unsuccessful_lookup_and_failure_export(wiki_failure):
+    seed, = load_seeds(io.StringIO(
+        "name,alias,from,tags,notes,birth_date,birth_time,bio,sources,data_rating\n"
+        "A,Alias,Web,x,Keep notes,2000-01-02,03:04,Manual biography,https://manual.example,AA\n"
+    ))
+    assert not seed.restored
+
+    def unavailable(*args):
+        raise RuntimeError("Temporary provider failure")
+
+    def wiki_resolve(name):
+        if wiki_failure == "resolve_error":
+            return unavailable()
+        if wiki_failure == "birth_error":
+            return dict(status="single", title="Wiki")
+        return dict(status=wiki_failure, options=["First", "Second"])
+
+    service = WebProfileLookupService(
+        astro_search=unavailable, astro_parse=lambda url: {},
+        wiki_resolve=wiki_resolve, wiki_birth=unavailable,
+        wiki_blurb=lambda title: {}, wiki_match=lambda options, day: None,
+    )
+    row = service.lookup(seed)
+    assert (row.birth_date, row.birth_time, row.biography, row.sources, row.data_rating) == (
+        "2000-01-02", "03:04", "Manual biography", ["https://manual.example"], "AA"
+    )
+    assert not row.importable
+    stream = io.StringIO()
+    export_failures([row], stream)
+    stream.seek(0)
+    reloaded, = load_seeds(stream)
+    assert reloaded == seed
+
+
+@pytest.mark.parametrize("provider", ["astrotheme", "wikipedia"])
+def test_lookup_retains_partial_fields_missing_from_successful_provider(provider):
+    seed, = load_seeds(io.StringIO(
+        "name,birth_time,bio,sources,data_rating\n"
+        "A,03:04,Manual biography,https://manual.example,AA\n"
+    ))
+
+    def astro_search(name):
+        if provider == "wikipedia":
+            raise ValueError("No Astrotheme profile")
+        return "astro"
+
+    service = WebProfileLookupService(
+        astro_search=astro_search,
+        astro_parse=lambda url: dict(
+            birth_year=2000, birth_month=1, birth_day=2,
+            time_unknown=True, birth_place="Here",
+        ),
+        wiki_resolve=lambda name: dict(status="single", title="Wiki"),
+        wiki_birth=lambda title: dict(
+            birth_year=2000, birth_month=1, birth_day=2, birth_place="Here"
+        ),
+        wiki_blurb=lambda title: {}, wiki_match=lambda options, day: None,
+    )
+    row = service.lookup(seed)
+    assert (row.birth_date, row.birth_place, row.birth_time, row.biography, row.data_rating) == (
+        "2000-01-02", "Here", "03:04", "Manual biography", "AA"
+    )
+    assert row.sources == ["https://manual.example", *(["astro"] if provider == "astrotheme" else []),
+                           "https://en.wikipedia.org/wiki/Wiki"]
+    row.place = ValidatedPlace("Here", 1, 2)
+    assert row.importable
+
+
+def test_provider_values_replace_partial_csv_values_and_retain_original_sources():
+    seed, = load_seeds(io.StringIO(
+        "name,birth_date,birth_time,bio,sources,data_rating\n"
+        "A,1999-09-09,12:00,Manual biography,astro; https://manual.example,B\n"
+    ))
+    service = WebProfileLookupService(
+        astro_search=lambda name: "astro",
+        astro_parse=lambda url: dict(
+            birth_year=2000, birth_month=1, birth_day=2,
+            time_unknown=False, birth_hour=3, birth_minute=4,
+            birth_place="Here", data_rating="AA",
+        ),
+        wiki_resolve=lambda name: dict(status="single", title="Wiki"),
+        wiki_birth=lambda title: {}, wiki_blurb=lambda title: dict(text="Provider biography"),
+        wiki_match=lambda options, day: None,
+    )
+    row = service.lookup(seed)
+    assert (row.birth_date, row.birth_time, row.biography, row.data_rating) == (
+        "2000-01-02", "03:04", "Provider biography", "AA"
+    )
+    assert row.sources == ["astro", "https://manual.example", "https://en.wikipedia.org/wiki/Wiki"]
+
+
+def test_csv_birthplace_survives_when_wikipedia_only_supplies_date():
+    seed, = load_seeds(io.StringIO("name,birth_place\nA,Manual town\n"))
+
+    def unavailable(name):
+        raise ValueError("No Astrotheme profile")
+
+    service = WebProfileLookupService(
+        astro_search=unavailable, astro_parse=lambda url: {},
+        wiki_resolve=lambda name: dict(status="single", title="Wiki"),
+        wiki_birth=lambda title: dict(birth_year=2000, birth_month=1, birth_day=2),
+        wiki_blurb=lambda title: {}, wiki_match=lambda options, day: None,
+    )
+    row = service.lookup(seed)
+    assert (row.birth_date, row.birth_place) == ("2000-01-02", "Manual town")
+    row.place = ValidatedPlace("Manual town", 1, 2)
+    assert row.importable
+
+
 @pytest.mark.parametrize("day,place,restored", [
     ("", "", False),
     ("2000-01-02", "", False),
@@ -164,6 +274,31 @@ def test_wikipedia_backfills_missing_place_without_replacing_astrotheme_data(ast
     assert row.biography == "Bio"
     row.place = ValidatedPlace("Wiki place", 1, 2)
     assert row.importable
+
+
+def test_failed_wikipedia_place_backfill_still_adds_source_and_biography():
+    def unavailable(title):
+        raise RuntimeError("Birth data temporarily unavailable")
+
+    service = WebProfileLookupService(
+        astro_search=lambda name: "astro",
+        astro_parse=lambda url: dict(
+            name="Resolved", birth_year=2000, birth_month=1, birth_day=2,
+            time_unknown=False, birth_hour=3, birth_minute=4, data_rating="AA",
+        ),
+        wiki_resolve=lambda name: dict(status="single", title="Wiki article"),
+        wiki_birth=unavailable, wiki_blurb=lambda title: dict(text="Wiki biography"),
+        wiki_match=lambda options, day: None,
+    )
+    row = service.lookup(parse_pasted_names("A")[0])
+    assert (row.name, row.birth_date, row.birth_time, row.data_rating) == (
+        "Resolved", "2000-01-02", "03:04", "AA"
+    )
+    assert row.sources == ["astro", "https://en.wikipedia.org/wiki/Wiki_article"]
+    assert row.biography == "Wiki biography"
+    assert "Birth data temporarily unavailable" in row.error_text
+    assert not row.lookup_errors
+    assert row.birth_place == "" and not row.importable
 
 
 def test_wikipedia_supplies_birth_data_when_astrotheme_is_unavailable():
