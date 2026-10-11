@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from datetime import date
 from pathlib import Path
 from typing import Iterable, TextIO
 
@@ -21,10 +22,12 @@ def load_seeds(stream: TextIO) -> list[BatchImportSeed]:
     for raw in reader:
         get = lambda key: str(raw.get(headers.get(key, ""), "") or "").strip()
         if get("name"):
-            restored = (
-                any(get(key) for key in ("birth_date", "birth_place", "bio", "sources", "data_rating"))
-                or get("birth_time").lower() not in ("", "unknown")
-            )
+            # Optional metadata and partial birth data must not suppress lookup.
+            try:
+                date.fromisoformat(get("birth_date"))
+                restored = bool(get("birth_place"))
+            except ValueError:
+                restored = False
             result.append(BatchImportSeed(
                 name=get("name"), alias=get("alias"), from_whence=get("from"),
                 tags=tuple(parse_tags(get("tags"))), notes=get("notes"),

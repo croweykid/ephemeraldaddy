@@ -225,7 +225,7 @@ def test_mixed_csv_looks_up_only_unresolved_rows_and_preserves_repairs(app, tmp_
     path = tmp_path / 'mixed.csv'
     path.write_text(
         'name,birth_date,birth_place,bio\nRestored,2000-01-01,Here,Manual bio\n'
-        'Unresolved,,,\nEdited,,,\n', encoding='utf-8'
+        'Unresolved,,,Biography only\nEdited,1999-01-01,,\n', encoding='utf-8'
     )
     monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *args: (str(path), 'CSV'))
     calls = []
@@ -249,6 +249,48 @@ def test_mixed_csv_looks_up_only_unresolved_rows_and_preserves_repairs(app, tmp_
     assert window.rows[1] is not unresolved and window.rows[1].birth_date == '2001-02-03'
     assert window.table.item(1, 1).text() == 'Resolved name'
     assert [row.requested_name for row in window.rows] == ['Restored', 'Unresolved', 'Edited']
+    window.close()
+
+
+def test_loaded_partial_csv_values_survive_failed_lookup_and_export(app, tmp_path, monkeypatch):
+    import io
+    from ephemeraldaddy.io.web_profile.csv_io import export_failures, load_seeds
+    from ephemeraldaddy.io.web_profile.lookup_service import WebProfileLookupService
+
+    path = tmp_path / 'partial.csv'
+    path.write_text(
+        'name,birth_date,birth_time,bio,sources,data_rating\n'
+        'A,2000-01-02,03:04,Loaded biography,https://manual.example,AA\n', encoding='utf-8'
+    )
+    monkeypatch.setattr(module.QFileDialog, 'getOpenFileName', lambda *args: (str(path), 'CSV'))
+
+    def unavailable(name):
+        raise RuntimeError('Temporary provider failure')
+
+    service = WebProfileLookupService(
+        astro_search=unavailable, astro_parse=lambda url: {},
+        wiki_resolve=unavailable, wiki_birth=lambda title: {},
+        wiki_blurb=lambda title: {}, wiki_match=lambda options, day: None,
+    )
+    monkeypatch.setattr(module, 'WebProfileLookupService', lambda: service)
+    window = module.BatchWebImportWindow()
+    window.load_csv()
+    seed, = window.seeds
+    assert not seed.restored and not window._csv_edited_fields
+    window.lookup()
+    spin_until(app, lambda: not window._busy)
+    row, = window.rows
+    assert (row.birth_date, row.birth_time, row.biography, row.sources, row.data_rating) == (
+        '2000-01-02', '03:04', 'Loaded biography', ['https://manual.example'], 'AA'
+    )
+    assert [window.table.item(0, column).text() for column in (2, 3, 5, 6)] == [
+        '2000-01-02', '03:04', 'https://manual.example', 'Loaded biography'
+    ]
+    stream = io.StringIO()
+    export_failures(window.rows, stream)
+    stream.seek(0)
+    reloaded, = load_seeds(stream)
+    assert reloaded == seed
     window.close()
 
 

@@ -21,6 +21,17 @@ class WebProfileLookupService:
         self.wiki_blurb, self.wiki_match = wiki_blurb, wiki_match
 
     def lookup(self, seed: BatchImportSeed) -> BatchImportRow:
+        row = self._lookup_providers(seed)
+        # Partial CSV data remains useful even when providers fail or omit fields.
+        # Merge after lookup so seed values do not affect provider precedence or
+        # Wikipedia disambiguation, and cover providers' early failure returns.
+        for field in ("birth_date", "birth_time", "birth_place", "biography", "data_rating"):
+            if not getattr(row, field).strip():
+                setattr(row, field, getattr(seed, field))
+        row.sources = list(dict.fromkeys([*seed.sources, *row.sources]))
+        return row
+
+    def _lookup_providers(self, seed: BatchImportSeed) -> BatchImportRow:
         row = BatchImportRow(seed.name, seed.name, alias=seed.alias, from_whence=seed.from_whence, tags=list(seed.tags), notes=seed.notes)
         factual_date = None
         try:
@@ -63,11 +74,19 @@ class WebProfileLookupService:
                 if not factual_date: row.lookup_errors.append("No Astrotheme profile or Wikipedia article found.")
                 return row
             if title:
+                if not factual_date or not row.birth_place.strip():
+                    try:
+                        birth = self.wiki_birth(title)
+                        if not factual_date:
+                            year, month, day = birth.get("birth_year"), birth.get("birth_month"), birth.get("birth_day")
+                            if year and month and day: row.birth_date = date(int(year), int(month), int(day)).isoformat()
+                        if not row.birth_place.strip():
+                            row.birth_place = str(birth.get("birth_place") or "")
+                    except Exception as exc:
+                        if not factual_date:
+                            raise
+                        row.warnings.append(f"Wikipedia birthplace: {exc}")
                 if not factual_date:
-                    birth = self.wiki_birth(title)
-                    year, month, day = birth.get("birth_year"), birth.get("birth_month"), birth.get("birth_day")
-                    if year and month and day: row.birth_date = date(int(year), int(month), int(day)).isoformat()
-                    row.birth_place = str(birth.get("birth_place") or row.birth_place)
                     row.name = str(title)
                     row.birth_time = ""
                 row.sources.append("https://en.wikipedia.org/wiki/" + quote(str(title).replace(" ", "_")))
