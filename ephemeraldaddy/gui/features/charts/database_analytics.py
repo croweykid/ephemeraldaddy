@@ -214,6 +214,7 @@ from ephemeraldaddy.data.genpop import (
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
+from ephemeraldaddy.analysis.birthplace import chart_locality, locality_from_text
 from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 
@@ -1772,7 +1773,7 @@ class DatabaseAnalyticsChartsMixin:
             elif chart_key == "birthplace":
                 mode = str(chart_mode or getattr(self, "_birthplace_mode", "countries"))
                 birthplace = str(getattr(chart, "birth_place", "") or "").strip()
-                city, state, country = self._extract_birthplace_components(birthplace)
+                city, state, country = chart_locality(chart).components
                 if mode == "countries":
                     include = normalize_country(country or "") == label_text
                 elif mode == "towns":
@@ -6048,16 +6049,7 @@ class DatabaseAnalyticsChartsMixin:
 
     @staticmethod
     def _extract_birthplace_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
-        parts = [part.strip() for part in (raw_place or "").split(",") if part.strip()]
-        if not parts:
-            return None, None, None
-        city = parts[0] if parts else None
-        state = parts[-2] if len(parts) >= 2 else None
-        country = parts[-1] if len(parts) >= 2 else None
-        if len(parts) == 1:
-            country = None
-            state = None
-        return city, state, country
+        return locality_from_text(raw_place).components
 
     @staticmethod
     def _bucket_age_value(age_value: int) -> str | None:
@@ -6152,7 +6144,7 @@ class DatabaseAnalyticsChartsMixin:
                     birth_date_counts[f"{month_value:02d}-{day_value:02d}"] += 1
 
             birthplace = str(getattr(chart, "birth_place", "") or "").strip()
-            city, state, country = self._extract_birthplace_components(birthplace)
+            city, state, country = chart_locality(chart).components
             canonical_city = normalize_city(city or "", country)
             if canonical_city:
                 city_counts[canonical_city] += 1

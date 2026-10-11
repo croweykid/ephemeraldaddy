@@ -44,6 +44,12 @@ class LocalGazetteer:
         self._connection_lock = threading.RLock()
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        # Existing gazetteers need the same bounded lookup as newly built ones.
+        try:
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_places_coordinates ON places(latitude, longitude)")
+        except sqlite3.OperationalError:
+            # A read-only gazetteer can still supply exact matches.
+            pass
 
     def close(self) -> None:
         with self._connection_lock:
@@ -104,6 +110,14 @@ class LocalGazetteer:
     def geocode(self, query: str) -> Optional[GazetteerResult]:
         results = self.search(query, limit=1)
         return results[0] if results else None
+
+    def labels_at_coordinates(self, latitude: float, longitude: float) -> list[str]:
+        """Verify a saved result at its exact point; never choose a nearby city."""
+        with self._connection_lock:
+            return [row[0] for row in self._conn.execute(
+                "SELECT label FROM places WHERE latitude = ? AND longitude = ?",
+                (latitude, longitude),
+            )]
 
 
 def _tokenize(query: str) -> List[str]:
@@ -237,6 +251,10 @@ def _bundled_geonames_path() -> Optional[Path]:
     return bundled if bundled.exists() else None
 
 def get_local_gazetteer() -> Optional[LocalGazetteer]:
+    return _get_local_gazetteer(allow_setup=True)
+
+
+def _get_local_gazetteer(*, allow_setup: bool) -> Optional[LocalGazetteer]:
     global _LOCAL_GAZETTEER
     with _LOCAL_GAZETTEER_LOCK:
         if _LOCAL_GAZETTEER is not None:
@@ -249,6 +267,8 @@ def get_local_gazetteer() -> Optional[LocalGazetteer]:
 
         path = gazetteer_path()
         if not path.exists():
+            if not allow_setup:
+                return None
             bundled_path = _bundled_geonames_path()
             if bundled_path is not None:
                 try:
@@ -271,6 +291,17 @@ def get_local_gazetteer() -> Optional[LocalGazetteer]:
 
         _clear_gazetteer_failure_state()
         return _LOCAL_GAZETTEER
+
+
+def local_labels_at_coordinates(latitude: float, longitude: float) -> list[str]:
+    """Read an existing local dataset without building or downloading one."""
+    gazetteer = _get_local_gazetteer(allow_setup=False)
+    if gazetteer is None:
+        return []
+    try:
+        return gazetteer.labels_at_coordinates(latitude, longitude)
+    except sqlite3.Error:
+        return []
 
 
 def local_search_locations(query: str, limit: int = 5) -> List[Tuple[str, float, float]]:

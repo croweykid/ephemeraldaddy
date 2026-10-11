@@ -1378,7 +1378,7 @@ DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
 CHART_RENDER_INTERACTIVE_DELAY_MS = 100
 CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
-DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 4
+DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 5
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
 from ephemeraldaddy.gui.widgets.search_controls import (
     GENERATION_FILTER_OPTIONS,
@@ -1579,6 +1579,8 @@ from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.chart_type_identifier import chart_type_summary
 #from ephemeraldaddy.core.interpretations import ASPECT_PATTERN_DEFS, JONES_SHAPES
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
+from ephemeraldaddy.analysis.birthplace import locality_from_text
+from ephemeraldaddy.gui.features.database_view.birthplace_repair import BirthplaceRepairController
 from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.gui.features.charts.chart_data_output import (
@@ -8268,16 +8270,7 @@ class ManageChartsDialog(
 
     @staticmethod
     def _extract_birthplace_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
-        parts = [part.strip() for part in (raw_place or "").split(",") if part.strip()]
-        if not parts:
-            return None, None, None
-        city = parts[0] if parts else None
-        state = parts[-2] if len(parts) >= 2 else None
-        country = parts[-1] if len(parts) >= 2 else None
-        if len(parts) == 1:
-            country = None
-            state = None
-        return city, state, country
+        return locality_from_text(raw_place).components
 
     @staticmethod
     def _normalized_location_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
@@ -17924,6 +17917,16 @@ class ManageChartsDialog(
             defer_metrics_refresh=defer_metrics_refresh,
         )
         self._refresh_visible_rankings_sections()
+
+        repair = getattr(self, "_birthplace_repair_controller", None)
+        if repair is None:
+            repair = BirthplaceRepairController(self, self._birthplace_localities_changed)
+            self._birthplace_repair_controller = repair
+        repair.request()
+
+    def _birthplace_localities_changed(self, changed_uids: set[str]) -> None:
+        self._invalidate_database_metrics_cache()
+        self._refresh_charts(changed_uids=changed_uids)
 
     def _normalize_chart_row(
         self,

@@ -51,6 +51,13 @@ def pace_remote_request() -> None:
             raise LookupCancelled("Lookup cancelled")
 
 
+def check_remote_request_cancelled() -> None:
+    """Check cancellation after a provider-wide rate gate without pacing twice."""
+    policy = _request_policy.get()
+    if policy is not None and policy[1].is_set():
+        raise LookupCancelled("Lookup cancelled")
+
+
 def _retry_delay(value):
     try:
         return max(0.0, float(value))
