@@ -3564,6 +3564,11 @@ def export_database_with_chart_property_selection(
                 conn.execute(
                     "DELETE FROM charts WHERE id NOT IN (SELECT id FROM selected_export_ids)"
                 )
+            if _table_columns(conn, "chart_birthplace_localities"):
+                conn.execute(
+                    "DELETE FROM chart_birthplace_localities WHERE NOT EXISTS "
+                    "(SELECT 1 FROM charts WHERE charts.chart_uid = chart_birthplace_localities.chart_uid)"
+                )
             for column in excluded_columns:
                 reset_value = _resolve_chart_export_reset_value(
                     column,
@@ -4063,6 +4068,17 @@ def append_database(
                         imported_chart_id,
                     ),
                 )
+            if imported_uids and _table_columns(source_conn, "chart_birthplace_localities"):
+                imported_uid_set = set(imported_uids)
+                for (source_uid, raw, lat, lon), locality in birthplace_repository.load_cached(source_conn).items():
+                    new_uid = source_uid_remap.get(_normalize_chart_uid(source_uid))
+                    if new_uid not in imported_uid_set:
+                        continue
+                    birthplace_repository.store_if_current(
+                        target_conn,
+                        birthplace_repository.BirthplaceSource(new_uid, raw, lat, lon),
+                        locality,
+                    )
             result = {
                 "imported": imported,
                 "imported_uids": imported_uids,
