@@ -117,3 +117,44 @@ def test_legacy_id_first_rows_preserve_export_fields():
     assert rec.builder_row == raw
     assert rec.name == "Name"
     assert rec.birth_place == "Earth"
+
+
+def test_retry_diagnostics_are_replaced_not_nested(tmp_path):
+    source = tmp_path / "original.csv"
+    report = write_failures(
+        source,
+        [(2, ["Person", "bad", "Boston"], "First error")],
+        None,
+    )
+    with report.open(newline="", encoding="utf-8") as handle:
+        header, row = list(csv.reader(handle))
+    second_report = write_failures(
+        report, [(2, row, "Second error")], header
+    )
+    with second_report.open(newline="", encoding="utf-8") as handle:
+        second_header, second_row = list(csv.reader(handle))
+    assert second_header == ["column_1", "column_2", "column_3", "import_error", "source_row"]
+    assert second_row == ["Person", "bad", "Boston", "Second error", "2"]
+
+
+def test_rejects_nonfinite_coordinates():
+    header = ["name", "datetime_iso", "latitude", "longitude"]
+    rec = parse_record(["Named", "1990-01-01", "nan", "0"], header)
+    with pytest.raises(ValueError, match="bounds"):
+        validate_calculable_record(rec, 1500, 2100)
+
+
+def test_type1_gui_has_preflight_and_separate_import_modes():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+    method = source.split("    def _on_import_csv_type_1(self)", 1)[1].split(
+        "    def _on_import_csv_pattern(self)", 1
+    )[0]
+    assert method.index("dialog.exec()") < method.index("QFileDialog.getOpenFileName(")
+    assert 'standard_radio.setChecked(True)' in method
+    assert 'if mode == "placeholder":' in method
+    assert 'if mode == "standard":' in method
+    assert "self._confirm_duplicate_chart_save(chart)" in method
+    assert 'if mode == "hypothetical"' in method
+    assert "write_failures(file_path, failures, header)" in method
