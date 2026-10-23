@@ -5,6 +5,7 @@ No Qt dependencies: parsing and retry-file behavior can be tested without a GUI.
 from __future__ import annotations
 
 import csv
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -109,7 +110,7 @@ def validate_calculable_record(record: Type1Record, min_year: int, max_year: int
             lat, lon = float(record.latitude), float(record.longitude)
         except ValueError as exc:
             raise ValueError("Invalid geographic coordinates.") from exc
-        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
             raise ValueError("Latitude/longitude are outside geographic bounds.")
 
 
@@ -180,9 +181,13 @@ def write_failures(
     if path == Path(source_path):
         raise ValueError("Failure report path conflicts with source CSV.")
     width = max(len(header or []), *(len(row) for _, row, _ in failures))
-    original_header = header or [f"column_{i + 1}" for i in range(width)]
+    original_header = list(header) if header else [f"column_{i + 1}" for i in range(width)]
     # Existing retry diagnostics are replaced, not endlessly appended.
     original_header = [key for key in original_header if key not in {"import_error", "source_row"}]
+    if len(original_header) < width and header:
+        original_header.extend(
+            f"column_{i + 1}" for i in range(len(original_header), width)
+        )
     width = len(original_header)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
