@@ -16967,14 +16967,14 @@ class ManageChartsDialog(
         layout = QVBoxLayout(dialog)
 
         help_label = QLabel(
-            "Accepted CSV formats (comma- or tab-separated, UTF-8):\\n"
-            "• name, birth date/time, birth place [, notes [, alias]]\\n"
-            "  Example: Ada Lovelace,1815-12-10,London,Research notes\\n"
+            "Accepted CSV formats (comma- or tab-separated, UTF-8):\n"
+            "• name, birth date/time, birth place [, notes [, alias]]\n"
+            "  Example: Ada Lovelace,1815-12-10,London,Research notes\n"
             "• EphemeralDaddy's exported chart CSV: "
-            "id,name,birth_place,datetime_iso,tz_name,latitude,longitude,...\\n"
+            "id,name,birth_place,datetime_iso,tz_name,latitude,longitude,...\n"
             "A header row is supported but not required for the simple format. "
             "Dates may be YYYY-MM-DD, YYYY-MM-DD HH:MM, ISO 8601, or other "
-            "date/time formats already supported by Type 1.\\n"
+            "date/time formats already supported by Type 1.\n"
             "Unknown birth times are allowed. Standard and hypothetical charts "
             "require a valid date and a usable birthplace or coordinates. "
             "Placeholders require only a name; any partial birth information and notes "
@@ -17056,7 +17056,7 @@ class ManageChartsDialog(
         except Exception as exc:
             QMessageBox.critical(
                 self, "Backup failed",
-                f"Could not back up the database before importing:\\n{exc}",
+                f"Could not back up the database before importing:\n{exc}",
             )
             return
 
@@ -17127,7 +17127,7 @@ class ManageChartsDialog(
                                 if duplicate is not None:
                                     raise ValueError(
                                         "Possible duplicate: " + duplicate.message.replace(
-                                            "\\n", " "
+                                            "\n", " "
                                         ).split("Continue and save")[0].strip()
                                     )
                             chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
@@ -17164,7 +17164,7 @@ class ManageChartsDialog(
         except Exception as exc:
             QMessageBox.critical(
                 self, "Import error",
-                f"Could not finish reading the CSV file:\\n{exc}",
+                f"Could not finish reading the CSV file:\n{exc}",
             )
             # Preserve errors collected before an I/O or CSV-level error.
             canceled = True
@@ -17177,20 +17177,20 @@ class ManageChartsDialog(
         except Exception as exc:
             QMessageBox.critical(
                 self, "Error report failed",
-                f"Could not save the failed rows CSV:\\n{exc}",
+                f"Could not save the failed rows CSV:\n{exc}",
             )
         if imported:
             self._refresh_charts(force_full_analysis_refresh=True)
         summary = (
-            f"Imported {imported} chart(s).\\n"
-            f"Failed rows: {len(failures)}.\\n"
-            f"Charts using UTC fallback: {warnings}.\\n"
+            f"Imported {imported} chart(s).\n"
+            f"Failed rows: {len(failures)}.\n"
+            f"Charts using UTC fallback: {warnings}.\n"
             f"Database backup: {backup_path}"
         )
         if report_path:
             summary += (
-                f"\\nCorrect and reimport failed rows from:\\n{report_path}"
-                "\\nThe report keeps the original fields plus error and line details."
+                f"\nCorrect and reimport failed rows from:\n{report_path}"
+                "\nThe report keeps the original fields plus error and line details."
             )
         QMessageBox.information(
             self,
