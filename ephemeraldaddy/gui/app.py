@@ -17117,6 +17117,9 @@ class ManageChartsDialog(
                             chart.alias = record.alias or getattr(chart, "alias", None)
                             chart.comments = record.notes
                             chart.is_placeholder = False
+                            chart.birth_month = chart.dt.month
+                            chart.birth_day = chart.dt.day
+                            chart.birth_year = chart.dt.year
                             if mode == "standard":
                                 duplicate = build_duplicate_save_warning(
                                     chart, list_charts()
