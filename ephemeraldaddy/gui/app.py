@@ -17121,14 +17121,11 @@ class ManageChartsDialog(
                             chart.birth_day = chart.dt.day
                             chart.birth_year = chart.dt.year
                             if mode == "standard":
-                                duplicate = build_duplicate_save_warning(
-                                    chart, list_charts()
-                                )
-                                if duplicate is not None:
+                                # Match the Chart Editor's usual duplicate warning:
+                                # the user decides whether a suspected match is legitimate.
+                                if not self._confirm_duplicate_chart_save(chart):
                                     raise ValueError(
-                                        "Possible duplicate: " + duplicate.message.replace(
-                                            "\n", " "
-                                        ).split("Continue and save")[0].strip()
+                                        "Skipped by user after possible-duplicate warning."
                                     )
                             chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                             chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
