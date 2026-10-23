@@ -180,15 +180,22 @@ def write_failures(
     # Avoid overwritten retry exports or overwriting the source CSV itself.
     if path == Path(source_path):
         raise ValueError("Failure report path conflicts with source CSV.")
-    width = max(len(header or []), *(len(row) for _, row, _ in failures))
-    original_header = list(header) if header else [f"column_{i + 1}" for i in range(width)]
-    # Existing retry diagnostics are replaced, not endlessly appended.
-    original_header = [key for key in original_header if key not in {"import_error", "source_row"}]
-    if len(original_header) < width and header:
+    original_header = (
+        [key for key in header if key not in {"import_error", "source_row"}]
+        if header else []
+    )
+    # Retry reports already contain two diagnostics columns; omit those on rerun.
+    existing_diagnostics = bool(header) and {"import_error", "source_row"}.issubset(header)
+    width = max(
+        len(original_header),
+        *(len(row) - (2 if existing_diagnostics else 0) for _, row, _ in failures),
+    )
+    if not original_header:
+        original_header = [f"column_{i + 1}" for i in range(width)]
+    elif len(original_header) < width:
         original_header.extend(
             f"column_{i + 1}" for i in range(len(original_header), width)
         )
-    width = len(original_header)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(original_header + ["import_error", "source_row"])
