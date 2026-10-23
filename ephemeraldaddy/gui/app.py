@@ -16952,121 +16952,247 @@ class ManageChartsDialog(
         )
 
     def _on_import_csv_type_1(self) -> None:
+        """Configure a Type 1 batch import before choosing its source file."""
+        from ephemeraldaddy.gui.features.import_export.type1_csv import (
+            build_placeholder,
+            is_header,
+            parse_record,
+            validate_calculable_record,
+            write_failures,
+        )
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Import CSV (Type 1)")
+        dialog.setMinimumWidth(620)
+        layout = QVBoxLayout(dialog)
+
+        help_label = QLabel(
+            "Accepted CSV formats (comma- or tab-separated, UTF-8):\\n"
+            "• name, birth date/time, birth place [, notes [, alias]]\\n"
+            "  Example: Ada Lovelace,1815-12-10,London,Research notes\\n"
+            "• EphemeralDaddy's exported chart CSV: "
+            "id,name,birth_place,datetime_iso,tz_name,latitude,longitude,...\\n"
+            "A header row is supported but not required for the simple format. "
+            "Dates may be YYYY-MM-DD, YYYY-MM-DD HH:MM, ISO 8601, or other "
+            "date/time formats already supported by Type 1.\\n"
+            "Unknown birth times are allowed. Standard and hypothetical charts "
+            "require a valid date and a usable birthplace or coordinates. "
+            "Placeholders require only a name; any partial birth information and notes "
+            "are saved without astrological calculations."
+        )
+        help_label.setWordWrap(True)
+        help_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(help_label)
+
+        chart_type_row = QHBoxLayout()
+        chart_type_row.addWidget(QLabel("Assign chart type:"))
+        chart_type_combo = QComboBox(dialog)
+        for label, value in SOURCE_OPTIONS:
+            if value != SOURCE_HYPOTHETICAL:
+                chart_type_combo.addItem(label, value)
+        default_index = chart_type_combo.findData(SOURCE_PUBLIC_DB)
+        if default_index >= 0:
+            chart_type_combo.setCurrentIndex(default_index)
+        chart_type_row.addWidget(chart_type_combo, 1)
+        layout.addLayout(chart_type_row)
+
+        mode_box = QGroupBox("These are:", dialog)
+        mode_layout = QVBoxLayout(mode_box)
+        mode_buttons = QButtonGroup(mode_box)
+        standard_radio = QRadioButton("Standard charts")
+        placeholder_radio = QRadioButton("Placeholders")
+        hypothetical_radio = QRadioButton("Hypothetical charts")
+        for radio in (standard_radio, placeholder_radio, hypothetical_radio):
+            mode_buttons.addButton(radio)
+            mode_layout.addWidget(radio)
+        standard_radio.setChecked(True)
+        layout.addWidget(mode_box)
+
+        type_note = QLabel(
+            "Hypothetical mode uses the Hypothetical chart type and skips duplicate checks. "
+            "Standard mode checks for duplicates; placeholders never require birth data."
+        )
+        type_note.setWordWrap(True)
+        layout.addWidget(type_note)
+
+        def sync_chart_type() -> None:
+            hypothetical = hypothetical_radio.isChecked()
+            chart_type_combo.setEnabled(not hypothetical)
+            type_note.setVisible(hypothetical or placeholder_radio.isChecked())
+
+        for radio in (standard_radio, placeholder_radio, hypothetical_radio):
+            radio.toggled.connect(sync_chart_type)
+        sync_chart_type()
+
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        cancel_button = QPushButton("Cancel", dialog)
+        select_button = QPushButton("Choose CSV…", dialog)
+        cancel_button.clicked.connect(dialog.reject)
+        select_button.clicked.connect(dialog.accept)
+        buttons.addWidget(cancel_button)
+        buttons.addWidget(select_button)
+        layout.addLayout(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        mode = (
+            "placeholder" if placeholder_radio.isChecked()
+            else "hypothetical" if hypothetical_radio.isChecked()
+            else "standard"
+        )
+        chart_type = (
+            SOURCE_HYPOTHETICAL if mode == "hypothetical"
+            else _normalize_gui_source(chart_type_combo.currentData())
+        )
         file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Import chart data from CSV",
-            "",
-            "CSV Files (*.csv)",
+            self, "Import chart data from CSV", "", "CSV Files (*.csv)"
         )
         if not file_path:
             return
 
-        imported = 0
-        warnings = 0
-
-        backup_path = None
-
         try:
             backup_path = backup_database()
-        except Exception as e:
+        except Exception as exc:
             QMessageBox.critical(
-                self,
-                "Backup failed",
-                f"Fumbled the database backup prior to import:\n{e}",
+                self, "Backup failed",
+                f"Could not back up the database before importing:\\n{exc}",
             )
             return
 
+        imported = 0
+        warnings = 0
+        failures: list[tuple[int, list[str], str]] = []
+        header: list[str] | None = None
+        canceled = False
+        geocode_cache: dict[str, tuple[float, float, str]] = {}
+        progress = QProgressDialog("Importing charts…", "Cancel", 0, 0, self)
+        progress.setWindowTitle("Importing charts")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.show()
+
         try:
-            geocode_cache: dict[str, tuple[float, float, str]] = {}
-            with open(file_path, "r", newline="", encoding="utf-8") as csv_file:
-                sample = csv_file.read(2048)
+            with open(file_path, "r", newline="", encoding="utf-8-sig") as csv_file:
+                sample = csv_file.read(4096)
                 csv_file.seek(0)
                 try:
-                    dialect = csv.Sniffer().sniff(sample)
+                    dialect = csv.Sniffer().sniff(sample, delimiters=",;\\t")
                 except csv.Error:
                     dialect = csv.excel
-
                 reader = csv.reader(csv_file, dialect)
-
-                progress = QProgressDialog(
-                    "Importing charts...",
-                    "Cancel",
-                    0,
-                    0,
-                    self,
-                )
-                progress.setWindowTitle("Importing charts")
-                progress.setWindowModality(Qt.WindowModal)
-                progress.setMinimumDuration(0)
-
-                for idx, raw_row in enumerate(reader, start=1):
+                for raw_row in reader:
+                    line_number = reader.line_num
                     if progress.wasCanceled():
+                        canceled = True
                         break
                     if not raw_row or all(not cell.strip() for cell in raw_row):
                         continue
                     row = normalize_csv_row(raw_row)
-                    if not row or all(not cell for cell in row):
+                    if header is None and is_header(row):
+                        header = row
                         continue
                     try:
-                        chart, birth_place, used_fallback = _build_import_chart(
-                            row,
-                            geocode_cache=geocode_cache,
+                        record = parse_record(row, header)
+                        if mode == "placeholder":
+                            chart = build_placeholder(record, chart_type)
+                            birth_place = record.birth_place
+                            used_fallback = False
+                        else:
+                            validate_calculable_record(
+                                record, NATAL_CHART_MIN_YEAR, NATAL_CHART_MAX_YEAR
+                            )
+                            chart, birth_place, used_fallback = _build_import_chart(
+                                record.builder_row, geocode_cache=geocode_cache
+                            )
+                            if (
+                                record.birth_place
+                                and not record.latitude
+                                and (chart.lat, chart.lon) == (0.0, 0.0)
+                                and used_fallback
+                            ):
+                                raise ValueError(
+                                    "Birthplace could not be resolved to coordinates."
+                                )
+                            chart.alias = record.alias or getattr(chart, "alias", None)
+                            chart.comments = record.notes
+                            chart.is_placeholder = False
+                            if mode == "standard":
+                                duplicate = build_duplicate_save_warning(
+                                    chart, list_charts()
+                                )
+                                if duplicate is not None:
+                                    raise ValueError(
+                                        "Possible duplicate: " + duplicate.message.replace(
+                                            "\\n", " "
+                                        ).split("Continue and save")[0].strip()
+                                    )
+                            chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
+                            chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                            chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
+                        chart.chart_type = chart_type
+                        chart.source = chart_type
+                        chart_id = save_chart(
+                            chart,
+                            birth_place=birth_place,
+                            retcon_time_used=getattr(chart, "retcon_time_used", False),
+                            chart_type=chart_type,
+                            is_placeholder=(mode == "placeholder"),
+                            birth_month=getattr(chart, "birth_month", None),
+                            birth_day=getattr(chart, "birth_day", None),
+                            birth_year=getattr(chart, "birth_year", None),
                         )
-                    except ValueError:
-                        continue
-                    chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                    chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                    chart_id = save_chart(
-                        chart,
-                        birth_place=birth_place,
-                        retcon_time_used=getattr(chart, "retcon_time_used", False),
-                        chart_type=SOURCE_PUBLIC_DB,
+                        set_current_chart_by_uid(
+                            getattr(chart, "chart_uid", None) or get_chart_uid(chart_id)
+                        )
+                        imported += 1
+                        if used_fallback:
+                            warnings += 1
+                    except Exception as exc:
+                        failures.append((line_number, row, str(exc) or type(exc).__name__))
+                        logger.exception(
+                            "Type 1 CSV import row %s failed: %s", line_number, exc
+                        )
+                    progress.setLabelText(
+                        f"Processed through line {line_number}: "
+                        f"{imported} imported, {len(failures)} failed"
                     )
-                    imported += 1
-                    if used_fallback:
-                        warnings += 1
-                    set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
-                    progress.setLabelText(f"Importing charts... processed {idx}")
                     QApplication.processEvents()
-        except Exception as e:
+        except Exception as exc:
             QMessageBox.critical(
-                self,
-                "Import error",
-                f"Shucks. Couldn't import those dang charts:\n{e}",
+                self, "Import error",
+                f"Could not finish reading the CSV file:\\n{exc}",
             )
-            return
+            # Preserve errors collected before an I/O or CSV-level error.
+            canceled = True
+        finally:
+            progress.close()
 
-        self._refresh_charts(force_full_analysis_refresh=True)
-        if progress.wasCanceled():
-            QMessageBox.information(
-                self,
-                "Import canceled",
-                (
-                    f"Imported {imported} chart(s) before canceling.\n"
-                    f"{warnings} chart(s) need edits to resolve correctly.\n"
-                    f"Database backup: {backup_path}"
-                    if warnings
-                    else (
-                        f"Imported {imported} chart(s) before canceling.\n"
-                        f"Database backup: {backup_path}"
-                    )
-                ),
+        report_path = None
+        try:
+            report_path = write_failures(file_path, failures, header)
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Error report failed",
+                f"Could not save the failed rows CSV:\\n{exc}",
             )
-            return
+        if imported:
+            self._refresh_charts(force_full_analysis_refresh=True)
+        summary = (
+            f"Imported {imported} chart(s).\\n"
+            f"Failed rows: {len(failures)}.\\n"
+            f"Charts using UTC fallback: {warnings}.\\n"
+            f"Database backup: {backup_path}"
+        )
+        if report_path:
+            summary += (
+                f"\\nCorrect and reimport failed rows from:\\n{report_path}"
+                "\\nThe report keeps the original fields plus error and line details."
+            )
         QMessageBox.information(
             self,
-            "Import complete",
-            (
-                f"Imported {imported} chart(s).\n"
-                f"{warnings} chart(s) need edits to resolve correctly.\n"
-                f"Database backup: {backup_path}"
-                if warnings
-                else (
-                    f"Imported {imported} chart(s).\n"
-                    f"Database backup: {backup_path}"
-                )
-            ),
+            "Import canceled" if canceled else "Import complete",
+            summary,
         )
 
     def _on_import_csv_pattern(self) -> None:
