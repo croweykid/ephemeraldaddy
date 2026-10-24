@@ -1302,6 +1302,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     setup_chart_view_emoji_portrait_section,
     setup_chart_view_typology_section,
     update_chart_view_typology_subheader,
+    update_chart_creation_date_label,
     setup_chart_view_quotes_section,
     setup_chart_view_tags_section,
     get_chart_view_quotes,
@@ -33780,11 +33781,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             raise ValueError("A persisted chart must have a non-empty chart UID")
         self.current_chart_uid = normalized_uid
         self._chart_edit_session.set_active_chart_uid(normalized_uid)
+        update_chart_creation_date_label(self, normalized_uid)
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
         self.current_chart_uid = None
         self._chart_edit_session.set_active_chart_uid(None)
+        update_chart_creation_date_label(self, None)
 
     def _current_chart_uid_for_navigation(self) -> str | None:
         """Return the UID-owned navigation identity without an ID round trip."""
