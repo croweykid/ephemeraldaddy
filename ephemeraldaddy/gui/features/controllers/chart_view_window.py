@@ -47,6 +47,8 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
+from ephemeraldaddy.core.db import get_chart_created_at_by_uid
+from ephemeraldaddy.gui.features.charts.chart_creation_date import format_chart_created_at
 from ephemeraldaddy.core.photo_gallery import (
     add_photo_file,
     add_photo_url,
@@ -977,6 +979,21 @@ def _require_owner_attrs(owner: QWidget, attrs: tuple[str, ...], *, context: str
     )
 
 
+def update_chart_creation_date_label(owner: QWidget, chart_uid: str | None) -> None:
+    """Keep the stored chart creation date synchronized with Chart View's active UID."""
+    label = getattr(owner, "chart_creation_date_label", None)
+    if label is None:
+        return
+    display_text = ""
+    if chart_uid:
+        try:
+            display_text = format_chart_created_at(get_chart_created_at_by_uid(chart_uid))
+        except Exception:
+            logger.exception("Could not retrieve the creation date for chart %s", chart_uid)
+    label.setText(display_text)
+    label.setVisible(bool(display_text))
+
+
 def build_chart_view_left_panel(
     owner: QWidget,
     *,
@@ -1023,6 +1040,13 @@ def build_chart_view_left_panel(
     chart_canvas_nav_buttons.setLayout(chart_canvas_nav_buttons_layout)
     chart_canvas_nav_buttons_layout.addWidget(owner.manage_button, 0, Qt.AlignLeft)
     chart_canvas_nav_buttons_layout.addWidget(owner.database_view_button, 0, Qt.AlignLeft)
+    owner.chart_creation_date_label = QLabel(chart_canvas_nav_buttons)
+    owner.chart_creation_date_label.setObjectName("chart_creation_date_label")
+    owner.chart_creation_date_label.setStyleSheet("color: #b8b8b8; font-size: 10px; padding: 0;")
+    owner.chart_creation_date_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    owner.chart_creation_date_label.setToolTip("Stored chart creation date, displayed in local time.")
+    owner.chart_creation_date_label.setVisible(False)
+    chart_canvas_nav_buttons_layout.addWidget(owner.chart_creation_date_label, 0, Qt.AlignLeft)
     owner.chart_canvas_overlay_layout.addWidget(
         chart_canvas_nav_buttons,
         0,
