@@ -67,16 +67,25 @@ def build_import_chart(
                     force_utc_fallback = True
             except Exception:
                 pass
-            sentiments = parse_sentiments(row[8]) if len(row) > 8 else []
-            relationship_types = (
-                parse_relationship_types(row[9]) if len(row) > 9 else []
-            )
-            chart_type_value = row[15].strip() if len(row) > 15 else ""
-            legacy_source_value = row[16].strip() if len(row) > 16 else ""
-            source = normalize_gui_source(
-                chart_type_value or legacy_source_value or SOURCE_PERSONAL
-            )
-            comments = row[10] if len(row) > 10 else ""
+        sentiments = parse_sentiments(row[8]) if len(row) > 8 else []
+        relationship_types = parse_relationship_types(row[9]) if len(row) > 9 else []
+        chart_type_value = row[15].strip() if len(row) > 15 else ""
+        legacy_source_value = row[16].strip() if len(row) > 16 else ""
+        source = normalize_gui_source(
+            chart_type_value or legacy_source_value or SOURCE_PERSONAL
+        )
+        # Legacy column 10 is an intensity metric, not a comment.
+        if birth_place and (lat is None or lon is None):
+            cached = geocode_cache.get(birth_place) if geocode_cache is not None else None
+            if cached:
+                lat, lon, _label = cached
+            else:
+                try:
+                    lat, lon, _label = geocode_location(birth_place)
+                    if geocode_cache is not None:
+                        geocode_cache[birth_place] = (lat, lon, _label)
+                except Exception:
+                    lat, lon = None, None
     else:
         if len(row) >= 3:
             dt_value, time_missing = parse_datetime_value(row[1])
