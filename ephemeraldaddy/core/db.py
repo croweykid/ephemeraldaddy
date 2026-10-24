@@ -5313,6 +5313,22 @@ def save_duplicate_exclusions_by_uids(chart_uids: Iterable[str | None]) -> int:
     return inserted
 
 
+def get_chart_created_at_by_uid(chart_uid: str | None) -> str | None:
+    """Retrieve the original creation timestamp for one saved chart, by stable UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return None
+    conn = _get_conn()
+    try:
+        row = conn.execute(
+            "SELECT created_at FROM charts WHERE chart_uid = ? LIMIT 1",
+            (normalized_uid,),
+        ).fetchone()
+        return str(row[0]).strip() if row and row[0] else None
+    finally:
+        conn.close()
+
+
 def set_current_chart_by_uid(chart_uid: str | None) -> None:
     """Mark exactly one chart as current by stable UID (or clear if None)."""
     normalized_uid = _normalize_chart_uid(chart_uid)
