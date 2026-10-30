@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ephemeraldaddy.gui.features.charts.human_design_export import (
+from ephemeraldaddy.gui.features.import_export.human_design_export import (
     build_human_design_popout_export_text,
 )
 
