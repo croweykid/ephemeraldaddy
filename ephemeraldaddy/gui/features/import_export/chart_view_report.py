@@ -344,3 +344,39 @@ def build_chart_view_report(
             chart, trait_metadata=trait_metadata, enneagram_scores=enneagram_scores,
         ),
     ))
+
+
+def collect_chart_export_prediction_context(owner: object, chart: object) -> dict[str, Any]:
+    """Read prediction data for the *requested chart*, not the selected GUI tab.
+
+    Traits uses the same cached-only metadata retrieval as the Predictions tab.
+    It must not initiate a database-wide norm recomputation just to export.
+    Enneagram uses the owner's configured scorer, not static default weights.
+    """
+    result: dict[str, Any] = {"trait_metadata": None, "enneagram_scores": None}
+    try:
+        from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
+        if chart_is_non_aggregable(chart):
+            return result
+    except (AttributeError, TypeError):
+        pass
+
+    try:
+        from ephemeraldaddy.gui.features.charts.trait_predictions import trait_metadata_for_chart
+        metadata = trait_metadata_for_chart(owner, chart, cached_only=True)
+        if isinstance(metadata, dict):
+            result["trait_metadata"] = metadata
+    except Exception:
+        # The report renders an explicit unavailable state instead of leaking
+        # another chart's Traits table or fabricating a DB norm.
+        pass
+
+    calculate_enneagram = getattr(owner, "_calculate_enneagram_type_weights", None)
+    if callable(calculate_enneagram):
+        try:
+            scores = calculate_enneagram(chart)
+            if isinstance(scores, Mapping):
+                result["enneagram_scores"] = dict(scores)
+        except Exception:
+            pass
+    return result
