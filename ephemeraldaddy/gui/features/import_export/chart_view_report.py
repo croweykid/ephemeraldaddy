@@ -227,6 +227,60 @@ def _trait_rows_report(chart: object, metadata: Mapping[str, Any] | None) -> lis
     return lines
 
 
+
+def _theme_report(chart: object) -> list[str]:
+    """Use the Themes panel's seven semantic families and DB norm snapshot."""
+    lines = ["### Themes", ""]
+    try:
+        from ephemeraldaddy.analysis.theme_prominence import (
+            THEME_DEVIATION_ASSIGNMENT_THRESHOLD,
+            calculate_theme_family_scores,
+            calculate_theme_subtheme_scores,
+            theme_family_snapshot_averages,
+        )
+        from ephemeraldaddy.core.theme_reference import THEME_FAMILIES
+        from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import load_prediction_norms_snapshot
+
+        family_scores = calculate_theme_family_scores(
+            chart, subtheme_scores=calculate_theme_subtheme_scores(chart),
+        )
+        norms = theme_family_snapshot_averages(load_prediction_norms_snapshot())
+        lines.append("Chart prominence — above chart median:")
+        for key, score in above_chart_median(family_scores):
+            definition = THEME_FAMILIES.get(key, {})
+            lines.append(
+                f"- {definition.get('label', key)}: {score:.1f}% — "
+                f"{definition.get('description', '')}"
+            )
+        if not norms:
+            lines.extend(["", "Theme DB-norm comparisons unavailable; calculate the selected DB norms snapshot."])
+            return lines
+        for direction, label in (("above", "Above DB norms"), ("below", "Below DB norms")):
+            lines.extend(["", f"{label}:"])
+            selected = []
+            for key, score in family_scores.items():
+                if key not in norms:
+                    continue
+                delta = float(score) - float(norms[key])
+                if (direction == "above" and delta >= THEME_DEVIATION_ASSIGNMENT_THRESHOLD) or (
+                    direction == "below" and delta <= -THEME_DEVIATION_ASSIGNMENT_THRESHOLD
+                ):
+                    selected.append((key, score, delta))
+            selected.sort(key=lambda row: -abs(row[2]))
+            if not selected:
+                lines.append("- No themes meet the 5 percentage-point deviation threshold.")
+            for key, score, delta in selected:
+                definition = THEME_FAMILIES.get(key, {})
+                lines.append(
+                    f"- {definition.get('label', key)}: {score:.1f}% vs "
+                    f"DB norm {float(norms[key]):.1f}% ({delta:+.1f} pp). "
+                    f"{definition.get('description', '')}"
+                )
+    except Exception as exc:
+        lines.append(f"Themes predictions unavailable: {exc}")
+    return lines
+
+
 def build_chart_predictions_report(
     chart: object,
     *,
@@ -250,6 +304,7 @@ def build_chart_predictions_report(
             # database norms. Preserve its useful lists but flag uncertainty.
             trait_metadata = {**cache["metadata"], "stale": True}
     output.extend(_trait_rows_report(chart, trait_metadata))
+    output.extend(["", *_theme_report(chart)])
 
     # These are chart-specific computations; they need no database-population scan.
     output.extend(["", "### OCEAN Personality", ""])
