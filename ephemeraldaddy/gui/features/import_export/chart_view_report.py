@@ -287,6 +287,7 @@ def build_chart_predictions_report(
     trait_metadata: Mapping[str, Any] | None = None,
     enneagram_scores: Mapping[int, float] | None = None,
     alignment_scores: Mapping[str, float] | None = None,
+    predicted_synastry_html: str = "",
 ) -> str:
     """Describe chart-specific Predictions, including both Traits norm directions."""
     output = ["## Predictions", ""]
@@ -409,9 +410,14 @@ def build_chart_predictions_report(
     except Exception as exc:
         output.append(f"Gender Guesser unavailable: {exc}")
 
-    output.extend(["", "### Predicted Synastry", "",
-                   "This comparison requires a selected database cohort and prediction mode; "
-                   "it is not intrinsic to a single chart and has not been recalculated for this export."])
+    output.extend(["", "### Predicted Synastry", ""])
+    if str(predicted_synastry_html or "").strip():
+        output.append(_plain(predicted_synastry_html))
+    else:
+        output.append(
+            "No current comparison is available for this chart. This ranking "
+            "depends on the selected database cohort, gender filter, and scoring mode."
+        )
     return "\n".join(output)
 
 
@@ -421,12 +427,14 @@ def build_chart_view_report(
     trait_metadata: Mapping[str, Any] | None = None,
     enneagram_scores: Mapping[int, float] | None = None,
     alignment_scores: Mapping[str, float] | None = None,
+    predicted_synastry_html: str = "",
 ) -> str:
     return "\n\n".join((
         build_chart_analytics_report(chart),
         build_chart_predictions_report(
             chart, trait_metadata=trait_metadata, enneagram_scores=enneagram_scores,
             alignment_scores=alignment_scores,
+            predicted_synastry_html=predicted_synastry_html,
         ),
     ))
 
@@ -440,6 +448,7 @@ def collect_chart_export_prediction_context(owner: object, chart: object) -> dic
     """
     result: dict[str, Any] = {
         "trait_metadata": None, "enneagram_scores": None, "alignment_scores": None,
+        "predicted_synastry_html": "",
     }
     try:
         from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
@@ -473,6 +482,15 @@ def collect_chart_export_prediction_context(owner: object, chart: object) -> dic
         values = dnd_alignment_deviations(owner, chart, allow_stale=True)
         if isinstance(values, dict) and values:
             result["alignment_scores"] = values
+    except Exception:
+        pass
+    try:
+        from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
+            hd_electrochemistry_predictions_are_current,
+        )
+        label = getattr(owner, "hd_electrochemistry_prediction_label", None)
+        if label is not None and hd_electrochemistry_predictions_are_current(owner, chart):
+            result["predicted_synastry_html"] = str(label.text() or "")
     except Exception:
         pass
     return result
