@@ -31,6 +31,8 @@ def build_human_design_popout_export_text(
     The bodygraph and analytics are separate interactive surfaces and must be
     supplied explicitly. Repeated links share a single exported explanation.
     """
+    position_bodies: dict[tuple[str, str, str], dict[str, object]] = {}
+    position_signs: dict[tuple[str, str, str], dict[str, object]] = {}
     properties: dict[tuple[str, str], dict[str, object]] = {}
     channels: dict[tuple[int, int], dict[str, object]] = {}
     gate_lines: dict[tuple[int, int], dict[str, object]] = {}
@@ -48,7 +50,25 @@ def build_human_design_popout_export_text(
             if not isinstance(entry, dict):
                 continue
             kind = entry.get("kind")
-            if kind == "hd_property":
+            if kind == "hd_position_body":
+                # Conscious and subconscious activations can refer to the same
+                # body/sign yet have distinct, clickable display labels.
+                key = (
+                    str(entry.get("body", "")),
+                    str(entry.get("sign", "")),
+                    str(entry.get("display_body", "")),
+                )
+                position_bodies.setdefault(key, entry)
+            elif kind == "sign_keyword":
+                # Sign descriptions are body-specific: Sun in Aries and Moon
+                # in Aries are not interchangeable Chart Info targets.
+                key = (
+                    str(entry.get("sign", "")),
+                    str(entry.get("body", "")),
+                    str(entry.get("display_body", "")),
+                )
+                position_signs.setdefault(key, entry)
+            elif kind == "hd_property":
                 key = (str(entry.get("property_key", "")), str(entry.get("property_value", "")))
                 properties.setdefault(key, entry)
             elif kind == "hd_channel":
@@ -113,6 +133,8 @@ def build_human_design_popout_export_text(
         if rendered:
             parts.extend(["", title, "-" * len(title), "\n\n".join(rendered)])
 
+    add_section("CHART INFO — POSITION BODIES", position_bodies.values())
+    add_section("CHART INFO — POSITION SIGNS", position_signs.values())
     add_section("CHART INFO — PROPERTIES AND INCARNATION CROSSES", properties.values())
     add_section("CHART INFO — DEFINED CHANNELS", (channels[key] for key in sorted(channels)))
     add_section(
