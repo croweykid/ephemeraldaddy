@@ -236,10 +236,19 @@ def build_chart_predictions_report(
 ) -> str:
     """Describe chart-specific Predictions, including both Traits norm directions."""
     output = ["## Predictions", ""]
+    from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
+    if chart_is_non_aggregable(chart):
+        return "\n".join(output + [
+            "Predictions unavailable for placeholder/hypothetical charts.",
+            "", "### Traits — Database Norms", "",
+            "Above DB norms: unavailable.", "", "Below DB norms: unavailable.",
+        ])
     if trait_metadata is None:
         cache = getattr(chart, "_trait_prediction_metadata_cache", None)
-        if isinstance(cache, dict):
-            trait_metadata = cache.get("metadata")
+        if isinstance(cache, dict) and isinstance(cache.get("metadata"), dict):
+            # An unvalidated in-memory cache may predate changed birth data or
+            # database norms. Preserve its useful lists but flag uncertainty.
+            trait_metadata = {**cache["metadata"], "stale": True}
     output.extend(_trait_rows_report(chart, trait_metadata))
 
     # These are chart-specific computations; they need no database-population scan.
