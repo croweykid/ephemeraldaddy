@@ -92,32 +92,84 @@ def test_uncomputed_traits_do_not_misrepresent_results_as_empty():
 
 
 
-def test_theme_predictions_include_above_median_and_both_db_norm_directions(monkeypatch):
+def test_theme_predictions_use_availability_matched_chart_shares(monkeypatch):
+    from ephemeraldaddy.analysis import theme_prominence
+    from ephemeraldaddy.analysis import theme_norms
+    from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot
+    from ephemeraldaddy.core.theme_reference import THEME_FAMILIES, THEMES
+
+    first_family, second_family = list(THEME_FAMILIES)[:2]
+    first_theme = next(key for key, item in THEMES.items() if item["family"] == first_family)
+    second_theme = next(key for key, item in THEMES.items() if item["family"] == second_family)
+    scores = {first_theme: 90.0, second_theme: 10.0}
+    monkeypatch.setattr(
+        theme_prominence, "_activation_context",
+        lambda chart: {"houses_available": chart.houses_available, "hd": {"available": False}, "bazi_available": False},
+    )
+    monkeypatch.setattr(theme_norms, "calculate_theme_subtheme_scores_from_context", lambda _context: scores)
+
+    no_houses = "houses:0|hd:0|bazi:0"
+    with_houses = "houses:1|hd:0|bazi:0"
+    # Both strata exist, deliberately disagreeing about above/below direction.
+    family_means_no = {key: 0.0 for key in THEME_FAMILIES}
+    family_means_no[first_family] = 40.0
+    family_means_no[second_family] = 30.0
+    family_means_yes = dict(family_means_no, **{first_family: 95.0, second_family: 5.0})
+    subtheme_means = {key: 0.0 for key in THEMES}
+
+    snapshot = {
+        "theme_family_definition_signature": theme_prominence.theme_definition_signature(),
+        theme_norms.THEME_CHART_SHARE_SCHEMA_FIELD: theme_norms.THEME_CHART_SHARE_SCHEMA_VERSION,
+        theme_norms.THEME_NORMS_AVAILABILITY_SCHEMA_FIELD: theme_norms.THEME_NORMS_AVAILABILITY_SCHEMA_VERSION,
+        theme_norms.THEME_FAMILY_AVAILABILITY_ROWS_FIELD: {
+            key: {name: 0.0 for name in THEME_FAMILIES} for key in (no_houses, with_houses)
+        },
+        theme_norms.THEME_SUBTHEME_SHARE_AVERAGES_FIELD: {
+            key: subtheme_means for key in (no_houses, with_houses)
+        },
+        theme_norms.THEME_SUBTHEME_SHARE_VALUES_FIELD: {
+            key: {name: [0.0] for name in THEMES} for key in (no_houses, with_houses)
+        },
+        theme_norms.THEME_FAMILY_SHARE_AVERAGES_FIELD: {
+            no_houses: family_means_no, with_houses: family_means_yes,
+        },
+        theme_norms.THEME_FAMILY_SHARE_VALUES_FIELD: {
+            key: {name: [0.0] for name in THEME_FAMILIES} for key in (no_houses, with_houses)
+        },
+        theme_norms.THEME_FACTOR_ACTIVATION_VALUES_FIELD: {
+            key: {"presence": [0.0]} for key in (no_houses, with_houses)
+        },
+    }
+    monkeypatch.setattr(prediction_norms_snapshot, "load_prediction_norms_snapshot", lambda: snapshot)
+
+    unknown = "\n".join(report._theme_report(SimpleNamespace(houses_available=False)))
+    known = "\n".join(report._theme_report(SimpleNamespace(houses_available=True)))
+    first_label = THEME_FAMILIES[first_family]["label"]
+    second_label = THEME_FAMILIES[second_family]["label"]
+
+    assert f"{first_label}: 90.0% of chart" in unknown
+    assert "Above DB norms:" in unknown and "Below DB norms:" in unknown
+    assert f"{first_label} (family): 90.0% of chart vs matched DB share 40.0% (+50.0 pp)" in unknown
+    assert f"{second_label} (family): 10.0% of chart vs matched DB share 30.0% (-20.0 pp)" in unknown
+    assert f"{first_label} (family): 90.0% of chart vs matched DB share 95.0% (-5.0 pp)" in known
+    assert f"{second_label} (family): 10.0% of chart vs matched DB share 5.0% (+5.0 pp)" in known
+
+
+def test_theme_export_rejects_legacy_and_mismatched_availability_norms(monkeypatch):
     from ephemeraldaddy.analysis import theme_prominence
     from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot
-    from ephemeraldaddy.core import theme_reference
-
-    family_keys = list(theme_reference.THEME_FAMILIES)
-    assert len(family_keys) >= 3
-    strengths = {key: 20.0 for key in family_keys}
-    strengths[family_keys[0]] = 70.0
-    strengths[family_keys[1]] = 5.0
-    norm_values = {key: 20.0 for key in family_keys}
-
-    monkeypatch.setattr(theme_prominence, "calculate_theme_subtheme_scores", lambda _chart: {})
-    monkeypatch.setattr(theme_prominence, "calculate_theme_family_scores", lambda _chart, **kwargs: strengths)
-    monkeypatch.setattr(theme_prominence, "theme_family_snapshot_averages", lambda _snapshot: norm_values)
-    monkeypatch.setattr(prediction_norms_snapshot, "load_prediction_norms_snapshot", lambda: {"valid": True})
-
+    monkeypatch.setattr(
+        theme_prominence, "_activation_context",
+        lambda _chart: {"houses_available": False, "hd": {"available": False}, "bazi_available": False},
+    )
+    monkeypatch.setattr(prediction_norms_snapshot, "load_prediction_norms_snapshot", lambda: {
+        "theme_family_definition_signature": theme_prominence.theme_definition_signature(),
+        "theme_family_raw_averages": {key: 50.0 for key in theme_prominence.THEME_FAMILIES},
+    })
     text = "\n".join(report._theme_report(SimpleNamespace()))
-    first_label = theme_reference.THEME_FAMILIES[family_keys[0]]["label"]
-    second_label = theme_reference.THEME_FAMILIES[family_keys[1]]["label"]
-
-    assert "Chart prominence — above chart median:" in text
-    assert f"{first_label}: 70.0%" in text
-    assert "Above DB norms:" in text and "Below DB norms:" in text
-    assert f"{first_label}: 70.0% vs DB norm 20.0% (+50.0 pp)" in text
-    assert f"{second_label}: 5.0% vs DB norm 20.0% (-15.0 pp)" in text
+    assert "Above DB norms: unavailable." in text
+    assert "Below DB norms: unavailable." in text
+    assert "predates availability-stratified Theme baselines" in text
 
 
 def test_placeholder_predictions_do_not_make_ascribed_or_db_comparisons():
