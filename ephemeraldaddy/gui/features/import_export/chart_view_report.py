@@ -216,7 +216,9 @@ def _trait_rows_report(chart: object, metadata: Mapping[str, Any] | None) -> lis
                 )
                 trait = lookup.get(name)
                 if trait:
-                    description = _plain(_trait_info_html(trait, chart, antithetical=bool(row.get("antithetical"))))
+                    # The summary needs the Chart Info definition, not an expensive
+                    # per-trait factor-evidence recalculation during file I/O.
+                    description = _plain(_trait_info_html(trait, None, antithetical=bool(row.get("antithetical"))))
                     if description:
                         lines.append(f"  {description.replace(chr(10), ' ')}")
             lines.append("")
