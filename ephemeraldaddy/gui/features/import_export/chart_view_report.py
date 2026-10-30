@@ -232,6 +232,7 @@ def build_chart_predictions_report(
     *,
     trait_metadata: Mapping[str, Any] | None = None,
     enneagram_scores: Mapping[int, float] | None = None,
+    alignment_scores: Mapping[str, float] | None = None,
 ) -> str:
     """Describe chart-specific Predictions, including both Traits norm directions."""
     output = ["## Predictions", ""]
@@ -319,6 +320,24 @@ def build_chart_predictions_report(
     except Exception as exc:
         output.append(f"Fantasy RPG predictions unavailable: {exc}")
 
+    output.extend(["", "### Fantasy RPG Alignment", ""])
+    if isinstance(alignment_scores, Mapping) and alignment_scores:
+        from ephemeraldaddy.gui.features.charts.dnd_predictions_core import (
+            build_dnd_alignment_description_html,
+        )
+        output.append("Database-relative alignment deviations: " + ", ".join(
+            f"{key}={float(value):+.1f} pp" for key, value in alignment_scores.items()
+        ))
+        for key, magnitude in above_chart_median({
+            name: abs(float(value)) for name, value in alignment_scores.items()
+        }):
+            output.append(
+                f"- {key} ({float(alignment_scores[key]):+.1f} pp): "
+                + _plain(build_dnd_alignment_description_html(str(key)))
+            )
+    else:
+        output.append("No cached database-relative alignment result for this chart.")
+
     output.extend(["", "### Gender Guesser", ""])
     try:
         from ephemeraldaddy.gui.features.charts.algorithmic_transparency import build_gender_guesser_breakdown_text
@@ -337,11 +356,13 @@ def build_chart_view_report(
     *,
     trait_metadata: Mapping[str, Any] | None = None,
     enneagram_scores: Mapping[int, float] | None = None,
+    alignment_scores: Mapping[str, float] | None = None,
 ) -> str:
     return "\n\n".join((
         build_chart_analytics_report(chart),
         build_chart_predictions_report(
             chart, trait_metadata=trait_metadata, enneagram_scores=enneagram_scores,
+            alignment_scores=alignment_scores,
         ),
     ))
 
@@ -353,7 +374,9 @@ def collect_chart_export_prediction_context(owner: object, chart: object) -> dic
     It must not initiate a database-wide norm recomputation just to export.
     Enneagram uses the owner's configured scorer, not static default weights.
     """
-    result: dict[str, Any] = {"trait_metadata": None, "enneagram_scores": None}
+    result: dict[str, Any] = {
+        "trait_metadata": None, "enneagram_scores": None, "alignment_scores": None,
+    }
     try:
         from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
         if chart_is_non_aggregable(chart):
@@ -379,4 +402,13 @@ def collect_chart_export_prediction_context(owner: object, chart: object) -> dic
                 result["enneagram_scores"] = dict(scores)
         except Exception:
             pass
+    try:
+        from ephemeraldaddy.gui.features.charts.dnd_predictions_core import (
+            dnd_alignment_deviations,
+        )
+        values = dnd_alignment_deviations(owner, chart, allow_stale=True)
+        if isinstance(values, dict) and values:
+            result["alignment_scores"] = values
+    except Exception:
+        pass
     return result
