@@ -303,7 +303,7 @@ def build_chart_predictions_report(
             )
             output.append(
                 f"- {key} {value:.0f} (modifier {int(statblock.modifiers.get(key, 0)):+d}): "
-                f"{_nonempty(definition.get('description') or definition.get('definition'))}"
+                f"{_nonempty(definition.get('plain_definition') or definition.get('core_function'))}"
             )
         axis_scores, classes = _collect_ranked_class_payloads(chart)
         species = _collect_ranked_species_payloads(chart)
