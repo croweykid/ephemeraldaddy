@@ -61,6 +61,7 @@ def build_chart_export_markdown(
     trait_metadata: dict | None = None,
     enneagram_scores: dict | None = None,
     alignment_scores: dict | None = None,
+    predicted_synastry_html: str = "",
 ) -> str:
     """Return the complete chart and right-panel Markdown report without GUI state."""
     dt = getattr(chart, "dt", None)
@@ -172,6 +173,7 @@ def build_chart_export_markdown(
     lines.extend(["", build_chart_view_report(
         chart, trait_metadata=trait_metadata, enneagram_scores=enneagram_scores,
         alignment_scores=alignment_scores,
+        predicted_synastry_html=predicted_synastry_html,
     ), ""])
 
     as_dict = getattr(chart, "as_dict")
