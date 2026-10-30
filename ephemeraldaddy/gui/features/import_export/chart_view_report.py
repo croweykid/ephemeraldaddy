@@ -424,11 +424,6 @@ def build_chart_predictions_report(
     try:
         from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import score_dnd_statblock
         from ephemeraldaddy.analysis.dnd.dnd_definitions import DND_STAT_EXPLANATIONS
-        from ephemeraldaddy.gui.features.charts.dnd_predictions_core import (
-            _collect_ranked_class_payloads, _collect_ranked_species_payloads,
-            format_dnd_class_info_text, format_dnd_species_info_text,
-        )
-
         from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
             dnd_stat_snapshot_averages, load_prediction_norms_snapshot,
         )
@@ -463,6 +458,15 @@ def build_chart_predictions_report(
                     f"- {key} {value:.0f} (modifier {int(statblock.modifiers.get(key, 0)):+d}): "
                     f"{_nonempty(definition.get('plain_definition') or definition.get('core_function'))}"
                 )
+    except Exception as exc:
+        output.append(f"Statblock unavailable: {exc}")
+
+    # Classes and species remain useful even without a statblock baseline.
+    try:
+        from ephemeraldaddy.gui.features.charts.dnd_predictions_core import (
+            _collect_ranked_class_payloads, _collect_ranked_species_payloads,
+            format_dnd_class_info_text, format_dnd_species_info_text,
+        )
         axis_scores, classes = _collect_ranked_class_payloads(chart)
         species = _collect_ranked_species_payloads(chart)
         output.extend(["", "**Class predictions above chart median**", ""])
@@ -476,7 +480,7 @@ def build_chart_predictions_report(
                 f"- {_plain(format_dnd_species_info_text(str(item['family']), str(item['subtype']), score, list(item['evidence'])))}"
             )
     except Exception as exc:
-        output.append(f"Fantasy RPG predictions unavailable: {exc}")
+        output.append(f"Fantasy RPG class/species predictions unavailable: {exc}")
 
     output.extend(["", "### Fantasy RPG Alignment", ""])
     if isinstance(alignment_scores, Mapping) and alignment_scores:
