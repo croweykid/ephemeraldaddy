@@ -64,6 +64,64 @@ def test_popout_export_collects_clickable_references_and_advanced_plugin_text():
     assert {entry["base"] for entry in calls if entry["kind"] == "hd_base"} == {3}
 
 
+def test_popout_export_includes_each_body_and_body_specific_sign_interpretation():
+    calls = []
+
+    def render(entry):
+        calls.append(entry)
+        if entry["kind"] == "hd_position_body":
+            return f"{entry['display_body']}: {entry['body']} in {entry['sign']} — body explanation"
+        if entry["kind"] == "sign_keyword":
+            return f"{entry['display_body']}: {entry['body']} in {entry['sign']} — sign explanation"
+        return ""
+
+    conscious = {
+        "kind": "hd_position_body", "body": "Sun", "sign": "Aries",
+        "side": "personality", "display_body": "Sun (Conscious)",
+    }
+    subconscious = {
+        "kind": "hd_position_body", "body": "Sun", "sign": "Aries",
+        "side": "design", "display_body": "Sun (Subconscious)",
+    }
+    conscious_sign = {
+        "kind": "sign_keyword", "body": "Sun", "sign": "Aries",
+        "display_body": "Sun (Conscious)",
+    }
+    subconscious_sign = {
+        "kind": "sign_keyword", "body": "Sun", "sign": "Aries",
+        "display_body": "Sun (Subconscious)",
+    }
+    moon_sign = {
+        "kind": "sign_keyword", "body": "Moon", "sign": "Aries",
+        "display_body": "Moon (Conscious)",
+    }
+    uncertain_sign = {
+        "kind": "sign_keyword", "body": "P. Sun", "sign": "Taurus",
+        "display_body": "P. Sun",
+    }
+    output = build_human_design_popout_export_text(
+        "POSITIONS and UNCERTAIN TIME VARIANTS",
+        {
+            4: [conscious, conscious_sign, subconscious, subconscious_sign],
+            5: [conscious.copy(), conscious_sign.copy(), moon_sign],
+            14: [uncertain_sign],
+        },
+        render_detail=render,
+        chart_name="Context example",
+    )
+
+    assert "CHART INFO — POSITION BODIES" in output
+    assert "CHART INFO — POSITION SIGNS" in output
+    assert output.count("Sun (Conscious): Sun in Aries — body explanation") == 1
+    assert output.count("Sun (Subconscious): Sun in Aries — body explanation") == 1
+    assert output.count("Sun (Conscious): Sun in Aries — sign explanation") == 1
+    assert output.count("Sun (Subconscious): Sun in Aries — sign explanation") == 1
+    assert "Moon (Conscious): Moon in Aries — sign explanation" in output
+    assert "P. Sun: P. Sun in Taurus — sign explanation" in output
+    assert len([entry for entry in calls if entry["kind"] == "hd_position_body"]) == 2
+    assert len([entry for entry in calls if entry["kind"] == "sign_keyword"]) == 4
+
+
 def test_popout_export_keeps_unequal_unknown_time_gate_line_targets():
     targets = []
 
@@ -93,6 +151,12 @@ def test_popout_export_button_uses_complete_details_provider():
     assert "export_text_provider=_build_complete_hd_export" in method
     assert "build_human_design_popout_export_text(" in method
     assert "self._run_with_chart_info_output(scratch_output, _render)" in method
+    assert "self._show_planet_keyword_info(" in method
+    assert "self._show_sign_keyword_info(" in method
+    assert "chart_uses_houses=False" in method
+    assert 'display_body_label=str(entry.get("display_body", ""))' in method
+    assert 'sign_name=str(entry.get("sign", ""))' in method
+    assert 'body_name=str(entry.get("body", ""))' in method
     assert "self._show_human_design_gate_line_info(" in method
     assert "self._show_human_design_property_info(" in method
     assert "self._show_human_design_channel_info(" in method
