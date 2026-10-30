@@ -231,51 +231,78 @@ def _trait_rows_report(chart: object, metadata: Mapping[str, Any] | None) -> lis
 
 
 def _theme_report(chart: object) -> list[str]:
-    """Use the Themes panel's seven semantic families and DB norm snapshot."""
+    """Match the Themes panel's chart-share and availability-stratified DB comparisons."""
     lines = ["### Themes", ""]
     try:
-        from ephemeraldaddy.analysis.theme_prominence import (
-            THEME_DEVIATION_ASSIGNMENT_THRESHOLD,
-            calculate_theme_family_scores,
-            calculate_theme_subtheme_scores,
-            theme_family_snapshot_averages,
+        from ephemeraldaddy.analysis import theme_prominence as prominence
+        from ephemeraldaddy.analysis.theme_norms import (
+            calculate_theme_chart_shares,
+            calculate_theme_subtheme_scores_from_context,
+            theme_availability_key_from_context,
+            theme_chart_share_norms_for_availability,
+            theme_chart_share_unavailability_reason,
         )
-        from ephemeraldaddy.core.theme_reference import THEME_FAMILIES
-        from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import load_prediction_norms_snapshot
+        from ephemeraldaddy.core.theme_reference import THEME_FAMILIES, THEMES
+        from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+            load_prediction_norms_snapshot,
+        )
+        from ephemeraldaddy.gui.features.charts.theme_prediction_runtime import (
+            _chart_share_rows,
+        )
 
-        family_scores = calculate_theme_family_scores(
-            chart, subtheme_scores=calculate_theme_subtheme_scores(chart),
-        )
-        norms = theme_family_snapshot_averages(load_prediction_norms_snapshot())
-        lines.append("Chart prominence — above chart median:")
-        for key, score in above_chart_median(family_scores):
-            definition = THEME_FAMILIES.get(key, {})
+        # One activation context is the source of both the chart scores and the
+        # availability key. This matches the installed Themes panel runtime.
+        context = prominence._activation_context(chart)
+        subtheme_scores = calculate_theme_subtheme_scores_from_context(context)
+        subtheme_shares, family_shares = calculate_theme_chart_shares(subtheme_scores)
+        lines.append("Chart shares — above chart median:")
+        qualifying = above_chart_median(family_shares)
+        if not qualifying:
+            lines.append("- No families exceed the chart-share median.")
+        for key, score in qualifying:
+            definition = THEME_FAMILIES.get(str(key), {})
             lines.append(
-                f"- {definition.get('label', key)}: {score:.1f}% — "
+                f"- {definition.get('label', key)}: {score:.1f}% of chart Theme activation — "
                 f"{definition.get('description', '')}"
             )
+
+        availability_key = theme_availability_key_from_context(context)
+        snapshot = load_prediction_norms_snapshot()
+        norms = theme_chart_share_norms_for_availability(snapshot, availability_key)
         if not norms:
-            lines.extend(["", "Theme DB-norm comparisons unavailable; calculate the selected DB norms snapshot."])
+            lines.extend([
+                "",
+                "Above DB norms: unavailable.",
+                "Below DB norms: unavailable.",
+                "Reason: " + theme_chart_share_unavailability_reason(snapshot, availability_key),
+            ])
             return lines
-        for direction, label in (("above", "Above DB norms"), ("below", "Below DB norms")):
-            lines.extend(["", f"{label}:"])
-            selected = []
-            for key, score in family_scores.items():
-                if key not in norms:
-                    continue
-                delta = float(score) - float(norms[key])
-                if (direction == "above" and delta >= THEME_DEVIATION_ASSIGNMENT_THRESHOLD) or (
-                    direction == "below" and delta <= -THEME_DEVIATION_ASSIGNMENT_THRESHOLD
-                ):
-                    selected.append((key, score, delta))
-            selected.sort(key=lambda row: -abs(row[2]))
+
+        # Includes both family and subtheme rows, with the same fallback
+        # direction semantics as the Themes Predictions panel.
+        rows, _subtheme_shares, _family_shares, fallback_directions = _chart_share_rows(
+            subtheme_scores, norms
+        )
+        for direction, heading in (("above", "Above DB norms"), ("below", "Below DB norms")):
+            lines.extend(["", f"{heading}:"])
+            selected = [row for row in rows if row.get("direction") == direction]
+            selected.sort(key=lambda row: -abs(float(row.get("deviation", 0.0))))
+            if direction in fallback_directions:
+                lines.append(
+                    "- No factors reached the 5 percentage-point threshold; "
+                    "the closest differences are shown, as in the Predictions panel."
+                )
             if not selected:
                 lines.append("- No themes meet the 5 percentage-point deviation threshold.")
-            for key, score, delta in selected:
-                definition = THEME_FAMILIES.get(key, {})
+            for row in selected:
+                key = str(row.get("theme_key") or row.get("family_key") or row.get("key") or "")
+                definition = THEMES.get(key, {}) if row.get("kind") == "subtheme" else THEME_FAMILIES.get(key, {})
+                label = str(row.get("label") or definition.get("label") or key)
                 lines.append(
-                    f"- {definition.get('label', key)}: {score:.1f}% vs "
-                    f"DB norm {float(norms[key]):.1f}% ({delta:+.1f} pp). "
+                    f"- {label} ({str(row.get('kind') or 'theme')}): "
+                    f"{float(row['score']):.1f}% of chart vs "
+                    f"matched DB share {float(row['db_average']):.1f}% "
+                    f"({float(row['deviation']):+.1f} pp). "
                     f"{definition.get('description', '')}"
                 )
     except Exception as exc:
