@@ -55,8 +55,16 @@ def _aspect_label(aspect_type: str) -> str:
     return aspect_type.replace("_", " ").title()
 
 
-def build_chart_export_markdown(chart: object) -> str:
-    """Return the complete Markdown export for ``chart`` without GUI state."""
+def build_chart_export_markdown(
+    chart: object,
+    *,
+    trait_metadata: dict | None = None,
+    enneagram_scores: dict | None = None,
+    alignment_scores: dict | None = None,
+    stat_norm_averages: dict | None = None,
+    predicted_synastry_html: str = "",
+) -> str:
+    """Return the complete chart and right-panel Markdown report without GUI state."""
     dt = getattr(chart, "dt", None)
     date_label = dt.strftime("%Y-%m-%d") if dt else "Unknown"
     time_label = (
@@ -156,6 +164,19 @@ def build_chart_export_markdown(chart: object) -> str:
                 f"{_format_degree_minutes(float(aspect.get('delta', 0.0)))} | "
                 f"{aspect_score(aspect, planet_weights=planet_weights):.2f} |"
             )
+
+    # Import lazily so the basic chart renderer stays cheap to import and
+    # headless callers can use the metadata/positions/aspects path unchanged.
+    from ephemeraldaddy.gui.features.import_export.chart_view_report import (
+        build_chart_view_report,
+    )
+
+    lines.extend(["", build_chart_view_report(
+        chart, trait_metadata=trait_metadata, enneagram_scores=enneagram_scores,
+        alignment_scores=alignment_scores,
+        stat_norm_averages=stat_norm_averages,
+        predicted_synastry_html=predicted_synastry_html,
+    ), ""])
 
     as_dict = getattr(chart, "as_dict")
     lines.extend(

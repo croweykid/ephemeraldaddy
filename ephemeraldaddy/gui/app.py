@@ -24014,6 +24014,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # - Chart Edit Window: current_chart_uid is set (editing existing chart).
         self.current_chart_uid: str | None = None
         self._chart_edit_session = ChartEditSession()
+        from ephemeraldaddy.gui.features.import_export.chart_markdown import build_chart_export_markdown
+        from ephemeraldaddy.gui.features.import_export.chart_view_report import (
+            collect_chart_export_prediction_context,
+        )
         self._chart_markdown_export_controller = ChartMarkdownExportController(
             ChartMarkdownExportCallbacks(
                 choose_destination=lambda title, default, file_filter: QFileDialog.getSaveFileName(
@@ -24025,7 +24029,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 show_error=lambda title, message: QMessageBox.critical(
                     self, title, message
                 ),
-            )
+            ),
+            render_markdown=lambda chart: build_chart_export_markdown(
+                chart, **collect_chart_export_prediction_context(self, chart)
+            ),
         )
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
         self._loaded_birth_place = None
