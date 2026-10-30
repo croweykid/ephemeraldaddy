@@ -37372,7 +37372,21 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 scratch_output.clear()
 
                 def _render() -> None:
-                    if kind == "hd_gate_line":
+                    if kind == "hd_position_body":
+                        self._show_planet_keyword_info(
+                            str(entry.get("body", "")),
+                            sign_name=str(entry.get("sign", "")),
+                            house_num=None,
+                            chart_uses_houses=False,
+                            display_body_label=str(entry.get("display_body", "")),
+                        )
+                    elif kind == "sign_keyword":
+                        self._show_sign_keyword_info(
+                            str(entry.get("sign", "")),
+                            body_name=str(entry.get("body", "")),
+                            display_body_label=str(entry.get("display_body", "")),
+                        )
+                    elif kind == "hd_gate_line":
                         raw_line = entry.get("line")
                         line_number = int(raw_line) if raw_line is not None else None
                         self._show_human_design_gate_line_info(
