@@ -37343,7 +37343,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         def _build_complete_hd_export() -> str:
             """Export each clickable HD explanation without changing Chart Info."""
             from ephemeraldaddy.core.human_design_system import CHANNELS as HD_BODYGRAPH_CHANNELS
-            from ephemeraldaddy.gui.features.charts.human_design_export import (
+            from ephemeraldaddy.gui.features.import_export.human_design_export import (
                 build_human_design_popout_export_text,
             )
 
