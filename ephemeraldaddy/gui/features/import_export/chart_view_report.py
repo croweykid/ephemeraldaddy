@@ -428,20 +428,40 @@ def build_chart_predictions_report(
             format_dnd_class_info_text, format_dnd_species_info_text,
         )
 
-        statblock = score_dnd_statblock(chart)
-        stat_scores = {key: float(value) for key, value in statblock.scores.items()}
-        output.append("Statblock: " + ", ".join(
-            f"{key}={int(value)}" for key, value in stat_scores.items()
-        ))
-        for key, value in above_chart_median(stat_scores):
-            definition = next(
-                (item for item in DND_STAT_EXPLANATIONS.values()
-                 if str(item.get("abbrev", "")).upper() == str(key).upper()), {}
+        from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+            dnd_stat_snapshot_averages, load_prediction_norms_snapshot,
+        )
+        from ephemeraldaddy.analysis.dnd.dnd_stat_calculator import _DND_STAT_COMPONENT_ORDER
+
+        # Never invoke score_dnd_statblock without a complete selected baseline:
+        # otherwise it silently switches to evidence-denominator scaling.
+        averages = (
+            stat_norm_averages if stat_norm_averages is not None
+            else dnd_stat_snapshot_averages(load_prediction_norms_snapshot())
+        )
+        if not isinstance(averages, Mapping) or not all(
+            key in averages and math.isfinite(float(averages[key]))
+            for key in _DND_STAT_COMPONENT_ORDER
+        ):
+            output.append("Statblock unavailable: selected DB Norms lack a complete stat baseline.")
+        else:
+            statblock = score_dnd_statblock(
+                chart,
+                db_norm_averages={key: float(averages[key]) for key in _DND_STAT_COMPONENT_ORDER},
             )
-            output.append(
-                f"- {key} {value:.0f} (modifier {int(statblock.modifiers.get(key, 0)):+d}): "
-                f"{_nonempty(definition.get('plain_definition') or definition.get('core_function'))}"
-            )
+            stat_scores = {key: float(value) for key, value in statblock.scores.items()}
+            output.append("Statblock: " + ", ".join(
+                f"{key}={int(value)}" for key, value in stat_scores.items()
+            ))
+            for key, value in above_chart_median(stat_scores):
+                definition = next(
+                    (item for item in DND_STAT_EXPLANATIONS.values()
+                     if str(item.get("abbrev", "")).upper() == str(key).upper()), {}
+                )
+                output.append(
+                    f"- {key} {value:.0f} (modifier {int(statblock.modifiers.get(key, 0)):+d}): "
+                    f"{_nonempty(definition.get('plain_definition') or definition.get('core_function'))}"
+                )
         axis_scores, classes = _collect_ranked_class_payloads(chart)
         species = _collect_ranked_species_payloads(chart)
         output.extend(["", "**Class predictions above chart median**", ""])
