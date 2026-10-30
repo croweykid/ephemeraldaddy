@@ -68,6 +68,8 @@ def test_popout_export_keeps_unequal_unknown_time_gate_line_targets():
     targets = []
 
     def render(entry):
+        if entry["kind"] != "hd_gate_line":
+            return ""
         targets.append((entry["gate"], entry["line"]))
         return f"{entry['gate']}.{entry['line']} from Chart Info"
 
