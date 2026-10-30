@@ -156,8 +156,9 @@ def test_theme_predictions_use_availability_matched_chart_shares(monkeypatch):
 
 
 def test_theme_export_rejects_legacy_and_mismatched_availability_norms(monkeypatch):
-    from ephemeraldaddy.analysis import theme_prominence
+    from ephemeraldaddy.analysis import theme_prominence, theme_norms
     from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot
+    monkeypatch.setattr(theme_norms, "calculate_theme_subtheme_scores_from_context", lambda _context: {})
     monkeypatch.setattr(
         theme_prominence, "_activation_context",
         lambda _chart: {"houses_available": False, "hd": {"available": False}, "bazi_available": False},
