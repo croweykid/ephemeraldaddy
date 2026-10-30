@@ -359,6 +359,7 @@ def build_chart_predictions_report(
     trait_metadata: Mapping[str, Any] | None = None,
     enneagram_scores: Mapping[int, float] | None = None,
     alignment_scores: Mapping[str, float] | None = None,
+    stat_norm_averages: Mapping[str, float] | None = None,
     predicted_synastry_html: str = "",
 ) -> str:
     """Describe chart-specific Predictions, including both Traits norm directions."""
@@ -519,6 +520,7 @@ def build_chart_view_report(
     trait_metadata: Mapping[str, Any] | None = None,
     enneagram_scores: Mapping[int, float] | None = None,
     alignment_scores: Mapping[str, float] | None = None,
+    stat_norm_averages: Mapping[str, float] | None = None,
     predicted_synastry_html: str = "",
 ) -> str:
     return "\n\n".join((
@@ -526,6 +528,7 @@ def build_chart_view_report(
         build_chart_predictions_report(
             chart, trait_metadata=trait_metadata, enneagram_scores=enneagram_scores,
             alignment_scores=alignment_scores,
+            stat_norm_averages=stat_norm_averages,
             predicted_synastry_html=predicted_synastry_html,
         ),
     ))
@@ -540,7 +543,7 @@ def collect_chart_export_prediction_context(owner: object, chart: object) -> dic
     """
     result: dict[str, Any] = {
         "trait_metadata": None, "enneagram_scores": None, "alignment_scores": None,
-        "predicted_synastry_html": "",
+        "stat_norm_averages": {}, "predicted_synastry_html": "",
     }
     try:
         from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
@@ -567,6 +570,14 @@ def collect_chart_export_prediction_context(owner: object, chart: object) -> dic
                 result["enneagram_scores"] = dict(scores)
         except Exception:
             pass
+    try:
+        provider = getattr(owner, "_prediction_norm_snapshot_dnd_stat_averages", None)
+        if callable(provider):
+            averages = provider()
+            if isinstance(averages, Mapping):
+                result["stat_norm_averages"] = dict(averages)
+    except Exception:
+        pass
     try:
         result["alignment_scores"] = _current_alignment_scores(owner, chart)
     except Exception:
