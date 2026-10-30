@@ -172,6 +172,92 @@ def test_theme_export_rejects_legacy_and_mismatched_availability_norms(monkeypat
     assert "predates availability-stratified Theme baselines" in text
 
 
+def test_statblock_requires_complete_selected_baseline(monkeypatch):
+    from ephemeraldaddy.analysis.dnd import dnd_class_axes_v2
+    from ephemeraldaddy.gui.features.charts import dnd_predictions_core
+
+    monkeypatch.setattr(report, "_theme_report", lambda _chart: [])
+    monkeypatch.setattr(dnd_predictions_core, "_collect_ranked_class_payloads", lambda _chart: ({}, []))
+    monkeypatch.setattr(dnd_predictions_core, "_collect_ranked_species_payloads", lambda _chart: [])
+    calls = []
+
+    def scorer(chart, **kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            scores={"STR": 16, "DEX": 13, "CON": 10, "INT": 9, "WIS": 7, "CHA": 5},
+            modifiers={"STR": 3, "DEX": 1, "CON": 0, "INT": -1, "WIS": -2, "CHA": -3},
+        )
+
+    monkeypatch.setattr(dnd_class_axes_v2, "score_dnd_statblock", scorer)
+    chart = SimpleNamespace(is_placeholder=False, birthtime_unknown=True, positions={}, aspects=[])
+
+    missing = report.build_chart_predictions_report(chart, stat_norm_averages={})
+    assert "Statblock unavailable: selected DB Norms lack a complete stat baseline." in missing
+    assert "Class predictions above chart median" in missing
+    assert not calls
+
+    invalid = report.build_chart_predictions_report(
+        chart,
+        stat_norm_averages={
+            "STR": 1, "DEX": 1, "CON": 1, "INT": 1, "WIS": 1, "CHA": float("nan"),
+        },
+    )
+    assert "Statblock unavailable" in invalid
+    assert not calls
+
+    norms = {key: float(i + 1) for i, key in enumerate(("STR", "DEX", "CON", "INT", "WIS", "CHA"))}
+    exported = report.build_chart_predictions_report(chart, stat_norm_averages=norms)
+    assert calls == [{"db_norm_averages": norms}]
+    assert "STR=16" in exported
+    assert "modifier +3" in exported
+
+
+def test_alignment_export_rejects_stale_uid_and_norm_keys(monkeypatch):
+    from ephemeraldaddy.gui.features.charts import dnd_predictions_core as core
+
+    trait_items = [{"name": "Good"}, {"name": "Evil"}, {"name": "Lawful"}, {"name": "Chaotic"}]
+    monkeypatch.setattr(core, "_dnd_alignment_trait_items", lambda: trait_items)
+    monkeypatch.setattr(core, "_dnd_alignment_trait_name", lambda trait: trait["name"])
+    monkeypatch.setattr(
+        core, "_dnd_alignment_cache_key",
+        lambda owner, chart: (chart.birth_state, "dnd_alignment_norms:snapshot:selected"),
+    )
+    owner = SimpleNamespace(
+        _prediction_norm_snapshot_trait_averages=lambda _traits: {
+            item["name"]: 50 for item in trait_items
+        },
+    )
+    parts = {item["name"].lower(): {"deviation": 10.0} for item in trait_items}
+    chart = SimpleNamespace(
+        chart_uid="CURRENT-UID",
+        birth_state="original",
+        _dnd_alignment_score_parts_cache={
+            "chart_uid": "CURRENT-UID",
+            "key": ("original", "dnd_alignment_norms:snapshot:selected"),
+            "parts": parts,
+        },
+    )
+
+    assert report._current_alignment_scores(owner, chart) == {
+        item["name"].lower(): 10.0 for item in trait_items
+    }
+    chart.birth_state = "changed"
+    assert report._current_alignment_scores(owner, chart) is None
+    chart.birth_state = "original"
+    chart._dnd_alignment_score_parts_cache["chart_uid"] = "OTHER-UID"
+    assert report._current_alignment_scores(owner, chart) is None
+    chart._dnd_alignment_score_parts_cache["chart_uid"] = "CURRENT-UID"
+    chart._dnd_alignment_score_parts_cache["key"] = (
+        "original", "dnd_alignment_norms:snapshot:previous",
+    )
+    assert report._current_alignment_scores(owner, chart) is None
+    chart._dnd_alignment_score_parts_cache["key"] = (
+        "original", "dnd_alignment_norms:snapshot:selected",
+    )
+    owner._prediction_norm_snapshot_trait_averages = lambda _traits: {}
+    assert report._current_alignment_scores(owner, chart) is None
+
+
 def test_placeholder_predictions_do_not_make_ascribed_or_db_comparisons():
     chart = SimpleNamespace(is_placeholder=True)
     text = report.build_chart_predictions_report(chart)
