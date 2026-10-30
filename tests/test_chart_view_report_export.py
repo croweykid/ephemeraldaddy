@@ -90,6 +90,44 @@ def test_uncomputed_traits_do_not_misrepresent_results_as_empty():
     assert "Calculate Traits" in text
 
 
+
+
+def test_theme_predictions_include_above_median_and_both_db_norm_directions(monkeypatch):
+    from ephemeraldaddy.analysis import theme_prominence
+    from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot
+    from ephemeraldaddy.core import theme_reference
+
+    family_keys = list(theme_reference.THEME_FAMILIES)
+    assert len(family_keys) >= 3
+    strengths = {key: 20.0 for key in family_keys}
+    strengths[family_keys[0]] = 70.0
+    strengths[family_keys[1]] = 5.0
+    norm_values = {key: 20.0 for key in family_keys}
+
+    monkeypatch.setattr(theme_prominence, "calculate_theme_subtheme_scores", lambda _chart: {})
+    monkeypatch.setattr(theme_prominence, "calculate_theme_family_scores", lambda _chart, **kwargs: strengths)
+    monkeypatch.setattr(theme_prominence, "theme_family_snapshot_averages", lambda _snapshot: norm_values)
+    monkeypatch.setattr(prediction_norms_snapshot, "load_prediction_norms_snapshot", lambda: {"valid": True})
+
+    text = "\n".join(report._theme_report(SimpleNamespace()))
+    first_label = theme_reference.THEME_FAMILIES[family_keys[0]]["label"]
+    second_label = theme_reference.THEME_FAMILIES[family_keys[1]]["label"]
+
+    assert "Chart prominence — above chart median:" in text
+    assert f"{first_label}: 70.0%" in text
+    assert "Above DB norms:" in text and "Below DB norms:" in text
+    assert f"{first_label}: 70.0% vs DB norm 20.0% (+50.0 pp)" in text
+    assert f"{second_label}: 5.0% vs DB norm 20.0% (-15.0 pp)" in text
+
+
+def test_placeholder_predictions_do_not_make_ascribed_or_db_comparisons():
+    chart = SimpleNamespace(is_placeholder=True)
+    text = report.build_chart_predictions_report(chart)
+    assert "Predictions unavailable for placeholder/hypothetical charts." in text
+    assert "Above DB norms: unavailable." in text
+    assert "Below DB norms: unavailable." in text
+    assert "### Fantasy RPG" not in text
+
 def test_primary_chart_export_inserts_right_panel_before_raw_data(monkeypatch):
     from ephemeraldaddy.gui.features.import_export import chart_markdown
 
