@@ -505,12 +505,7 @@ def collect_chart_export_prediction_context(owner: object, chart: object) -> dic
         except Exception:
             pass
     try:
-        from ephemeraldaddy.gui.features.charts.dnd_predictions_core import (
-            dnd_alignment_deviations,
-        )
-        values = dnd_alignment_deviations(owner, chart, allow_stale=True)
-        if isinstance(values, dict) and values:
-            result["alignment_scores"] = values
+        result["alignment_scores"] = _current_alignment_scores(owner, chart)
     except Exception:
         pass
     try:
