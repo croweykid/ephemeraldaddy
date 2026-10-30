@@ -310,6 +310,49 @@ def _theme_report(chart: object) -> list[str]:
     return lines
 
 
+def _current_alignment_scores(owner: object, chart: object) -> dict[str, float] | None:
+    """Accept only UID-owned alignment results matching current birth data and snapshot."""
+    from ephemeraldaddy.gui.features.charts import dnd_predictions_core as core
+
+    provider = getattr(owner, "_prediction_norm_snapshot_trait_averages", None)
+    if not callable(provider):
+        return None
+    traits = core._dnd_alignment_trait_items()
+    names = [core._dnd_alignment_trait_name(trait) for trait in traits]
+    if not names:
+        return None
+    averages = provider(traits)
+    if not isinstance(averages, Mapping) or not all(
+        name in averages and math.isfinite(float(averages[name])) for name in names
+    ):
+        return None
+    expected = core._dnd_alignment_cache_key(owner, chart)
+    if not str(expected[1]).startswith("dnd_alignment_norms:snapshot:"):
+        return None
+    cached = getattr(chart, "_dnd_alignment_score_parts_cache", None)
+    if not isinstance(cached, dict):
+        cache_id = core._chart_prediction_cache_identity(chart)
+        bucket = getattr(owner, "_dnd_alignment_prediction_view_cache", {})
+        if isinstance(bucket, Mapping):
+            cached = bucket.get(cache_id)
+    if not isinstance(cached, dict):
+        cached = core._load_persisted_dnd_prediction_payload(chart).get("alignment")
+    if not isinstance(cached, dict) or cached.get("key") != expected:
+        return None
+    if not core._cache_payload_chart_uid_matches(chart, cached, require_uid=True):
+        return None
+    parts = cached.get("parts")
+    if not isinstance(parts, Mapping) or not all(
+        str(name).casefold() in parts for name in names
+    ):
+        return None
+    scores = {
+        str(name).casefold(): float(parts[str(name).casefold()]["deviation"])
+        for name in names
+    }
+    return scores if all(math.isfinite(value) for value in scores.values()) else None
+
+
 def build_chart_predictions_report(
     chart: object,
     *,
