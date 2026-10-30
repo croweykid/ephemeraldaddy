@@ -251,9 +251,10 @@ def test_alignment_export_rejects_stale_uid_and_norm_keys(monkeypatch):
         "original", "dnd_alignment_norms:snapshot:previous",
     )
     assert report._current_alignment_scores(owner, chart) is None
-    chart._dnd_alignment_score_parts_cache["key"] = (
+    chart._dnd_alignment_score_parts_cache["key"] = [
         "original", "dnd_alignment_norms:snapshot:selected",
-    )
+    ]
+    assert report._current_alignment_scores(owner, chart) is not None
     owner._prediction_norm_snapshot_trait_averages = lambda _traits: {}
     assert report._current_alignment_scores(owner, chart) is None
 
