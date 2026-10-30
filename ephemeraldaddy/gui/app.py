@@ -37339,6 +37339,94 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._run_with_chart_info_output(chart_info_output, _render_metric_info)
 
         hd_file_stem = f"ephemeraldaddy_{self._sanitize_export_token(self._latest_chart.name)}_hdc"
+
+        def _build_complete_hd_export() -> str:
+            """Export each clickable HD explanation without changing Chart Info."""
+            from ephemeraldaddy.core.human_design_system import CHANNELS as HD_BODYGRAPH_CHANNELS
+            from ephemeraldaddy.gui.features.import_export.human_design_export import (
+                build_human_design_popout_export_text,
+            )
+
+            scratch_output = QPlainTextEdit()
+
+            def _render_export_entry(entry: dict[str, object]) -> str:
+                kind = str(entry.get("kind", ""))
+                if kind == "hd_center":
+                    name = str(entry["center"])
+                    center_meta = center_reference_by_name.get(name, {})
+                    defined = name in hd_result.defined_centers
+                    state = "Defined" if defined else "Undefined"
+                    state_detail = str(
+                        center_meta.get("defined" if defined else "undefined", "No details available.")
+                    ).strip()
+                    return "\n".join(
+                        (
+                            name,
+                            str(center_meta.get("description", "No center description available.")).strip(),
+                            "",
+                            state,
+                            state_detail,
+                        )
+                    )
+
+                scratch_output.clear()
+
+                def _render() -> None:
+                    if kind == "hd_position_body":
+                        self._show_planet_keyword_info(
+                            str(entry.get("body", "")),
+                            sign_name=str(entry.get("sign", "")),
+                            house_num=None,
+                            chart_uses_houses=False,
+                            display_body_label=str(entry.get("display_body", "")),
+                        )
+                    elif kind == "sign_keyword":
+                        self._show_sign_keyword_info(
+                            str(entry.get("sign", "")),
+                            body_name=str(entry.get("body", "")),
+                            display_body_label=str(entry.get("display_body", "")),
+                        )
+                    elif kind == "hd_gate_line":
+                        raw_line = entry.get("line")
+                        line_number = int(raw_line) if raw_line is not None else None
+                        self._show_human_design_gate_line_info(
+                            int(entry["gate"]), line_number, chart_context=source_chart
+                        )
+                    elif kind == "hd_property":
+                        self._show_human_design_property_info(
+                            str(entry["property_key"]), str(entry.get("property_value", ""))
+                        )
+                    elif kind == "hd_channel":
+                        self._show_human_design_channel_info(
+                            int(entry["gate_a"]), int(entry["gate_b"]), str(entry.get("center", ""))
+                        )
+                    elif kind == "hd_line":
+                        self._show_human_design_line_info(int(entry["line"]))
+                    elif kind == "hd_color":
+                        self._show_human_design_color_info(int(entry["color"]))
+                    elif kind == "hd_tone":
+                        self._show_human_design_tone_info(int(entry["tone"]))
+                    elif kind == "hd_base":
+                        self._show_human_design_base_info(int(entry["base"]))
+
+                try:
+                    self._run_with_chart_info_output(scratch_output, _render)
+                except Exception as exc:
+                    return f"Chart Info unavailable for {kind} ({entry}): {exc}"
+                return scratch_output.toPlainText()
+
+            bodygraph_gates = sorted(
+                {int(gate) for gate_a, gate_b, _a, _b in HD_BODYGRAPH_CHANNELS for gate in (gate_a, gate_b)}
+            )
+            return build_human_design_popout_export_text(
+                summary_output.toPlainText(),
+                position_info_map,
+                render_detail=_render_export_entry,
+                chart_name=str(source_chart.name),
+                bodygraph_gates=bodygraph_gates,
+                center_names=center_reference_by_name,
+            )
+
         summary_share_button = QToolButton()
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
@@ -37348,10 +37436,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             summary_share_button.setText("↗")
         summary_share_button.setAutoRaise(True)
         apply_button_cursor(summary_share_button)
-        summary_share_button.setToolTip("Export chart analysis (MD or TXT)")
+        summary_share_button.setToolTip("Export complete Human Design Chart Info and advanced supplement (MD or TXT)")
         summary_share_button.setFixedSize(22, 22)
         summary_share_button.clicked.connect(
-            lambda _checked=False: self._export_popout_chart_data_output(summary_output, hd_file_stem)
+            lambda _checked=False: self._export_popout_chart_data_output(
+                summary_output, hd_file_stem, export_text_provider=_build_complete_hd_export
+            )
         )
 
         right_panel = build_human_design_analytics_panel(
