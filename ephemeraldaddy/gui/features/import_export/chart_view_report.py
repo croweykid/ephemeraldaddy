@@ -337,7 +337,12 @@ def _current_alignment_scores(owner: object, chart: object) -> dict[str, float] 
             cached = bucket.get(cache_id)
     if not isinstance(cached, dict):
         cached = core._load_persisted_dnd_prediction_payload(chart).get("alignment")
-    if not isinstance(cached, dict) or cached.get("key") != expected:
+    if not isinstance(cached, dict):
+        return None
+    # Persisted JSON converts tuple cache keys into lists; compare their
+    # components, not their Python container types.
+    cached_key = cached.get("key")
+    if not isinstance(cached_key, (tuple, list)) or list(cached_key) != list(expected):
         return None
     if not core._cache_payload_chart_uid_matches(chart, cached, require_uid=True):
         return None
