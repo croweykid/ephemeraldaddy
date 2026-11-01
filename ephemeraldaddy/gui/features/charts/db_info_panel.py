@@ -23,6 +23,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_VIEW_PANEL_HEADER_STYLE,
     apply_button_cursor,
     apply_chart_info_link_cursor,
+    set_chart_info_contrast_background,
 )
 
 
@@ -310,6 +311,7 @@ class DBInfoPanel(QWidget):
         layout.addWidget(header)
 
         self.output = QTextEdit(self)
+        set_chart_info_contrast_background(self.output)
         self.output.setReadOnly(True)
         self.output.setPlaceholderText(
             "Click a Similarities item to view its description here."
