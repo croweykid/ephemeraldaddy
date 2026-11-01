@@ -37,7 +37,12 @@ def load_lilith_mode(settings: object | None = None) -> str:
     from ephemeraldaddy.core.lilith_mode import normalize_lilith_mode
     if settings is None:
         from PySide6.QtCore import QSettings
-        settings = QSettings()
+        from ephemeraldaddy.gui.style import SETTINGS_APP, SETTINGS_ORG
+
+        # The desktop application deliberately uses the compact
+        # EphemeralDaddy/EphemeralDaddy namespace for persisted settings.
+        # Default QSettings() follows the separate Qt display-name identity.
+        settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     return normalize_lilith_mode(settings.value(SETTINGS_KEY_LILITH_MODE, "Osculating Lilith"))
 
 

@@ -43,3 +43,37 @@ def test_lilith_mode_defaults_to_osculating_and_round_trips_all_options():
         assert load_lilith_mode(settings) == mode
     settings.setValue("astrology/lilith_mode", "invalid")
     assert load_lilith_mode(settings) == "Osculating Lilith"
+
+
+def test_implicit_lilith_settings_uses_desktop_namespace_not_qt_display_name(monkeypatch):
+    """Dominance and exports must read the same setting that the dialog writes."""
+    from PySide6 import QtCore
+    from ephemeraldaddy.gui.style import SETTINGS_APP, SETTINGS_ORG
+    from ephemeraldaddy.gui.settings.modules.astrology import (
+        load_lilith_mode, save_lilith_mode,
+    )
+
+    explicit_namespace = (SETTINGS_ORG, SETTINGS_APP)
+    display_namespace = ("Ephemeral Daddy", "Ephemeral Daddy")
+    assert explicit_namespace != display_namespace
+
+    stored = {
+        explicit_namespace: Settings(),
+        display_namespace: Settings(),
+    }
+    save_lilith_mode(stored[explicit_namespace], "Natural Lilith")
+    save_lilith_mode(stored[display_namespace], "Osculating Lilith")
+
+    constructor_calls = []
+
+    def make_settings(*args):
+        constructor_calls.append(args)
+        return stored[args]
+
+    monkeypatch.setattr(QtCore, "QSettings", make_settings)
+    assert load_lilith_mode() == "Natural Lilith"
+    assert constructor_calls == [explicit_namespace]
+
+    save_lilith_mode(stored[explicit_namespace], "Mean Lilith")
+    assert load_lilith_mode() == "Mean Lilith"
+    assert constructor_calls == [explicit_namespace, explicit_namespace]
