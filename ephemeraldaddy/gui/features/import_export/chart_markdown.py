@@ -149,13 +149,10 @@ def build_chart_export_markdown(
         # Transitional dependency: aspect scoring still lives in the legacy
         # charts package. Keeping it lazy preserves this pure export module's
         # non-Qt import path until that calculation receives its canonical home.
-        planet_weights = getattr(chart, "dominant_planet_weights", None)
-        if not planet_weights:
-            from ephemeraldaddy.gui.features.charts.metrics import (
-                calculate_dominant_planet_weights,
-            )
-
-            planet_weights = calculate_dominant_planet_weights(chart)
+        from ephemeraldaddy.gui.features.charts.metrics import (
+            calculate_dominant_planet_weights,
+        )
+        planet_weights = calculate_dominant_planet_weights(chart)
         aspects.sort(
             key=lambda aspect: aspect_score(aspect, planet_weights=planet_weights),
             reverse=True,

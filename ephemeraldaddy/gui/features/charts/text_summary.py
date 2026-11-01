@@ -552,9 +552,8 @@ def _append_draconic_aspects(
         return
 
     sort_mode = aspect_sort if aspect_sort in ASPECT_SORT_OPTIONS else "Priority"
-    dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
-    if not dominant_planet_weights:
-        dominant_planet_weights = calculate_dominant_planet_weights(chart)
+    # Dominance scores are mode-dependent; old chart caches cannot drive aspect sorting.
+    dominant_planet_weights = calculate_dominant_planet_weights(chart)
     sorted_aspects = sort_natal_aspects(
         cross_aspects,
         sort_mode,
@@ -1206,9 +1205,7 @@ def format_chart_text(
         #         if asp["p1"] not in angular_bodies and asp["p2"] not in angular_bodies
         #     ]
         sort_mode = aspect_sort if aspect_sort in ASPECT_SORT_OPTIONS else "Priority"
-        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
-        if not dominant_planet_weights:
-            dominant_planet_weights = calculate_dominant_planet_weights(chart)
+        dominant_planet_weights = calculate_dominant_planet_weights(chart)
         sorted_aspects = sort_natal_aspects(
             filtered_aspects,
             sort_mode,
