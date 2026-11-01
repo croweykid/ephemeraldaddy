@@ -38,6 +38,7 @@ from ephemeraldaddy.core.db import (
     load_dominant_sign_weights,
 )
 from ephemeraldaddy.gui.features.settings.traits import list_traits
+from ephemeraldaddy.gui.settings.modules.astrology import load_lilith_mode
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
 )
@@ -1668,16 +1669,21 @@ class RankingsPanelMixin:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
+            selected_lilith_mode = load_lilith_mode()
             weights, recalculated = resolve_complete_sign_weights(
                 stored_weights.get(int(chart_id)),
                 getattr(chart, "dominant_sign_weights", None),
                 ZODIAC_NAMES,
                 lambda chart=chart: _calculate_dominant_sign_weights(chart),
+                trust_chart_cache=(
+                    getattr(chart, "_dominant_sign_lilith_mode", None) == selected_lilith_mode
+                ),
             )
             if weights is None:
                 continue
             if recalculated:
                 chart.dominant_sign_weights = dict(weights)
+            chart._dominant_sign_lilith_mode = selected_lilith_mode
             try:
                 value = float(weights[selected_sign])
             except (KeyError, TypeError, ValueError):
