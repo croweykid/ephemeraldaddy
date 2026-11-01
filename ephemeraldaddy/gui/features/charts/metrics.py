@@ -47,7 +47,9 @@ from ephemeraldaddy.core.interpretations import (
     aspect_orb_allowance,
     normalize_body_name,
 )
+from ephemeraldaddy.core.lilith_mode import lilith_is_eligible
 from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES
+from ephemeraldaddy.gui.settings.modules.astrology import load_lilith_mode
 from ephemeraldaddy.gui.features.charts.presentation import get_chart_nakshatra, sign_for_longitude
 from ephemeraldaddy.analysis.body_dynamics_reworked import (
     BODY_PAIR_DYNAMICS,
@@ -338,7 +340,11 @@ def _aspect_strength(aspect: dict) -> float:
     return aspect_weight * orb_factor * intensity_bonus
 
 def dominant_planet_keys(chart: Chart) -> list[str]:
-    planets = [body for body in PLANET_ORDER if normalize_body_name(body) in NATAL_WEIGHT]
+    mode = load_lilith_mode()
+    planets = [
+        body for body in PLANET_ORDER
+        if normalize_body_name(body) in NATAL_WEIGHT and lilith_is_eligible(body, mode)
+    ]
     return [body for body in planets if body not in {"AS", "MC", "DS", "IC"}]
 
 
@@ -386,11 +392,14 @@ def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
     return final_weights
 
 def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
+    lilith_mode = load_lilith_mode()
     weighted_counts = {sign: 0.0 for sign in ZODIAC_NAMES}
     use_houses = chart_uses_houses(chart)
     houses = getattr(chart, "houses", None) if use_houses else None
     deferred_rulership_sign_bonuses = {sign: 0.0 for sign in ZODIAC_NAMES}
     for body in PLANET_ORDER:
+        if not lilith_is_eligible(body, lilith_mode):
+            continue
         if not use_houses and body in {"AS", "MC", "DS", "IC"}:
             continue
         if body not in chart.positions:
@@ -420,6 +429,8 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
     for aspect in getattr(chart, "aspects", []) or []:
         p1 = normalize_body_name(str(aspect.get("p1", "")))
         p2 = normalize_body_name(str(aspect.get("p2", "")))
+        if not lilith_is_eligible(p1, lilith_mode) or not lilith_is_eligible(p2, lilith_mode):
+            continue
         if p1 not in chart.positions or p2 not in chart.positions:
             continue
         aspect_strength = _aspect_strength(aspect)
@@ -454,7 +465,10 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
 def calculate_sign_prevalence_counts(chart: Chart) -> dict[str, int]:
     counts = {sign: 0 for sign in ZODIAC_NAMES}
     use_houses = chart_uses_houses(chart)
+    lilith_mode = load_lilith_mode()
     for body in PLANET_ORDER:
+        if not lilith_is_eligible(body, lilith_mode):
+            continue
         if not use_houses and body in {"AS", "MC", "DS", "IC"}:
             continue
         lon = chart.positions.get(body)
@@ -470,7 +484,10 @@ def calculate_house_prevalence_counts(chart: Chart) -> dict[int, int]:
     houses = getattr(chart, "houses", None) if use_houses else None
     if not use_houses or not houses:
         return house_counts
+    lilith_mode = load_lilith_mode()
     for position_name in PLANET_ORDER:
+        if not lilith_is_eligible(position_name, lilith_mode):
+            continue
         if position_name in HOUSE_PREVALENCE_EXCLUDED_POSITIONS:
             continue
         if position_name not in chart.positions:
@@ -518,7 +535,10 @@ def calculate_mode_weights(chart: Chart) -> dict[str, float]:
 def calculate_modal_prevalence_counts(chart: Chart) -> dict[str, int]:
     mode_counts = {"cardinal": 0, "mutable": 0, "fixed": 0}
     use_houses = chart_uses_houses(chart)
+    lilith_mode = load_lilith_mode()
     for body in PLANET_ORDER:
+        if not lilith_is_eligible(body, lilith_mode):
+            continue
         if not use_houses and body in {"AS", "MC", "DS", "IC"}:
             continue
         lon = chart.positions.get(body)
@@ -567,7 +587,10 @@ def calculate_nakshatra_prevalence_counts(chart: Chart) -> dict[str, int]:
     nakshatras = list(NAKSHATRA_NAMES)
     counts = {name: 0 for name in nakshatras}
     use_houses = chart_uses_houses(chart)
+    lilith_mode = load_lilith_mode()
     for body in PLANET_ORDER:
+        if not lilith_is_eligible(body, lilith_mode):
+            continue
         if not use_houses and body in {"AS", "MC", "DS", "IC"}:
             continue
         lon = chart.positions.get(body)
@@ -636,7 +659,10 @@ def calculate_sidereal_planet_prevalence_counts(chart: Chart) -> dict[str, float
     counts = {planet: 0.0 for planet in sidereal_planets}
     use_houses = chart_uses_houses(chart)
     houses = chart.houses if use_houses else []
+    lilith_mode = load_lilith_mode()
     for body in PLANET_ORDER:
+        if not lilith_is_eligible(body, lilith_mode):
+            continue
         if not use_houses and body in {"AS", "MC", "DS", "IC"}:
             continue
         lon = chart.positions.get(body)

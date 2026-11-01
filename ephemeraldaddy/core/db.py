@@ -277,7 +277,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 CHART_UID_LENGTH = 16
 UID_FINALIZATION_MIGRATION_KEY = "chart_uid_finalization_v1"
@@ -2252,6 +2252,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         if _charts_table_exists(conn):
             _clear_dominant_nakshatra_weight_cache(conn)
         conn.execute("PRAGMA user_version = 22")
+        user_version = 22
+
+    if user_version < 23:
+        if _charts_table_exists(conn):
+            _clear_dominant_weight_caches(conn)
+        conn.execute("PRAGMA user_version = 23")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -7043,7 +7049,10 @@ def _clear_dominant_weight_caches(conn: sqlite3.Connection) -> None:
         UPDATE charts
         SET dominant_sign_weights = '',
             dominant_planet_weights = '',
-            dominant_nakshatra_weights = ''
+            dominant_nakshatra_weights = '',
+            dominant_element_weights = '',
+            dominant_mode = NULL,
+            modal_distribution = ''
         """
     )
 
