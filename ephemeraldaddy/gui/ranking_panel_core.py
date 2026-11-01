@@ -1651,16 +1651,10 @@ class RankingsPanelMixin:
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
+        # Derive the ranking baseline from the same mode-filtered chart weights
+        # rather than a database aggregate cached under an earlier Lilith mode.
         db_average = 0.0
         db_count = 0
-        cache = getattr(self, "_database_metrics_cache", None)
-        if isinstance(cache, dict):
-            total_weight = float(
-                cache.get("dominant_sign_total_weight", 0.0) or 0.0
-            )
-            totals = cache.get("dominant_sign_totals", {})
-            if total_weight:
-                db_average = float(totals.get(selected_sign, 0.0)) / total_weight
         for chart_id in normalized_chart_ids:
             chart_uid = chart_uids_by_id.get(int(chart_id), "")
             normalized_chart_uid = self._normalize_rankings_chart_uid(chart_uid)
@@ -1749,8 +1743,14 @@ class RankingsPanelMixin:
             # the mean of those same normalized values rather than the aggregate
             # raw-weight cache ratio.
             db_average = sum(float(row["value"]) for row in rows) / float(db_count)
-        elif not db_average and db_count:
-            db_average = sum(float(row["value"]) for row in rows) / float(db_count)
+        elif db_count:
+            # The aggregate raw-weight ratio matches the existing most-dominant
+            # baseline convention; calculate it from current-mode rows.
+            total = sum(float(row["total_weight"]) for row in rows)
+            db_average = (
+                sum(float(row["value"]) for row in rows) / total
+                if total > 0.0 else 0.0
+            )
         value_direction = 1.0 if least else -1.0
         rows.sort(
             key=lambda row: (
