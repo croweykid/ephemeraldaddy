@@ -34,7 +34,6 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
-    DARK_TEXT,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     SIGN_COLORS,
@@ -185,8 +184,9 @@ COLOR_ACCENT_SUCCESS = "#68d391"
 COLOR_ACCENT_DANGER = "#f87171"
 COLOR_ACCENT_WARNING = "#f6c85f"
 
-# Readability surface for semantic text colors flagged by ``DARK_TEXT``.
-LIGHT_CONTRAST_BG = "#cc9900"
+# The Chart Info content area has a permanent black background, independent of
+# the semantic foreground colors used for signs, planets, or other tokens.
+CHART_INFO_BACKGROUND_COLOR = "#000000"
 
 # Optional semantic colors for dropdowns whose choices need a visual category
 # distinction.  Keep these separate from the base dropdown stylesheet so
@@ -246,10 +246,6 @@ QLineEdit, QDateEdit, QTimeEdit, QTextEdit, QPlainTextEdit {{
     border: 1px solid {APPWIDE_TEXT_INPUT_BORDER_COLOR};
     padding: 4px;
 }}
-QTextEdit[eddLightContrastBackground="true"],
-QPlainTextEdit[eddLightContrastBackground="true"] {{
-    background-color: {LIGHT_CONTRAST_BG};
-}}
 QPushButton {{
     background-color: {APPWIDE_BUTTON_BACKGROUND_COLOR};
     border: 1px solid {APPWIDE_BUTTON_BORDER_COLOR};
@@ -284,6 +280,10 @@ QPushButton[eddButtonTone="{APPWIDE_NEGATION_BUTTON_TONE}"]:hover {{
 }}
 QPlainTextEdit {{
     background-color: {APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR};
+}}
+QTextEdit[eddChartInfoBackground="true"],
+QPlainTextEdit[eddChartInfoBackground="true"] {{
+    background-color: {CHART_INFO_BACKGROUND_COLOR};
 }}
 """
 
@@ -350,12 +350,14 @@ QTableWidget::item {{ padding: 2px 6px; }}
 
 
 def set_chart_info_contrast_background(widget: QWidget, text_color: str | None = None) -> None:
-    """Select a readable Chart Info surface for a semantic foreground color."""
-    normalized_color = str(text_color or "").strip().lower()
-    needs_light_background = normalized_color in DARK_TEXT
-    if bool(widget.property("eddLightContrastBackground")) == needs_light_background:
+    """Keep Chart Info black; retain this API for existing rendering callers.
+
+    The foreground color is intentionally ignored. No text color, sign color,
+    or rendering path may change the Chart Info background.
+    """
+    if widget.property("eddChartInfoBackground") is True:
         return
-    widget.setProperty("eddLightContrastBackground", needs_light_background)
+    widget.setProperty("eddChartInfoBackground", True)
     widget.style().unpolish(widget)
     widget.style().polish(widget)
     widget.update()
