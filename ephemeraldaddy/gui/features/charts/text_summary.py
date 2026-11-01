@@ -32,6 +32,7 @@ from ephemeraldaddy.core.chart import (
 )
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
 from ephemeraldaddy.core.draconic import calculate_draconic_positions, find_draconic_natal_aspects
+from ephemeraldaddy.core.lilith_mode import filter_lilith_aspects, lilith_is_eligible, visible_lilith_positions
 from ephemeraldaddy.core.ephemeris import (
     get_lilith_display_name,
     planetary_positions,
@@ -77,6 +78,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     get_chart_nakshatra,
     sign_for_longitude,
 )
+from ephemeraldaddy.gui.settings.modules.astrology import load_lilith_mode
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, format_chart_header
 
 
@@ -269,17 +271,19 @@ def _format_time_variant_signs(
 
     if not sampled_positions:
         return {}
+    lilith_mode = load_lilith_mode()
     ordered_names = [
         body
         for body in PLANET_ORDER
-        if all(body in positions for _label, _dt, positions in sampled_positions)
+        if lilith_is_eligible(body, lilith_mode)
+        and all(body in positions for _label, _dt, positions in sampled_positions)
     ]
     extras = sorted(
         set.intersection(*(set(positions) for _label, _dt, positions in sampled_positions)).difference(
             ordered_names
         )
     )
-    ordered_names.extend(extras)
+    ordered_names.extend(body for body in extras if lilith_is_eligible(body, lilith_mode))
     lines: dict[str, dict[str, object]] = {}
     for body in ordered_names:
         samples = [
@@ -686,6 +690,7 @@ def format_chart_text(
     dict[int, list[dict[str, object]]],
 ]:
     """Build a copy-pasteable text summary of positions, houses, and aspects."""
+    lilith_mode = load_lilith_mode()
     lines: list[str] = []
     position_info_map: dict[int, list[dict[str, object]]] = {}
     aspect_info_map: dict[int, dict[str, object]] = {}
@@ -745,12 +750,13 @@ def format_chart_text(
     filtered_aspects: list[dict] = []
     positions = getattr(chart, "positions", {})
     if aspects:
-        filtered_aspects = list(
+        filtered_aspects = filter_lilith_aspects(
             iter_displayable_aspects(
                 aspects,
                 use_houses=use_houses,
                 known_positions=positions,
-            )
+            ),
+            lilith_mode,
         )
     cursedness_line = ""
     if filtered_aspects and show_cursedness:
@@ -908,10 +914,11 @@ def format_chart_text(
     ordered_bodies = [
         body
         for body in PLANET_ORDER
-        if body in chart.positions or body in required_chart_info_bodies
+        if lilith_is_eligible(body, lilith_mode)
+        and (body in chart.positions or body in required_chart_info_bodies)
     ]
     extras = sorted(set(chart.positions).difference(ordered_bodies))
-    ordered_bodies.extend(extras)
+    ordered_bodies.extend(body for body in extras if lilith_is_eligible(body, lilith_mode))
     personality_gate_lines = _personality_gate_line_map(chart)
     for body in ordered_bodies:
         display_body = _display_body_with_glyph(body, use_lilith_alias=True)
@@ -1399,7 +1406,7 @@ def format_chart_text(
     # Draconic Positions: rotate the zodiac so the natal North Node (Rahu) is 0° Aries.
     # House membership stays the same because house cusps rotate by the same offset;
     # the cusps' zodiac signs/degrees change even though a body's house number does not.
-    draconic_source_positions = _draconic_source_positions(chart)
+    draconic_source_positions = visible_lilith_positions(_draconic_source_positions(chart), lilith_mode)
     draconic_positions = calculate_draconic_positions(draconic_source_positions)
 
     if lines and lines[-1] != "":
@@ -1733,6 +1740,7 @@ def format_compact_transit_chart_text(
     show_info_icons: bool = True,
 ) -> tuple[str, dict[int, list[dict[str, object]]]]:
     """Build compact Transit View chart text with glyph aliases and hover spans."""
+    lilith_mode = load_lilith_mode()
     use_houses = chart_uses_houses(chart)
     houses = getattr(chart, "houses", None) if use_houses else None
     angular_bodies = ASPECT_DISPLAY_ANGLE_BODIES
@@ -1772,8 +1780,8 @@ def format_compact_transit_chart_text(
         except Exception:
             chart.retrogrades = {}
     retrogrades = dict(getattr(chart, "retrogrades", {}) or {})
-    ordered_bodies = [body for body in PLANET_ORDER if body in chart.positions or body in required_chart_info_bodies]
-    ordered_bodies.extend(sorted(set(chart.positions).difference(ordered_bodies)))
+    ordered_bodies = [body for body in PLANET_ORDER if lilith_is_eligible(body, lilith_mode) and (body in chart.positions or body in required_chart_info_bodies)]
+    ordered_bodies.extend(body for body in sorted(set(chart.positions).difference(ordered_bodies)) if lilith_is_eligible(body, lilith_mode))
     personality_gate_lines = _personality_gate_line_map(chart)
 
     for body in ordered_bodies:
@@ -1846,12 +1854,13 @@ def format_compact_transit_chart_text(
     filtered_aspects: list[dict] = []
     positions = getattr(chart, "positions", {})
     if aspects:
-        filtered_aspects = list(
+        filtered_aspects = filter_lilith_aspects(
             iter_displayable_aspects(
                 aspects,
                 use_houses=use_houses,
                 known_positions=positions,
-            )
+            ),
+            lilith_mode,
         )
     if filtered_aspects:
         lines.extend([CHART_DATA_DIVIDER, "ASPECTS", CHART_DATA_DIVIDER])
