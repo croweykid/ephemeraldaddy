@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QButtonGroup, QLabel, QRadioButton, QVBoxLayout
 
 from ephemeraldaddy.core.lilith_mode import LILITH_MODES
@@ -18,6 +17,8 @@ def add_astrology_mode_controls(
     dialog: object,
     context: ZodiacContext,
     on_changed: Callable[[ZodiacContext], None],
+    on_lilith_changed: Callable[[str], None],
+    settings: object,
 ) -> dict[str, QRadioButton]:
     layout.addWidget(QLabel("Default astrology mode:"))
     tropical = QRadioButton("Tropical")
@@ -39,7 +40,6 @@ def add_astrology_mode_controls(
     layout.addWidget(QLabel("Sidereal calculations currently use the Lahiri ayanamsha."))
 
     layout.addWidget(QLabel("Select Lilith Mode:"))
-    settings = QSettings()
     selected = load_lilith_mode(settings)
     lilith_buttons = QButtonGroup(dialog)
     lilith_buttons.setExclusive(True)
@@ -49,11 +49,9 @@ def add_astrology_mode_controls(
         if load_lilith_mode(settings) == mode:
             return
         save_lilith_mode(settings, mode)
-        # Invalidate derived dominance blobs only; astronomical positions are
-        # retained and the full chart database is never recalculated here.
-        from ephemeraldaddy.core.db import invalidate_all_dominant_weight_caches
-        invalidate_all_dominant_weight_caches()
-        on_changed(context)
+        # Changing the apogee must never call the zodiac-context callback.
+        # The owner coordinates derived-score invalidation and live refresh.
+        on_lilith_changed(mode)
 
     for mode in LILITH_MODES:
         button = QRadioButton(mode)

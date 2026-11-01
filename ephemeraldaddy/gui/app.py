@@ -1418,6 +1418,8 @@ from ephemeraldaddy.gui.settings.modules.display_preferences import (
 from ephemeraldaddy.gui.settings.modules.astrology import (
     load_astrology_context,
     save_astrology_context,
+    load_lilith_mode,
+    save_lilith_mode,
 )
 from ephemeraldaddy.gui.settings.modules.astrology_widgets import (
     add_astrology_mode_controls,
@@ -3473,6 +3475,7 @@ class ManageChartsDialog(
         return json.dumps(
             {
                 "cache_version": DATABASE_METRICS_PERSISTENT_CACHE_VERSION,
+                "lilith_mode": load_lilith_mode(self._settings),
                 "enneagram_scoring_options": _enneagram_scoring_options_to_payload(
                     getattr(
                         self,
@@ -21133,6 +21136,8 @@ class ManageChartsDialog(
             dialog=dialog,
             context=load_astrology_context(self._settings),
             on_changed=self._on_default_astrology_context_changed,
+            on_lilith_changed=self._on_selected_lilith_mode_changed,
+            settings=self._settings,
         )
         gendered_results_row = QHBoxLayout()
         gendered_results_row.addWidget(QLabel("For gendered results, use:"))
@@ -21645,6 +21650,36 @@ class ManageChartsDialog(
         owner = self._owner_window()
         if owner is not None:
             owner._astrology_context = context
+
+    def _on_selected_lilith_mode_changed(self, mode: str) -> None:
+        """Update mode-dependent analysis without changing zodiac or astronomy."""
+        save_lilith_mode(self._settings, mode)
+        invalidate_all_dominant_weight_caches()
+        self._chart_cache.clear()
+        self._invalidate_database_metrics_cache()
+        self._database_metrics_preloaded_sections.clear()
+        self._database_metrics_background_preload_sections.clear()
+        self._clear_similar_charts_popout_cache()
+
+        owner = self._owner_window()
+        if isinstance(owner, MainWindow):
+            owner._handle_selected_lilith_mode_changed(mode)
+
+        if not self._left_panel_visible or self._is_left_panel_collapsed():
+            return
+        if self._active_left_panel in {"database_metrics", "gen_pop_norms"}:
+            self._show_database_analytics_pending_indicator(True)
+            self._schedule_deferred_database_metrics_refresh(
+                force_full_refresh=True,
+                update_similarities=False,
+            )
+        elif self._active_left_panel == "rankings":
+            self._refresh_visible_rankings_sections()
+        elif self._active_left_panel == "similarities":
+            self._update_sentiment_tally(
+                update_database_metrics=False,
+                update_similarities=True,
+            )
 
     def _set_lilith_calculation_method(self, method: str) -> None:
         normalized = _normalize_lilith_calculation_method(method)
@@ -34932,6 +34967,38 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             refresh_time_sensitivity=False,
         )
 
+    def _handle_selected_lilith_mode_changed(self, mode: str) -> None:
+        """Rerender the current chart without discarding unsaved field edits."""
+        self._invalidate_chart_view_navigation_cache()
+        self._mark_chart_analytics_sections_lucy_goosey(
+            {"signs", "planets", "houses", "elements", "nakshatra",
+             "modal", "gender", "planet_dynamics", "chart_type", "similar_charts"}
+        )
+        chart = getattr(self, "_latest_chart", None)
+        if chart is None:
+            self._refresh_chart_preview()
+            return
+        # The current Chart object may carry old persisted scores. Coordinates
+        # and user-authored data are left untouched.
+        for field in (
+            "dominant_sign_weights", "dominant_planet_weights",
+            "dominant_nakshatra_weights", "dominant_element_weights",
+            "modal_distribution",
+        ):
+            if hasattr(chart, field):
+                setattr(chart, field, {})
+        if hasattr(chart, "dominant_mode"):
+            chart.dominant_mode = None
+        self._schedule_chart_render(
+            chart,
+            sections={
+                "summary", "signs", "planets", "houses", "elements",
+                "nakshatra", "modal", "gender", "planet_dynamics",
+                "chart_type", "similar_charts",
+            },
+            queue_priority="interactive",
+        )
+
     def _handle_lilith_calculation_method_changed(
         self,
         method: str,
@@ -35355,7 +35422,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         demographic_token = ""
         if self._similar_charts_demographic_match_enabled():
             demographic_token = f"|gender:{str(getattr(chart, 'gender', None) or '').strip()}"
-        return f"{chart_scope_token}|astro_data:{astro_data_token!r}{demographic_token}"
+        return (
+            f"{chart_scope_token}|astro_data:{astro_data_token!r}"
+            f"|lilith:{load_lilith_mode(self._settings)}{demographic_token}"
+        )
 
     def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
         if sections is None:
