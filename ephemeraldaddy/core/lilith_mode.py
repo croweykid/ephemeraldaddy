@@ -51,23 +51,31 @@ def filter_lilith_aspects(aspects: Any, mode: str) -> list[dict]:
 
 
 def filtered_chart_export_payload(payload: Any, mode: str) -> Any:
-    """Non-mutating removal of inactive Liliths from nested chart JSON exports."""
-    if isinstance(payload, dict):
-        if ("p1" in payload or "p2" in payload) and not (
-            lilith_is_eligible(payload.get("p1", ""), mode)
-            and lilith_is_eligible(payload.get("p2", ""), mode)
-        ):
-            return None
-        return {
-            key: filtered
-            for key, value in payload.items()
-            if lilith_is_eligible(key, mode)
-            if (filtered := filtered_chart_export_payload(value, mode)) is not None
-        }
-    if isinstance(payload, (list, tuple)):
-        return [
-            filtered
-            for value in payload
-            if (filtered := filtered_chart_export_payload(value, mode)) is not None
-        ]
-    return payload
+    """Remove inactive Lilith coordinates and aspect rows without losing null data."""
+    excluded = object()
+
+    def visit(value: Any) -> Any:
+        if isinstance(value, dict):
+            if ("p1" in value or "p2" in value) and not (
+                lilith_is_eligible(value.get("p1", ""), mode)
+                and lilith_is_eligible(value.get("p2", ""), mode)
+            ):
+                return excluded
+            result = {}
+            for key, item in value.items():
+                if not lilith_is_eligible(key, mode):
+                    continue
+                filtered = visit(item)
+                if filtered is not excluded:
+                    result[key] = filtered
+            return result
+        if isinstance(value, (list, tuple)):
+            result = []
+            for item in value:
+                filtered = visit(item)
+                if filtered is not excluded:
+                    result.append(filtered)
+            return result
+        return value
+
+    return visit(payload)

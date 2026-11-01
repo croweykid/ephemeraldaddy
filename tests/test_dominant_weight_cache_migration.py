@@ -84,3 +84,21 @@ def test_schema_v22_clears_only_stale_nakshatra_weights():
         '{"Moon": 1.0}',
         "",
     )
+
+
+
+def test_schema_v23_clears_all_stale_dominance_caches_but_not_positions():
+    conn = sqlite3.connect(":memory:")
+    db._create_charts_table(conn)
+    conn.execute("PRAGMA user_version = 22")
+    _insert_cached_chart(conn, "Legacy Mode")
+    conn.execute(
+        "UPDATE charts SET dominant_element_weights = ?, dominant_mode = ?, modal_distribution = ?, derived_positions = ?",
+        ('{"Fire":2}', "fixed", '{"fixed":1}', '{"Mean Lilith":15}'),
+    )
+    db._ensure_schema(conn)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 23
+    assert _cached_weights(conn, "Legacy Mode") == ("", "", "")
+    assert conn.execute(
+        "SELECT dominant_element_weights, dominant_mode, modal_distribution, derived_positions FROM charts"
+    ).fetchone() == ("", None, "", '{"Mean Lilith":15}')
