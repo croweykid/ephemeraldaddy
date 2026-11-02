@@ -34983,10 +34983,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         for field in (
             "dominant_sign_weights", "dominant_planet_weights",
             "dominant_nakshatra_weights", "dominant_element_weights",
-            "modal_distribution",
+            "modal_distribution", "planet_dynamics_scores",
         ):
             if hasattr(chart, field):
                 setattr(chart, field, {})
+        # A worker started for the previous mode must not be treated as current.
+        chart._planet_dynamics_scores_signature = None
         if hasattr(chart, "dominant_mode"):
             chart.dominant_mode = None
         self._schedule_chart_render(
@@ -36130,6 +36132,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
         )
         return (
+            load_lilith_mode(self._settings),
             tuple(sorted((str(body), None if lon is None else round(float(lon), 8)) for body, lon in positions.items())),
             tuple(None if cusp is None else round(float(cusp), 8) for cusp in houses),
             aspect_signature,
