@@ -34984,11 +34984,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "dominant_sign_weights", "dominant_planet_weights",
             "dominant_nakshatra_weights", "dominant_element_weights",
             "modal_distribution", "planet_dynamics_scores",
+            "body_dynamics_roles",
         ):
             if hasattr(chart, field):
                 setattr(chart, field, {})
-        # A worker started for the previous mode must not be treated as current.
+        # Recompute both scores and their derived role classifications under
+        # the new mode. Older in-flight workers are rejected by signature.
         chart._planet_dynamics_scores_signature = None
+        chart._body_dynamics_roles_lilith_mode = None
         if hasattr(chart, "dominant_mode"):
             chart.dominant_mode = None
         self._schedule_chart_render(

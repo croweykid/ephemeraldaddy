@@ -42,6 +42,8 @@ def test_current_chart_is_not_reloaded_and_analytics_token_tracks_mode():
     current = _method("_handle_selected_lilith_mode_changed")
     assert "_invalidate_chart_view_navigation_cache()" in current
     assert "_mark_chart_analytics_sections_lucy_goosey(" in current
+    assert '"body_dynamics_roles"' in current
+    assert "chart._body_dynamics_roles_lilith_mode = None" in current
     assert "_schedule_chart_render(" in current
     assert "load_chart_by_uid(" not in current
     token = _method("_chart_analytics_cache_token")

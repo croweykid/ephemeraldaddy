@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any, Iterable
 
-from ephemeraldaddy.core.interpretations import PLANET_ORDER
-from ephemeraldaddy.gui.features.charts.metrics import calculate_planet_dynamics_scores
 
 if TYPE_CHECKING:
     from ephemeraldaddy.core.chart import Chart
@@ -46,42 +43,10 @@ def _body_dynamics_role_from_scores(body_scores: dict[str, Any] | None) -> str:
 
 
 def body_dynamics_roles_for_chart(chart: Chart) -> dict[str, str]:
-    """Resolve per-body roles for Chart View's analytics-panel body labels."""
-    raw_roles = getattr(chart, "body_dynamics_roles", None)
-    if isinstance(raw_roles, dict):
-        role_items = raw_roles.items()
-    else:
-        role_items = ()
-        role_text = str(raw_roles or "").strip()
-        if role_text:
-            try:
-                parsed_roles = json.loads(role_text)
-            except (TypeError, json.JSONDecodeError):
-                parsed_roles = {}
-            if isinstance(parsed_roles, dict):
-                role_items = parsed_roles.items()
+    """Resolve selected-mode roles before coloring Dominant Bodies labels."""
+    from ephemeraldaddy.core.db import current_body_dynamics_roles_for_chart
 
-    canonical_bodies = {body.casefold(): body for body in PLANET_ORDER}
-    roles: dict[str, str] = {}
-    for raw_body, raw_role in role_items:
-        body = canonical_bodies.get(str(raw_body or "").strip().casefold())
-        role = normalize_body_dynamics_role_label(raw_role)
-        if body and role:
-            roles[body] = role
-
-    if roles:
-        return roles
-
-    scores = getattr(chart, "planet_dynamics_scores", None) or calculate_planet_dynamics_scores(chart)
-    if not isinstance(scores, dict):
-        return {}
-    for body, body_scores in scores.items():
-        canonical_body = canonical_bodies.get(str(body or "").strip().casefold())
-        if not canonical_body or not isinstance(body_scores, dict):
-            continue
-        roles[canonical_body] = _body_dynamics_role_from_scores(body_scores)
-    return roles
-
+    return current_body_dynamics_roles_for_chart(chart)
 
 def dominant_body_axis_label_color(role: str | None) -> str | None:
     """Return the Chart View Dominant Bodies axis-label color for a role."""
