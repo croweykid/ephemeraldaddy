@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import re
+import unicodedata
 from datetime import datetime
 from typing import Any
 
@@ -25,7 +26,11 @@ from ephemeraldaddy.core.human_design_system import (
 from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES, HD_ENVIRONMENT_COLORS
 from ephemeraldaddy.gui.style import ARROW_STYLES, CHART_DATA_DIVIDER
 from ephemeraldaddy.analysis.hd_line_fixings import get_hd_line_fixing
-from ephemeraldaddy.core.interpretations import BODY_RELATIONAL_GLYPHS
+from ephemeraldaddy.core.interpretations import (
+    BODY_RELATIONAL_GLYPHS,
+    PLANET_EXALTATION,
+    PLANET_RULERSHIP,
+)
 
 CHART_DATA_ARROW = ARROW_STYLES["classic"]
 
@@ -322,14 +327,45 @@ _HD_ACTIVATION_SIDE_DISPLAY_ALIASES = {
 }
 
 
-def _hd_activation_body_display_label(activation: HDActivation) -> str:
-    """Return the compact Chart Data Output label for an HD activation.
+def _hd_activation_body_dignity_prefix(activation: HDActivation) -> str:
+    """Label zodiac dignities independently of Human Design gate-line fixings.
 
-    This is intentionally a display alias only; activation.side remains the
-    canonical placement side used by calculations and lookups.
+    Exaltation takes display precedence when a planet both rules and is
+    exalted in a sign (Mercury in Virgo). Earth in Taurus is an explicitly
+    requested HD display convention, not a global scoring-rule change.
+    """
+    body = str(activation.body)
+    sign = _sign_name_for_longitude(activation.longitude)
+    exaltation = PLANET_EXALTATION.get(body)
+    if isinstance(exaltation, dict) and exaltation.get("sign") == sign:
+        return BODY_RELATIONAL_GLYPHS.get("Exaltation", "")
+    if sign in PLANET_RULERSHIP.get(body, ()) or (body == "Earth" and sign == "Taurus"):
+        return "👑"
+    return ""
+
+
+def _hd_display_cell_width(value: str) -> int:
+    """Measure the displayed width of emoji and other wide glyphs."""
+    return sum(
+        0 if unicodedata.combining(char)
+        else 2 if unicodedata.east_asian_width(char) in {"W", "F"}
+        else 1
+        for char in value
+    )
+
+
+def _hd_pad_display_column(value: str, width: int) -> str:
+    return value + (" " * max(0, width - _hd_display_cell_width(value)))
+
+
+def _hd_activation_body_display_label(activation: HDActivation) -> str:
+    """Return the side and zodiac-dignity label for an HD activation.
+
+    Body dignity belongs in the Body column; Human Design line fixing belongs
+    in the G/L column. Neither modifies the canonical activation identity.
     """
     side_alias = _HD_ACTIVATION_SIDE_DISPLAY_ALIASES.get(activation.side, activation.side.title())
-    return f"{side_alias} {activation.body}"
+    return f"{side_alias} {_hd_activation_body_dignity_prefix(activation)}{activation.body}"
 
 
 def _build_hd_positions_lines(
@@ -351,8 +387,8 @@ def _build_hd_positions_lines(
         )
         activation_rows.append((activation, _hd_activation_body_display_label(activation), sign_text, display_values))
     body_width = max(
-        len("Body"),
-        *(len(body_label) for _activation, body_label, _sign_text, _display_values in activation_rows),
+        _hd_display_cell_width("Body"),
+        *(_hd_display_cell_width(body_label) for _activation, body_label, _sign_text, _display_values in activation_rows),
     )
     sign_width = max(11, *(len(sign_text) for _activation, _body_label, sign_text, _display_values in activation_rows))
     gl_width = max(
@@ -377,7 +413,7 @@ def _build_hd_positions_lines(
         fixing_prefix = _hd_gate_line_fixing_prefix(hd_line_fixing_for_activation(activation))
         displayed_gl_text = fixing_prefix + gl_text
         line_text = (
-            f"{body_label:<{body_width}}  {sign_text:<{sign_width}}  {activation.longitude:>8.3f}°  "
+            f"{_hd_pad_display_column(body_label, body_width)}  {sign_text:<{sign_width}}  {activation.longitude:>8.3f}°  "
             f"{(displayed_gl_text):<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
             " ⓘ"
         )

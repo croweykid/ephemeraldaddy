@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from ephemeraldaddy.analysis.human_design import (
     _build_hd_positions_lines,
+    _hd_activation_body_display_label,
     _hd_gate_line_fixing_prefix,
     _render_clickable_gate_line_summary,
     hd_line_fixing_for_activation,
@@ -47,7 +48,9 @@ def test_positions_gate_line_prefixes_and_click_spans():
     rows, info_map = _build_hd_positions_lines(result)
 
     for body, expected in (("Moon", "↑1.1"), ("Uranus", "↓1.1"), ("Sun", "1.1")):
-        row_index = next(i for i, line in enumerate(rows) if f"P. {body}" in line)
+        activation = next(a for a in activations if a.body == body)
+        body_label = _hd_activation_body_display_label(activation)
+        row_index = next(i for i, line in enumerate(rows) if line.startswith(body_label + " "))
         row = rows[row_index]
         assert expected in row
         if body == "Uranus":
@@ -83,3 +86,75 @@ def test_gates_and_lines_summary_prefixes_detriment_and_preserves_click_targets(
     for entry in entries:
         actual = rows[0][entry["span_start"]:entry["span_end"]]
         assert actual == f'{entry["gate"]}.{entry["line"]}'
+
+
+def test_body_dignities_and_hd_gate_line_fixings_are_independent():
+    """The example's zodiac markers and gate-line markers must coexist."""
+    from ephemeraldaddy.analysis.human_design import (
+        _hd_activation_body_dignity_prefix,
+        _hd_activation_body_display_label,
+    )
+
+    samples = [
+        # side, body, longitude, gate, line, body prefix, line prefix
+        ("personality", "Earth", 47.787, 2, 5, "👑", "↓"),
+        ("personality", "Jupiter", 258.007, 26, 2, "👑", ""),
+        ("personality", "Pluto", 239.995, 14, 6, "👑", ""),
+        ("design", "Sun", 139.787, 4, 1, "👑", ""),
+        ("design", "Mercury", 155.277, 59, 6, "↑", "↓"),
+        ("design", "Jupiter", 245.692, 34, 6, "👑", "↓"),
+        ("design", "Pluto", 237.822, 14, 4, "👑", ""),
+        ("design", "Mars", 193.729, 48, 5, "", "↑"),
+        ("design", "Venus", 137.580, 7, 5, "", "↑"),
+    ]
+    activations = [
+        HDActivation(
+            body=body,
+            side=side,
+            longitude=longitude,
+            gate=gate,
+            line=line,
+            color=4,
+            tone=1,
+            base=2,
+            style="black" if side == "personality" else "red",
+        )
+        for side, body, longitude, gate, line, body_prefix, line_prefix in samples
+    ]
+    result = SimpleNamespace(
+        personality_activations=tuple(a for a in activations if a.side == "personality"),
+        design_activations=tuple(a for a in activations if a.side == "design"),
+    )
+    rows, info_map = _build_hd_positions_lines(result)
+
+    for activation, sample in zip(activations, samples):
+        side, body, longitude, gate, line, body_prefix, line_prefix = sample
+        alias = "P." if side == "personality" else "D."
+        expected_body = f"{alias} {body_prefix}{body}"
+        expected_line = f"{line_prefix}{gate}.{line}"
+        assert _hd_activation_body_dignity_prefix(activation) == body_prefix
+        assert _hd_activation_body_display_label(activation) == expected_body
+        row_idx = next(i for i, rendered in enumerate(rows) if rendered.startswith(expected_body + " "))
+        rendered = rows[row_idx]
+        assert expected_line in rendered
+        assert rendered.count(expected_body) == 1
+        gate_entries = [
+            item for item in info_map[row_idx]
+            if item["kind"] == "hd_gate_line" and "icon_index" not in item
+        ]
+        assert len(gate_entries) == 1
+        entry = gate_entries[0]
+        assert rendered[entry["span_start"]:entry["span_end"]] == f"{gate}.{line}"
+
+
+def test_body_column_padding_accounts_for_crown_emoji_width():
+    from ephemeraldaddy.analysis.human_design import (
+        _hd_display_cell_width,
+        _hd_pad_display_column,
+    )
+
+    names = ["P. 👑Earth", "D. 👑Jupiter", "D. ↑Mercury", "P. Saturn"]
+    width = max(_hd_display_cell_width(name) for name in names)
+    padded = [_hd_pad_display_column(name, width) for name in names]
+    assert len({_hd_display_cell_width(value) for value in padded}) == 1
+    assert _hd_display_cell_width("P. 👑Earth") == len("P. 👑Earth") + 1
