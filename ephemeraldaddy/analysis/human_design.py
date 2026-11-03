@@ -228,6 +228,15 @@ def _hd_line_fixing_label(fixing: str | None) -> str:
     return "exalted" if fixing == "exaltation" else "detriment" if fixing == "detriment" else ""
 
 
+def _hd_gate_line_fixing_prefix(fixing: str | None) -> str:
+    """Place fixing indicators on gate-line tokens, not their body labels."""
+    if fixing == "exaltation":
+        return BODY_RELATIONAL_GLYPHS.get("Exaltation", "")
+    if fixing == "detriment":
+        return BODY_RELATIONAL_GLYPHS.get("Detriment", "")
+    return ""
+
+
 def _activation_key(activation) -> tuple[str, str]:
     return str(activation.side), str(activation.body)
 
@@ -320,9 +329,7 @@ def _hd_activation_body_display_label(activation: HDActivation) -> str:
     canonical placement side used by calculations and lookups.
     """
     side_alias = _HD_ACTIVATION_SIDE_DISPLAY_ALIASES.get(activation.side, activation.side.title())
-    fixing = hd_line_fixing_for_activation(activation)
-    body_name = f"{BODY_RELATIONAL_GLYPHS.get('Detriment', '')} {activation.body}" if fixing == "detriment" else str(activation.body)
-    return f"{side_alias} {body_name}"
+    return f"{side_alias} {activation.body}"
 
 
 def _build_hd_positions_lines(
@@ -351,7 +358,7 @@ def _build_hd_positions_lines(
     gl_width = max(
         7,
         *(
-            len((BODY_RELATIONAL_GLYPHS.get("Exaltation", "") if hd_line_fixing_for_activation(_activation) == "exaltation" else "") + display_values[0])
+            len(_hd_gate_line_fixing_prefix(hd_line_fixing_for_activation(_activation)) + display_values[0])
             for _activation, _body_label, _sign_text, display_values in activation_rows
         ),
     )
@@ -367,7 +374,8 @@ def _build_hd_positions_lines(
     ]
     info_map: dict[int, list[dict[str, object]]] = {}
     for activation, body_label, sign_text, (gl_text, color_text, tone_text, base_text) in activation_rows:
-        displayed_gl_text = BODY_RELATIONAL_GLYPHS.get("Exaltation", "") + gl_text if hd_line_fixing_for_activation(activation) == "exaltation" else gl_text
+        fixing_prefix = _hd_gate_line_fixing_prefix(hd_line_fixing_for_activation(activation))
+        displayed_gl_text = fixing_prefix + gl_text
         line_text = (
             f"{body_label:<{body_width}}  {sign_text:<{sign_width}}  {activation.longitude:>8.3f}°  "
             f"{(displayed_gl_text):<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
@@ -377,7 +385,7 @@ def _build_hd_positions_lines(
         body_start = line_text.find(body_label)
         sign_start = line_text.find(sign_text, body_start + len(body_label)) if body_start != -1 else line_text.find(sign_text)
         gl_start = line_text.find(displayed_gl_text)
-        color_start = line_text.find(color_text, gl_start + len(gl_text))
+        color_start = line_text.find(color_text, gl_start + len(displayed_gl_text))
         tone_start = line_text.find(tone_text, color_start + len(color_text)) if color_start != -1 else -1
         base_start = line_text.find(base_text, tone_start + len(tone_text)) if tone_start != -1 else -1
         line_entries: list[dict[str, object]] = []
@@ -414,8 +422,8 @@ def _build_hd_positions_lines(
                     "kind": "hd_gate_line",
                     "gate": int(gl_match.group(1)),
                     "line": int(gl_match.group(2)),
-                    "span_start": gl_start + gl_match.start(),
-                    "span_end": gl_start + gl_match.end(),
+                    "span_start": gl_start + len(fixing_prefix) + gl_match.start(),
+                    "span_end": gl_start + len(fixing_prefix) + gl_match.end(),
                 }
                 if first_gate_line_entry is None:
                     first_gate_line_entry = gate_line_entry
@@ -661,7 +669,7 @@ def _render_clickable_gate_line_summary(
         cursor = 0
         for idx, line in enumerate(line_numbers):
             label = f"{gate}.{line}"
-            prefix = BODY_RELATIONAL_GLYPHS.get("Exaltation", "") if fixing_by_line.get((gate, line)) == "exaltation" else ""
+            prefix = _hd_gate_line_fixing_prefix(fixing_by_line.get((gate, line)))
             token = f"{prefix}{label}"
             parts.append(token)
             span_start = cursor + len(prefix)
