@@ -22,6 +22,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from ephemeraldaddy.analysis.theme_prominence import theme_definition_signature  # noqa: E402
+from ephemeraldaddy.analysis.trait_reviews import without_trait_reviews  # noqa: E402
 from ephemeraldaddy.analysis.theme_norms import (  # noqa: E402
     THEME_CHART_SHARE_SCHEMA_FIELD,
     THEME_CHART_SHARE_SCHEMA_VERSION,
@@ -77,7 +78,7 @@ def _active_default_traits(path: Path = DEFAULT_TRAITS_PATH) -> list[dict[str, A
                 "uid": str(uid),
                 "key": f"uid:{uid}",
                 "profile": dict(profile),
-                "profile_hash": _stable_hash(profile),
+                "profile_hash": _stable_hash(without_trait_reviews(profile)),
             }
         )
     return traits

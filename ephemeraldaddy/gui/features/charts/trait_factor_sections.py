@@ -22,7 +22,20 @@ def install_trait_factor_sections(core: ModuleType) -> None:
     def trait_info_html_with_signed_sections(
         trait: dict[str, Any],
         chart: Any | None = None,
+        *,
+        antithetical: bool = False,
     ) -> str:
+        # Antithetical rows reverse the meaning of the profile's positive and
+        # negative evidence.  The original renderer owns that inversion (and
+        # the antitrait name/description), so preserve it rather than appending
+        # the ordinary-trait signed sections with misleading polarity labels.
+        if antithetical:
+            return original_trait_info_html(
+                trait,
+                chart,
+                antithetical=True,
+            )
+
         base_html = original_trait_info_html(trait, None)
         if chart is None:
             return base_html

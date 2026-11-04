@@ -17,6 +17,7 @@ from typing import Any, Mapping
 
 from ephemeraldaddy.analysis.dnd.dnd_definitions import DND_STAT_PREDICTORS
 from ephemeraldaddy.analysis.traits import list_traits, trait_uid_for_profile
+from ephemeraldaddy.analysis.trait_reviews import without_trait_reviews
 from ephemeraldaddy.analysis.weighted_chart_predictor import calculate_weighted_criteria_scores
 from ephemeraldaddy.core import db
 
@@ -79,7 +80,7 @@ def _trait_payload(trait: Mapping[str, Any]) -> dict[str, Any]:
         "key": _trait_key(trait),
         "uid": str(trait.get("uid", "") or trait.get("trait_uid", "") or "").strip(),
         "name": str(trait.get("name", "") or "").strip(),
-        "profile_hash": _stable_hash(trait.get("profile", {}) or {}),
+        "profile_hash": _stable_hash(without_trait_reviews(trait.get("profile", {}) or {})),
     }
 
 
@@ -279,7 +280,7 @@ def trait_snapshot_averages(traits: list[dict[str, Any]], snapshot: Mapping[str,
         row = rows.get(_trait_key(trait))
         if not isinstance(row, dict):
             continue
-        if str(row.get("profile_hash", "") or "") != _stable_hash(trait.get("profile", {}) or {}):
+        if str(row.get("profile_hash", "") or "") != _stable_hash(without_trait_reviews(trait.get("profile", {}) or {})):
             continue
         try:
             averages[name] = float(row.get("db_average", 0.0))
@@ -315,7 +316,7 @@ def trait_norm_unavailability_reasons(
             reasons[name] = "no stored DB norm exists for this trait profile"
             continue
         stored_hash = str(row.get("profile_hash", "") or "")
-        current_hash = _stable_hash(trait.get("profile", {}) or {})
+        current_hash = _stable_hash(without_trait_reviews(trait.get("profile", {}) or {}))
         if stored_hash != current_hash:
             reasons[name] = "the trait's analytical profile changed after its DB norm was calculated"
             continue

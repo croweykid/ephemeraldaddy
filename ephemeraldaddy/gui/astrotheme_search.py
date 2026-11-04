@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, quote_plus, unquote, urlparse, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+from ephemeraldaddy.io.web_profile.pacing import paced_urlopen
 
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 
@@ -80,7 +81,7 @@ def _astrotheme_http_get(url: str) -> str:
     safe_url = _ascii_safe_http_url(url)
     request = Request(safe_url, headers={"User-Agent": ASTROTHEME_USER_AGENT})
     try:
-        with urlopen(request, timeout=ASTROTHEME_HTTP_TIMEOUT_SECONDS) as response:
+        with paced_urlopen(urlopen, request, timeout=ASTROTHEME_HTTP_TIMEOUT_SECONDS) as response:
             payload = response.read()
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise AstrothemeNetworkError(f"Could not reach Astrotheme while loading {safe_url}") from exc

@@ -134,6 +134,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     apply_button_cursor,
     apply_chart_info_link_cursor,
+    set_chart_info_contrast_background,
     build_tag_chip_html,
     configure_tag_chip_label,
     configure_collapsible_header_toggle,
@@ -1133,6 +1134,7 @@ def build_chart_view_left_panel(
     chart_panel_layout.addWidget(chart_info_header, 0)
 
     owner.chart_info_output = QTextEdit()
+    set_chart_info_contrast_background(owner.chart_info_output)
     owner.chart_info_output.setReadOnly(True)
     owner.chart_info_output.setPlaceholderText(
         "Click the ⓘ next to a position or aspect to see details/interpretation."

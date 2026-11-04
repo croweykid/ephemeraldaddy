@@ -100,6 +100,9 @@ def analytical_mapping_signature(value: Mapping[str, Any] | None, *, strip_uids:
         "archived",
         "samples",
         "exported_at",
+        "chart_accuracy_rankings",
+        "perceived_accuracy",
+        "astro_analysis",
     }
     if strip_uids:
         excluded.update({"uid", "trait_uid"})

@@ -237,6 +237,25 @@ def test_trait_factor_sections_render_negative_indicator_sections(monkeypatch):
     assert "No negative indicators are defined" not in rendered
 
 
+def test_installed_wrapper_propagates_antithetical_keyword_and_chart():
+    calls = []
+
+    class Core:
+        @staticmethod
+        def _trait_info_html(trait, chart=None, *, antithetical=False):
+            calls.append((trait, chart, antithetical))
+            return "ANTITHETICAL" if antithetical else "ORDINARY"
+
+    trait_factor_sections.install_trait_factor_sections(Core)
+    trait = {"name": "Agreeable", "profile": {}}
+    chart = SimpleNamespace(name="Example")
+
+    rendered = Core._trait_info_html(trait, chart, antithetical=True)
+
+    assert rendered == "ANTITHETICAL"
+    assert calls == [(trait, chart, True)]
+
+
 def test_trait_factor_sections_render_no_birth_time_unknowns_without_undefined_fallback(monkeypatch):
     fixed_evidence = explanations.TraitFactorEvidence(
         supporting=(),

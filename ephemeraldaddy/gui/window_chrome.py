@@ -152,6 +152,15 @@ def _open_personal_timeline(owner: "QWidget") -> None:
     open_personal_timeline_for_window(owner)
 
 
+def _open_batch_import(owner: "QWidget") -> None:
+    """Open Batch Import lazily so window chrome stays lightweight."""
+    from ephemeraldaddy.gui.features.import_export.batch_web_import import (
+        open_batch_import_window,
+    )
+
+    open_batch_import_window(owner)
+
+
 def _configure_menu_bar_visibility(menu_bar) -> None:
     """Keep Terminal-launched macOS builds from hiding window_chrome menus.
 
@@ -428,6 +437,7 @@ def configure_manage_dialog_chrome(
     _bind_menu_action(charts_menu, "New chart", dialog, "_on_new_chart", "on_new_chart")
     _bind_menu_action(charts_menu, "Edit chart", dialog, "_on_edit_chart_from_menu")
     _bind_menu_action(charts_menu, "Delete chart(s)", dialog, "_on_delete", "on_delete")
+    _bind_menu_callback(charts_menu, "Batch Import", lambda: _open_batch_import(dialog))
     _bind_menu_action(charts_menu, "Current Transits", dialog, "_show_current_transits_panel")
     _bind_menu_action(charts_menu, "🌎 Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
     _bind_menu_callback(charts_menu, "🗓 Personal Timeline", lambda: _open_personal_timeline(dialog))

@@ -217,6 +217,8 @@ class Chart:
         self.rectification_notes = ""
         self.biography = ""
         self.chart_data_source = ""
+        # Permanent provenance bit for records created by automated importers.
+        self.auto_generated = False
         self.positive_sentiment_intensity = 1
         self.negative_sentiment_intensity = 1
         self.familiarity = 1

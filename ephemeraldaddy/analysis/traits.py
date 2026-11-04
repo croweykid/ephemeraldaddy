@@ -309,6 +309,11 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     position_spec_uses_houses,
 )
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.analysis.trait_reviews import (
+    load_bundled_trait_reviews,
+    trait_review_fields,
+    without_trait_reviews,
+)
 
 TRAIT_DIR = Path.home() / ".ephemeraldaddy" / "traits"
 TRAIT_FILE_SUFFIX = ".json"
@@ -741,6 +746,7 @@ def save_trait(
         stored.get("description", "") if description is None else description
     ).strip()
     stored["samples"] = normalize_trait_samples(stored.get("samples"), trait_name=clean_name)
+    stored.update(trait_review_fields(stored))
     preserved_comments = _extract_hash_comments(str(profile.get("_source_text", "")))
     stored.pop("_source_text", None)
     destination.write_text(
@@ -771,6 +777,7 @@ def _trait_item_from_profile(name: str, profile: Mapping[str, Any], path: Path, 
     samples = normalize_trait_samples(profile.get("samples"), trait_name=name, source=path)
     trait_uid = trait_uid_for_profile(name, profile, bundled=bundled)
     return {
+        **trait_review_fields(profile),
         "name": name,
         "uid": trait_uid,
         "trait_uid": trait_uid,
@@ -829,6 +836,13 @@ def list_traits(*, active_only: bool = False, skip_corrupt: bool = True) -> list
     Pass ``False`` when callers need corrupt trait files to raise immediately.
     """
     items: list[dict[str, Any]] = []
+    try:
+        bundled_reviews = load_bundled_trait_reviews()
+    except (OSError, ValueError):
+        if not skip_corrupt:
+            raise
+        logger.warning("Could not read local bundled Trait reviews.", exc_info=True)
+        bundled_reviews = {}
     seen_names: set[str] = set()
     for item in _default_trait_items(skip_corrupt=skip_corrupt):
         if active_only and bool(item.get("archived", False)):
@@ -836,6 +850,9 @@ def list_traits(*, active_only: bool = False, skip_corrupt: bool = True) -> list
         name_key = str(item.get("name", "")).strip().casefold()
         if not name_key:
             continue
+        review = bundled_reviews.get(item["uid"])
+        if isinstance(review, Mapping):
+            item.update(trait_review_fields(review))
         items.append(item)
         seen_names.add(name_key)
 
@@ -1020,7 +1037,7 @@ def _trait_possible_score_signature(trait_items: list[dict[str, Any]]) -> str:
         {
             "name": str(item.get("name", "")),
             "uid": str(item.get("uid") or item.get("trait_uid") or ""),
-            "profile": item.get("profile", {}),
+            "profile": without_trait_reviews(item.get("profile", {})),
         }
         for item in trait_items
         if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
