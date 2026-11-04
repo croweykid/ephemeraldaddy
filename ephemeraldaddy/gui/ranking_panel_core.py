@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import html
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from PySide6.QtCore import QObject, QPoint, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
@@ -104,6 +104,59 @@ class _RankingsTraitWorker(QObject):
 
 class RankingsPanelMixin:
     """Mixin that builds and refreshes the Database View Rankings panel."""
+
+    def trait_accuracy_rankings(
+        self,
+        trait: dict[str, Any],
+        progress: Callable[[float], None],
+        should_cancel: Callable[[], bool],
+    ) -> list[dict[str, Any]]:
+        """Query the same ranking as the panel for a single Trait review.
+
+        Reviews always use the full database, independent of the panel's current
+        collection, dropdown, and visible row limit. The shared collector reuses
+        valid scores and calculates missing scores only for this Trait.
+        """
+        # Archived Traits can still be reviewed without changing their availability.
+        trait = {**trait, "archived": False}
+        name = str(trait["name"])
+        averages = trait_snapshot_averages([trait])
+        if name not in averages:
+            raise ValueError(
+                "Stored DB norm unavailable. Generate or refresh this Trait's DB Norms "
+                "in Settings before rating its current predictions."
+            )
+        chart_uids = tuple(sorted(RankingsPanelMixin._rankings_database_chart_uids(self)))
+        signature = self._traits_distribution_signature([trait])
+        if not isinstance(getattr(self, "_traits_distribution_chart_likelihood_cache", None), dict):
+            self._load_traits_distribution_likelihood_cache()
+        # Use the unscoped core check: the collection selector must not hide a
+        # changed chart from this review's cache-freshness check.
+        RankingsPanelMixin._rankings_trait_likelihood_cache_complete(
+            self,
+            chart_uids_by_id=self._traits_distribution_chart_uid_by_id(),
+            trait_signature=signature,
+            selected_trait_name=name,
+        )
+        result = self._collect_traits_distribution_analytics_by_uids(
+            chart_uids,
+            trait_items=[trait],
+            trait_signature=signature,
+            time_budget_seconds=None,
+            progress_callback=progress,
+            should_cancel=should_cancel,
+        )
+        if should_cancel() or result.get("partial", False):
+            return []
+        rows = self._rankings_traits_chart_rankings(
+            chart_uids=chart_uids,
+            trait_signature=signature,
+            selected_trait_name=name,
+            database_values={name: float(averages[name]) / 100.0},
+            limit=None,
+            cache_complete=True,
+        )
+        return [row for row in rows if float(row["deviation"]) > 0.0][:40]
 
     def _build_rankings_panel(self) -> QWidget:
         """Build the Database View Rankings left panel."""
