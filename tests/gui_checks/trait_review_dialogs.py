@@ -19,6 +19,11 @@ def app():
 
 
 @pytest.fixture(autouse=True)
+def no_personal_database(monkeypatch):
+    monkeypatch.setattr(ui.db, "load_chart_rows_for_uids", lambda uids: {})
+
+
+@pytest.fixture(autouse=True)
 def dispose_dialogs(app):
     yield
     for widget in app.topLevelWidgets():
@@ -332,3 +337,67 @@ def test_repeated_query_success_and_failure_close_cleanly(app):
         assert dialog._thread.isFinished()
         dialog.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_first_results_include_chart_details_and_scroll_horizontally(app, monkeypatch):
+    lookups = []
+    tags = [f"category: meaningful tag {index}" for index in range(30)]
+
+    def load(uids):
+        lookups.append(tuple(uids))
+        return {
+            "A": {"name": "Chart", "alias": "An alias", "from_whence": "A television series", "tags": ", ".join(tags)},
+            "B": {"name": "Plain", "alias": None, "from_whence": " ", "tags": ""},
+        }
+
+    monkeypatch.setattr(ui.db, "load_chart_rows_for_uids", load)
+    saved = []
+    dialog = ui.RateAccuracyDialog(
+        trait_name="T", entries=[],
+        query=lambda progress, cancelled: [{"chart_uid": "A", "name": "Chart"}, {"chart_uid": "B", "name": "Plain"}],
+        trait_profile={"sample_uids": ["A"]},
+        save=lambda entries: saved.append(copy.deepcopy(entries)),
+    )
+    dialog.show()
+    finish_query(app, dialog)
+    label = dialog._labels["A"]
+    assert label.text() == f"🧚 Chart (alias: An alias; from: A television series; tags: {', '.join(tags)})"
+    assert dialog._labels["B"].text() == "Plain"
+    assert not label.wordWrap()
+    scroll = dialog.findChild(QScrollArea)
+    wait_until(app, lambda: scroll.horizontalScrollBar().maximum() > 0)
+    assert scroll.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert dialog.width() == 650
+    assert label.width() >= label.sizeHint().width()
+    scroll.horizontalScrollBar().setValue(scroll.horizontalScrollBar().maximum())
+    assert scroll.horizontalScrollBar().value() > 0
+    assert lookups == [("A", "B")]
+    dialog.close()
+    assert saved[0][0] == {"chart_uid": "A", "name": "Chart", "value": None}
+
+
+def test_saved_chart_details_refresh_even_when_predictions_fail(app, monkeypatch):
+    lookups = []
+
+    def load(uids):
+        lookups.append(tuple(uids))
+        return {"A": {"name": "Current name", "alias": "Current alias", "from_whence": "New source", "tags": "new tag, Other, NEW TAG"}}
+
+    def fail(progress, cancelled):
+        raise ValueError("Stored norm unavailable")
+
+    monkeypatch.setattr(ui.db, "load_chart_rows_for_uids", load)
+    saved = []
+    dialog = ui.RateAccuracyDialog(
+        trait_name="T", entries=[{"chart_uid": "A", "name": "Old name", "value": 4}],
+        query=fail, trait_profile={"sample_uids": ["OTHER"]},
+        save=lambda entries: saved.append(copy.deepcopy(entries)),
+    )
+    dialog.show()
+    finish_query(app, dialog)
+    assert dialog._labels["A"].text() == "Current name (alias: Current alias; from: New source; tags: new tag, Other)"
+    assert dialog.inputs["A"].text() == "4"
+    assert lookups == [("A",)]
+    assert "Stored norm unavailable" in dialog.status_label.text()
+    dialog.close()
+    assert saved[0] == [{"chart_uid": "A", "name": "Current name", "value": 4}]
