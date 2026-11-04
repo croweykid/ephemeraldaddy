@@ -131,7 +131,7 @@ def populate_traits_settings_layout(owner: Any, traits_section: Any) -> None:
     owner._traits_edit_button.clicked.connect(lambda _checked=False: on_trait_edit_clicked(owner))
     traits_second_button_row.addWidget(owner._traits_edit_button)
 
-    owner._traits_reassess_unavailable_button = QPushButton("Reassess unavailable traits")
+    owner._traits_reassess_unavailable_button = QPushButton("♻️ unavailable traits")
     owner._traits_reassess_unavailable_button.setToolTip(
         "Calculate DB norms only for active traits whose norm is missing or analytically outdated."
     )
@@ -143,18 +143,14 @@ def populate_traits_settings_layout(owner: Any, traits_section: Any) -> None:
     owner._traits_description_button = QPushButton("Add description…")
     owner._traits_description_button.clicked.connect(lambda _checked=False: on_trait_description_clicked(owner))
     traits_second_button_row.addWidget(owner._traits_description_button)
-    traits_second_button_row.addStretch(1)
-    traits_section.addLayout(traits_second_button_row)
-
-    review_buttons = QHBoxLayout()
     owner._traits_rate_accuracy_button = QPushButton("Rate Accuracy")
     owner._traits_rate_accuracy_button.clicked.connect(lambda _checked=False: on_trait_rate_accuracy_clicked(owner))
-    review_buttons.addWidget(owner._traits_rate_accuracy_button)
+    traits_second_button_row.addWidget(owner._traits_rate_accuracy_button)
     owner._traits_astro_analysis_button = QPushButton("Add Astro Analysis")
     owner._traits_astro_analysis_button.clicked.connect(lambda _checked=False: on_trait_astro_analysis_clicked(owner))
-    review_buttons.addWidget(owner._traits_astro_analysis_button)
-    review_buttons.addStretch(1)
-    traits_section.addLayout(review_buttons)
+    traits_second_button_row.addWidget(owner._traits_astro_analysis_button)
+    traits_second_button_row.addStretch(1)
+    traits_section.addLayout(traits_second_button_row)
     owner._traits_list_widget.itemSelectionChanged.connect(lambda: _sync_trait_action_buttons(owner))
 
     owner._traits_status_label = QLabel("")
@@ -526,6 +522,7 @@ def on_trait_rate_accuracy_clicked(owner: Any) -> None:
         entries=trait["chart_accuracy_rankings"],
         query=lambda progress, cancelled: owner.trait_accuracy_rankings(trait, progress, cancelled),
         save=save,
+        trait_profile=trait["profile"],
         parent=_settings_dialog_for(owner),
     )
     dialog.exec()

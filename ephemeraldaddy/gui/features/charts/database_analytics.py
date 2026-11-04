@@ -5504,12 +5504,18 @@ class DatabaseAnalyticsChartsMixin:
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
         progress_callback: Callable[[float], None] | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        *,
+        persist_metadata: bool = True,
     ) -> dict[str, Any]:
         """Legacy Database View row-ID adapter for UID-keyed trait analytics.
 
         Numeric IDs are accepted only at the Qt/SQLite row boundary. All cache,
         persistence, and Predictions callers must use
         :meth:`_collect_traits_distribution_analytics_by_uids`.
+
+        ``persist_metadata=False`` warms numerical caches without backfilling
+        per-chart Predictions metadata or writing a population baseline. This
+        is used by accuracy reviews, which only need the ordered scores.
         """
         _predictions_debug(
             self,
@@ -5693,7 +5699,7 @@ class DatabaseAnalyticsChartsMixin:
                     cache_updated = True
                 if len(likelihoods) >= len(trait_names):
                     likelihood_cache[chart_cache_key] = dict(likelihoods)
-            if len(likelihoods) >= len(trait_names):
+            if persist_metadata and len(likelihoods) >= len(trait_names):
                 charts_by_uid_for_metadata[chart_uid] = chart
                 chart_likelihoods_for_metadata[chart_uid] = dict(likelihoods)
             chart_count += 1
@@ -5723,14 +5729,17 @@ class DatabaseAnalyticsChartsMixin:
             ),
         }
         if not partial:
-            aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
-            _predictions_debug(
-                self,
-                "Traits distribution aggregate cached charts=%s traits=%s",
-                chart_count,
-                len(trait_names),
-            )
-            if chart_count:
+            # A scores-only review must not suppress a later consumer's normal
+            # metadata backfill through an aggregate-cache short circuit.
+            if persist_metadata:
+                aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
+                _predictions_debug(
+                    self,
+                    "Traits distribution aggregate cached charts=%s traits=%s",
+                    chart_count,
+                    len(trait_names),
+                )
+            if persist_metadata and chart_count:
                 self._persist_traits_distribution_metadata(
                     chart_uids=normalized_chart_uids,
                     charts_by_uid=charts_by_uid_for_metadata,
@@ -5763,6 +5772,8 @@ class DatabaseAnalyticsChartsMixin:
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
         progress_callback: Callable[[float], None] | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        *,
+        persist_metadata: bool = True,
     ) -> dict[str, Any]:
         """Expose shared trait analytics to Predictions through permanent UIDs only.
 
@@ -5792,6 +5803,7 @@ class DatabaseAnalyticsChartsMixin:
             time_budget_seconds=time_budget_seconds,
             progress_callback=progress_callback,
             should_cancel=should_cancel,
+            persist_metadata=persist_metadata,
         )
 
     def _schedule_traits_distribution_warm_refresh(self) -> None:

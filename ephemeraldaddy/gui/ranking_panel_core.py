@@ -143,11 +143,15 @@ class RankingsPanelMixin:
             trait_items=[trait],
             trait_signature=signature,
             time_budget_seconds=None,
-            progress_callback=progress,
+            # Leave room for cache persistence and the final ranked-list query.
+            progress_callback=lambda percent: progress(float(percent) * 0.95),
             should_cancel=should_cancel,
+            # Accuracy reviews need scores, not a database-wide metadata backfill.
+            persist_metadata=False,
         )
         if should_cancel() or result.get("partial", False):
             return []
+        progress(97.0)
         rows = self._rankings_traits_chart_rankings(
             chart_uids=chart_uids,
             trait_signature=signature,
@@ -156,6 +160,8 @@ class RankingsPanelMixin:
             limit=None,
             cache_complete=True,
         )
+        if should_cancel():
+            return []
         return [row for row in rows if float(row["deviation"]) > 0.0][:40]
 
     def _build_rankings_panel(self) -> QWidget:

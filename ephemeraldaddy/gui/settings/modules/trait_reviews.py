@@ -6,10 +6,10 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from PySide6.QtCore import QObject, QRegularExpression, QThread, Qt, Signal, Slot
+from PySide6.QtCore import QRegularExpression, QThread, Qt, Signal, Slot
 from PySide6.QtGui import QRegularExpressionValidator
 from PySide6.QtWidgets import (
-    QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QDialog, QDialogButtonBox, QGridLayout, QLabel, QLayout, QLineEdit, QMessageBox,
     QPlainTextEdit, QScrollArea, QVBoxLayout, QWidget,
 )
 
@@ -18,19 +18,31 @@ from ephemeraldaddy.analysis.trait_reviews import (
 )
 from ephemeraldaddy.analysis.traits import _TRAIT_SCORE_CATEGORIES, _json_safe_trait_value
 from ephemeraldaddy.core import db
+from ephemeraldaddy.gui.features.charts.trait_sample_markers import chart_name_with_trait_sample_markers
 
 RankingQuery = Callable[[Callable[[float], None], Callable[[], bool]], list[dict[str, Any]]]
 
 
-class _AccuracyRankingWorker(QObject):
-    finished = Signal(object, object)
+class _AccuracyRankingWorker(QThread):
+    """Run one finite query; Qt's finished signal owns thread completion."""
+
+    result_ready = Signal(object, object)
     failed = Signal(str)
     progress = Signal(float)
 
-    def __init__(self, query: RankingQuery, saved_entries: list[dict[str, Any]]) -> None:
-        super().__init__()
+    def __init__(self, query: RankingQuery, saved_entries: list[dict[str, Any]], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self._query = query
         self._saved_entries = saved_entries
+        self._last_progress = -1
+
+    def _report_progress(self, percent: float) -> None:
+        # Large databases can generate two callbacks per chart. Queue at most
+        # one UI update per percentage point, and reserve completion for rows.
+        current = max(0, min(99, int(percent)))
+        if current > self._last_progress:
+            self._last_progress = current
+            self.progress.emit(float(current))
 
     @Slot()
     def run(self) -> None:
@@ -41,8 +53,8 @@ class _AccuracyRankingWorker(QObject):
                     entry["chart_uid"] for entry in self._saved_entries
                 ).items()
             } if self._saved_entries else {}
-            rows = self._query(self.progress.emit, QThread.currentThread().isInterruptionRequested)
-            self.finished.emit(rows, names)
+            rows = self._query(self._report_progress, self.isInterruptionRequested)
+            self.result_ready.emit(rows, names)
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -61,6 +73,7 @@ class RateAccuracyDialog(QDialog):
         entries: list[dict[str, Any]],
         query: RankingQuery,
         save: Callable[[list[dict[str, Any]]], None],
+        trait_profile: Mapping[str, Any] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -68,6 +81,7 @@ class RateAccuracyDialog(QDialog):
         self.resize(650, 740)
         self._entries = normalize_accuracy_rankings(entries)
         self._save = save
+        self._trait_profile = dict(trait_profile or {})
         self._ready = bool(self._entries)
         self._pending_result: int | None = None
         self._thread: QThread | None = None
@@ -79,7 +93,8 @@ class RateAccuracyDialog(QDialog):
             "The average uses rated charts only. Closing this window saves your ratings.\n"
             "1 = useless · 2 = pretty inaccurate · 3 = mixed results · "
             "4 = mostly accurate · 5 = very accurate\n"
-            "Gray italic names are saved predictions outside the current top 40."
+            "Gray italic names are saved predictions outside the current top 40.\n"
+            "🧚 original sample · 👹 antithesis sample · ❓ unknown sample membership"
         )
         help_label.setWordWrap(True)
         layout.addWidget(help_label)
@@ -90,10 +105,15 @@ class RateAccuracyDialog(QDialog):
         layout.addWidget(self.average_label)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        rows_widget = QWidget()
-        self._rows_layout = QVBoxLayout(rows_widget)
+        self._rows_widget = QWidget()
+        self._rows_layout = QGridLayout(self._rows_widget)
         self._rows_layout.setAlignment(Qt.AlignTop)
-        scroll.setWidget(rows_widget)
+        self._rows_layout.setHorizontalSpacing(6)
+        self._rows_layout.setVerticalSpacing(6)
+        self._rows_layout.setColumnStretch(1, 1)
+        # Recompute the scroll content size as the first asynchronous rows arrive.
+        self._rows_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
+        scroll.setWidget(self._rows_widget)
         layout.addWidget(scroll, 1)
         self.buttons = QDialogButtonBox(QDialogButtonBox.Close)
         self.buttons.button(QDialogButtonBox.Close).setText("Close and Save")
@@ -101,29 +121,21 @@ class RateAccuracyDialog(QDialog):
         layout.addWidget(self.buttons)
         self._render_entries()
 
-        self._thread = QThread(self)
-        self._worker = _AccuracyRankingWorker(query, self._entries)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._loaded, Qt.QueuedConnection)
-        self._worker.failed.connect(self._failed, Qt.QueuedConnection)
-        self._worker.progress.connect(self._progress, Qt.QueuedConnection)
-        self._worker.finished.connect(self._thread.quit)
-        self._worker.failed.connect(self._thread.quit)
-        self._worker.finished.connect(self._worker.deleteLater)
-        self._worker.failed.connect(self._worker.deleteLater)
+        self._thread = _AccuracyRankingWorker(query, self._entries, self)
+        self._thread.result_ready.connect(self._loaded, Qt.QueuedConnection)
+        self._thread.failed.connect(self._failed, Qt.QueuedConnection)
+        self._thread.progress.connect(self._progress, Qt.QueuedConnection)
         self._thread.finished.connect(self._thread_finished)
         self._thread.start()
 
     def _render_entries(self) -> None:
-        for entry in self._entries:
+        for row_index, entry in enumerate(self._entries):
             uid = entry["chart_uid"]
-            row = QHBoxLayout()
-            label = QLabel(entry["name"] or "Unavailable chart")
+            label = QLabel(self._display_name(entry), self._rows_widget)
             label.setTextFormat(Qt.PlainText)
             label.setWordWrap(True)
-            row.addWidget(label, 1)
-            field = QLineEdit()
+            label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            field = QLineEdit(self._rows_widget)
             field.setAccessibleName(f"Accuracy rating for {label.text()}")
             field.setMaxLength(1)
             field.setValidator(QRegularExpressionValidator(QRegularExpression("[1-5]?"), field))
@@ -132,11 +144,16 @@ class RateAccuracyDialog(QDialog):
             field.setToolTip("Enter 1–5, or clear to leave unrated")
             field.setText("" if entry["value"] is None else str(entry["value"]))
             field.textChanged.connect(lambda text, entry=entry: self._rating_changed(entry, text))
-            row.addWidget(field)
-            self._rows_layout.addLayout(row)
+            self._rows_layout.addWidget(field, row_index, 0)
+            self._rows_layout.addWidget(label, row_index, 1)
             self._labels[uid] = label
             self.inputs[uid] = field
         self._update_average()
+
+    def _display_name(self, entry: Mapping[str, Any]) -> str:
+        return chart_name_with_trait_sample_markers(
+            entry["name"] or "Unavailable chart", self._trait_profile, entry["chart_uid"],
+        )
 
     def _rating_changed(self, entry: dict[str, Any], text: str) -> None:
         entry["value"] = int(text) if text in {"1", "2", "3", "4", "5"} else None
@@ -154,7 +171,8 @@ class RateAccuracyDialog(QDialog):
     @Slot(float)
     def _progress(self, percent: float) -> None:
         if self._pending_result is None:
-            self.status_label.setText(f"Checking current top 40 predictions… {percent:.0f}%")
+            phase = "Preparing the ranked chart list" if percent >= 95 else "Checking current top 40 predictions"
+            self.status_label.setText(f"{phase}… {percent:.0f}%")
 
     @Slot(object, object)
     def _loaded(self, rows: list[dict[str, Any]], names: dict[str, str]) -> None:
@@ -168,7 +186,8 @@ class RateAccuracyDialog(QDialog):
             uid = entry["chart_uid"]
             if uid in names:
                 entry["name"] = names[uid]
-                self._labels[uid].setText(names[uid])
+                self._labels[uid].setText(self._display_name(entry))
+                self.inputs[uid].setAccessibleName(f"Accuracy rating for {self._labels[uid].text()}")
             stale = uid not in current_uids
             label = self._labels[uid]
             font = label.font()
@@ -193,7 +212,9 @@ class RateAccuracyDialog(QDialog):
 
     @Slot()
     def _thread_finished(self) -> None:
-        self._worker = None
+        # finished precedes native thread cleanup. Join before the dialog (and
+        # its thread child) can be deleted by the Settings action handler.
+        self._thread.wait()
         if self._pending_result is not None:
             self._finish_close(self._pending_result)
 
@@ -207,6 +228,8 @@ class RateAccuracyDialog(QDialog):
         self._finish_close(result)
 
     def _finish_close(self, result: int) -> None:
+        if self._thread is not None:
+            self._thread.wait()
         if self._ready:
             try:
                 self._save(self._entries)

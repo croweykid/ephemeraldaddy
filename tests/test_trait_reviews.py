@@ -131,8 +131,89 @@ def test_ranking_query_reuses_panel_pipeline_and_full_database(monkeypatch):
     assert calls[1][1] == ("A", "B")
     assert calls[1][2]["trait_items"] == [{**trait, "archived": False}]
     assert calls[1][2]["time_budget_seconds"] is None
+    assert calls[1][2]["persist_metadata"] is False
     assert calls[2][1]["database_values"] == {"T": 0.6}
     assert trait["archived"] is True
+
+
+def test_ranking_query_does_not_report_completion_before_final_ordering(monkeypatch):
+    from ephemeraldaddy.gui import ranking_panel_core as rankings
+
+    monkeypatch.setattr(rankings, "trait_snapshot_averages", lambda items: {"T": 60.0})
+    monkeypatch.setattr(rankings.RankingsPanelMixin, "_rankings_database_chart_uids", lambda self: {"A"})
+    monkeypatch.setattr(rankings.RankingsPanelMixin, "_rankings_trait_likelihood_cache_complete", lambda self, **kwargs: True)
+    progress = []
+
+    def collect(uids, **kwargs):
+        kwargs["progress_callback"](100.0)
+        assert progress == [95.0]
+        return {}
+
+    def rank(**kwargs):
+        assert max(progress) < 100.0
+        return [{"chart_uid": "A", "name": "Chart", "deviation": 30.0}]
+
+    owner = SimpleNamespace(
+        _traits_distribution_chart_likelihood_cache={},
+        _traits_distribution_signature=lambda items: (("T", "color", "profile"),),
+        _traits_distribution_chart_uid_by_id=lambda: {1: "A"},
+        _collect_traits_distribution_analytics_by_uids=collect,
+        _rankings_traits_chart_rankings=rank,
+    )
+    rows = rankings.RankingsPanelMixin.trait_accuracy_rankings(owner, {"name": "T"}, progress.append, lambda: False)
+    assert rows[0]["chart_uid"] == "A"
+
+
+@pytest.mark.parametrize("persist_metadata", [True, False])
+@pytest.mark.parametrize("warm_cache", [True, False])
+def test_accuracy_collection_can_skip_per_chart_metadata_backfill(monkeypatch, persist_metadata, warm_cache):
+    from ephemeraldaddy.gui.features.charts import database_analytics as analytics
+
+    class Owner(analytics.DatabaseAnalyticsChartsMixin):
+        def _traits_distribution_chart_uid_by_id(self):
+            return {index: f"UID{index}" for index in range(40)}
+
+        def _traits_distribution_chart_tokens(self):
+            return {f"UID{index}": "token" for index in range(40)}
+
+        def _get_chart_for_filter(self, sqlite_row_id):
+            return SimpleNamespace(chart_uid=f"UID{sqlite_row_id}", name="Chart")
+
+        def _is_placeholder_chart(self, chart):
+            return False
+
+    signature = (("T", "#ffffff", "{}"),)
+    owner = Owner()
+    owner._traits_distribution_chart_likelihood_cache = {
+        (0, signature, f"UID{index}"): {"T": 80.0} for index in range(40)
+    } if warm_cache else {}
+    saved_caches = []
+    owner._save_traits_distribution_likelihood_cache = lambda: saved_caches.append(True)
+    monkeypatch.setattr(analytics, "calculate_trait_likelihoods", lambda chart, items, **kwargs: {"T": 80.0})
+    writes = []
+    monkeypatch.setattr(analytics.db, "upsert_trait_baseline_snapshot", lambda **kwargs: writes.append("baseline"))
+    monkeypatch.setattr(analytics.db, "upsert_chart_trait_likelihoods", lambda *args, **kwargs: writes.append("likelihoods"))
+    monkeypatch.setattr(analytics.db, "upsert_chart_trait_metadata", lambda *args, **kwargs: writes.append("metadata"))
+    result = owner._collect_traits_distribution_analytics_by_uids(
+        tuple(f"UID{index}" for index in range(40)),
+        trait_items=[{"name": "T", "uid": "t", "color": "#ffffff", "profile": {}}],
+        trait_signature=signature,
+        time_budget_seconds=None,
+        persist_metadata=persist_metadata,
+    )
+    assert result["chart_count"] == 40
+    assert result["totals"] == {"T": pytest.approx(32.0)}
+    assert len(writes) == (81 if persist_metadata else 0)
+    assert saved_caches == ([] if warm_cache else [True])
+    if not persist_metadata:
+        # A later Predictions consumer still gets the default metadata backfill.
+        owner._collect_traits_distribution_analytics_by_uids(
+            tuple(f"UID{index}" for index in range(40)),
+            trait_items=[{"name": "T", "uid": "t", "color": "#ffffff", "profile": {}}],
+            trait_signature=signature,
+            time_budget_seconds=None,
+        )
+        assert len(writes) == 81
 
 
 def test_ranking_query_does_not_invent_missing_db_norm(monkeypatch):
