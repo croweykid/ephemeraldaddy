@@ -1,13 +1,14 @@
 import copy
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 pytest.importorskip("PySide6.QtWidgets")
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtGui import QValidator
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPlainTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from ephemeraldaddy.gui.settings.modules import trait_reviews as ui
 
@@ -77,21 +78,24 @@ def test_reopen_preserves_saved_uids_and_marks_only_former_predictions(app, monk
         ],
         query=lambda progress, cancelled: [{"chart_uid": "A", "name": "Renamed chart"}, {"chart_uid": "NEW", "name": "New chart"}],
         save=lambda entries: saved.append(copy.deepcopy(entries)),
+        trait_profile={"sample_uids": ["A"], "antisample_uids": ["DELETED"]},
     )
     dialog.setStyleSheet("QLabel { color: #f5f5f5; font-size: 13px; }")
     dialog.show()
     finish_query(app, dialog)
     assert list(dialog.inputs) == ["A", "DELETED"]
     assert dialog.inputs["A"].text() == "4"
-    assert dialog._labels["A"].text() == "Renamed chart"
+    assert dialog._labels["A"].text() == "🧚 Renamed chart"
     assert not dialog._labels["A"].font().italic()
     old = dialog._labels["DELETED"]
     assert old.font().italic()
     assert "#999999" in old.styleSheet()
     assert "font-style: italic" in old.styleSheet()
+    assert old.text() == "👹 Former chart"
     assert "3.00 / 5" in dialog.average_label.text()
     dialog.reject()  # Escape uses the same save-on-close path.
     assert saved[0][1]["chart_uid"] == "DELETED"
+    assert saved[0][0]["name"] == "Renamed chart"
 
 
 def test_saved_ratings_remain_editable_when_current_norm_is_unavailable(app, monkeypatch):
@@ -175,8 +179,30 @@ def test_trait_manager_review_buttons_work_for_bundled_traits(app, monkeypatch):
              "bundled": True, "profile": {}, "color": "#cc99ff"}
     monkeypatch.setattr(manager, "list_traits", lambda: [trait])
     owner = QWidget()
-    owner._build_settings_help_label = lambda text: QLabel(text)
+    def help_label(text):
+        label = QLabel(text)
+        label.setWordWrap(True)
+        return label
+
+    owner._build_settings_help_label = help_label
     manager.populate_traits_settings_layout(owner, QVBoxLayout(owner))
+    owner.resize(700, 560)
+    owner.show()
+    app.processEvents()
+    # Both review buttons belong beside the other actions in the second row.
+    expected = [owner._traits_edit_button, owner._traits_reassess_unavailable_button,
+                owner._traits_description_button, owner._traits_rate_accuracy_button,
+                owner._traits_astro_analysis_button]
+    button_rows = []
+    for index in range(owner.layout().count()):
+        layout = owner.layout().itemAt(index).layout()
+        if layout is not None:
+            button_rows.append([layout.itemAt(i).widget() for i in range(layout.count())
+                                if isinstance(layout.itemAt(i).widget(), QPushButton)])
+    assert len(button_rows) == 2
+    assert button_rows[1] == expected
+    assert owner._traits_reassess_unavailable_button.text() == "♻️ unavailable traits"
+    assert len({button.geometry().top() for button in expected}) == 1
     assert not owner._traits_rate_accuracy_button.isEnabled()
     owner._traits_list_widget.item(0).setSelected(True)
     assert owner._traits_rate_accuracy_button.isEnabled()
@@ -189,3 +215,120 @@ def test_trait_manager_review_buttons_work_for_bundled_traits(app, monkeypatch):
     owner._traits_astro_analysis_button.click()
     assert clicked == ["rate", "analysis"]
     owner.deleteLater()
+
+
+def test_first_async_results_are_visible_and_inputs_stay_next_to_names(app, monkeypatch):
+    from ephemeraldaddy.gui import ranking_panel_core as rankings
+    from ephemeraldaddy.gui.features.charts import database_analytics as analytics
+
+    class Owner(rankings.RankingsPanelMixin, analytics.DatabaseAnalyticsChartsMixin):
+        def _traits_distribution_chart_uid_by_id(self):
+            return {index: f"UID{index}" for index in range(41)}
+
+        def _traits_distribution_chart_tokens(self):
+            return {f"UID{index}": "token" for index in range(41)}
+
+        def _get_chart_for_filter(self, sqlite_row_id):
+            return SimpleNamespace(chart_uid=f"UID{sqlite_row_id}", name=f"Chart {sqlite_row_id}", score=100 - sqlite_row_id)
+
+        def _is_placeholder_chart(self, chart):
+            return False
+
+        def _save_traits_distribution_likelihood_cache(self):
+            pass
+
+        def _persist_traits_distribution_metadata(self, **kwargs):
+            raise AssertionError("Review results must not wait for a metadata backfill")
+
+    owner = Owner()
+    owner._traits_distribution_chart_likelihood_cache = {}
+    owner._chart_rows = [tuple([index] + [None] * 29 + [f"UID{index}"]) for index in range(41)]
+    monkeypatch.setattr(rankings, "trait_snapshot_averages", lambda items: {"T": 60.0})
+    monkeypatch.setattr(rankings, "get_chart_ids_by_uid", lambda uids: {uid: int(uid[3:]) for uid in uids})
+    monkeypatch.setattr(rankings.db, "latest_chart_change_sequence", lambda: 1)
+    monkeypatch.setattr(analytics, "calculate_trait_likelihoods", lambda chart, items, **kwargs: {"T": chart.score})
+    release = threading.Event()
+    saved = []
+
+    def query(progress, cancelled):
+        release.wait(2)
+        return owner.trait_accuracy_rankings(
+            {"name": "T", "profile": {}}, progress, cancelled,
+        )
+
+    dialog = ui.RateAccuracyDialog(
+        trait_name="T", entries=[], query=query, save=lambda entries: saved.append(copy.deepcopy(entries)),
+        trait_profile={"sample_uids": ["UID0"], "antisample_uids": ["UID1"]},
+    )
+    dialog.show()
+    app.processEvents()
+    assert not dialog.inputs
+    release.set()
+    finish_query(app, dialog)
+    wait_until(app, lambda: dialog._ready)
+    app.processEvents()
+    assert len(dialog.inputs) == 40
+    assert all(field.isVisible() and field.width() == 38 for field in dialog.inputs.values())
+    assert all(label.isVisible() for label in dialog._labels.values())
+    field = dialog.inputs["UID0"]
+    label = dialog._labels["UID0"]
+    assert label.geometry().left() - (field.geometry().right() + 1) == 6
+    assert label.alignment() & Qt.AlignLeft
+    assert label.text() == "🧚 Chart 0"
+    assert dialog._labels["UID1"].text() == "👹 Chart 1"
+    assert dialog._labels["UID2"].text() == "Chart 2"
+    scroll = dialog.findChild(QScrollArea)
+    assert scroll.widget().height() >= dialog._rows_layout.minimumSize().height()
+    assert scroll.verticalScrollBar().maximum() > 0
+    assert not saved  # No close/reopen was needed to see the results.
+    dialog.close()
+    assert saved[0][0]["name"] == "Chart 0"  # Prefixes stay display-only.
+
+
+def test_progress_is_throttled_and_never_completes_before_rows_arrive(app):
+    progress_events = []
+    completed = []
+
+    def query(progress, cancelled):
+        for index in range(10001):
+            progress(index / 100.0)
+        return [{"chart_uid": "A", "name": "Chart"}]
+
+    worker = ui._AccuracyRankingWorker(query, [])
+    worker.progress.connect(progress_events.append)
+    worker.result_ready.connect(lambda rows, names: completed.append(rows))
+    worker.run()
+    assert len(progress_events) == 100
+    assert max(progress_events) == 99
+    assert completed[0][0]["chart_uid"] == "A"
+
+
+def test_missing_sample_provenance_uses_question_mark(app):
+    dialog = ui.RateAccuracyDialog(
+        trait_name="Legacy", entries=[], query=lambda progress, cancelled: [{"chart_uid": "A", "name": "Chart"}],
+        save=lambda entries: None,
+    )
+    dialog.show()
+    finish_query(app, dialog)
+    assert dialog._labels["A"].text() == "❓ Chart"
+    dialog.close()
+
+
+def test_repeated_query_success_and_failure_close_cleanly(app):
+    for index in range(12):
+        def query(progress, cancelled):
+            if index % 2:
+                raise ValueError("Stored norm unavailable")
+            return [{"chart_uid": "A", "name": "Chart"}]
+
+        dialog = ui.RateAccuracyDialog(trait_name="T", entries=[], query=query, save=lambda entries: None)
+        dialog.show()
+        finish_query(app, dialog)
+        if index % 2:
+            assert "Stored norm unavailable" in dialog.status_label.text()
+        else:
+            assert dialog.inputs["A"].isVisible()
+        dialog.close()
+        assert dialog._thread.isFinished()
+        dialog.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)

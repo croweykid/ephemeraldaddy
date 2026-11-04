@@ -11,6 +11,7 @@ from ephemeraldaddy.gui.features.similarities.cohort_metadata import (
     chart_uid_is_anti_ascribed,
     chart_uid_is_ascribed,
     normalize_chart_uid,
+    sample_uids_for_profile,
 )
 from ephemeraldaddy.gui.features.charts.trait_prediction_policy import (
     ascribed_trait_names_for_chart,
@@ -73,7 +74,7 @@ def _unknown_sample_trait_names(traits: list[dict[str, Any]]) -> set[str]:
     }
 
 
-def _marked_chart_name_for_profile(
+def chart_name_with_trait_sample_markers(
     name: object,
     profile: Mapping[str, Any],
     chart_uid: object,
@@ -83,7 +84,8 @@ def _marked_chart_name_for_profile(
     positive = chart_uid_is_ascribed(profile, chart_uid)
     anti = chart_uid_is_anti_ascribed(profile, chart_uid)
     if not positive and not anti:
-        return text
+        known_sample = any(normalize_chart_uid(uid) for uid in sample_uids_for_profile(profile))
+        return text if known_sample else f"{UNKNOWN_SAMPLE_TRAIT_PREFIX}{text}"
     prefix = ("🧚" if positive else "") + ("👹" if anti else "")
     return f"{prefix} {text}"
 
@@ -111,7 +113,7 @@ def _rankings_rows_with_sample_markers(
     marked_rows: list[dict[str, Any]] = []
     for row in rankings:
         marked_row = dict(row)
-        marked_row["name"] = _marked_chart_name_for_profile(
+        marked_row["name"] = chart_name_with_trait_sample_markers(
             row.get("name", ""),
             profile,
             row.get("chart_uid", ""),

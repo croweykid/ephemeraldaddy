@@ -75,6 +75,16 @@ def test_rankings_chart_name_marker_accepts_legacy_positive_chart_uids():
     assert rows[0]["name"] == "Legacy Chart"
 
 
+def test_rankings_unknown_provenance_uses_same_question_mark_as_accuracy_reviews():
+    traits = [{"name": "Legacy", "profile": {}}]
+    rows = [{"chart_uid": "CHART", "name": "Chart"}]
+
+    displayed = _rankings_rows_with_sample_markers("Legacy", rows, traits)
+
+    assert displayed[0]["name"] == "❓ Chart"
+    assert rows[0]["name"] == "Chart"
+
+
 def test_load_anti_trait_uses_only_source_positive_samples(monkeypatch, tmp_path):
     source = {
         "Source": {
