@@ -1115,8 +1115,8 @@ DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE = "background-color: #ff006e;" #h
 DATABASE_ANALYTICS_GRAPH_LABEL_REGION_DEBUG_COLOR = "#33ccff" #cornflower blue
 DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR = "#ff6699" #lighter pink
 
-SETTINGS_ORG = "EphemeralDaddy"
-SETTINGS_APP = "EphemeralDaddy"
+# Re-export the desktop settings identity for existing GUI consumers.
+from ephemeraldaddy.core.settings_identity import SETTINGS_APP, SETTINGS_ORG
 FAILSAFE_EXIT_TIMEOUT_MS = 5000
 CRASH_MESSAGE = (
     "¡Lo siento! Ephemeral Daddy is experiencing a stellar collision. "

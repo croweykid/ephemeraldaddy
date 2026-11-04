@@ -38,6 +38,7 @@ from ephemeraldaddy.core.db import (
     load_dominant_sign_weights,
 )
 from ephemeraldaddy.gui.features.settings.traits import list_traits
+from ephemeraldaddy.gui.settings.modules.astrology import load_lilith_mode
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
 )
@@ -1650,16 +1651,10 @@ class RankingsPanelMixin:
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
         }
+        # Derive the ranking baseline from the same mode-filtered chart weights
+        # rather than a database aggregate cached under an earlier Lilith mode.
         db_average = 0.0
         db_count = 0
-        cache = getattr(self, "_database_metrics_cache", None)
-        if isinstance(cache, dict):
-            total_weight = float(
-                cache.get("dominant_sign_total_weight", 0.0) or 0.0
-            )
-            totals = cache.get("dominant_sign_totals", {})
-            if total_weight:
-                db_average = float(totals.get(selected_sign, 0.0)) / total_weight
         for chart_id in normalized_chart_ids:
             chart_uid = chart_uids_by_id.get(int(chart_id), "")
             normalized_chart_uid = self._normalize_rankings_chart_uid(chart_uid)
@@ -1668,16 +1663,21 @@ class RankingsPanelMixin:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
+            selected_lilith_mode = load_lilith_mode()
             weights, recalculated = resolve_complete_sign_weights(
                 stored_weights.get(int(chart_id)),
                 getattr(chart, "dominant_sign_weights", None),
                 ZODIAC_NAMES,
                 lambda chart=chart: _calculate_dominant_sign_weights(chart),
+                trust_chart_cache=(
+                    getattr(chart, "_dominant_sign_lilith_mode", None) == selected_lilith_mode
+                ),
             )
             if weights is None:
                 continue
             if recalculated:
                 chart.dominant_sign_weights = dict(weights)
+            chart._dominant_sign_lilith_mode = selected_lilith_mode
             try:
                 value = float(weights[selected_sign])
             except (KeyError, TypeError, ValueError):
@@ -1743,8 +1743,14 @@ class RankingsPanelMixin:
             # the mean of those same normalized values rather than the aggregate
             # raw-weight cache ratio.
             db_average = sum(float(row["value"]) for row in rows) / float(db_count)
-        elif not db_average and db_count:
-            db_average = sum(float(row["value"]) for row in rows) / float(db_count)
+        elif db_count:
+            # The aggregate raw-weight ratio matches the existing most-dominant
+            # baseline convention; calculate it from current-mode rows.
+            total = sum(float(row["total_weight"]) for row in rows)
+            db_average = (
+                sum(float(row["value"]) for row in rows) / total
+                if total > 0.0 else 0.0
+            )
         value_direction = 1.0 if least else -1.0
         rows.sort(
             key=lambda row: (

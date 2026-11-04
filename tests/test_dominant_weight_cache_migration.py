@@ -70,7 +70,7 @@ def test_schema_v16_clears_cached_dominant_weights_for_sign_formula_change():
     assert _cached_weights(conn, "Sign Formula Cache") == ("", "", "")
 
 
-def test_schema_v22_clears_only_stale_nakshatra_weights():
+def test_schema_v22_then_v23_invalidates_all_dominance_weights():
     conn = sqlite3.connect(":memory:")
     db._create_charts_table(conn)
     conn.execute("PRAGMA user_version = 21")
@@ -79,8 +79,39 @@ def test_schema_v22_clears_only_stale_nakshatra_weights():
     db._ensure_schema(conn)
 
     assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
-    assert _cached_weights(conn, "Nakshatra Formula Cache") == (
-        '{"Scorpio": 1.0}',
-        '{"Moon": 1.0}',
-        "",
+    assert _cached_weights(conn, "Nakshatra Formula Cache") == ("", "", "")
+
+
+
+def test_schema_v23_clears_all_stale_dominance_caches_but_not_positions():
+    conn = sqlite3.connect(":memory:")
+    db._create_charts_table(conn)
+    conn.execute("PRAGMA user_version = 22")
+    _insert_cached_chart(conn, "Legacy Mode")
+    conn.execute(
+        "UPDATE charts SET dominant_element_weights = ?, dominant_mode = ?, modal_distribution = ?, derived_positions = ?",
+        ('{"Fire":2}', "fixed", '{"fixed":1}', '{"Mean Lilith":15}'),
     )
+    db._ensure_schema(conn)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 23
+    assert _cached_weights(conn, "Legacy Mode") == ("", "", "")
+    assert conn.execute(
+        "SELECT dominant_element_weights, dominant_mode, modal_distribution, derived_positions FROM charts"
+    ).fetchone() == ("", None, "", '{"Mean Lilith":15}')
+
+
+
+def test_invalidate_mode_dependent_caches_clears_body_dynamics_roles():
+    conn = sqlite3.connect(":memory:")
+    db._create_charts_table(conn)
+    _insert_cached_chart(conn, "Earlier Lilith")
+    conn.execute(
+        "UPDATE charts SET body_dynamics_roles = ?, derived_positions = ?",
+        ('{"Sun":"antagonist","__lilith_mode":"Mean Lilith"}', '{"Sun":15.0}'),
+    )
+    db._clear_dominant_weight_caches(conn)
+    assert conn.execute(
+        "SELECT body_dynamics_roles, derived_positions FROM charts WHERE name = ?",
+        ("Earlier Lilith",),
+    ).fetchone() == (None, '{"Sun":15.0}')
+    assert _cached_weights(conn, "Earlier Lilith") == ("", "", "")

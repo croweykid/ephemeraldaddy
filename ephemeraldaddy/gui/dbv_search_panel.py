@@ -398,9 +398,7 @@ def _body_dynamics_filter_matches(chart, filters: dict[str, object]) -> bool:
 
     from ephemeraldaddy.core import db
 
-    roles = db._parse_body_dynamics_roles(getattr(chart, "body_dynamics_roles", None))
-    if body not in roles:
-        roles = db._resolve_body_dynamics_roles(chart)
+    roles = db.current_body_dynamics_roles_for_chart(chart)
     return roles.get(body) == role
 
 

@@ -69,3 +69,29 @@ def test_markdown_export_sorts_and_formats_aspects_without_window_state():
     markdown = build_chart_export_markdown(chart)
 
     assert "| Sun | Conjunction | Moon | 01°00' | -01°00' |" in markdown
+
+
+
+def test_chart_export_only_shows_selected_lilith_even_in_raw_json(monkeypatch):
+    from ephemeraldaddy.gui.features.import_export import chart_markdown
+
+    monkeypatch.setattr(chart_markdown, "load_lilith_mode", lambda: "Osculating Lilith")
+    chart = _chart(
+        positions={"Sun": 10.0, "Mean Lilith": 10.0, "Osculating Lilith": 40.0, "Natural Lilith": 70.0},
+        aspects=[
+            {"p1": "Sun", "p2": "Mean Lilith", "type": "conjunction", "angle": 0.0, "delta": 0.0},
+            {"p1": "Sun", "p2": "Osculating Lilith", "type": "semisextile", "angle": 30.0, "delta": 0.0},
+            {"p1": "Sun", "p2": "Natural Lilith", "type": "sextile", "angle": 60.0, "delta": 0.0},
+        ],
+    )
+    chart.as_dict = lambda: {
+        "positions": chart.positions,
+        "retrogrades": {"Mean Lilith": False, "Osculating Lilith": True, "Natural Lilith": False},
+        "aspects": chart.aspects, "null_metadata": None,
+    }
+    markdown = build_chart_export_markdown(chart)
+    assert "Osculating Lilith" in markdown
+    assert "Mean Lilith" not in markdown
+    assert "Natural Lilith" not in markdown
+    assert '"null_metadata": null' in markdown
+    assert chart.positions["Mean Lilith"] == 10.0

@@ -1,5 +1,7 @@
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.astrology import sign_for_longitude
+from ephemeraldaddy.core.lilith_mode import lilith_is_eligible
+from ephemeraldaddy.gui.settings.modules.astrology import load_lilith_mode
 from ephemeraldaddy.core.interpretations import (
     ASPECT_FRICTION,
     ASPECT_SCORE_WEIGHTS,
@@ -228,7 +230,8 @@ def _chart_ruler_planets(chart) -> set[str]:
 def calculate_planet_condition_weights(chart) -> dict[str, float]:
     """Body condition weights used by Body Dynamics multipliers."""
     use_houses = chart_uses_houses(chart)
-    planets = [body for body in PLANET_ORDER if normalize_body_name(body) in NATAL_WEIGHT]
+    lilith_mode = load_lilith_mode()
+    planets = [body for body in PLANET_ORDER if normalize_body_name(body) in NATAL_WEIGHT and lilith_is_eligible(body, lilith_mode)]
     condition_weights = {body: 0.0 for body in planets}
     houses = getattr(chart, "houses", None) if use_houses else None
     positions = getattr(chart, "positions", {}) or {}

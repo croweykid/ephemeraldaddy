@@ -40,9 +40,11 @@ def resolve_complete_sign_weights(
     chart_weights: object,
     zodiac_names: Sequence[str],
     recalculate: Callable[[], object],
+    *,
+    trust_chart_cache: bool = True,
 ) -> tuple[dict[str, float] | None, bool]:
-    """Resolve trustworthy weights, recalculating when both caches are unusable."""
-    for candidate in (stored_weights, chart_weights):
+    """Reuse only provenance-validated chart caches after a Lilith-mode change."""
+    for candidate in (stored_weights, chart_weights if trust_chart_cache else None):
         normalized = complete_sign_weight_map(candidate, zodiac_names)
         if normalized is not None:
             return normalized, False

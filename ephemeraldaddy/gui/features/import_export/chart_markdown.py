@@ -7,7 +7,9 @@ import json
 from ephemeraldaddy.core.aspect_display import iter_displayable_aspects
 from ephemeraldaddy.core.astrology import sign_for_longitude
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.core.lilith_mode import filter_lilith_aspects, filtered_chart_export_payload, lilith_is_eligible
 from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES, aspect_score
+from ephemeraldaddy.gui.settings.modules.astrology import load_lilith_mode
 
 
 def _format_longitude(longitude: float) -> str:
@@ -65,6 +67,7 @@ def build_chart_export_markdown(
     predicted_synastry_html: str = "",
 ) -> str:
     """Return the complete chart and right-panel Markdown report without GUI state."""
+    lilith_mode = load_lilith_mode()
     dt = getattr(chart, "dt", None)
     date_label = dt.strftime("%Y-%m-%d") if dt else "Unknown"
     time_label = (
@@ -102,8 +105,8 @@ def build_chart_export_markdown(
     ]
 
     positions = getattr(chart, "positions", {}) or {}
-    ordered_bodies = [body for body in PLANET_ORDER if body in positions]
-    ordered_bodies.extend(sorted(set(positions).difference(ordered_bodies)))
+    ordered_bodies = [body for body in PLANET_ORDER if body in positions and lilith_is_eligible(body, lilith_mode)]
+    ordered_bodies.extend(body for body in sorted(set(positions).difference(ordered_bodies)) if lilith_is_eligible(body, lilith_mode))
     for body in ordered_bodies:
         longitude = positions.get(body)
         if longitude is None:
@@ -132,12 +135,13 @@ def build_chart_export_markdown(
             "| --- | --- | --- | ---: | ---: | ---: |",
         ]
     )
-    aspects = list(
+    aspects = filter_lilith_aspects(
         iter_displayable_aspects(
             getattr(chart, "aspects", None) or [],
             use_houses=use_houses,
             known_positions=positions,
-        )
+        ),
+        lilith_mode,
     )
     if not aspects:
         lines.append("| — | — | — | — | — | — |")
@@ -145,13 +149,10 @@ def build_chart_export_markdown(
         # Transitional dependency: aspect scoring still lives in the legacy
         # charts package. Keeping it lazy preserves this pure export module's
         # non-Qt import path until that calculation receives its canonical home.
-        planet_weights = getattr(chart, "dominant_planet_weights", None)
-        if not planet_weights:
-            from ephemeraldaddy.gui.features.charts.metrics import (
-                calculate_dominant_planet_weights,
-            )
-
-            planet_weights = calculate_dominant_planet_weights(chart)
+        from ephemeraldaddy.gui.features.charts.metrics import (
+            calculate_dominant_planet_weights,
+        )
+        planet_weights = calculate_dominant_planet_weights(chart)
         aspects.sort(
             key=lambda aspect: aspect_score(aspect, planet_weights=planet_weights),
             reverse=True,
@@ -180,6 +181,6 @@ def build_chart_export_markdown(
 
     as_dict = getattr(chart, "as_dict")
     lines.extend(
-        ["", "## Raw Chart Data (JSON)", "", "```json", json.dumps(as_dict(), indent=2, ensure_ascii=False), "```", ""]
+        ["", "## Raw Chart Data (JSON)", "", "```json", json.dumps(filtered_chart_export_payload(as_dict(), lilith_mode), indent=2, ensure_ascii=False), "```", ""]
     )
     return "\n".join(lines)

@@ -117,3 +117,14 @@ def test_unknown_house_chart_is_used_when_known_house_candidates_run_out():
 def test_house_priority_is_neutral_for_most_dominant_mode():
     assert least_house_priority(least=False, uses_houses=True) == 0
     assert least_house_priority(least=False, uses_houses=False) == 0
+
+
+
+def test_unstamped_chart_cache_cannot_override_recalculation_after_mode_switch():
+    old_values = _weights(Leo=99.0)
+    new_values = _weights(Virgo=88.0)
+    weights, recalculated = resolve_complete_sign_weights(
+        {}, old_values, ZODIAC_NAMES, lambda: new_values, trust_chart_cache=False
+    )
+    assert recalculated is True
+    assert weights["Virgo"] == 88.0

@@ -50,6 +50,8 @@ from ephemeraldaddy.core.chart_types import (
     normalize_chart_type,
 )
 from ephemeraldaddy.core.body_identity import CANONICAL_LILITH_BODIES
+from ephemeraldaddy.core.lilith_mode import LILITH_MODES
+from ephemeraldaddy.gui.settings.modules.astrology import load_lilith_mode
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
@@ -72,6 +74,7 @@ _TABLE_COLUMNS_CACHE: dict[tuple[Path, str, int], set[str]] = {}
 _DB_SESSION_ID = uuid.uuid4().hex
 
 BODY_DYNAMICS_ROLE_VALUES: set[str] = {"antagonist", "enabler", "escalator"}
+BODY_DYNAMICS_ROLE_MODE_KEY = "__lilith_mode"
 
 CHART_DB_EXPORT_LOCKED_COLUMNS: set[str] = {
     "id",
@@ -277,7 +280,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 CHART_UID_LENGTH = 16
 UID_FINALIZATION_MIGRATION_KEY = "chart_uid_finalization_v1"
@@ -2252,6 +2255,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         if _charts_table_exists(conn):
             _clear_dominant_nakshatra_weight_cache(conn)
         conn.execute("PRAGMA user_version = 22")
+        user_version = 22
+
+    if user_version < 23:
+        if _charts_table_exists(conn):
+            _clear_dominant_weight_caches(conn)
+        conn.execute("PRAGMA user_version = 23")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -2665,6 +2674,21 @@ def _parse_string_list(value: Optional[str]) -> list[str]:
 
 
 
+def _body_dynamics_roles_mode_from_payload(raw_value: Any) -> str | None:
+    """Extract mode provenance from the persisted roles JSON."""
+    if isinstance(raw_value, dict):
+        payload = raw_value
+    else:
+        try:
+            payload = json.loads(str(raw_value or ""))
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(payload, dict):
+        return None
+    mode = payload.get(BODY_DYNAMICS_ROLE_MODE_KEY)
+    return mode if mode in LILITH_MODES else None
+
+
 def _parse_body_dynamics_roles(raw_value: Any) -> dict[str, str]:
     """Parse persisted Body Dynamics role metadata into canonical values."""
     if isinstance(raw_value, dict):
@@ -2701,6 +2725,9 @@ def _serialize_body_dynamics_roles(roles: Optional[dict[str, str]]) -> Optional[
         for body in JONES_PLANETS
         if body in normalized
     }
+    # Persist the calculation mode inside the existing JSON column. This keeps
+    # old/unversioned roles detectable without a second schema column.
+    ordered[BODY_DYNAMICS_ROLE_MODE_KEY] = load_lilith_mode()
     return json.dumps(ordered, ensure_ascii=False, sort_keys=False)
 
 
@@ -2734,8 +2761,16 @@ def _body_dynamics_role_from_scores(body_scores: dict[str, float] | None) -> str
 
 
 def _resolve_body_dynamics_roles(chart: Any) -> dict[str, str]:
-    """Calculate and cache each chart's JONES-body Body Dynamics roles."""
+    """Recalculate roles without relying on scores from a previous Lilith."""
+    selected_mode = load_lilith_mode()
+    cached_mode = getattr(chart, "_body_dynamics_roles_lilith_mode", None)
     existing_roles = _parse_body_dynamics_roles(getattr(chart, "body_dynamics_roles", None))
+    if cached_mode != selected_mode:
+        # Legacy unversioned roles, and roles calculated under a different
+        # apogee, cannot serve as authoritative derived classifications.
+        existing_roles = {}
+        chart.planet_dynamics_scores = {}
+        chart._planet_dynamics_scores_signature = None
     scores = (
         getattr(chart, "planet_dynamics_scores", None)
         or body_dynamics_reworked.calculate_planet_dynamics_scores(chart)
@@ -2753,7 +2788,20 @@ def _resolve_body_dynamics_roles(chart: Any) -> dict[str, str]:
     if not roles:
         roles = existing_roles
     chart.body_dynamics_roles = dict(roles)
+    chart._body_dynamics_roles_lilith_mode = selected_mode
     return roles
+
+
+def current_body_dynamics_roles_for_chart(chart: Any) -> dict[str, str]:
+    """Return only roles computed for the currently selected Lilith mode."""
+    roles = _parse_body_dynamics_roles(getattr(chart, "body_dynamics_roles", None))
+    if roles and getattr(chart, "_body_dynamics_roles_lilith_mode", None) == load_lilith_mode():
+        return roles
+    if not getattr(chart, "positions", None):
+        # A metadata-only chart lacks the astronomical data to recalculate;
+        # preserve legacy manually supplied roles for that case.
+        return roles
+    return _resolve_body_dynamics_roles(chart)
 
 
 def _resolve_unknown_sign_metadata(
@@ -6386,6 +6434,7 @@ def _chart_from_row(chart_id: int, row):
         placeholder.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
         placeholder.modal_distribution = _parse_weight_map(modal_distribution)
         placeholder.body_dynamics_roles = _parse_body_dynamics_roles(body_dynamics_roles)
+        placeholder._body_dynamics_roles_lilith_mode = _body_dynamics_roles_mode_from_payload(body_dynamics_roles)
         placeholder.human_design_gates = _parse_int_list(human_design_gates)
         placeholder.human_design_lines = _parse_int_list(human_design_lines)
         placeholder.human_design_channels = _parse_string_list(human_design_channels)
@@ -6559,6 +6608,7 @@ def _chart_from_row(chart_id: int, row):
     chart.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
     chart.modal_distribution = _parse_weight_map(modal_distribution)
     chart.body_dynamics_roles = _parse_body_dynamics_roles(body_dynamics_roles)
+    chart._body_dynamics_roles_lilith_mode = _body_dynamics_roles_mode_from_payload(body_dynamics_roles)
     chart.human_design_gates = _parse_int_list(human_design_gates)
     chart.human_design_lines = _parse_int_list(human_design_lines)
     chart.human_design_channels = _parse_string_list(human_design_channels)
@@ -7043,7 +7093,11 @@ def _clear_dominant_weight_caches(conn: sqlite3.Connection) -> None:
         UPDATE charts
         SET dominant_sign_weights = '',
             dominant_planet_weights = '',
-            dominant_nakshatra_weights = ''
+            dominant_nakshatra_weights = '',
+            dominant_element_weights = '',
+            dominant_mode = NULL,
+            modal_distribution = '',
+            body_dynamics_roles = NULL
         """
     )
 
