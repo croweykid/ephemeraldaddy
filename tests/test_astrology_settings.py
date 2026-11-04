@@ -48,7 +48,7 @@ def test_lilith_mode_defaults_to_osculating_and_round_trips_all_options():
 def test_implicit_lilith_settings_uses_desktop_namespace_not_qt_display_name(monkeypatch):
     """Dominance and exports must read the same setting that the dialog writes."""
     from PySide6 import QtCore
-    from ephemeraldaddy.gui.style import SETTINGS_APP, SETTINGS_ORG
+    from ephemeraldaddy.core.settings_identity import SETTINGS_APP, SETTINGS_ORG
     from ephemeraldaddy.gui.settings.modules.astrology import (
         load_lilith_mode, save_lilith_mode,
     )
@@ -77,3 +77,24 @@ def test_implicit_lilith_settings_uses_desktop_namespace_not_qt_display_name(mon
     save_lilith_mode(stored[explicit_namespace], "Mean Lilith")
     assert load_lilith_mode() == "Mean Lilith"
     assert constructor_calls == [explicit_namespace, explicit_namespace]
+
+
+def test_implicit_lilith_read_never_imports_gui_style(monkeypatch):
+    """Core calculations can read Lilith preferences without QtGui/QtWidgets."""
+    import builtins
+    from PySide6 import QtCore
+    from ephemeraldaddy.gui.settings.modules.astrology import load_lilith_mode
+    from ephemeraldaddy.core.settings_identity import SETTINGS_ORG, SETTINGS_APP
+
+    values = Settings({"astrology/lilith_mode": "Mean Lilith"})
+    monkeypatch.setattr(QtCore, "QSettings", lambda *args: values)
+    real_import = builtins.__import__
+
+    def deny_gui_style(name, *args, **kwargs):
+        if name == "ephemeraldaddy.gui.style":
+            raise AssertionError("Settings reader imported the graphical style module")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", deny_gui_style)
+    assert SETTINGS_ORG == SETTINGS_APP == "EphemeralDaddy"
+    assert load_lilith_mode() == "Mean Lilith"

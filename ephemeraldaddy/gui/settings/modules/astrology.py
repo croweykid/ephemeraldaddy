@@ -37,7 +37,7 @@ def load_lilith_mode(settings: object | None = None) -> str:
     from ephemeraldaddy.core.lilith_mode import normalize_lilith_mode
     if settings is None:
         from PySide6.QtCore import QSettings
-        from ephemeraldaddy.gui.style import SETTINGS_APP, SETTINGS_ORG
+        from ephemeraldaddy.core.settings_identity import SETTINGS_APP, SETTINGS_ORG
 
         # The desktop application deliberately uses the compact
         # EphemeralDaddy/EphemeralDaddy namespace for persisted settings.

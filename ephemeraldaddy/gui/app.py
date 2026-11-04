@@ -21661,6 +21661,16 @@ class ManageChartsDialog(
         self._database_metrics_background_preload_sections.clear()
         self._clear_similar_charts_popout_cache()
 
+        # Rankings are derived from mode-dependent dominance scores, even when
+        # the Rankings panel is currently hidden or collapsed.
+        self._rankings_data_dirty = True
+        # Search results are separate from left-panel analytics. Reapply active
+        # astrological filters through the existing debounced roster refresh,
+        # including when the left panel is hidden. This also reconciles the
+        # selection to the newly matching chart set.
+        if self._has_active_astrological_filters():
+            self._on_filter_changed()
+
         owner = self._owner_window()
         if isinstance(owner, MainWindow):
             owner._handle_selected_lilith_mode_changed(mode)

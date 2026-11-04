@@ -30,6 +30,11 @@ def test_mode_switch_invalidates_live_and_persistent_analytics():
     assert "self._database_metrics_background_preload_sections.clear()" in callback
     assert "self._schedule_deferred_database_metrics_refresh(" in callback
     assert "force_full_refresh=True" in callback
+    assert "self._rankings_data_dirty = True" in callback
+    assert "self._has_active_astrological_filters()" in callback
+    assert "self._on_filter_changed()" in callback
+    assert callback.index("self._rankings_data_dirty = True") < callback.index("if not self._left_panel_visible")
+    assert callback.index("self._on_filter_changed()") < callback.index("if not self._left_panel_visible")
     assert "_on_default_astrology_context_changed" not in callback
     assert "save_astrology_context" not in callback
     token = _method("_database_metrics_config_token")
