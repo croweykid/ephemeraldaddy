@@ -17740,108 +17740,23 @@ class ManageChartsDialog(
 
     @staticmethod
     def _weirdness_norm_signature(rows: list[tuple[Any, ...]]) -> str:
-        """Return a cheap validity token for weirdness scores derived from DB norms."""
-        norm_rows = [row for row in rows if len(row) <= 15 or not bool(row[15])]
-        payload = [
-            (
-                int(row[0]),
-                str(row[4] if len(row) > 4 else ""),
-                str(row[5] if len(row) > 5 else ""),
-                int(row[8] if len(row) > 8 and row[8] is not None else 0),
-                int(row[9] if len(row) > 9 and row[9] is not None else 0),
-                row[17] if len(row) > 17 else None,
-                row[18] if len(row) > 18 else None,
-                row[19] if len(row) > 19 else None,
-                row[20] if len(row) > 20 else None,
-                row[21] if len(row) > 21 else None,
-            )
-            for row in norm_rows
-        ]
-        return json.dumps(
-            {
-                "formula_version": _DISTINGUISHING_FORMULA_VERSION,
-                "norm_rows": sorted(payload),
-            },
-            default=str,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
+        from ephemeraldaddy.core.prediction_norms import distinguishing_norm_reference
+        return distinguishing_norm_reference()[1]
 
     def _hydrate_missing_weirdness_scores_for_sort(self, rows: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
-        """Return rows with missing/stale weirdness metadata calculated before sorting.
-
-        Weirdness is expensive because it is a database-relative score: each chart's
-        score depends on the current norm set, not just that one chart. Store the
-        score with the formula version and a norm-set signature so repeat sorts use
-        metadata unless the database baseline actually changed.
-        """
-        if not rows:
-            return rows
-        norm_signature = self._weirdness_norm_signature(rows)
-
-        def row_needs_weirdness_refresh(row: tuple[Any, ...]) -> bool:
-            score = row[31] if len(row) > 31 else None
-            try:
-                metadata = getattr(self, "_weirdness_cache_metadata_by_uid", {}) or {}
-                chart_uid = str(row[30] or "").strip().upper()
-                formula_version, stored_norm_signature = metadata.get(chart_uid, (None, ""))
-            except Exception:
-                formula_version, stored_norm_signature = (None, "")
-            return (
-                score is None
-                or formula_version != _DISTINGUISHING_FORMULA_VERSION
-                or str(stored_norm_signature or "") != norm_signature
-            )
-
-        if not any(row_needs_weirdness_refresh(row) for row in rows):
-            return rows
-        metric_payloads = self._prediction_norm_metric_payloads()
-        hydrated_rows: list[tuple[Any, ...]] = []
-        for row in rows:
-            if not row_needs_weirdness_refresh(row):
-                hydrated_rows.append(row)
-                continue
-            chart_id = int(row[0])
-            try:
-                chart = self._get_chart_for_filter(chart_id) or load_chart(chart_id)
-            except Exception:
-                chart = None
-            if chart is None or self._is_placeholder_chart(chart):
-                hydrated_rows.append(row)
-                continue
-            weirdness_score, _norm_count = _calculate_weirdness_score_from_metric_payloads(
-                chart,
-                metric_payloads,
-            )
-            if weirdness_score is None:
-                hydrated_rows.append(row)
-                continue
-            try:
-                update_chart_weirdness_score(
-                    chart_id,
-                    weirdness_score,
-                    formula_version=_DISTINGUISHING_FORMULA_VERSION,
-                    norm_signature=norm_signature,
-                )
-                chart.weirdness_score = weirdness_score
-            except Exception:
-                pass
-            metadata = getattr(self, "_weirdness_cache_metadata_by_uid", None)
-            if metadata is None:
-                metadata = {}
+        """Use available sort values immediately and queue missing static scores."""
+        from ephemeraldaddy.gui.features.database_view.weirdness_sort import WeirdnessSortController
+        if getattr(self, "_weirdness_sort_controller", None) is None:
+            def ready(values: dict[str, float], signature: str) -> None:
+                metadata = getattr(self, "_weirdness_cache_metadata_by_uid", {})
+                for uid in values:
+                    metadata[uid] = (_DISTINGUISHING_FORMULA_VERSION, signature)
                 self._weirdness_cache_metadata_by_uid = metadata
-            chart_uid = str(row[30] or "").strip().upper()
-            if chart_uid:
-                metadata[chart_uid] = (_DISTINGUISHING_FORMULA_VERSION, norm_signature)
-            mutable_row = list(row)
-            if len(mutable_row) != 33 and len(mutable_row) < 34:
-                mutable_row.extend([None] * (34 - len(mutable_row)))
-            mutable_row[31] = float(weirdness_score)
-            if len(mutable_row) != 33:
-                mutable_row[32] = _DISTINGUISHING_FORMULA_VERSION
-                mutable_row[33] = norm_signature
-            hydrated_rows.append(tuple(mutable_row))
-        return hydrated_rows
+                self._chart_rows = [tuple(list(row[:31]) + [values.get(str(row[30]), row[31])] + list(row[32:])) if len(row) > 31 else row for row in self._chart_rows]
+                self._populate_list()
+            self._weirdness_sort_controller = WeirdnessSortController(self, ready)
+        self._weirdness_sort_controller.request_missing(rows, getattr(self, "_weirdness_cache_metadata_by_uid", {}))
+        return rows
     def _refresh_charts(
         self,
         selected_ids: set[int] | None = None,
@@ -17879,7 +17794,9 @@ class ManageChartsDialog(
         # the same boundary so initial load and chart additions/deletions do
         # not leave stale ``(0)`` or membership counts in Collection Manager.
         self._refresh_collection_list_widget()
-        self._rankings_data_dirty = True
+        from ephemeraldaddy.analysis.trait_prediction_updates import synchronize_chart_changes
+        if synchronize_chart_changes():
+            self._rankings_data_dirty = True
         if refresh_tag_completers:
             if progress_callback:
                 progress_callback("Refreshing Database filters…", 91)
@@ -36429,32 +36346,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     @staticmethod
     def _weirdness_norm_signature(rows: list[tuple[Any, ...]]) -> str:
-        """Return a cheap validity token for weirdness scores derived from DB norms."""
-        norm_rows = [row for row in rows if len(row) <= 15 or not bool(row[15])]
-        payload = [
-            (
-                int(row[0]),
-                str(row[4] if len(row) > 4 else ""),
-                str(row[5] if len(row) > 5 else ""),
-                int(row[8] if len(row) > 8 and row[8] is not None else 0),
-                int(row[9] if len(row) > 9 and row[9] is not None else 0),
-                row[17] if len(row) > 17 else None,
-                row[18] if len(row) > 18 else None,
-                row[19] if len(row) > 19 else None,
-                row[20] if len(row) > 20 else None,
-                row[21] if len(row) > 21 else None,
-            )
-            for row in norm_rows
-        ]
-        return json.dumps(
-            {
-                "formula_version": _DISTINGUISHING_FORMULA_VERSION,
-                "norm_rows": sorted(payload),
-            },
-            default=str,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
+        from ephemeraldaddy.core.prediction_norms import distinguishing_norm_reference
+        return distinguishing_norm_reference()[1]
 
     def _prediction_norm_rows(self) -> list[Any]:
         chart_rows = getattr(self, "_chart_rows", None)
@@ -36511,45 +36404,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def _prediction_norms_render_token(self) -> str:
-        snapshot_token = prediction_norms_snapshot_token(self)
-        if snapshot_token != "prediction_norm_snapshot:missing":
-            return f"prediction_norms:snapshot:{snapshot_token}"
-        row_tokens: list[tuple[int, str]] = []
-        visible_chart_ids: set[int] = set()
-        for row in self._prediction_norm_rows():
-            try:
-                chart_id = int(row[0])
-            except Exception:
-                continue
-            visible_chart_ids.add(chart_id)
-            payload = self._prediction_norm_row_token_payload(row)
-            row_tokens.append((chart_id, self._stable_traits_metadata_hash(payload)))
-        pending_ids = sorted(
-            int(chart_id)
-            for chart_id in get_chart_ids_by_uid(
-                getattr(self, "_manage_charts_pending_changed_uids", {}).keys()
-            ).values()
-            if int(chart_id) not in visible_chart_ids
-        )
-        dirty_ids = sorted(
-            int(chart_id)
-            for chart_id in get_chart_ids_by_uid(
-                getattr(self, "_database_metrics_lucy_goosey_uids", set()) or set()
-            ).values()
-            if int(chart_id) not in visible_chart_ids
-        )
-        return (
-            "prediction_norms:"
-            f"{tuple(sorted(row_tokens))}:{tuple(pending_ids)}:{tuple(dirty_ids)}"
-        )
+        return "prediction_norms:static:" + prediction_norms_snapshot_token(self)
 
     def _prediction_norm_snapshot(self) -> dict[str, Any]:
-        cached = getattr(self, "_prediction_norms_snapshot_cache", None)
-        if isinstance(cached, dict) and cached.get("version"):
-            return cached
-        snapshot = load_prediction_norms_snapshot()
-        self._prediction_norms_snapshot_cache = snapshot
-        return snapshot
+        from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+        return dict(prediction_norms_reference())
 
     def _prediction_norm_snapshot_trait_averages(self, traits: list[dict[str, Any]]) -> dict[str, float]:
         return trait_snapshot_averages(traits, self._prediction_norm_snapshot())
@@ -36597,103 +36456,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return DB_DIR / ".distinguishing_metrics_cache.json"
 
     def _prediction_norm_metric_payloads(self) -> list[dict[str, Any]]:
-        cache_path = self._distinguishing_metric_cache_path()
-        cache = _load_distinguishing_metric_cache(cache_path)
-        chart_cache = cache.setdefault("charts", {})
-        payloads: list[dict[str, Any]] = []
-        cache_changed = False
-        for row in self._prediction_norm_rows():
-            try:
-                chart_id = int(row[0])
-            except Exception:
-                continue
-            if bool(row[15] if len(row) > 15 else False):
-                continue
-            chart_id_key = str(chart_id)
-            existing = chart_cache.get(chart_id_key)
-            row_essential = json.dumps(
-                {
-                    "dt": str(row[4] if len(row) > 4 else ""),
-                    "birth_place": str(row[5] if len(row) > 5 else ""),
-                    "birthtime_unknown": int(row[8] if len(row) > 8 and row[8] is not None else 0),
-                    "retcon_time_used": int(row[9] if len(row) > 9 and row[9] is not None else 0),
-                    "retcon_hour": row[20] if len(row) > 20 else None,
-                    "retcon_minute": row[21] if len(row) > 21 else None,
-                    "birth_month": row[17] if len(row) > 17 else None,
-                    "birth_day": row[18] if len(row) > 18 else None,
-                    "birth_year": row[19] if len(row) > 19 else None,
-                },
-                default=str,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            if isinstance(existing, dict) and existing.get("row_essential_signature") == row_essential:
-                payload = existing.get("payload")
-                if isinstance(payload, dict):
-                    payloads.append(payload)
-                    continue
-            try:
-                chart = load_chart(chart_id)
-            except Exception:
-                continue
-            if chart is None or self._is_placeholder_chart(chart):
-                continue
-            payload = _distinguishing_metric_payload_for_chart(chart)
-            chart_cache[chart_id_key] = {
-                "row_essential_signature": row_essential,
-                "essential_astro_signature": _chart_essential_astro_signature(chart),
-                "payload": payload,
-            }
-            cache_changed = True
-            payloads.append(payload)
-        # Keep cached metric payloads for charts outside the current Database View row set.
-        # The row set can be narrowed by filters, collection scope, or the hidden-chart
-        # toggle; pruning here would make the expensive distinguishing-factor payloads
-        # appear to be lost between launches after a filtered session.
-        if cache_changed:
-            try:
-                _save_distinguishing_metric_cache(cache_path, cache)
-            except Exception:
-                pass
-        return payloads
+        from ephemeraldaddy.core.prediction_norms import distinguishing_norm_reference
+        return list(distinguishing_norm_reference()[0])
 
     def _render_distinguishing_factors(self, chart: Chart | None) -> None:
+        from ephemeraldaddy.gui.features.predictions.distinguishing_factors import DistinguishingFactorsPresenter
         label = getattr(self, "distinguishing_factors_label", None)
         if label is None:
             return
-        if chart is None or self._is_placeholder_chart(chart):
-            label.setText(
-                "<span style='color:#f5f5f5;'>"
-                + ("No chart loaded." if chart is None else "No data for placeholder/hypothetical charts.")
-                + "</span>"
-            )
-            return
-        metric_payloads = self._prediction_norm_metric_payloads()
-        weirdness_score, _norm_count = _calculate_weirdness_score_from_metric_payloads(
-            chart,
-            metric_payloads,
-        )
-        chart_id = getattr(chart, "id", None)
-        if chart_id is not None and weirdness_score is not None:
-            try:
-                norm_signature = self._weirdness_norm_signature(self._prediction_norm_rows())
-                if update_chart_weirdness_score(
-                    int(chart_id),
-                    weirdness_score,
-                    formula_version=_DISTINGUISHING_FORMULA_VERSION,
-                    norm_signature=norm_signature,
-                ):
-                    chart.weirdness_score = weirdness_score
-            except Exception:
-                pass
-        label.setText(
-            _build_distinguishing_factors_html(
-                chart,
-                [],
-                metric_payloads=metric_payloads,
-                debug_scoring=bool(getattr(self, "_distinguishing_factors_scoring_debug", False)),
-            )
-        )
+        if getattr(self, "_distinguishing_presenter", None) is None:
+            self._distinguishing_presenter = DistinguishingFactorsPresenter(label)
+        self._distinguishing_presenter.render(chart, debug=bool(getattr(self, "_distinguishing_factors_scoring_debug", False)))
 
     def _on_distinguishing_factor_link_activated(self, href: str) -> None:
         """Open a Predictions distinguishing-factor link in the main Chart Info panel."""
@@ -36885,7 +36658,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             chart_theme_colors=CHART_THEME_COLORS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
             is_placeholder_chart=self._is_placeholder_chart,
-            norm_charts_provider=lambda: [] if self._prediction_norm_snapshot_dnd_stat_averages() else self._prediction_norm_charts(),
+            norm_charts_provider=lambda: [],
             norm_charts_token_provider=self._prediction_norms_render_token,
             db_norm_averages_provider=self._prediction_norm_snapshot_dnd_stat_averages,
             clear_layout_widgets=self._clear_layout_widgets,

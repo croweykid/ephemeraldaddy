@@ -669,92 +669,22 @@ def _persisted_chart_signature_matches_current(chart_uid: str, chart: Any) -> bo
     return _chart_trait_metadata_signature(persisted_chart) == _chart_trait_metadata_signature(chart)
 
 
-def trait_likelihoods_with_distribution_cache(
-    owner: Any,
-    chart: Any,
-    traits: list[dict[str, Any]],
-) -> dict[str, float]:
-    """Score traits through the shared Database Analytics likelihood cache when possible.
-
-    Database Analytics, Chart View Traits, and Fantasy RPG alignment traits all use this
-    wrapper so persisted database charts are scored once per analytical profile.
-    Draft/unsaved charts still fall back to direct scoring because they do not
-    have stable database row tokens for the persisted cache.
-    """
+def trait_likelihoods_with_distribution_cache(owner: Any, chart: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
+    """Compatibility adapter; score ownership belongs to the shared index."""
     if chart is None or not traits:
         return {}
-    collect = getattr(owner, "_collect_traits_distribution_analytics_by_uids", None)
-    signature_builder = getattr(owner, "_traits_distribution_signature", None)
-    chart_uid = _database_chart_uid_for_chart(chart) or ""
-    if (
-        not callable(collect)
-        or not callable(signature_builder)
-        or not chart_uid
-        or not _persisted_chart_signature_matches_current(chart_uid, chart)
-    ):
-        return calculate_trait_likelihoods(chart, traits)
-    try:
-        signature = signature_builder(traits)
-        analytics = collect(
-            [chart_uid],
-            trait_items=traits,
-            trait_signature=signature,
-            time_budget_seconds=None,
-        )
-        chart_count = int(analytics.get("chart_count", 0) or 0)
-        totals = analytics.get("totals", {})
-        if chart_count > 0 and isinstance(totals, dict):
-            return {
-                str(name): round((float(totals.get(name, 0.0)) / float(chart_count)) * 100.0, 1)
-                for name in analytics.get("trait_names", [])
-            }
-    except Exception as exc:
-        logger.warning(
-            "Trait likelihoods could not use shared distribution cache for chart %s: %s",
-            getattr(chart, "chart_uid", getattr(chart, "name", "unknown")),
-            exc,
-            exc_info=True,
-        )
-    return calculate_trait_likelihoods(chart, traits)
+    uid = _database_chart_uid_for_chart(chart)
+    index = global_trait_prediction_index()
+    if uid:
+        cached = index.results_for_uids([uid], traits, chart_signatures={uid: _chart_trait_metadata_signature(chart)}).get(uid)
+        if cached is not None and not cached.stale_chart_vector and not cached.stale_trait_definition and set(cached.likelihoods) >= {t["name"] for t in traits}:
+            return cached.likelihoods
+    return index.chart_likelihoods(chart, traits, chart_signature=_chart_trait_metadata_signature(chart))
 
 
 def _chart_trait_metadata_signature(chart: Any) -> str:
-    """Fingerprint only the birth-data inputs that should invalidate predictions.
-
-    Trait/Fantasy RPG/Enneagram Predictions are persisted per permanent chart UID and
-    should remain instantly reusable across Chart View opens.  This is the full
-    staleness boundary for chart edits: only astro-data inputs belong here;
-    nonastral/subjective metadata must not invalidate Traits.  Derived astrology
-    payloads (positions, aspects, HD/BaZi weights, etc.) are intentionally not
-    part of this signature: those values are recalculated from the essential
-    birth data elsewhere, and including them here makes harmless serialization or
-    lazy-loading differences look like a changed chart.
-    """
-    try:
-        uses_houses = bool(chart_uses_houses(chart))
-    except Exception:
-        uses_houses = bool(getattr(chart, "use_birth_time_data", False))
-    return _stable_json_hash(
-        {
-            "birth_date": getattr(chart, "birth_date", None),
-            "birth_time": getattr(chart, "birth_time", None),
-            "dt": getattr(chart, "dt", None),
-            "dt_local": getattr(chart, "dt_local", None),
-            "birth_place": getattr(chart, "birth_place", None),
-            "datetime": getattr(chart, "datetime", None),
-            "datetime_iso": getattr(chart, "datetime_iso", None),
-            "lat": getattr(chart, "lat", None),
-            "lon": getattr(chart, "lon", None),
-            "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
-            "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
-            "retcon_hour": getattr(chart, "retcon_hour", None),
-            "retcon_minute": getattr(chart, "retcon_minute", None),
-            "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
-            "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
-            "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
-            "chart_uses_houses": uses_houses,
-        }
-    )
+    from ephemeraldaddy.analysis.trait_signatures import chart_prediction_signature
+    return chart_prediction_signature(chart)
 
 
 def _database_norm_chart_token_source(owner: Any) -> tuple[tuple[str, str], ...]:
@@ -836,15 +766,8 @@ def _database_norm_signature_from_state(state: dict[str, Any]) -> str:
 
 
 def _trait_definition_signature(trait: dict[str, Any]) -> str:
-    trait_uid = str(trait.get("uid") or trait.get("trait_uid") or "").strip()
-    scoring_profile = _trait_analytical_profile(trait.get("profile", {}), strip_uids=True)
-    return _stable_json_hash(
-        {
-            "version": TRAIT_DB_NORMS_CACHE_VERSION,
-            "uid": trait_uid,
-            "profile": scoring_profile,
-        }
-    )
+    from ephemeraldaddy.analysis.trait_signatures import trait_definition_signature
+    return trait_definition_signature(trait)
 
 
 def _trait_uid_for_item(trait: dict[str, Any]) -> str:
@@ -876,54 +799,9 @@ def _direction_for_deviation(deviation: float) -> str:
     return "neutral"
 
 
-def _metadata_from_vectors(
-    *,
-    likelihoods: dict[str, float],
-    database_averages: dict[str, float],
-    stale_chart_vector: bool = False,
-    stale_trait_definition: bool = False,
-    stale_db_baseline: bool = False,
-    updated_at: str = "",
-    stale_trait_names: set[str] | None = None,
-    full_staleness_reasons: list[str] | None = None,
-) -> dict[str, Any]:
-    deviations = {
-        name: float(pct) - float(database_averages[name])
-        for name, pct in likelihoods.items()
-        if name in database_averages
-    }
-    above = {name for name, deviation in deviations.items() if deviation >= TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD}
-    below = {name for name, deviation in deviations.items() if deviation <= -TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD}
-    stale = bool(stale_chart_vector or stale_trait_definition or stale_db_baseline or stale_trait_names)
-    stale_trait_names = set(stale_trait_names or set())
-    full_staleness_reasons = list(full_staleness_reasons or [])
-    if stale_chart_vector and "astro_data" not in full_staleness_reasons:
-        full_staleness_reasons.append("astro_data")
-    if stale_db_baseline and "database_norms" not in full_staleness_reasons:
-        full_staleness_reasons.append("database_norms")
-    if stale_trait_definition and not stale_trait_names and "all_traits" not in full_staleness_reasons:
-        full_staleness_reasons.append("all_traits")
-    staleness_kind = "fresh"
-    if stale:
-        staleness_kind = "full" if full_staleness_reasons else "partial"
-    metadata: dict[str, Any] = {
-        "above": above,
-        "below": below,
-        "deviations": deviations,
-        "likelihoods": likelihoods,
-        "database_averages": database_averages,
-        "stale_chart_vector": bool(stale_chart_vector),
-        "stale_trait_definition": bool(stale_trait_definition),
-        "stale_db_baseline": bool(stale_db_baseline),
-        "staleness_kind": staleness_kind,
-        "stale_trait_names": sorted(stale_trait_names),
-        "full_staleness_reasons": full_staleness_reasons,
-    }
-    if stale:
-        metadata["stale"] = True
-    if updated_at:
-        metadata["updated_at"] = updated_at
-    return metadata
+def _metadata_from_vectors(**kwargs: Any) -> dict[str, Any]:
+    from ephemeraldaddy.analysis.trait_prediction_results import metadata_from_vectors
+    return metadata_from_vectors(**kwargs)
 
 
 def _apply_trait_metadata_to_chart(
@@ -988,13 +866,10 @@ def _trait_display_signature_payload(traits: list[dict[str, Any]]) -> dict[str, 
     }
 
 
-def _trait_snapshot_norm_signature(
-    traits: list[dict[str, Any]], snapshot: dict[str, Any] | None = None
-) -> str:
-    """Return the current or deterministically pending static snapshot generation."""
-    resolved_snapshot = snapshot if snapshot is not None else load_prediction_norms_snapshot()
-    token = prospective_trait_snapshot_token(traits, resolved_snapshot)
-    return f"prediction_norms_snapshot:{token}"
+def _trait_snapshot_norm_signature(traits: list[dict[str, Any]], snapshot: dict[str, Any] | None = None) -> str:
+    from ephemeraldaddy.core.prediction_norms import trait_norm_signature, prediction_norms_reference
+    reference = snapshot if snapshot is not None else prediction_norms_reference()
+    return _stable_json_hash([trait_norm_signature(trait, reference) for trait in traits])
 
 
 def _calculate_database_trait_averages_direct(
@@ -1044,457 +919,50 @@ def _calculate_database_trait_averages_direct(
     return {name: total / float(chart_count) for name, total in totals.items()}
 
 
-def _database_trait_averages(
-    owner: Any,
-    traits: list[dict[str, Any]],
-    *,
-    force_refresh_stale: bool = False,
-    allow_partial: bool = False,
-) -> dict[str, float]:
-    _predictions_debug(owner, "Trait DB averages requested traits=%s", len(traits))
-    if not force_refresh_stale:
-        snapshot = load_prediction_norms_snapshot()
-        snapshot_averages = trait_snapshot_averages(traits, snapshot)
-        missing_traits = missing_trait_norms(traits, snapshot)
-        if missing_traits:
-            missing_names = sorted(
-                str(trait.get("name", "") or "").strip()
-                for trait in missing_traits
-                if str(trait.get("name", "") or "").strip()
-            )
-            reason = (
-                "Static trait norms are missing or analytically outdated for: "
-                + ", ".join(missing_names)
-                + ". Add/edit those traits through Settings to calculate only those profiles, "
-                "or use Reassess unavailable traits to repair only those profiles."
-            )
-            logger.warning("Traits panel bypassed unavailable profiles: %s", reason)
-        requested_names = {
-            str(trait.get("name", "") or "").strip()
-            for trait in traits
-            if str(trait.get("name", "") or "").strip()
-        }
-        unresolved = sorted(requested_names - set(snapshot_averages))
-        if unresolved:
-            logger.warning("Traits panel bypassed unresolved trait norm profiles: %s", ", ".join(unresolved))
-        return {name: float(snapshot_averages[name]) for name in requested_names if name in snapshot_averages}
-    chart_uids = _database_chart_uids(owner)
-    collect = getattr(owner, "_collect_traits_distribution_analytics_by_uids", None)
-    signature_builder = getattr(owner, "_traits_distribution_signature", None)
-    if not chart_uids:
-        raise RuntimeError("Trait norm generation requires at least one persisted chart UID.")
-    if not callable(collect) or not callable(signature_builder):
-        averages = _calculate_database_trait_averages_direct(owner, chart_uids, traits)
-        if len(averages) != len(traits):
-            raise RuntimeError("Trait norm generation did not score every requested trait.")
-        return averages
-    _predictions_debug(
-        owner,
-        "Trait DB averages calculating requested profiles=%s chart_uids=%s",
-        len(traits),
-        len(chart_uids),
-    )
-    analytics = collect(
-        chart_uids,
-        trait_items=traits,
-        trait_signature=signature_builder(traits),
-        time_budget_seconds=None,
-    )
-    chart_count = max(0, int(analytics.get("chart_count", 0)))
-    if not chart_count:
-        raise RuntimeError("Trait norm generation returned no scored database charts.")
-    totals = analytics.get("totals", {})
-    averages: dict[str, float] = {}
-    for trait_name in analytics.get("trait_names", []):
-        name = str(trait_name)
-        averages[name] = (float(totals.get(name, 0.0)) / float(chart_count)) * 100.0
-    requested_names = {
-        str(trait.get("name", "") or "").strip()
-        for trait in traits
-        if str(trait.get("name", "") or "").strip()
-    }
-    if set(averages) != requested_names and not allow_partial:
-        missing = sorted(requested_names - set(averages))
-        raise RuntimeError("Trait norm generation omitted: " + ", ".join(missing))
-    return averages
+def _database_trait_averages(owner: Any, traits: list[dict[str, Any]], *, force_refresh_stale: bool = False, allow_partial: bool = False) -> dict[str, float]:
+    if force_refresh_stale:
+        return _calculate_database_trait_averages_direct(owner, _database_chart_uids(owner), traits)
+    from ephemeraldaddy.core.prediction_norms import trait_norm_values
+    return trait_norm_values(traits)
 
 
 def trait_metadata_for_chart(
-    owner: Any,
-    chart: Any,
-    *,
-    cached_only: bool = False,
-    traits: list[dict[str, Any]] | None = None,
-    trait_signature: str | None = None,
-    legacy_trait_signature: str | None = None,
-    norm_signature: str | None = None,
+    owner: Any, chart: Any, *, cached_only: bool = False,
+    traits: list[dict[str, Any]] | None = None, trait_signature: str | None = None,
+    legacy_trait_signature: str | None = None, norm_signature: str | None = None,
     chart_signature: str | None = None,
 ) -> dict[str, Any] | None:
-    """Return and attach derived trait metadata for a chart."""
-    _predictions_debug(owner, "Trait metadata start chart_uid=%s", _debug_chart_uid(chart))
+    """Present the shared index's cached results, or explicitly score one chart.
+
+    Numerical work is invoked by the existing Chart View calculation worker.
+    Reading cached results never calculates missing Traits or factor evidence.
+    """
+    from ephemeraldaddy.core.prediction_norms import trait_norm_values
     traits = traits if traits is not None else list_traits(active_only=True)
-    if chart is None or getattr(owner, "_is_placeholder_chart", lambda _chart: False)(chart) or not traits:
-        metadata = {"above": set(), "below": set(), "deviations": {}, "likelihoods": {}}
-        setattr(chart, "predicted_traits_above_avg", set())
-        setattr(chart, "predicted_traits_below_avg", set())
-        setattr(chart, "predicted_trait_deviations", {})
-        setattr(chart, "traits", [])
-        setattr(chart, "traits_above_average", [])
-        setattr(chart, "traits_below_average", [])
-        setattr(chart, "trait_likelihoods", {})
-        return metadata
-
-    trait_signature = trait_signature or _stable_json_hash(_trait_signature_payload(traits))
-    legacy_trait_signature = legacy_trait_signature or _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
-    norm_signature = norm_signature or _trait_snapshot_norm_signature(traits)
-    chart_signature = chart_signature or _chart_trait_metadata_signature(chart)
-    chart_uid = _chart_uid_for_trait_metadata(chart)
-    signature = (TRAIT_DB_NORMS_CACHE_VERSION, chart_uid, trait_signature, norm_signature, chart_signature)
-    cached = getattr(chart, "_trait_prediction_metadata_cache", None)
-    if isinstance(cached, dict) and cached.get("signature") == signature:
-        _predictions_debug(owner, "Trait metadata memory cache hit chart_uid=%s", _debug_chart_uid(chart))
-        return dict(cached.get("metadata", {}))
-
-    traits_by_name = {str(trait.get("name", "")).strip(): trait for trait in traits if str(trait.get("name", "")).strip()}
-    trait_uids_by_name = {name: _trait_uid_for_item(trait) for name, trait in traits_by_name.items()}
-    traits_by_uid = {uid: trait for name, trait in traits_by_name.items() if (uid := trait_uids_by_name.get(name))}
-    names_by_uid = {uid: name for name, uid in trait_uids_by_name.items() if uid}
-    active_trait_names = set(traits_by_name)
-    if chart_uid:
-        try:
-            indexed_result = global_trait_prediction_index().read_cached(
-                TraitPredictionQuery(
-                    chart_uid=chart_uid,
-                    chart_signature=chart_signature,
-                    trait_signature=trait_signature,
-                    norm_signature=norm_signature,
-                ),
-                traits,
-            )
-        except Exception as exc:
-            logger.warning("Traits panel could not read from trait prediction index: %s", exc, exc_info=True)
-            indexed_result = None
-        if indexed_result is not None and not indexed_result.stale_db_baseline:
-            metadata = _metadata_from_vectors(
-                likelihoods=indexed_result.likelihoods,
-                database_averages=indexed_result.database_averages,
-                stale_chart_vector=indexed_result.stale_chart_vector,
-                stale_trait_definition=indexed_result.stale_trait_definition,
-                stale_db_baseline=indexed_result.stale_db_baseline,
-                updated_at=indexed_result.updated_at,
-            )
-            _apply_trait_metadata_to_chart(chart, metadata, trait_uids_by_name, signature)
-            return metadata
-    baseline_rows_by_name: dict[str, dict[str, Any]] = {}
-    try:
-        baseline_rows = db.get_trait_baseline_snapshot(
-            norm_signature=norm_signature,
-            trait_signature=trait_signature,
-        )
-    except Exception as exc:
-        logger.warning("Traits panel skipped cached DB baseline snapshot: %s", exc, exc_info=True)
-        baseline_rows = []
-    for row in baseline_rows:
-        row_uid = str(row.get("trait_uid", "") or "").strip()
-        name = names_by_uid.get(row_uid) if row_uid else str(row.get("trait_name", "")).strip()
-        if name in traits_by_name:
-            baseline_rows_by_name[name] = row
-    snapshot_database_averages = {
-        name: float(row.get("db_average", 0.0))
-        for name, row in baseline_rows_by_name.items()
-    }
-    baseline_is_complete = bool(active_trait_names) and set(snapshot_database_averages) == active_trait_names
-    cached_rows_by_name: dict[str, dict[str, Any]] = {}
-    stale_rows_by_name: dict[str, dict[str, Any]] = {}
-    stale_chart_rows_by_name: dict[str, dict[str, Any]] = {}
-    stale_norm_rows_by_name: dict[str, dict[str, Any]] = {}
-    cached_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
-    stale_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
-    stale_trait_definition_rows_by_name: dict[str, dict[str, Any]] = {}
-    if chart_uid is not None:
-        try:
-            likelihood_rows = db.get_chart_trait_likelihoods(chart_uid)
-        except Exception as exc:
-            logger.warning(
-                "Traits panel skipped cached chart-local trait likelihoods for chart UID %s: %s",
-                chart_uid,
-                exc,
-                exc_info=True,
-            )
-            likelihood_rows = []
-        for row in likelihood_rows:
-            row_uid = str(row.get("trait_uid", "") or "").strip()
-            name = names_by_uid.get(row_uid) if row_uid else str(row.get("trait_name", "")).strip()
-            trait = traits_by_uid.get(row_uid) if row_uid else traits_by_name.get(name)
-            if trait is None:
-                continue
-            row_trait_signature = str(row.get("trait_signature", ""))
-            valid_trait_signature = row_trait_signature in {
-                trait_signature,
-                legacy_trait_signature,
-                _trait_definition_signature(trait),
-            }
-            if valid_trait_signature and str(row.get("chart_signature", "")) == chart_signature:
-                cached_likelihood_rows_by_name[name] = row
-            elif valid_trait_signature:
-                stale_likelihood_rows_by_name[name] = row
-            else:
-                stale_trait_definition_rows_by_name[name] = row
-        if active_trait_names and set(cached_likelihood_rows_by_name) == active_trait_names and baseline_is_complete:
-            latest_updated_at = max(
-                (str(row.get("updated_at", "") or "") for row in [*cached_likelihood_rows_by_name.values(), *baseline_rows_by_name.values()]),
-                default="",
-            )
-            metadata = _metadata_from_vectors(
-                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in cached_likelihood_rows_by_name.items()},
-                database_averages=snapshot_database_averages,
-                updated_at=latest_updated_at,
-            )
-            _apply_trait_metadata_to_chart(chart, metadata, trait_uids_by_name, signature)
-            return metadata
-        if (
-            cached_only
-            and active_trait_names
-            and set(stale_likelihood_rows_by_name) == active_trait_names
-            and baseline_is_complete
-        ):
-            latest_updated_at = max(
-                (str(row.get("updated_at", "") or "") for row in [*stale_likelihood_rows_by_name.values(), *baseline_rows_by_name.values()]),
-                default="",
-            )
-            return _metadata_from_vectors(
-                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in stale_likelihood_rows_by_name.items()},
-                database_averages=snapshot_database_averages,
-                stale_chart_vector=True,
-                updated_at=latest_updated_at,
-            )
-        if (
-            cached_only
-            and active_trait_names
-            and set(stale_trait_definition_rows_by_name) == active_trait_names
-            and baseline_is_complete
-        ):
-            latest_updated_at = max(
-                (str(row.get("updated_at", "") or "") for row in [*stale_trait_definition_rows_by_name.values(), *baseline_rows_by_name.values()]),
-                default="",
-            )
-            return _metadata_from_vectors(
-                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in stale_trait_definition_rows_by_name.items()},
-                database_averages=snapshot_database_averages,
-                stale_trait_definition=True,
-                updated_at=latest_updated_at,
-            )
-        try:
-            rows = db.get_chart_trait_metadata(chart_uid)
-        except Exception as exc:
-            logger.warning(
-                "Traits panel skipped cached DB trait metadata for chart UID %s: %s",
-                chart_uid,
-                exc,
-                exc_info=True,
-            )
-            rows = []
-        for row in rows:
-            row_uid = str(row.get("trait_uid", "") or "").strip()
-            name = names_by_uid.get(row_uid) if row_uid else str(row.get("trait_name", "")).strip()
-            trait = traits_by_uid.get(row_uid) if row_uid else traits_by_name.get(name)
-            if trait is None:
-                continue
-            row_trait_signature = str(row.get("trait_signature", ""))
-            valid_trait_signature = row_trait_signature in {
-                trait_signature,
-                legacy_trait_signature,
-                _trait_definition_signature(trait),
-            }
-            if (
-                valid_trait_signature
-                and str(row.get("norm_signature", "")) == norm_signature
-                and str(row.get("chart_signature", "")) == chart_signature
-            ):
-                cached_rows_by_name[name] = row
-            elif valid_trait_signature:
-                # cached_only callers are trying to paint *something* immediately.
-                # If either chart astro-data or DB norms changed, the row is fully
-                # stale, but it is still a better cached result than a misleading
-                # "no data" placeholder while explicit recalculation remains available.
-                stale_rows_by_name[name] = row
-                if str(row.get("chart_signature", "")) != chart_signature:
-                    stale_chart_rows_by_name[name] = row
-                if str(row.get("norm_signature", "")) != norm_signature:
-                    stale_norm_rows_by_name[name] = row
-        if active_trait_names and set(cached_rows_by_name) == active_trait_names:
-            _predictions_debug(owner, "Trait metadata DB row cache hit chart_uid=%s traits=%s", chart_uid, len(active_trait_names))
-            above = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "above"}
-            below = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "below"}
-            deviations = {name: float(row.get("deviation", 0.0)) for name, row in cached_rows_by_name.items()}
-            likelihoods = {name: float(row.get("likelihood", 0.0)) for name, row in cached_rows_by_name.items()}
-            database_averages = {name: float(row.get("db_average", 0.0)) for name, row in cached_rows_by_name.items()}
-            metadata = {
-                "above": above,
-                "below": below,
-                "deviations": deviations,
-                "likelihoods": likelihoods,
-                "database_averages": database_averages,
-            }
-            above_uids = _trait_uids_for_names(above, trait_uids_by_name)
-            below_uids = _trait_uids_for_names(below, trait_uids_by_name)
-            setattr(chart, "predicted_traits_above_avg", set(above))
-            setattr(chart, "predicted_traits_below_avg", set(below))
-            setattr(chart, "predicted_trait_deviations", dict(deviations))
-            setattr(chart, "traits", list(above_uids))
-            setattr(chart, "traits_above_average", list(above_uids))
-            setattr(chart, "traits_below_average", list(below_uids))
-            setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))
-            setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
-            return metadata
-        if cached_only and (cached_rows_by_name or stale_rows_by_name):
-            # Chart View must never revoke UID-owned trait metadata just because
-            # one of the cache signatures drifted or because the active trait
-            # working set changed after the chart was last calculated.  Any
-            # rows previously persisted for this chart UID remain displayable;
-            # stale/incomplete rows merely earn a Recalculate prompt above the
-            # still-rendered table.
-            display_rows_by_name = dict(stale_rows_by_name)
-            display_rows_by_name.update(cached_rows_by_name)
-            display_is_stale = bool(stale_rows_by_name) or set(display_rows_by_name) != active_trait_names
-            _predictions_debug(
-                owner,
-                "Trait metadata displayable DB row cache hit chart_uid=%s traits=%s stale=%s",
-                chart_uid,
-                len(display_rows_by_name),
-                display_is_stale,
-            )
-            above = {name for name, row in display_rows_by_name.items() if row.get("direction") == "above"}
-            below = {name for name, row in display_rows_by_name.items() if row.get("direction") == "below"}
-            latest_updated_at = max(
-                (str(row.get("updated_at", "") or "") for row in display_rows_by_name.values()),
-                default="",
-            )
-            stale_trait_names = active_trait_names - set(cached_rows_by_name)
-            full_reasons: list[str] = []
-            if active_trait_names and set(stale_chart_rows_by_name) >= active_trait_names:
-                full_reasons.append("astro_data")
-                stale_trait_names = set()
-            if active_trait_names and set(stale_norm_rows_by_name) >= active_trait_names:
-                full_reasons.append("database_norms")
-                stale_trait_names = set()
-            metadata = _metadata_from_vectors(
-                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in display_rows_by_name.items()},
-                database_averages={name: float(row.get("db_average", 0.0)) for name, row in display_rows_by_name.items()},
-                updated_at=latest_updated_at,
-                stale_trait_names=stale_trait_names if display_is_stale else set(),
-                full_staleness_reasons=full_reasons,
-            )
-            return metadata
-
-    if cached_only:
+    if chart is None:
         return None
-
-    cached_likelihoods = {
-        name: float(row.get("likelihood", 0.0))
-        for name, row in cached_likelihood_rows_by_name.items()
-    }
-    cached_likelihoods.update(
-        {name: float(row.get("likelihood", 0.0)) for name, row in cached_rows_by_name.items()}
-    )
-    cached_database_averages = dict(snapshot_database_averages)
-    cached_database_averages.update(
-        {name: float(row.get("db_average", 0.0)) for name, row in cached_rows_by_name.items()}
-    )
-    missing_traits = [trait for name, trait in traits_by_name.items() if name not in cached_likelihoods]
-    likelihoods = dict(cached_likelihoods)
-    if missing_traits:
-        _predictions_debug(owner, "Trait metadata scoring missing chart traits=%s", len(missing_traits))
-        if len(missing_traits) == len(traits_by_name):
-            likelihoods.update(
-                global_trait_prediction_index().chart_likelihoods(
-                    chart,
-                    traits,
-                    chart_signature=chart_signature,
-                    trait_signature=trait_signature,
-                )
-            )
-        else:
-            likelihoods.update(trait_likelihoods_with_distribution_cache(owner, chart, missing_traits))
-    database_averages = dict(cached_database_averages)
-    missing_average_traits = [trait for name, trait in traits_by_name.items() if name not in database_averages]
-    if missing_average_traits:
-        _predictions_debug(owner, "Trait metadata resolving DB averages missing_traits=%s", len(missing_average_traits))
-        database_averages.update(_database_trait_averages(owner, missing_average_traits))
-    if set(database_averages) >= active_trait_names:
-        try:
-            db.upsert_trait_baseline_snapshot(
-                norm_signature=norm_signature,
-                trait_signature=trait_signature,
-                rows=[
-                    {
-                        "trait_name": name,
-                        "trait_uid": trait_uids_by_name.get(name, ""),
-                        "db_average": database_averages.get(name, 0.0),
-                    }
-                    for name in active_trait_names
-                ],
-                chart_count=int(_database_norm_state(owner).get("chart_count", 0) or 0),
-                norm_state=_database_norm_state(owner),
-            )
-        except Exception as exc:
-            logger.warning("Traits panel could not persist full DB baseline snapshot: %s", exc, exc_info=True)
-    metadata = _metadata_from_vectors(
-        likelihoods=likelihoods,
-        database_averages=database_averages,
-    )
-    unavailable_names = sorted(active_trait_names - set(database_averages))
-    if unavailable_names:
-        detail = (
-            "Static trait norms are missing or analytically outdated for: "
-            + ", ".join(unavailable_names)
-            + ". Use Settings > Traits > Reassess unavailable traits to calculate only these profiles."
-        )
-        logger.warning("Traits panel rendered partial results; %s", detail)
-        metadata["unavailable_traits"] = unavailable_names
-        metadata["unavailable_trait_reason"] = detail
-    _apply_trait_metadata_to_chart(chart, metadata, trait_uids_by_name, signature)
-    if chart_uid is not None:
-        rows_for_persistence = [
-            {
-                "trait_name": name,
-                "trait_uid": trait_uids_by_name.get(name, ""),
-                "trait_signature": trait_signature,
-                "direction": _direction_for_deviation(float(metadata.get("deviations", {}).get(name, 0.0))),
-                "likelihood": likelihoods.get(name, 0.0),
-                "db_average": database_averages.get(name, 0.0),
-                "deviation": metadata.get("deviations", {}).get(name, 0.0),
-            }
-            for name in active_trait_names
-        ]
-        try:
-            db.upsert_chart_trait_likelihoods(
-                chart_uid,
-                rows_for_persistence,
-                chart_signature=chart_signature,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Traits panel could not update chart-local trait likelihoods for chart UID %s: %s",
-                chart_uid,
-                exc,
-                exc_info=True,
-            )
-        try:
-            db.upsert_chart_trait_metadata(
-                chart_uid,
-                rows_for_persistence,
-                trait_signature=trait_signature,
-                norm_signature=norm_signature,
-                chart_signature=chart_signature,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Traits panel could not update cached DB trait metadata for chart UID %s: %s",
-                chart_uid,
-                exc,
-                exc_info=True,
-            )
+    if getattr(owner, "_is_placeholder_chart", lambda c: False)(chart) or not traits:
+        return _metadata_from_vectors(likelihoods={}, database_averages={})
+    uid = _database_chart_uid_for_chart(chart)
+    signature = chart_signature or _chart_trait_metadata_signature(chart)
+    index = global_trait_prediction_index()
+    result = index.results_for_uids([uid], traits, chart_signatures={uid: signature}).get(uid) if uid else None
+    if cached_only and result is None:
+        return None
+    if cached_only:
+        metadata = _metadata_from_vectors(
+            likelihoods=result.likelihoods, database_averages=result.database_averages,
+            stale_chart_vector=result.stale_chart_vector, stale_trait_definition=result.stale_trait_definition,
+            stale_db_baseline=result.stale_db_baseline, updated_at=result.updated_at)
+    else:
+        # Persist only saved state; draft charts may retain the original UID.
+        scores = index.score_chart(chart, traits, persist=bool(uid and _persisted_chart_signature_matches_current(uid, chart)))
+        metadata = _metadata_from_vectors(likelihoods=scores, database_averages=trait_norm_values(traits, include_houses=bool(chart_uses_houses(chart))))
+    unavailable = sorted({t["name"] for t in traits} - metadata["database_averages"].keys())
+    if unavailable:
+        metadata["unavailable_traits"] = unavailable
+        metadata["unavailable_trait_reason"] = "Static DB norms unavailable for: " + ", ".join(unavailable) + ". Generate DB Norms explicitly in Developer Tools."
+    _apply_trait_metadata_to_chart(chart, metadata, {t["name"]: _trait_uid_for_item(t) for t in traits}, (uid, signature))
     return metadata
 
 
@@ -1582,7 +1050,8 @@ def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]
     trait_signature = _stable_json_hash(_trait_signature_payload(traits))
     legacy_trait_signature = _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
     trait_display_signature = _stable_json_hash(_trait_display_signature_payload(traits))
-    snapshot = load_prediction_norms_snapshot()
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    snapshot = prediction_norms_reference()
     missing_traits = missing_trait_norms(traits, snapshot)
     if missing_traits:
         # Missing profiles are repaired as one trait-scoped worker operation.
@@ -1821,7 +1290,7 @@ def _trait_predictions_html_from_metadata(
         message = "No scorable traits uploaded."
         return message, message
     if not database_averages:
-        message = "Trait predictions unavailable until database trait averages can be calculated."
+        message = "Static DB norms for these Trait predictions are unavailable."
         return message, message
 
     rows = _trait_prediction_rows_from_metadata(traits, metadata)
@@ -1852,62 +1321,8 @@ def _trait_failure_footnote(metadata: dict[str, Any]) -> str:
     )
 
 
-class _TraitPredictionsRefreshWorker(QObject):
-    """Calculate trait prediction metadata away from the Qt GUI thread."""
-
-    finished = Signal(object, object)
-    failed = Signal(object, str)
-
-    def __init__(
-        self,
-        owner: Any,
-        chart: Any,
-        traits: list[dict[str, Any]],
-        token: object,
-        signatures: dict[str, str] | None = None,
-    ) -> None:
-        super().__init__()
-        self._owner = owner
-        self._chart = chart
-        self._traits = traits
-        self._token = token
-        self._signatures = signatures or {}
-        self._cancelled = False
-
-    @Slot()
-    def cancel(self) -> None:
-        self._cancelled = True
-
-    def _is_cancelled(self) -> bool:
-        return self._cancelled or QThread.currentThread().isInterruptionRequested()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            _predictions_debug(self._owner, "Trait refresh worker start token=%s", id(self._token))
-            if self._is_cancelled():
-                _predictions_debug(self._owner, "Trait refresh worker cancelled before metadata token=%s", id(self._token))
-                self.failed.emit(self._token, "cancelled")
-                return
-            metadata = trait_metadata_for_chart(
-                self._owner,
-                self._chart,
-                traits=self._traits,
-                trait_signature=self._signatures.get("trait_signature"),
-                legacy_trait_signature=self._signatures.get("legacy_trait_signature"),
-                norm_signature=self._signatures.get("norm_signature"),
-                chart_signature=self._signatures.get("chart_signature"),
-            )
-            if self._is_cancelled():
-                _predictions_debug(self._owner, "Trait refresh worker cancelled after metadata token=%s", id(self._token))
-                self.failed.emit(self._token, "cancelled")
-                return
-        except Exception as exc:
-            logger.warning("Traits panel background refresh failed: %s", exc, exc_info=True)
-            self.failed.emit(self._token, str(exc))
-            return
-        _predictions_debug(self._owner, "Trait refresh worker finished token=%s", id(self._token))
-        self.finished.emit(self._token, metadata)
+# Compatibility import; delete once legacy prediction orchestration migrates.
+from ephemeraldaddy.gui.features.predictions.trait_worker import TraitPredictionWorker as _TraitPredictionsRefreshWorker
 
 
 class _TraitPredictionsRefreshReceiver(QObject):
@@ -2139,7 +1554,8 @@ def _start_traits_prediction_refresh_worker(
     owner._traits_prediction_active_cache_key = cache_key
     thread_parent = owner if isinstance(owner, QWidget) else None
     thread = QThread(thread_parent)
-    worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token, signatures)
+    from ephemeraldaddy.gui.features.charts.trait_prediction_policy import predictions_use_gender_distribution_enabled
+    worker = _TraitPredictionsRefreshWorker(chart, traits, token, include_gender=predictions_use_gender_distribution_enabled(owner))
     receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token, traits)
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)
@@ -2167,6 +1583,13 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     label = getattr(owner, "traits_prediction_label", None)
     if not isinstance(label, QLabel):
         return
+    if isinstance(owner, QObject) and getattr(owner, "_trait_refresh_relay", None) is None:
+        from ephemeraldaddy.gui.features.predictions.trait_updates import TraitRefreshRelay
+        def refreshed(chart_uids: frozenset[str], trait_uids: frozenset[str]) -> None:
+            current = getattr(owner, "_traits_prediction_chart", None)
+            if str(getattr(current, "chart_uid", "") or "").upper() in chart_uids:
+                render_traits_predictions(owner, current)
+        owner._trait_refresh_relay = TraitRefreshRelay(owner, refreshed)
     _configure_traits_prediction_label(owner, label)
     # A render may exit before cache metadata is available (no traits,
     # placeholder chart, cache miss, or calculation failure). Never let the

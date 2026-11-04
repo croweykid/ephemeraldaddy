@@ -751,14 +751,14 @@ def _create_chart_change_log(conn: sqlite3.Connection) -> None:
         END
         """
     )
+    conn.execute("DROP TRIGGER IF EXISTS chart_change_log_astro_update")
     conn.execute(
         """
         CREATE TRIGGER IF NOT EXISTS chart_change_log_astro_update
         AFTER UPDATE OF datetime_iso, birth_place, tz_name, lat, lon,
             birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
             rectification_range_used, rectification_range_start_minute,
-            rectification_range_end_minute, birth_month, birth_day, birth_year,
-            is_placeholder
+            rectification_range_end_minute, birth_month, birth_day, birth_year
         ON charts
         WHEN COALESCE(NEW.chart_uid, '') != '' AND (
             OLD.datetime_iso IS NOT NEW.datetime_iso OR
@@ -772,7 +772,7 @@ def _create_chart_change_log(conn: sqlite3.Connection) -> None:
             OLD.rectification_range_start_minute IS NOT NEW.rectification_range_start_minute OR
             OLD.rectification_range_end_minute IS NOT NEW.rectification_range_end_minute OR
             OLD.birth_month IS NOT NEW.birth_month OR OLD.birth_day IS NOT NEW.birth_day OR
-            OLD.birth_year IS NOT NEW.birth_year OR OLD.is_placeholder IS NOT NEW.is_placeholder
+            OLD.birth_year IS NOT NEW.birth_year
         )
         BEGIN
             INSERT INTO chart_change_log(chart_uid, change_type, astro_data_changed, session_id, changed_at)
@@ -1027,10 +1027,9 @@ def get_chart_enneagram_prediction_metadata(chart_uid: str) -> dict[str, Any]:
         conn.close()
 
 def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
-    if _charts_table_exists(conn):
-        _ensure_chart_uids(conn)
     existing_columns = _table_columns(conn, "chart_trait_metadata")
     if existing_columns and "chart_uid" not in existing_columns:
+        _ensure_chart_uids(conn)
         conn.execute("ALTER TABLE chart_trait_metadata RENAME TO chart_trait_metadata_legacy")
         _invalidate_table_columns_cache("chart_trait_metadata")
         conn.execute(
@@ -2341,6 +2340,22 @@ def get_or_calculate_sidereal_chart_data(chart: object):
 def _connect_readonly() -> sqlite3.Connection:
     """Open a cheaper connection for read helpers after startup initialization."""
     return _get_conn()
+
+
+_chart_saved_callbacks: set[Callable[[], None]] = set()
+
+
+def register_chart_saved_callback(callback: Callable[[], None]) -> None:
+    """Register a non-GUI post-commit observer for authoritative chart saves."""
+    _chart_saved_callbacks.add(callback)
+
+
+def _chart_save_committed() -> None:
+    for callback in tuple(_chart_saved_callbacks):
+        try:
+            callback()
+        except Exception:
+            logger.exception("Post-save prediction refresh could not be queued")
 
 
 def latest_chart_change_sequence() -> int:
@@ -4401,6 +4416,7 @@ def save_chart(
         _write_chart_derived_cache(conn, int(chart_id), chart)
     # Publish the UID only after both the row and its cache have committed.
     setattr(chart, "chart_uid", chart_uid)
+    _chart_save_committed()
     return chart_id
 
 
@@ -4761,6 +4777,7 @@ def update_chart(
         setattr(chart, "birth_place", resolved_birth_place)
     conn.close()
     _persist_chart_derived_cache(int(chart_id), chart)
+    _chart_save_committed()
 
 
 def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
@@ -5919,7 +5936,7 @@ def upsert_chart_trait_metadata(
                 float(row.get("db_average", 0.0)),
                 float(row.get("deviation", 0.0)),
                 str(row.get("trait_signature", trait_signature)),
-                str(norm_signature),
+                str(row.get("norm_signature", norm_signature)),
                 str(chart_signature),
                 now,
             )
@@ -5928,8 +5945,12 @@ def upsert_chart_trait_metadata(
     try:
         with conn:
             _create_chart_trait_metadata_table(conn)
-            conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid = ?", (normalized_uid,))
             if prepared:
+                for _uid, trait_uid, trait_name, *_rest in prepared:
+                    if trait_uid:
+                        conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid = ? AND trait_uid = ?", (normalized_uid, trait_uid))
+                    else:
+                        conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid = ? AND trait_uid = '' AND trait_name = ?", (normalized_uid, trait_name))
                 conn.executemany(
                     """
                     INSERT INTO chart_trait_metadata (
@@ -5978,6 +5999,88 @@ def get_chart_trait_metadata(chart_uid: str) -> list[dict[str, Any]]:
         conn.close()
 
 
+def import_trait_likelihood_rows(rows: Iterable[Mapping[str, Any]]) -> None:
+    """One-transaction migration; existing shared-index scores take precedence."""
+    conn = _get_conn()
+    try:
+        with conn:
+            _create_chart_trait_metadata_table(conn)
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            for row in rows:
+                uid = _normalize_chart_uid(row.get("chart_uid"))
+                if uid is None:
+                    continue
+                conn.execute("""INSERT INTO chart_trait_likelihoods(chart_uid, trait_uid, trait_name, likelihood, trait_signature, chart_signature, updated_at)
+                    SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS(SELECT 1 FROM charts WHERE chart_uid = ?)
+                    AND NOT EXISTS(SELECT 1 FROM chart_trait_likelihoods WHERE chart_uid = ? AND (trait_uid = ? OR trait_name = ?))""",
+                    (uid, row["trait_uid"], row["trait_name"], row["likelihood"], row["trait_signature"], row.get("chart_signature", "legacy"), now, uid, uid, row["trait_uid"], row["trait_name"]))
+    finally:
+        conn.close()
+
+
+def prediction_chart_uids() -> tuple[str, ...]:
+    """Eligible UID roster, without hydrating charts or their calculations."""
+    conn = _get_conn()
+    try:
+        return tuple(str(row[0]) for row in conn.execute("SELECT chart_uid FROM charts WHERE COALESCE(is_placeholder, 0) = 0 AND chart_uid != ''"))
+    finally:
+        conn.close()
+
+
+def prediction_chart_labels(chart_uids: Iterable[str]) -> dict[str, str]:
+    """Batch-load labels only, for numerical ranking presentation."""
+    uids = tuple(dict.fromkeys(uid for raw in chart_uids if (uid := _normalize_chart_uid(raw))))
+    result = {}
+    conn = _get_conn()
+    try:
+        for start in range(0, len(uids), 400):
+            chunk = uids[start:start + 400]
+            rows = conn.execute(f"SELECT chart_uid, name FROM charts WHERE chart_uid IN ({','.join('?' for _ in chunk)}) AND COALESCE(is_placeholder, 0) = 0", chunk)
+            result.update({str(uid): str(name or uid) for uid, name in rows})
+    finally:
+        conn.close()
+    return result
+
+
+def get_trait_prediction_rows_by_uids(chart_uids: Iterable[str], trait_uids: Iterable[str] | None = None, *, trait_names: Iterable[str] = ()) -> dict[str, list[dict[str, Any]]]:
+    """Batch-read score and presentation caches; never load/recalculate charts."""
+    uids = tuple(dict.fromkeys(uid for raw in chart_uids if (uid := _normalize_chart_uid(raw))))
+    selected_traits = tuple(dict.fromkeys(str(uid).strip() for uid in (trait_uids or ()) if str(uid).strip()))
+    selected_names = tuple(dict.fromkeys(str(name) for name in trait_names))
+    result = {uid: [] for uid in uids}
+    if not uids:
+        return result
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        _create_chart_trait_metadata_table(conn)
+        for start in range(0, len(uids), 400):
+            chunk = uids[start:start + 400]
+            scope = ','.join('?' for _ in chunk)
+            # Prefer raw scores; metadata is a migration fallback for older caches.
+            for table in ("chart_trait_likelihoods", "chart_trait_metadata"):
+                conditions = []
+                params = list(chunk)
+                if selected_traits:
+                    conditions.append(f"p.trait_uid IN ({','.join('?' for _ in selected_traits)})")
+                    params.extend(selected_traits)
+                if selected_names:
+                    conditions.append(f"(COALESCE(p.trait_uid, '') = '' AND p.trait_name IN ({','.join('?' for _ in selected_names)}))")
+                    params.extend(selected_names)
+                predicate = " AND (" + " OR ".join(conditions) + ")" if conditions else ""
+                query = f"SELECT p.chart_uid, p.trait_uid, p.trait_name, p.likelihood, p.trait_signature, p.chart_signature, p.updated_at, CASE WHEN COALESCE(c.birthtime_unknown, 0) = 0 OR (COALESCE(c.retcon_time_used, 0) = 1 AND c.retcon_hour BETWEEN 0 AND 23 AND c.retcon_minute BETWEEN 0 AND 59) THEN 1 ELSE 0 END AS uses_houses FROM {table} p JOIN charts c ON c.chart_uid = p.chart_uid WHERE p.chart_uid IN ({scope}){predicate}"
+                rows = conn.execute(query, params).fetchall()
+                for row in rows:
+                    value = dict(row)
+                    if selected_traits and value["trait_uid"] and value["trait_uid"] not in selected_traits:
+                        continue
+                    value["cache_source"] = table
+                    result[value.pop("chart_uid")].append(value)
+        return result
+    finally:
+        conn.close()
+
+
 def purge_chart_trait_metadata_for_trait(*, trait_uid: str = "", trait_name: str = "") -> int:
     """Delete persisted derived trait metadata for a removed trait across all charts."""
     normalized_uid = str(trait_uid or "").strip()
@@ -6000,7 +6103,9 @@ def purge_chart_trait_metadata_for_trait(*, trait_uid: str = "", trait_name: str
                 f"DELETE FROM chart_trait_metadata WHERE {' OR '.join(clauses)}",
                 tuple(params),
             )
-            return int(cursor.rowcount or 0)
+            count = int(cursor.rowcount or 0)
+            conn.execute(f"DELETE FROM chart_trait_likelihoods WHERE {' OR '.join(clauses)}", tuple(params))
+            return count
     finally:
         conn.close()
 
@@ -6984,6 +7089,11 @@ def update_chart_dominant_sign_weights(
             ),
         )
     conn.close()
+
+
+def update_chart_weirdness_score_by_uid(chart_uid: str, score: float, *, formula_version: int, norm_signature: str) -> bool:
+    row = get_chart_id_by_uid(chart_uid)
+    return update_chart_weirdness_score(row, score, formula_version=formula_version, norm_signature=norm_signature) if row is not None else False
 
 
 def update_chart_weirdness_score(

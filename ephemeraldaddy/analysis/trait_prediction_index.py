@@ -9,7 +9,9 @@ likelihood vectors with DB baseline vectors.
 
 from __future__ import annotations
 
+import copy
 import hashlib
+import time
 import json
 import logging
 import queue
@@ -19,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Hashable, Iterable, Mapping
 
 from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods, trait_possible_score
-from ephemeraldaddy.analysis.trait_reviews import without_trait_reviews
+from ephemeraldaddy.analysis.trait_signatures import trait_definition_signature, chart_prediction_signature
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
 
@@ -124,7 +126,11 @@ class TraitPredictionIndex:
     def __init__(self) -> None:
         self._compiled_traits: OrderedDict[str, tuple[CompiledTraitProfile, ...]] = OrderedDict()
         self._chart_vectors: OrderedDict[str, ChartFeatureVector] = OrderedDict()
-        self._likelihood_vectors: OrderedDict[tuple[str, str], dict[str, float]] = OrderedDict()
+        self._likelihood_vectors: OrderedDict[tuple[str, str], float] = OrderedDict()
+        self._chart_generations: dict[str, int] = {}
+        self._trait_generations: dict[str, int] = {}
+        self._listeners: set[Callable[..., Any]] = set()
+        self.revision = 0
         self._baseline_accumulators: dict[tuple[str, str], BaselineAccumulator] = {}
         self._lock = threading.RLock()
         self._queue: queue.Queue[
@@ -133,6 +139,48 @@ class TraitPredictionIndex:
         self._queued_keys: set[Hashable] = set()
         self._worker: threading.Thread | None = None
         self._stop_event = threading.Event()
+
+    def invalidate_chart(self, uid: str) -> None:
+        with self._lock:
+            self._chart_generations[uid] = self._chart_generations.get(uid, 0) + 1
+            self.revision += 1
+
+    def invalidate_trait(self, uid: str) -> None:
+        with self._lock:
+            self._trait_generations[uid] = self._trait_generations.get(uid, 0) + 1
+            self.revision += 1
+
+    def refresh_guard(self, chart_uids: Iterable[str], traits: list[dict[str, Any]]) -> Callable[[], bool]:
+        with self._lock:
+            chart_versions = {uid: self._chart_generations.get(uid, 0) for uid in chart_uids}
+            trait_versions = {trait_uid_for_index_item(t): self._trait_generations.get(trait_uid_for_index_item(t), 0) for t in traits}
+        database = str(db.DB_PATH)
+        def obsolete() -> bool:
+            with self._lock:
+                return (str(db.DB_PATH) != database
+                        or any(self._chart_generations.get(uid, 0) != version for uid, version in chart_versions.items())
+                        or any(self._trait_generations.get(uid, 0) != version for uid, version in trait_versions.items()))
+        return obsolete
+
+    def subscribe(self, callback: Callable[..., Any]) -> Callable[[], None]:
+        with self._lock:
+            self._listeners.add(callback)
+        def unsubscribe() -> None:
+            with self._lock:
+                self._listeners.discard(callback)
+        return unsubscribe
+
+    def _publish(self, chart_uids: Iterable[str], traits: list[dict[str, Any]]) -> None:
+        with self._lock:
+            self.revision += 1
+            callbacks = tuple(self._listeners)
+        for callback in callbacks:
+            try:
+                callback(frozenset(chart_uids), frozenset(trait_uid_for_index_item(t) for t in traits))
+            except RuntimeError:
+                # A Qt relay can be destroyed between copying and notification.
+                with self._lock:
+                    self._listeners.discard(callback)
 
     def compile_traits(self, traits: Iterable[Mapping[str, Any]], trait_signature: str) -> tuple[CompiledTraitProfile, ...]:
         with self._lock:
@@ -150,7 +198,7 @@ class TraitPredictionIndex:
                 CompiledTraitProfile(
                     uid=trait_uid_for_index_item(trait),
                     name=name,
-                    profile_signature=stable_json_hash(without_trait_reviews(profile)),
+                    profile_signature=trait_definition_signature(trait),
                     profile=profile,
                     possible_with_houses=trait_possible_score(profile, include_houses=True),
                     possible_without_houses=trait_possible_score(profile, include_houses=False),
@@ -187,32 +235,41 @@ class TraitPredictionIndex:
         return vector
 
     def chart_likelihoods(
-        self,
-        chart: Any,
-        traits: list[dict[str, Any]],
-        *,
-        chart_signature: str,
-        trait_signature: str,
+        self, chart: Any, traits: list[dict[str, Any]], *,
+        chart_signature: str, trait_signature: str = "", definition_signatures: Mapping[str, str] | None = None,
     ) -> dict[str, float]:
-        cache_key = (chart_signature, trait_signature)
+        # Cache each analytical profile separately: a roster/label change cannot
+        # invalidate another Trait. Names are applied only when assembling results.
+        active = [t for t in traits if not t.get("archived", False) and t.get("name")]
+        definitions = definition_signatures if definition_signatures is not None else {str(t["name"]): trait_definition_signature(t) for t in active}
+        values = {}
+        missing = []
         with self._lock:
-            cached = self._likelihood_vectors.get(cache_key)
-            if cached is not None:
-                self._likelihood_vectors.move_to_end(cache_key)
-                return dict(cached)
-        compiled = self.compile_traits(traits, trait_signature)
-        features = self.chart_features(chart, chart_signature)
-        possible_scores = {
-            item.name: item.possible_with_houses if features.uses_houses else item.possible_without_houses
-            for item in compiled
-        }
-        likelihoods = calculate_trait_likelihoods(chart, traits, possible_scores=possible_scores)
-        with self._lock:
-            self._likelihood_vectors[cache_key] = dict(likelihoods)
-            self._likelihood_vectors.move_to_end(cache_key)
-            while len(self._likelihood_vectors) > TRAIT_INDEX_MAX_LIKELIHOOD_VECTORS:
-                self._likelihood_vectors.popitem(last=False)
-        return likelihoods
+            for trait in active:
+                key = (chart_signature, definitions[str(trait["name"])])
+                cached = self._likelihood_vectors.get(key)
+                if cached is None:
+                    missing.append(trait)
+                else:
+                    self._likelihood_vectors.move_to_end(key)
+                    values[str(trait["name"])] = float(cached)
+        if missing:
+            compiled = self.compile_traits(missing, stable_json_hash([
+                (trait_uid_for_index_item(t), t["name"], definitions[str(t["name"])]) for t in missing
+            ]))
+            features = self.chart_features(chart, chart_signature)
+            possible = {t.name: t.possible_with_houses if features.uses_houses else t.possible_without_houses for t in compiled}
+            scored = calculate_trait_likelihoods(chart, missing, possible_scores=possible)
+            with self._lock:
+                for trait in missing:
+                    name = str(trait["name"])
+                    if name in scored:
+                        key = (chart_signature, definitions[str(trait["name"])])
+                        self._likelihood_vectors[key] = float(scored[name])
+                        values[name] = float(scored[name])
+                while len(self._likelihood_vectors) > TRAIT_INDEX_MAX_LIKELIHOOD_VECTORS:
+                    self._likelihood_vectors.popitem(last=False)
+        return values
 
     def update_baseline_accumulator(
         self,
@@ -277,7 +334,11 @@ class TraitPredictionIndex:
             try:
                 key, fn, args, kwargs = self._queue.get(timeout=0.25)
             except queue.Empty:
-                return
+                with self._lock:
+                    if self._queue.empty():
+                        self._worker = None
+                        return
+                continue
             try:
                 fn(*args, **kwargs)
             except Exception:
@@ -289,10 +350,201 @@ class TraitPredictionIndex:
                 self._queue.task_done()
 
     def read_cached(self, query: TraitPredictionQuery, traits: list[dict[str, Any]]) -> TraitPredictionResult | None:
+        return self.results_for_uids([query.chart_uid], traits, chart_signatures={query.chart_uid: query.chart_signature}).get(query.chart_uid)
+
+    def results_for_uids(
+        self, chart_uids: Iterable[str], traits: list[dict[str, Any]], *,
+        snapshot: Mapping[str, Any] | None = None,
+        chart_signatures: Mapping[str, str] | None = None,
+    ) -> dict[str, TraitPredictionResult]:
+        """Read any available scores in bulk, using only the static norm source.
+
+        Partial and older caches are readable. No chart hydration, scoring,
+        factor explanations, or population generation occurs on this path.
+        """
+        from ephemeraldaddy.core.prediction_norms import trait_norm_values, prediction_norms_reference
+
+        snapshot = snapshot if snapshot is not None else prediction_norms_reference()
+        uids = tuple(dict.fromkeys(str(uid).strip().upper() for uid in chart_uids if str(uid).strip()))
+        by_uid = {trait_uid_for_index_item(trait): trait for trait in traits}
+        by_name = {str(trait.get("name", "")): trait for trait in traits}
+        rows = db.get_trait_prediction_rows_by_uids(uids, by_uid, trait_names=by_name)
+        signatures = {name: trait_definition_signature(trait) for name, trait in by_name.items()}
+        averages_by_mode = {mode: trait_norm_values(traits, snapshot, include_houses=mode) for mode in (False, True)}
+        results = {}
+        for uid, entries in rows.items():
+            scores = {}
+            outdated_definition = False
+            outdated_chart = False
+            times = []
+            for row in entries:
+                row_uid = str(row.get("trait_uid", ""))
+                trait = by_uid.get(row_uid) if row_uid else by_name.get(str(row.get("trait_name", "")))
+                if trait is None:
+                    continue
+                name = str(trait["name"])
+                if name in scores:
+                    continue
+                scores[name] = float(row["likelihood"])
+                outdated_definition |= row.get("trait_signature") != signatures[name]
+                current_chart = (chart_signatures or {}).get(uid)
+                outdated_chart |= bool(current_chart and row.get("chart_signature") != current_chart)
+                times.append(str(row.get("updated_at", "")))
+            if scores:
+                averages = averages_by_mode[bool(entries[0].get("uses_houses", True))]
+                available = dict(averages)
+                results[uid] = TraitPredictionResult(
+                    scores, available, {name: value - available[name] for name, value in scores.items() if name in available},
+                    stale_chart_vector=outdated_chart, stale_trait_definition=outdated_definition or set(scores) != set(by_name),
+                    stale_db_baseline=set(available) != set(by_name), updated_at=max(times, default=""),
+                )
+        return results
+
+    def persist_scores(self, chart: Any, traits: list[dict[str, Any]], scores: Mapping[str, float], *, snapshot: Mapping[str, Any] | None = None, definition_signatures: Mapping[str, str] | None = None) -> None:
+        """Incrementally write scores and static classification for one chart."""
+        from ephemeraldaddy.core.prediction_norms import trait_norm_values, trait_norm_signature, prediction_norms_reference
+
+        snapshot = snapshot if snapshot is not None else prediction_norms_reference()
+        uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
+        if not uid:
+            return
+        signature = chart_prediction_signature(chart)
+        averages = trait_norm_values(traits, snapshot, include_houses=bool(chart_uses_houses(chart)))
+        definitions = definition_signatures if definition_signatures is not None else {str(t["name"]): trait_definition_signature(t) for t in traits}
+        rows = [{"trait_uid": trait_uid_for_index_item(t), "trait_name": t["name"],
+                 "trait_signature": definitions[str(t["name"])], "likelihood": float(scores[t["name"]])}
+                for t in traits if t["name"] in scores]
+        db.upsert_chart_trait_likelihoods(uid, rows, chart_signature=signature)
+        derived = []
+        definitions = {t["name"]: t for t in traits}
+        for row in rows:
+            name = row["trait_name"]
+            if name in averages:
+                delta = row["likelihood"] - averages[name]
+                derived.append({**row, "db_average": averages[name], "deviation": delta,
+                                "direction": "above" if delta >= 5 else "below" if delta <= -5 else "neutral",
+                                "norm_signature": trait_norm_signature(definitions[name], snapshot)})
+        if derived:
+            db.upsert_chart_trait_metadata(uid, derived, trait_signature="", norm_signature="", chart_signature=signature)
+
+    def score_chart(self, chart: Any, traits: list[dict[str, Any]], *, persist: bool = True) -> dict[str, float]:
+        scores = self.chart_likelihoods(chart, traits, chart_signature=chart_prediction_signature(chart))
+        if persist:
+            self.persist_scores(chart, traits, scores)
+        return scores
+
+    def collect(self, chart_uids: Iterable[str], traits: list[dict[str, Any]], *,
+                calculate_missing: bool = False, should_cancel: Callable[[], bool] | None = None,
+                progress: Callable[[float], None] | None = None) -> dict[str, Any]:
+        """Shared numeric collection for Analytics, Rankings and accuracy reviews.
+
+        Cached reads hydrate no charts. Missing intersections are calculated only
+        by explicit workers; GUI callers queue them and show available results.
+        Cohort totals describe that cohort, never its population reference.
+        """
+        uids = tuple(dict.fromkeys(str(uid).strip().upper() for uid in chart_uids if str(uid).strip()))
+        active = [t for t in traits if not t.get("archived", False)]
+        if calculate_missing:
+            from ephemeraldaddy.analysis.trait_cache_migration import import_legacy_trait_cache
+            import_legacy_trait_cache(active)
+        cached = self.results_for_uids(uids, active)
+        missing = {}
+        for uid in uids:
+            scores = cached[uid].likelihoods if uid in cached else {}
+            needed = [t for t in active if t["name"] not in scores]
+            if needed:
+                missing[uid] = needed
+        groups = {}
+        for uid, needed in missing.items():
+            key = tuple((trait_uid_for_index_item(t), trait_definition_signature(t)) for t in needed)
+            groups.setdefault(key, ([], needed))[0].append(uid)
+        if calculate_missing:
+            processed = 0
+            for scoped_uids, needed in groups.values():
+                if should_cancel and should_cancel():
+                    break
+                def group_progress(value: float) -> None:
+                    if progress:
+                        progress((processed + value * len(scoped_uids) / 100.) * 100. / max(1, len(missing)))
+                self.refresh_uids(scoped_uids, needed, should_cancel=should_cancel, notify=False, progress=group_progress)
+                processed += len(scoped_uids)
+            cached = self.results_for_uids(uids, active)
+            if missing:
+                self._publish(missing, active)
+        elif missing:
+            # Existing worker queue owns scoring; no window crosses it.
+            for scoped_uids, needed in groups.values():
+                self.request_refresh(scoped_uids, needed)
+        names = [str(t["name"]) for t in active]
+        complete = {uid: result for uid, result in cached.items() if set(names) <= result.likelihoods.keys()}
+        parsed = len(complete)
+        if progress and (not should_cancel or not should_cancel()):
+            progress(100.0 if parsed == len(uids) else parsed * 100.0 / max(1, len(uids)))
+        return {"trait_names": names, "totals": {name: sum(r.likelihoods[name] / 100.0 for r in complete.values()) for name in names},
+                "chart_count": parsed, "colors": {t["name"]: t.get("color", "#ffffff") for t in active},
+                "partial": parsed != len(uids), "requested_chart_count": len(uids), "parsed_chart_count": parsed,
+                "parsed_percent": parsed * 100.0 / len(uids) if uids else 100.0}
+
+    def refresh_uids(
+        self, chart_uids: Iterable[str], traits: list[dict[str, Any]], *,
+        should_cancel: Callable[[], bool] | None = None,
+        progress: Callable[[float], None] | None = None,
+        notify: bool = True, chart_versions: Mapping[str, int] | None = None,
+    ) -> dict[str, TraitPredictionResult]:
+        """Explicit worker-only refresh of the supplied chart/Trait intersection."""
+        uids = tuple(dict.fromkeys(str(uid).strip().upper() for uid in chart_uids if str(uid).strip()))
+        active = [trait for trait in traits if not trait.get("archived", False)]
         with self._lock:
-            accumulator = self._baseline_accumulators.get((query.norm_signature, query.trait_signature))
-            accumulator_averages = accumulator.averages() if accumulator is not None else None
-        return read_cached_trait_prediction(query, traits, baseline_averages=accumulator_averages)
+            versions = dict(chart_versions) if chart_versions is not None else {uid: self._chart_generations.get(uid, 0) for uid in uids}
+        from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+        reference = prediction_norms_reference()
+        definitions = {str(t["name"]): trait_definition_signature(t) for t in active}
+        obsolete = self.refresh_guard([], active)
+        completed = []
+        for start in range(0, len(uids), 64):
+            if obsolete() or (should_cancel and should_cancel()):
+                break
+            charts = db.load_charts_by_uids(uids[start:start + 64])
+            for uid, chart in charts.items():
+                if obsolete() or (should_cancel and should_cancel()):
+                    break
+                if getattr(chart, "is_placeholder", False) or self._chart_generations.get(uid, 0) != versions.get(uid, 0):
+                    continue
+                scores = self.chart_likelihoods(chart, active, chart_signature=chart_prediction_signature(chart), definition_signatures=definitions)
+                if obsolete() or (should_cancel and should_cancel()):
+                    break
+                if self._chart_generations.get(uid, 0) != versions.get(uid, 0):
+                    continue
+                self.persist_scores(chart, active, scores, snapshot=reference, definition_signatures=definitions)
+                completed.append(uid)
+                if progress:
+                    progress(len(completed) * 100.0 / max(1, len(uids)))
+        if completed and notify:
+            self._publish(completed, active)
+        return self.results_for_uids(completed, active)
+
+    def request_missing(self, chart_uids: Iterable[str], traits: list[dict[str, Any]]) -> None:
+        """Schedule cold-cache filling; never score an already cached cell."""
+        uids = tuple(sorted(set(chart_uids)))
+        definitions = copy.deepcopy(traits)
+        obsolete = self.refresh_guard([], definitions)
+        if uids and definitions:
+            self.enqueue(self.collect, uids, definitions, calculate_missing=True,
+                         should_cancel=obsolete,
+                         key=("missing", str(db.DB_PATH), uids, tuple((trait_uid_for_index_item(t), trait_definition_signature(t)) for t in definitions)))
+
+    def request_refresh(self, chart_uids: Iterable[str], traits: list[dict[str, Any]]) -> None:
+        uids = tuple(sorted(set(chart_uids)))
+        definitions = copy.deepcopy(traits)
+        with self._lock:
+            chart_versions = {uid: self._chart_generations.get(uid, 0) for uid in uids}
+            trait_versions = {trait_uid_for_index_item(t): self._trait_generations.get(trait_uid_for_index_item(t), 0) for t in definitions}
+        # Trait edits supersede the whole requested column. A chart edit skips
+        # just that chart, whose new request owns its replacement scores.
+        cancelled = self.refresh_guard([], definitions)
+        if uids and definitions:
+            self.enqueue(self.refresh_uids, uids, definitions, should_cancel=cancelled, chart_versions=chart_versions,
+                         key=(str(db.DB_PATH), "refresh", uids, tuple((trait_uid_for_index_item(t), trait_definition_signature(t)) for t in definitions), tuple(chart_versions.values()), tuple(trait_versions.values())))
 
 
 _INDEX = TraitPredictionIndex()
@@ -303,83 +555,15 @@ def global_trait_prediction_index() -> TraitPredictionIndex:
 
 
 def read_cached_trait_prediction(
-    query: TraitPredictionQuery,
-    traits: list[dict[str, Any]],
-    *,
+    query: TraitPredictionQuery, traits: list[dict[str, Any]], *,
     baseline_averages: Mapping[str, float] | None = None,
 ) -> TraitPredictionResult | None:
-    """Fast read API that combines persisted chart vectors and baseline vectors."""
-    traits_by_name = {str(trait.get("name", "")).strip(): trait for trait in traits if str(trait.get("name", "")).strip()}
-    if not traits_by_name:
-        return None
-    trait_uids_by_name = {name: trait_uid_for_index_item(trait) for name, trait in traits_by_name.items()}
-    names_by_uid = {uid: name for name, uid in trait_uids_by_name.items() if uid}
-    active_names = set(traits_by_name)
-
-    chart_rows = db.get_chart_trait_likelihoods(query.chart_uid)
-    if baseline_averages is None:
-        baseline_rows = db.get_trait_baseline_snapshot(
-            norm_signature=query.norm_signature,
-            trait_signature=query.trait_signature,
-        )
-    else:
-        baseline_rows = [
-            {"trait_name": name, "trait_uid": trait_uids_by_name.get(name, ""), "db_average": average}
-            for name, average in baseline_averages.items()
-        ]
-
-    fresh_chart: dict[str, float] = {}
-    stale_chart: dict[str, float] = {}
-    stale_trait: dict[str, float] = {}
-    for row in chart_rows:
-        row_uid = str(row.get("trait_uid", "") or "").strip()
-        name = names_by_uid.get(row_uid) if row_uid else str(row.get("trait_name", "")).strip()
-        if name not in active_names:
-            continue
-        row_trait_signature = str(row.get("trait_signature", "") or "")
-        row_chart_signature = str(row.get("chart_signature", "") or "")
-        likelihood = float(row.get("likelihood", 0.0))
-        if row_trait_signature == query.trait_signature and row_chart_signature == query.chart_signature:
-            fresh_chart[name] = likelihood
-        elif row_trait_signature == query.trait_signature:
-            stale_chart[name] = likelihood
-        else:
-            stale_trait[name] = likelihood
-
-    baselines: dict[str, float] = {}
-    for row in baseline_rows:
-        row_uid = str(row.get("trait_uid", "") or "").strip()
-        name = names_by_uid.get(row_uid) if row_uid else str(row.get("trait_name", "")).strip()
-        if name in active_names:
-            baselines[name] = float(row.get("db_average", 0.0))
-
-    stale_db_baseline = set(baselines) != active_names
-    likelihoods: dict[str, float]
-    stale_chart_vector = False
-    stale_trait_definition = False
-    if set(fresh_chart) == active_names:
-        likelihoods = fresh_chart
-    elif set(stale_chart) == active_names:
-        likelihoods = stale_chart
-        stale_chart_vector = True
-    elif set(stale_trait) == active_names:
-        likelihoods = stale_trait
-        stale_trait_definition = True
-    else:
-        return None
-    if not baselines:
-        return None
-    deviations = {name: float(likelihoods[name]) - float(baselines[name]) for name in likelihoods if name in baselines}
-    updated_at = ""
-    row_times = [str(row.get("updated_at", "") or "") for row in [*chart_rows, *baseline_rows]]
-    if row_times:
-        updated_at = max(row_times)
-    return TraitPredictionResult(
-        likelihoods=likelihoods,
-        database_averages=baselines,
-        deviations=deviations,
-        stale_chart_vector=stale_chart_vector,
-        stale_trait_definition=stale_trait_definition,
-        stale_db_baseline=stale_db_baseline,
-        updated_at=updated_at,
-    )
+    # Compatibility entry point. Delete when callers use results_for_uids.
+    snapshot = None
+    if baseline_averages is not None:
+        snapshot = {"trait_baselines": {f"name:{name.casefold()}": {"db_average": value}
+                                     for name, value in baseline_averages.items()}}
+    return global_trait_prediction_index().results_for_uids(
+        [query.chart_uid], traits, snapshot=snapshot,
+        chart_signatures={query.chart_uid: query.chart_signature},
+    ).get(query.chart_uid.upper())

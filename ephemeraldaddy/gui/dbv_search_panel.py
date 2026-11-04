@@ -1740,21 +1740,35 @@ def chart_matches_trait_filters(
         or excluded_absent_traits
     ):
         return True
-    from ephemeraldaddy.gui.features.charts.trait_predictions import trait_metadata_for_chart
-
-    metadata = trait_metadata_for_chart(window, chart)
-    present_traits = {str(name).casefold() for name in metadata.get("above", set())}
-    absent_traits = {str(name).casefold() for name in metadata.get("below", set())}
-
-    if any(trait.casefold() not in present_traits for trait in required_present_traits):
-        return False
-    if any(trait.casefold() in present_traits for trait in excluded_present_traits):
-        return False
-    if any(trait.casefold() not in absent_traits for trait in required_absent_traits):
-        return False
-    if any(trait.casefold() in absent_traits for trait in excluded_absent_traits):
-        return False
-    return True
+    from ephemeraldaddy.analysis.trait_search import membership_for_uids, matches_membership
+    from ephemeraldaddy.analysis.trait_prediction_index import global_trait_prediction_index
+    from ephemeraldaddy.analysis.traits import list_traits
+    from ephemeraldaddy.core import db
+    selected = frozenset(name.casefold() for group in (required_present_traits, excluded_present_traits, required_absent_traits, excluded_absent_traits) for name in group)
+    # This is a read view of the shared index, not a second numerical cache.
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    key = (selected, global_trait_prediction_index().revision, prediction_norms_reference().get("snapshot_id"))
+    cached = getattr(window, "_trait_search_membership", None)
+    if not isinstance(cached, tuple) or cached[0] != key:
+        traits = [t for t in list_traits(active_only=True) if t["name"].casefold() in selected]
+        uids = db.prediction_chart_uids()
+        cached = (key, membership_for_uids(uids, traits))
+        global_trait_prediction_index().request_missing(uids, traits)
+        if getattr(window, "_trait_search_refresh_relay", None) is None:
+            from ephemeraldaddy.gui.features.predictions.trait_updates import TraitRefreshRelay
+            def ready(chart_uids, trait_uids):
+                current = collect_search_trait_filter_sets(window)
+                names = {name.casefold() for group in current for name in group}
+                relevant = {str(t.get("uid") or "") for t in list_traits(active_only=True) if t["name"].casefold() in names}
+                if relevant & trait_uids:
+                    window._trait_search_membership = None
+                    window._populate_list()
+            window._trait_search_refresh_relay = TraitRefreshRelay(window, ready)
+        window._trait_search_membership = cached
+    uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
+    return matches_membership(cached[1].get(uid), required_present=required_present_traits,
+                              excluded_present=excluded_present_traits, required_absent=required_absent_traits,
+                              excluded_absent=excluded_absent_traits)
 
 
 def trait_autocomplete_names() -> list[str]:
