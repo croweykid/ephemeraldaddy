@@ -145,6 +145,16 @@ def populate_traits_settings_layout(owner: Any, traits_section: Any) -> None:
     traits_second_button_row.addWidget(owner._traits_description_button)
     traits_second_button_row.addStretch(1)
     traits_section.addLayout(traits_second_button_row)
+
+    review_buttons = QHBoxLayout()
+    owner._traits_rate_accuracy_button = QPushButton("Rate Accuracy")
+    owner._traits_rate_accuracy_button.clicked.connect(lambda _checked=False: on_trait_rate_accuracy_clicked(owner))
+    review_buttons.addWidget(owner._traits_rate_accuracy_button)
+    owner._traits_astro_analysis_button = QPushButton("Add Astro Analysis")
+    owner._traits_astro_analysis_button.clicked.connect(lambda _checked=False: on_trait_astro_analysis_clicked(owner))
+    review_buttons.addWidget(owner._traits_astro_analysis_button)
+    review_buttons.addStretch(1)
+    traits_section.addLayout(review_buttons)
     owner._traits_list_widget.itemSelectionChanged.connect(lambda: _sync_trait_action_buttons(owner))
 
     owner._traits_status_label = QLabel("")
@@ -214,7 +224,7 @@ def refresh_traits_settings_list(owner: Any) -> None:
             item.setData(Qt.UserRole + 6, str(trait.get("uid") or trait.get("trait_uid") or "").strip())
             item.setForeground(QColor(color))
             if bundled:
-                item.setToolTip("Default trait — bundled with EphemeralDaddy and read-only.")
+                item.setToolTip("Default trait — definition is read-only; ratings and astro analysis are saved locally.")
             list_widget.addItem(item)
             if str(trait["path"]) == current_path:
                 item.setSelected(True)
@@ -468,6 +478,10 @@ def on_trait_rename_clicked(owner: Any) -> None:
 
 def _sync_trait_action_buttons(owner: Any) -> None:
     item = selected_trait_item(owner)
+    for attr in ("_traits_rate_accuracy_button", "_traits_astro_analysis_button"):
+        button = getattr(owner, attr, None)
+        if isinstance(button, QPushButton):
+            button.setEnabled(item is not None)
     archived = bool(item.data(Qt.UserRole + 2)) if item is not None else False
     bundled = bool(item.data(Qt.UserRole + 4)) if item is not None else False
     archive_button = getattr(owner, "_traits_archive_button", None)
@@ -484,6 +498,57 @@ def _sync_trait_action_buttons(owner: Any) -> None:
     edit_button = getattr(owner, "_traits_edit_button", None)
     if isinstance(edit_button, QPushButton):
         edit_button.setEnabled(item is not None and not bundled)
+
+
+def _selected_trait_metadata(owner: Any) -> dict[str, Any] | None:
+    item = selected_trait_item(owner)
+    if item is None:
+        return None
+    uid = str(item.data(Qt.UserRole + 6) or "")
+    return next((trait for trait in list_traits() if trait["uid"] == uid), None)
+
+
+def on_trait_rate_accuracy_clicked(owner: Any) -> None:
+    from ephemeraldaddy.analysis.trait_reviews import save_trait_review
+    from ephemeraldaddy.gui.settings.modules.trait_reviews import RateAccuracyDialog
+
+    trait = _selected_trait_metadata(owner)
+    if trait is None:
+        return
+
+    def save(entries: list[dict[str, Any]]) -> None:
+        save_trait_review(trait, chart_accuracy_rankings=entries)
+        # Reviews are subjective metadata: no scoring, norm, or panel invalidation.
+        refresh_traits_settings_list(owner)
+
+    dialog = RateAccuracyDialog(
+        trait_name=trait["name"],
+        entries=trait["chart_accuracy_rankings"],
+        query=lambda progress, cancelled: owner.trait_accuracy_rankings(trait, progress, cancelled),
+        save=save,
+        parent=_settings_dialog_for(owner),
+    )
+    dialog.exec()
+    dialog.deleteLater()
+
+
+def on_trait_astro_analysis_clicked(owner: Any) -> None:
+    from ephemeraldaddy.analysis.trait_reviews import save_trait_review
+    from ephemeraldaddy.gui.settings.modules.trait_reviews import AstroAnalysisDialog
+
+    trait = _selected_trait_metadata(owner)
+    if trait is None:
+        return
+    dialog = AstroAnalysisDialog(trait["profile"], trait["astro_analysis"], _settings_dialog_for(owner))
+    while dialog.exec() == QDialog.Accepted:
+        try:
+            save_trait_review(trait, astro_analysis=dialog.editor.toPlainText())
+        except Exception as exc:
+            QMessageBox.warning(dialog, "Astro analysis could not be saved", str(exc))
+            continue
+        refresh_traits_settings_list(owner)
+        break
+    dialog.deleteLater()
 
 
 def on_trait_recolor_clicked(owner: Any) -> None:

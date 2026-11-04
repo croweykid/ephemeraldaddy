@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Hashable, Iterable, Mapping
 
 from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods, trait_possible_score
+from ephemeraldaddy.analysis.trait_reviews import without_trait_reviews
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
 
@@ -149,7 +150,7 @@ class TraitPredictionIndex:
                 CompiledTraitProfile(
                     uid=trait_uid_for_index_item(trait),
                     name=name,
-                    profile_signature=stable_json_hash(profile),
+                    profile_signature=stable_json_hash(without_trait_reviews(profile)),
                     profile=profile,
                     possible_with_houses=trait_possible_score(profile, include_houses=True),
                     possible_without_houses=trait_possible_score(profile, include_houses=False),
