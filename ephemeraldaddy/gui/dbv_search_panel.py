@@ -1746,6 +1746,7 @@ def chart_matches_trait_filters(
     from ephemeraldaddy.core import db
     selected = frozenset(name.casefold() for group in (required_present_traits, excluded_present_traits, required_absent_traits, excluded_absent_traits) for name in group)
     # This is a read view of the shared index, not a second numerical cache.
+    # Chart-row hydration also discards it when the roster/eligibility changes.
     from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
     key = (selected, global_trait_prediction_index().revision, prediction_norms_reference().get("snapshot_id"))
     cached = getattr(window, "_trait_search_membership", None)

@@ -20,6 +20,7 @@ they no longer determine whether numerical scores need recalculation.
 | Trait deleted | Purge only its UID from raw/derived caches |
 | Chart astro inputs saved | Consume the existing durable journal and refresh only that chart's Traits/alignment |
 | Tags, aliases, notes, cohort changes | Reuse numerical scores |
+| Chart roster / placeholder changes | Refresh Rankings and Search membership views; reuse saved scores and queue only missing cells |
 | Static norms source changes | Reclassify cached scores against that source |
 | Explicit Recalculate DB Norms | Generate a new static reference, including Distinguishing Factors |
 

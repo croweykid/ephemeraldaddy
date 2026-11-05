@@ -1,4 +1,4 @@
-"""Run the actual row-refresh/ranking gates without importing app.py's UI."""
+"""Run actual row-refresh, Rankings and Search gates without app.py's UI."""
 from __future__ import annotations
 import __future__
 import ast
@@ -22,6 +22,7 @@ def _method(path, name, namespace):
 
 _APP = 'ephemeraldaddy/gui/app.py'
 _RANKINGS = 'ephemeraldaddy/gui/ranking_panel_core.py'
+_matches_trait_filters = _method('ephemeraldaddy/gui/dbv_search_panel.py', 'chart_matches_trait_filters', {})
 
 
 class _RankingView:
@@ -101,6 +102,63 @@ def _save_display_change(statement, *values):
     assert updates.synchronize_chart_changes() is False
 
 
+def _enable_trait_search(view, monkeypatch):
+    from ephemeraldaddy.analysis import traits
+
+    monkeypatch.setattr(traits, 'list_traits', lambda **kwargs: [view.trait])
+    # Completion delivery is covered by real Qt tests. Run the queued index work
+    # explicitly here so score/hydration assertions also cover request_missing.
+    view._trait_search_refresh_relay = object()
+    queued = []
+    index = runtime.global_trait_prediction_index()
+    monkeypatch.setattr(index, 'enqueue', lambda fn, *args, **kwargs: queued.append((fn, args, kwargs)))
+    monkeypatch.setattr(db, 'load_charts_by_uids', lambda *a, **k: pytest.fail('Warm Search hydrated charts'))
+    monkeypatch.setattr(db, 'load_chart_by_uid', lambda *a, **k: pytest.fail('Warm Search hydrated a chart'))
+
+    def populate(**kwargs):
+        view.search_uids = {
+            row[30] for row in view._chart_rows
+            if not row[15] and _matches_trait_filters(
+                view, view._get_chart_for_filter(row[0]),
+                required_present_traits={'Artist'}, excluded_present_traits=set(),
+                required_absent_traits=set(), excluded_absent_traits=set(),
+            )
+        }
+
+    monkeypatch.setattr(view, '_populate_list', populate)
+    populate()
+    return queued
+
+
+def _drain_missing(queued, expected_uids):
+    assert len(queued) == 1
+    fn, args, kwargs = queued.pop()
+    assert set(args[0]) == expected_uids
+    kwargs.pop('key')
+    fn(*args, **kwargs)
+
+
+@pytest.mark.parametrize('initial_placeholder', [True, False])
+def test_search_membership_tracks_eligibility_without_rescoring(view, monkeypatch, initial_placeholder):
+    uid = 'RANKTEST000001'
+    saved = db.get_chart_trait_likelihoods(uid)
+    _save_display_change('UPDATE charts SET is_placeholder = ? WHERE chart_uid = ?', int(initial_placeholder), uid)
+    view._refresh_charts(refresh_metrics=False, refresh_tag_completers=False)
+    revision = runtime.global_trait_prediction_index().revision
+    queued = _enable_trait_search(view, monkeypatch)
+
+    for step, placeholder in enumerate((initial_placeholder, not initial_placeholder, initial_placeholder)):
+        if step:
+            _save_display_change('UPDATE charts SET is_placeholder = ? WHERE chart_uid = ?', int(placeholder), uid)
+            view._refresh_charts(refresh_metrics=False, refresh_tag_completers=False)
+        expected = {'RANKTEST000002'} | (set() if placeholder else {uid})
+        assert view.search_uids == expected
+        assert set(view._trait_search_membership[1]) == expected
+        _drain_missing(queued, expected)
+        assert runtime.global_trait_prediction_index().revision == revision
+        assert db.get_chart_trait_likelihoods(uid) == saved
+
+
 def test_placeholder_exclusion_and_reactivation_refresh_visible_rankings_without_scores(view):
     saved = db.get_chart_trait_likelihoods('RANKTEST000001')
     assert [row['name'] for row in view.rendered] == ['Original', 'Other']
@@ -135,9 +193,14 @@ def test_hidden_rankings_defer_display_refresh_until_revealed(view):
     assert not view._rankings_data_dirty
 
 
-def test_tags_and_unmodified_rows_do_not_refresh_rankings(view):
+def test_tags_and_unmodified_rows_do_not_refresh_rankings_or_search_membership(view, monkeypatch):
+    queued = _enable_trait_search(view, monkeypatch)
+    _drain_missing(queued, {'RANKTEST000001', 'RANKTEST000002'})
+    membership = view._trait_search_membership
     _save_display_change("UPDATE charts SET tags = 'cartoonist' WHERE chart_uid = 'RANKTEST000001'")
     view._refresh_charts(refresh_metrics=False, refresh_tag_completers=False)
     view._refresh_charts(refresh_metrics=False, refresh_tag_completers=False)
     assert view.refreshes == 1
     assert not view._rankings_data_dirty
+    assert view._trait_search_membership is membership
+    assert not queued

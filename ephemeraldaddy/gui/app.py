@@ -17802,6 +17802,10 @@ class ManageChartsDialog(
         # by its previous placeholder flag. Shared numerical caches stay valid.
         for chart_id in self._local_row_ids_for_uids(presentation_changes):
             self._chart_cache.pop(chart_id, None)
+        if presentation_changes:
+            # Refresh the eligible-UID read view before Search repaints. This
+            # reuses shared scores and lets newly included UIDs request misses.
+            self._trait_search_membership = None
         if synchronize_chart_changes() or presentation_changes:
             self._rankings_data_dirty = True
         if refresh_tag_completers:
