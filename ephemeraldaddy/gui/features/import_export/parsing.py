@@ -14,7 +14,7 @@ def normalize_csv_row(row: list[str]) -> list[str]:
 def trim_import_row(row: list[str]) -> list[str]:
     """Trim row shape for legacy exports with optional numeric id column."""
     if row and row[0].isdigit():
-        return row[:15]
+        return row[:17]
     return row[:3]
 
 
