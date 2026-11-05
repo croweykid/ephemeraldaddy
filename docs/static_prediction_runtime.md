@@ -47,6 +47,15 @@ Weirdness sort has its own small controller. Jobs use value snapshots and reject
 obsolete completion tokens. The alignment controller is owned by the window,
 so recreating a rendering adapter cannot resurrect the previous chart.
 
+Accepted one-chart Trait metadata also stays on the live chart, so unsaved
+charts and birth-data drafts survive subsequent renders without writing scores
+to SQLite. The analysis reader checks this view before persisted scores, using
+the chart's astro signature, Trait definitions/labels, and per-Trait static norm
+references. Worker delivery validates the captured key against the live chart.
+This presentation cache preserves factor evidence; it does not own scoring or
+population norms. The optional gender overlay shares the base key and stays in
+its own display cache.
+
 Enneagram no longer loads live reference charts before its static reader.
 Distinguishing Factors reads persisted metric payloads and caches their static
 baselines; chart presentation and sort refresh run outside the GUI thread. Old

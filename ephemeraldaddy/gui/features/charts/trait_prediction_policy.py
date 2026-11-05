@@ -270,7 +270,6 @@ def install_trait_prediction_policy(core: ModuleType) -> None:
                 chart,
                 metadata,
                 _trait_uids_by_name(core, resolved_traits),
-                ("gender-policy", policy_key),
             )
         except Exception:
             pass

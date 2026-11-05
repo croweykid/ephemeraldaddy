@@ -417,3 +417,72 @@ def test_gender_overlay_cache_rejects_changed_request_inputs(population, changed
     assert not retain_gender_prediction_metadata(chart, selected, metadata, expected_signature=signature)
     assert not hasattr(chart, '_trait_gender_prediction_metadata_cache')
     assert not db.get_chart_trait_likelihoods(chart.chart_uid)
+
+
+@pytest.mark.parametrize('changed_input', ['uid', 'astro_data', 'trait_model', 'norm_row', 'roster', 'label'])
+def test_completed_chart_metadata_rejects_changed_inputs(population, changed_input):
+    from ephemeraldaddy.analysis.trait_prediction_metadata_cache import (
+        cached_trait_prediction_metadata, retain_trait_prediction_metadata, trait_metadata_cache_key,
+    )
+
+    _, traits, charts, calls, paths = population
+    chart = charts['RUNTIMEUID0000']
+    selected = [traits[0]]
+    signature = trait_metadata_cache_key(chart, selected)
+    metadata = {'likelihoods': {'Artist': 83.}}
+    assert retain_trait_prediction_metadata(chart, selected, metadata, expected_signature=signature)
+    assert cached_trait_prediction_metadata(chart, selected) == metadata
+    if changed_input == 'uid':
+        chart.chart_uid = 'RUNTIMEUID0001'
+    elif changed_input == 'astro_data':
+        chart.lat = 20.
+    elif changed_input == 'trait_model':
+        traits[0]['profile']['signs']['Aries'] = 7
+    elif changed_input == 'norm_row':
+        payload = json.loads(paths.personal.read_text())
+        payload['trait_baselines']['uid:a']['db_average'] = 30.
+        paths.personal.write_text(json.dumps(payload))
+    elif changed_input == 'roster':
+        selected.append(traits[1])
+    else:
+        traits[0]['name'] = 'Painter'
+    assert cached_trait_prediction_metadata(chart, selected) is None
+    assert not retain_trait_prediction_metadata(chart, selected, metadata, expected_signature=signature)
+    assert not calls
+    assert not db.get_chart_trait_likelihoods(chart.chart_uid)
+
+
+def test_completed_chart_metadata_isolated_from_display_edits_and_mutation(population):
+    from ephemeraldaddy.analysis.trait_prediction_metadata_cache import (
+        cached_trait_prediction_metadata, retain_trait_prediction_metadata, trait_metadata_cache_key,
+    )
+
+    _, traits, charts, calls, _ = population
+    chart = charts['RUNTIMEUID0000']
+    metadata = {'likelihoods': {'Artist': 83.}, 'factor_matches': {'Artist': {'positive': ['Sun in Aries']}}}
+    signature = trait_metadata_cache_key(chart, traits)
+    assert retain_trait_prediction_metadata(chart, traits, metadata, expected_signature=signature)
+    metadata['likelihoods']['Artist'] = 0.
+    display_copy = cached_trait_prediction_metadata(chart, traits)
+    assert display_copy['likelihoods'] == {'Artist': 83.}
+    display_copy['factor_matches']['Artist']['positive'].clear()
+    chart.name, chart.tags, chart.notes, chart.gender = 'Renamed', ['cartoonist'], 'notes', 'Female'
+    traits[0]['profile'].update(color='#ffeeaa', description='A description')
+    assert trait_metadata_cache_key(chart, traits) == signature
+    assert cached_trait_prediction_metadata(chart, traits)['factor_matches'] == {'Artist': {'positive': ['Sun in Aries']}}
+    assert not calls
+
+
+def test_gender_overlay_cannot_replace_base_chart_metadata(population):
+    from ephemeraldaddy.analysis.trait_prediction_metadata_cache import (
+        cached_trait_prediction_metadata, retain_trait_prediction_metadata, trait_metadata_cache_key,
+    )
+
+    _, traits, charts, _, _ = population
+    chart = charts['RUNTIMEUID0000']
+    signature = trait_metadata_cache_key(chart, traits)
+    base = {'likelihoods': {'Artist': 83.}}
+    assert retain_trait_prediction_metadata(chart, traits, base, expected_signature=signature)
+    overlay = {'likelihoods': {'Artist': 90.}, 'gender_criterion_traits': ['Artist']}
+    assert not retain_trait_prediction_metadata(chart, traits, overlay, expected_signature=signature)
+    assert cached_trait_prediction_metadata(chart, traits) == base

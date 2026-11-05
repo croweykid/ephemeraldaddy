@@ -808,7 +808,6 @@ def _apply_trait_metadata_to_chart(
     chart: Any,
     metadata: dict[str, Any],
     trait_uids_by_name: dict[str, str],
-    signature: tuple[Any, ...],
 ) -> None:
     above = set(metadata.get("above", set()) or set())
     below = set(metadata.get("below", set()) or set())
@@ -823,8 +822,6 @@ def _apply_trait_metadata_to_chart(
     setattr(chart, "traits_above_average", list(above_uids))
     setattr(chart, "traits_below_average", list(below_uids))
     setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))
-    if not bool(metadata.get("stale")):
-        setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
 
 
 def _trait_analytical_profile(profile: Any, *, strip_uids: bool = False) -> dict[str, Any]:
@@ -937,32 +934,18 @@ def trait_metadata_for_chart(
     Numerical work is invoked by the existing Chart View calculation worker.
     Reading cached results never calculates missing Traits or factor evidence.
     """
-    from ephemeraldaddy.core.prediction_norms import trait_norm_values
+    from ephemeraldaddy.analysis.trait_chart_prediction import cached_chart_prediction, calculate_chart_prediction
     traits = traits if traits is not None else list_traits(active_only=True)
     if chart is None:
         return None
     if getattr(owner, "_is_placeholder_chart", lambda c: False)(chart) or not traits:
         return _metadata_from_vectors(likelihoods={}, database_averages={})
-    uid = _database_chart_uid_for_chart(chart)
-    signature = chart_signature or _chart_trait_metadata_signature(chart)
-    index = global_trait_prediction_index()
-    result = index.results_for_uids([uid], traits, chart_signatures={uid: signature}).get(uid) if uid else None
-    if cached_only and result is None:
-        return None
     if cached_only:
-        metadata = _metadata_from_vectors(
-            likelihoods=result.likelihoods, database_averages=result.database_averages,
-            stale_chart_vector=result.stale_chart_vector, stale_trait_definition=result.stale_trait_definition,
-            stale_db_baseline=result.stale_db_baseline, updated_at=result.updated_at)
+        metadata = cached_chart_prediction(chart, traits, chart_signature=chart_signature)
     else:
-        # Persist only saved state; draft charts may retain the original UID.
-        scores = index.score_chart(chart, traits, persist=bool(uid and _persisted_chart_signature_matches_current(uid, chart)))
-        metadata = _metadata_from_vectors(likelihoods=scores, database_averages=trait_norm_values(traits, include_houses=bool(chart_uses_houses(chart))))
-    unavailable = sorted({t["name"] for t in traits} - metadata["database_averages"].keys())
-    if unavailable:
-        metadata["unavailable_traits"] = unavailable
-        metadata["unavailable_trait_reason"] = "Static DB norms unavailable for: " + ", ".join(unavailable) + ". Generate DB Norms explicitly in Developer Tools."
-    _apply_trait_metadata_to_chart(chart, metadata, {t["name"]: _trait_uid_for_item(t) for t in traits}, (uid, signature))
+        metadata = calculate_chart_prediction(chart, traits, include_evidence=False)
+    if isinstance(metadata, dict):
+        _apply_trait_metadata_to_chart(chart, metadata, {t["name"]: _trait_uid_for_item(t) for t in traits})
     return metadata
 
 
@@ -1328,7 +1311,7 @@ from ephemeraldaddy.gui.features.predictions.trait_worker import TraitPrediction
 class _TraitPredictionsRefreshReceiver(QObject):
     """Receive worker results on the GUI thread before touching widgets."""
 
-    def __init__(self, owner: Any, cache_key: str, token: object, traits: list[dict[str, Any]], *, chart: Any, gender_cache_key: str | None = None) -> None:
+    def __init__(self, owner: Any, cache_key: str, token: object, traits: list[dict[str, Any]], *, chart: Any, metadata_cache_key: str, gender_cache_key: str | None = None) -> None:
         parent = owner if isinstance(owner, QWidget) else None
         super().__init__(parent)
         self._owner = owner
@@ -1336,6 +1319,7 @@ class _TraitPredictionsRefreshReceiver(QObject):
         self._token = token
         self._traits = traits
         self._chart = chart
+        self._metadata_cache_key = metadata_cache_key
         self._gender_cache_key = gender_cache_key
         self._thread: QThread | None = None
         self._worker: QObject | None = None
@@ -1359,6 +1343,15 @@ class _TraitPredictionsRefreshReceiver(QObject):
             ):
                 render_traits_predictions(self._owner, self._chart)
                 return
+        if not resolved_metadata.get("gender_criterion_traits"):
+            from ephemeraldaddy.analysis.trait_prediction_metadata_cache import retain_trait_prediction_metadata
+            if not retain_trait_prediction_metadata(
+                self._chart, self._traits, resolved_metadata,
+                expected_signature=self._metadata_cache_key,
+            ):
+                render_traits_predictions(self._owner, self._chart)
+                return
+        _apply_trait_metadata_to_chart(self._chart, resolved_metadata, {t["name"]: _trait_uid_for_item(t) for t in self._traits})
         self._owner._traits_prediction_pending_metadata = resolved_metadata
         self._owner._traits_prediction_pending_metadata_cache_key = self._cache_key
         _apply_traits_prediction_metadata(self._owner, self._traits, resolved_metadata)
@@ -1566,10 +1559,12 @@ def _start_traits_prediction_refresh_worker(
     thread = QThread(thread_parent)
     from ephemeraldaddy.gui.features.charts.trait_prediction_policy import predictions_use_gender_distribution_enabled
     from ephemeraldaddy.analysis.trait_gender import gender_prediction_cache_key
+    from ephemeraldaddy.analysis.trait_prediction_metadata_cache import trait_metadata_cache_key
     include_gender = predictions_use_gender_distribution_enabled(owner)
     gender_cache_key = gender_prediction_cache_key(chart, traits) if include_gender else None
+    metadata_cache_key = trait_metadata_cache_key(chart, traits)
     worker = _TraitPredictionsRefreshWorker(chart, traits, token, include_gender=include_gender)
-    receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token, traits, chart=chart, gender_cache_key=gender_cache_key)
+    receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token, traits, chart=chart, metadata_cache_key=metadata_cache_key, gender_cache_key=gender_cache_key)
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)
 

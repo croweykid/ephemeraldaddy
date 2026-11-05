@@ -246,6 +246,112 @@ def test_returning_to_completed_alignment_rejects_another_chart_still_in_flight(
         app.processEvents()
 
 
+@pytest.mark.parametrize('draft_kind', ['without_uid', 'new_uid', 'birth_edit', 'gender_without_evidence'])
+def test_draft_trait_results_survive_worker_completion_and_next_render(app, monkeypatch, tmp_path, draft_kind):
+    import copy
+    import json
+    from PySide6.QtWidgets import QWidget
+    from ephemeraldaddy.core import db, prediction_norms as norms
+    from ephemeraldaddy.analysis import trait_evidence
+    from ephemeraldaddy.analysis.trait_signatures import chart_prediction_signature, trait_definition_signature
+    from ephemeraldaddy.gui.features.charts import trait_predictions as facade
+
+    core = facade._core
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    monkeypatch.setattr(db, 'DB_DIR', tmp_path)
+    monkeypatch.setattr(db, 'DB_PATH', tmp_path/'charts.db')
+    paths = norms.PredictionNormPaths(tmp_path/'source.json', tmp_path/'official.json', tmp_path/'personal.json', tmp_path/'extra.json')
+    paths.official.write_text(json.dumps({'version': 1, 'trait_baselines': {'uid:t': {'db_average': 50.}}}))
+    monkeypatch.setattr(norms, 'default_norm_paths', lambda: paths)
+    traits = [{'uid': 't', 'name': 'T', 'profile': {'signs': {'Aries': 1}}}]
+    monkeypatch.setattr(core, 'list_traits', lambda **kwargs: traits)
+    uid = '' if draft_kind == 'without_uid' else 'DRAFTTRAIT001'
+    original = chart(uid)
+    saved = copy.deepcopy(original) if draft_kind == 'birth_edit' else None
+    if saved is not None:
+        conn = db._get_conn()
+        with conn:
+            conn.execute('INSERT INTO charts(chart_uid,name,datetime_iso,lat,lon,created_at) VALUES(?,?,?,0,0,?)',
+                         (uid, 'Saved', original.dt.isoformat(), '2026-01-01'))
+        conn.close()
+        db.upsert_chart_trait_likelihoods(uid, [{'trait_uid': 't', 'trait_name': 'T', 'likelihood': 62.,
+                                               'trait_signature': trait_definition_signature(traits[0])}],
+                                         chart_signature=chart_prediction_signature(original))
+        original.lat = 12.
+    monkeypatch.setattr(db, 'load_chart_by_uid', lambda value: copy.deepcopy(saved))
+    before = db.get_chart_trait_likelihoods(uid) if uid else []
+    calculated, presented, prompts, actions = [], [], [], []
+
+    def calculate(value, selected, **kwargs):
+        assert value is not original
+        assert QThread.currentThread() != app.thread()
+        calculated.append((value.chart_uid, value.lat))
+        return {'T': 83.}
+
+    monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', calculate)
+    monkeypatch.setattr(trait_evidence, '_ensure_trait_matches', lambda *a: {'T': {'positive': ['Sun in Aries']}})
+    monkeypatch.setattr(core, '_apply_traits_prediction_metadata', lambda owner, selected, data, **kwargs: presented.append(copy.deepcopy(data)))
+    monkeypatch.setattr(core, '_apply_traits_prediction_view', lambda *args, **kwargs: prompts.append(args[1]))
+    owner = QWidget()
+    owner.traits_prediction_label = QLabel(owner)
+    owner._is_placeholder_chart = lambda value: False
+    owner._predictions_use_trait_gender_distribution = draft_kind == 'gender_without_evidence'
+    owner._predictions_manual_recalculation_only = True
+    owner._set_prediction_header_action = lambda section, state: actions.append(state)
+    try:
+        core.render_traits_predictions(owner, original)
+        core.start_traits_prediction_calculation(owner)
+        wait_for(app, lambda: presented and presented[-1]['likelihoods'] == {'T': 83.})
+        wait_for(app, lambda: not owner._traits_prediction_worker_jobs)
+        assert (db.get_chart_trait_likelihoods(uid) if uid else []) == before
+        prompt_count, result_count = len(prompts), len(presented)
+        monkeypatch.setattr(index, 'results_for_uids', lambda *a, **k: pytest.fail('Completed draft fell back to persisted scores'))
+        monkeypatch.setattr(core, '_start_traits_prediction_calculation', lambda *a: pytest.fail('Completed draft started another calculation'))
+        for _ in range(2):
+            core.render_traits_predictions(owner, original)
+            app.processEvents()
+        assert len(prompts) == prompt_count
+        assert len(presented) == result_count + 2
+        assert presented[-1]['likelihoods'] == {'T': 83.}
+        assert presented[-1]['factor_matches'] == {'T': {'positive': ['Sun in Aries']}}
+        assert actions[-1] == 'up_to_date'
+        assert calculated == [(uid, original.lat)]
+    finally:
+        core.stop_traits_prediction_refresh_workers(owner, wait_msecs=5000)
+        owner.deleteLater()
+        app.processEvents()
+
+
+def test_trait_receiver_rejects_draft_changed_after_work_started(app, monkeypatch, tmp_path):
+    import json
+    from PySide6.QtWidgets import QWidget
+    from ephemeraldaddy.core import prediction_norms as norms
+    from ephemeraldaddy.analysis.trait_prediction_metadata_cache import trait_metadata_cache_key
+    from ephemeraldaddy.gui.features.charts import trait_predictions as facade
+
+    core = facade._core
+    paths = norms.PredictionNormPaths(tmp_path/'source.json', tmp_path/'official.json', tmp_path/'personal.json', tmp_path/'extra.json')
+    paths.official.write_text(json.dumps({'version': 1, 'trait_baselines': {'uid:t': {'db_average': 50.}}}))
+    monkeypatch.setattr(norms, 'default_norm_paths', lambda: paths)
+    traits = [{'uid': 't', 'name': 'T', 'profile': {}}]
+    original, owner, token = chart(''), QWidget(), object()
+    owner._traits_prediction_render_token = token
+    receiver = core._TraitPredictionsRefreshReceiver(owner, 'view', token, traits, chart=original,
+                                                     metadata_cache_key=trait_metadata_cache_key(original, traits))
+    rendered = []
+    monkeypatch.setattr(core, 'render_traits_predictions', lambda owner, value: rendered.append(value))
+    monkeypatch.setattr(core, '_apply_traits_prediction_metadata', lambda *a, **k: pytest.fail('Obsolete draft result was displayed'))
+    try:
+        original.lat = 12.
+        receiver.handle_finished(token, {'likelihoods': {'T': 83.}})
+        assert rendered == [original]
+        assert not hasattr(original, '_trait_prediction_metadata_cache')
+    finally:
+        owner.deleteLater()
+        app.processEvents()
+
+
 def test_gender_overlay_survives_worker_completion_and_next_render(app, monkeypatch, tmp_path):
     import copy
     import json

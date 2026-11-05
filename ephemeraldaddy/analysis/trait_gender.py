@@ -9,22 +9,13 @@ from ephemeraldaddy.core.chart import chart_uses_houses
 
 def gender_prediction_cache_key(chart: Any, traits: list[dict[str, Any]]) -> str:
     """Identify the inputs of a recorded-gender display overlay."""
-    from ephemeraldaddy.analysis.trait_signatures import (
-        chart_prediction_signature, stable_hash, trait_definition_signature,
-    )
-    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference, trait_norm_signature
+    from ephemeraldaddy.analysis.trait_signatures import stable_hash
+    from ephemeraldaddy.analysis.trait_prediction_metadata_cache import trait_metadata_cache_key
 
-    reference = prediction_norms_reference()
     return stable_hash({
         "version": 1,
-        "chart_uid": str(getattr(chart, "chart_uid", "") or "").strip().upper(),
-        "astro_data": chart_prediction_signature(chart),
+        "base": trait_metadata_cache_key(chart, traits),
         "gender": _normalize_gender(getattr(chart, "gender", None)),
-        "traits": [
-            (trait.get("uid") or trait.get("trait_uid"), trait.get("name"),
-             trait_definition_signature(trait), trait_norm_signature(trait, reference))
-            for trait in traits
-        ],
     })
 
 
