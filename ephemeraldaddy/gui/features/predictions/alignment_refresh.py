@@ -24,6 +24,9 @@ class AlignmentRefreshController(QObject):
         token = (str(getattr(chart, 'chart_uid', '') or ''), chart_prediction_signature(chart), tuple(trait_norm_signature(t) for t in alignment_traits()))
         self._apply = apply
         if token == self._done:
+            # This cached chart owns the view now; another chart's pending
+            # completion must not run its newly installed callback.
+            self._token = None
             return self._parts
         if token == self._token:
             return None

@@ -183,3 +183,64 @@ def test_alignment_controller_survives_recreated_adapters_and_reuses_completed_p
         index._queue.join()
         parent.deleteLater()
         app.processEvents()
+
+
+def test_returning_to_completed_alignment_rejects_another_chart_still_in_flight(app, monkeypatch):
+    from ephemeraldaddy.gui.features.charts import dnd_predictions as facade
+    from ephemeraldaddy.gui.features.predictions import alignment_refresh as ui
+
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    parent = QObject()
+    entered_b = threading.Event()
+    release_b = threading.Event()
+    rendered = []
+    delivered = []
+
+    def calculate(value, **kwargs):
+        if value.chart_uid == 'B':
+            entered_b.set()
+            release_b.wait(3)
+        return {'good': {'chart': value.chart_uid}}
+
+    monkeypatch.setattr(ui, 'alignment_parts', calculate)
+    monkeypatch.setattr(
+        facade._CoreDndPredictionPanelAdapter, 'render',
+        lambda self, value, renderer, **kwargs: rendered.append(
+            (value.chart_uid, getattr(value, '_dnd_alignment_score_parts_cache', None))
+        ),
+    )
+
+    def render(uid):
+        adapter = facade.DndPredictionPanelAdapter.__new__(facade.DndPredictionPanelAdapter)
+        adapter.owner = parent
+        adapter.alignment_layout = object()
+        adapter.is_placeholder_chart = lambda value: False
+        adapter.render(chart(uid), None, {'dnd_alignment'})
+
+    class Receiver(QObject):
+        @Slot(object, object)
+        def receive(self, token, parts):
+            delivered.append(parts['good']['chart'])
+
+    receiver = Receiver()
+    controller = ui.AlignmentRefreshController(parent)
+    controller.setObjectName('prediction-alignment-refresh')
+    controller.completed.connect(receiver.receive, Qt.QueuedConnection)
+    try:
+        render('A')
+        wait_for(app, lambda: delivered == ['A'])
+        render('B')
+        wait_for(app, entered_b.is_set)
+        render('A')
+        assert rendered[-1][1]['parts'] == {'good': {'chart': 'A'}}
+        frame_count = len(rendered)
+        release_b.set()
+        wait_for(app, lambda: delivered == ['A', 'B'])
+        assert len(rendered) == frame_count
+        assert all(payload['parts']['good']['chart'] == uid for uid, payload in rendered if payload)
+    finally:
+        release_b.set()
+        index._queue.join()
+        parent.deleteLater()
+        app.processEvents()

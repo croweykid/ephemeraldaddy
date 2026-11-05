@@ -230,3 +230,59 @@ def test_prediction_engines_import_without_qt_or_app():
     import subprocess
     result = subprocess.run([sys.executable, '-c', 'import sys; import ephemeraldaddy.analysis.trait_prediction_index; import ephemeraldaddy.analysis.trait_chart_prediction; import ephemeraldaddy.analysis.distinguishing_factors; import ephemeraldaddy.analysis.dnd.alignment_predictions; assert not any(n.startswith("PySide6") or n.startswith("ephemeraldaddy.gui") for n in sys.modules)'], capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize('mode', ['both', 'with_houses', 'without_houses', 'legacy'])
+def test_accuracy_review_accepts_each_available_static_norm_mode(population, mode):
+    from ephemeraldaddy.analysis.prediction_norms_catalog import build_trait_norm_row
+    from ephemeraldaddy.analysis.trait_rankings import accuracy_rankings
+
+    index, traits, charts, calls, paths = population
+    if mode != 'legacy':
+        row = build_trait_norm_row(
+            key='uid:a', uid='a', name='Artist', profile_hash='old', source='official',
+            with_houses_scores=[20, 40] if mode != 'without_houses' else [],
+            without_houses_scores=[60, 80] if mode != 'with_houses' else [],
+        )
+        paths.personal.write_text(json.dumps({
+            'catalog_version': 2, 'snapshot_id': 'accuracy-v2',
+            'sections': {'traits': {'rows': {'uid:a': row}}},
+        }))
+    unknown_uids = ('RUNTIMEUID0001',) if mode == 'both' else tuple(charts) if mode == 'without_houses' else ()
+    conn = db._get_conn()
+    with conn:
+        for uid in unknown_uids:
+            charts[uid].birthtime_unknown = True
+            conn.execute('UPDATE charts SET birthtime_unknown = 1 WHERE chart_uid = ?', (uid,))
+    conn.close()
+    index.refresh_uids(charts, [traits[0]])
+    calls.clear()
+    progress = []
+    ranked = accuracy_rankings(traits[0], progress.append, lambda: False)
+    expected = {
+        'both': [('RUNTIMEUID0000', 50.), ('RUNTIMEUID0002', 10.)],
+        'with_houses': [('RUNTIMEUID0000', 50.), ('RUNTIMEUID0001', 30.), ('RUNTIMEUID0002', 10.)],
+        'without_houses': [('RUNTIMEUID0000', 10.)],
+        'legacy': [('RUNTIMEUID0000', 30.), ('RUNTIMEUID0001', 10.)],
+    }
+    assert [(row['chart_uid'], row['deviation']) for row in ranked] == expected[mode]
+    assert progress[-1] == 97.
+    assert not calls
+
+
+def test_accuracy_review_rejects_norms_without_a_usable_distribution(population):
+    from ephemeraldaddy.analysis.prediction_norms_catalog import build_trait_norm_row
+    from ephemeraldaddy.analysis.trait_rankings import accuracy_rankings
+
+    _, traits, _, calls, paths = population
+    row = build_trait_norm_row(
+        key='uid:a', uid='a', name='Artist', profile_hash='old', source='official',
+        with_houses_scores=[], without_houses_scores=[],
+    )
+    paths.personal.write_text(json.dumps({
+        'catalog_version': 2, 'snapshot_id': 'empty-v2',
+        'sections': {'traits': {'rows': {'uid:a': row}}},
+    }))
+    with pytest.raises(ValueError, match='Stored DB norm unavailable'):
+        accuracy_rankings(traits[0], lambda _: None, lambda: False)
+    assert not calls

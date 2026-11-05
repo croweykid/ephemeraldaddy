@@ -17778,6 +17778,7 @@ class ManageChartsDialog(
             normalized_changed_uids.update(self._chart_uids_for_ids(changed_ids))
         changed_ids = set(self._local_row_ids_for_uids(normalized_changed_uids)) or None
 
+        previous_rows = getattr(self, "_chart_rows", ())
         if progress_callback:
             progress_callback("Loading saved chart rows…", 90)
         try:
@@ -17794,8 +17795,14 @@ class ManageChartsDialog(
         # the same boundary so initial load and chart additions/deletions do
         # not leave stale ``(0)`` or membership counts in Collection Manager.
         self._refresh_collection_list_widget()
+        from ephemeraldaddy.gui.features.database_view.ranking_presentation import ranking_presentation_changes
         from ephemeraldaddy.analysis.trait_prediction_updates import synchronize_chart_changes
-        if synchronize_chart_changes():
+        presentation_changes = ranking_presentation_changes(previous_rows, self._chart_rows)
+        # Rehydrate display objects so a reactivated chart cannot be excluded
+        # by its previous placeholder flag. Shared numerical caches stay valid.
+        for chart_id in self._local_row_ids_for_uids(presentation_changes):
+            self._chart_cache.pop(chart_id, None)
+        if synchronize_chart_changes() or presentation_changes:
             self._rankings_data_dirty = True
         if refresh_tag_completers:
             if progress_callback:

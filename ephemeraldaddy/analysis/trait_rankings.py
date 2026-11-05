@@ -18,9 +18,13 @@ def ranked_trait_rows(chart_uids: Iterable[str], trait: dict[str, Any], *, hidde
 
 
 def accuracy_rankings(trait: dict[str, Any], progress: Callable[[float], None], should_cancel: Callable[[], bool]) -> list[dict[str, Any]]:
-    from ephemeraldaddy.core.prediction_norms import trait_norm_values
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference, trait_norm_values
     trait = {**trait, "archived": False}
-    if trait["name"] not in trait_norm_values([trait]):
+    reference = prediction_norms_reference()
+    if not any(
+        trait["name"] in trait_norm_values([trait], reference, include_houses=mode)
+        for mode in (False, True)
+    ):
         raise ValueError("Stored DB norm unavailable. Generate DB Norms explicitly before rating this Trait's predictions.")
     uids = db.prediction_chart_uids()
     global_trait_prediction_index().collect(uids, [trait], calculate_missing=True, should_cancel=should_cancel, progress=lambda value: progress(value * .95))
