@@ -9,6 +9,7 @@ import pytest
 from ephemeraldaddy.analysis import trait_prediction_index as runtime
 from ephemeraldaddy.analysis import trait_prediction_updates as updates
 from ephemeraldaddy.analysis.trait_rankings import ranked_trait_rows
+from ephemeraldaddy.analysis.trait_signatures import trait_definition_signature
 from ephemeraldaddy.core import db, prediction_norms as norms
 
 
@@ -83,7 +84,8 @@ def view(tmp_path, monkeypatch):
         ])
     conn.close()
     for uid, score in [('RANKTEST000001', 80.), ('RANKTEST000002', 60.)]:
-        db.upsert_chart_trait_likelihoods(uid, [{'trait_uid': 'a', 'trait_name': 'Artist', 'likelihood': score}], chart_signature='unchanged')
+        db.upsert_chart_trait_likelihoods(uid, [{'trait_uid': 'a', 'trait_name': 'Artist', 'likelihood': score,
+                                              'trait_signature': trait_definition_signature(trait)}], chart_signature='unchanged')
     index = runtime.TraitPredictionIndex()
     monkeypatch.setattr(runtime, '_INDEX', index)
     monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', lambda *a, **k: pytest.fail('Presentation changes rescored Traits'))

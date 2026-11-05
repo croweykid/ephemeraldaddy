@@ -28,8 +28,11 @@ Raw scores and above/below/neutral metadata are written incrementally. Partial
 updates preserve other Traits. Classification uses the selected static row,
 never an Analytics cohort mean or the old live baseline table. Batch reads
 restrict chart and Trait UIDs in SQL and require no chart hydration, scoring,
-or factor explanation. Cold Search queues missing selected Traits separately;
-unknown scores/norms are never treated as negative evidence.
+or factor explanation. Search queues missing or definition-mismatched selected
+Trait cells separately, retaining older scores while replacements calculate.
+This also repairs Traits edited while archived after they become active again;
+availability or label changes alone leave valid numerical cells untouched.
+Unknown scores/norms are never treated as negative evidence.
 
 Trait analytical identities exclude labels, colors, descriptions, sample
 provenance, accuracy reviews, and astro analysis. Existing static rows remain

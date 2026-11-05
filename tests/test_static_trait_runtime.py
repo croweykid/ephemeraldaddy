@@ -130,6 +130,112 @@ def test_model_edit_refreshes_only_its_column_and_archive_delete_do_not_rescore(
     assert not index.results_for_uids(charts, [traits[0]])
 
 
+@pytest.mark.parametrize(('access', 'restart_index'), [('collection', False), ('search', True)])
+def test_reactivated_edited_trait_refreshes_its_column_while_old_scores_remain_readable(population, monkeypatch, access, restart_index):
+    from ephemeraldaddy.analysis.trait_search import membership_for_uids
+
+    index, traits, charts, calls, paths = population
+    index.refresh_uids(charts, traits)
+    original_rows = {uid: db.get_chart_trait_likelihoods(uid) for uid in charts}
+    other_metadata = {uid: db.get_chart_trait_metadata(uid)[1] for uid in charts}
+    norm_document = paths.personal.read_bytes()
+    if restart_index:
+        index = runtime.TraitPredictionIndex()
+        monkeypatch.setattr(runtime, '_INDEX', index)
+    queued = []
+    monkeypatch.setattr(index, 'enqueue', lambda fn, *args, **kwargs: queued.append((fn, args, kwargs)))
+    updates.trait_changed(traits[0], change_type='archived')
+    # Settings skips warming archived definitions. Reactivation only publishes
+    # availability; the shared collector must discover the durable mismatch.
+    revised = {**traits[0], 'profile': {'signs': {'Aries': 7}}}
+    updates.trait_changed({'uid': 'a', 'name': 'Artist'}, change_type='unarchived')
+    assert not queued
+    calls.clear()
+
+    def revised_scorer(chart, selected, **kwargs):
+        calls.append((chart.chart_uid, tuple(t['uid'] for t in selected)))
+        return {t['name']: 20. + int(chart.chart_uid[-1]) for t in selected}
+
+    monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', revised_scorer)
+    selected = [revised, traits[1]]
+    cached = index.results_for_uids(charts, selected)
+    assert all(result.stale_trait_definition for result in cached.values())
+    assert all(result.stale_trait_names == {'Artist'} for result in cached.values())
+    if access == 'search':
+        membership = membership_for_uids(charts, selected)
+        assert 'artist' in membership['RUNTIMEUID0000'].above
+        index.request_missing(charts, selected)
+    else:
+        result = index.collect(charts, selected)
+        assert not result['partial']
+        assert result['chart_count'] == len(charts)
+        assert result['totals']['Artist'] == pytest.approx(1.8)
+    assert {uid: db.get_chart_trait_likelihoods(uid) for uid in charts} == original_rows
+    assert not calls
+    assert len(queued) == 1
+    fn, args, kwargs = queued.pop()
+    assert set(args[0]) == set(charts)
+    assert args[1] == (selected if access == 'search' else [revised])
+    kwargs.pop('key')
+    fn(*args, **kwargs)
+    assert calls == [(uid, ('a',)) for uid in charts]
+    refreshed = index.results_for_uids(charts, selected)
+    assert [refreshed[uid].likelihoods['Artist'] for uid in charts] == [20., 21., 22.]
+    assert all(not result.stale_trait_definition for result in refreshed.values())
+    assert all(not result.stale_trait_names for result in refreshed.values())
+    assert all('artist' in member.below for member in membership_for_uids(charts, selected).values())
+    for uid in charts:
+        assert db.get_chart_trait_likelihoods(uid)[1] == original_rows[uid][1]
+        assert db.get_chart_trait_metadata(uid)[1] == other_metadata[uid]
+    assert paths.personal.read_bytes() == norm_document
+
+    # A subsequent availability/label change must reuse these repaired cells.
+    renamed = {**revised, 'name': 'Painter', 'profile': {**revised['profile'], 'name': 'Painter', 'color': '#ffeeaa'}}
+    for operation in ('archived', 'unarchived', 'renamed'):
+        updates.trait_changed(renamed, change_type=operation)
+    calls.clear()
+    index.collect(charts, [renamed, traits[1]], calculate_missing=True)
+    assert not calls and not queued
+
+
+def test_collection_refreshes_only_mismatched_chart_trait_cells(population):
+    index, traits, charts, calls, _ = population
+    index.refresh_uids(charts, traits)
+    conn = db._get_conn()
+    with conn:
+        conn.executemany('UPDATE chart_trait_likelihoods SET trait_signature = ? WHERE chart_uid = ? AND trait_uid = ?', [
+            ('previous-definition', 'RUNTIMEUID0000', 'a'),
+            ('previous-definition', 'RUNTIMEUID0001', 'b'),
+        ])
+    conn.close()
+    # Simulate a new session without in-memory vectors masking actual work.
+    index = runtime.TraitPredictionIndex()
+    calls.clear()
+    index.collect(charts, traits, calculate_missing=True)
+    assert calls == [('RUNTIMEUID0000', ('a',)), ('RUNTIMEUID0001', ('b',))]
+    assert all(not result.stale_trait_definition for result in index.results_for_uids(charts, traits).values())
+
+
+def test_accuracy_review_replaces_definition_mismatches_before_ranking(population, monkeypatch):
+    from ephemeraldaddy.analysis.trait_rankings import accuracy_rankings
+
+    index, traits, charts, calls, _ = population
+    index.refresh_uids(charts, traits)
+    calls.clear()
+    revised = {**traits[0], 'name': 'Painter', 'profile': {'signs': {'Aries': 7}}}
+
+    def revised_scorer(chart, selected, **kwargs):
+        calls.append((chart.chart_uid, tuple(t['uid'] for t in selected)))
+        return {t['name']: 70. + int(chart.chart_uid[-1]) for t in selected}
+
+    monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', revised_scorer)
+    ranked = accuracy_rankings(revised, lambda _: None, lambda: False)
+    assert [(row['chart_uid'], row['likelihood']) for row in ranked] == [
+        ('RUNTIMEUID0002', 72.), ('RUNTIMEUID0001', 71.), ('RUNTIMEUID0000', 70.),
+    ]
+    assert calls == [(uid, ('a',)) for uid in charts]
+
+
 def test_chart_journal_ignores_tags_and_recalculates_only_astro_changed_uid(population, monkeypatch):
     index, traits, charts, _, _ = population
     monkeypatch.setattr(updates, 'list_traits', lambda **kwargs: traits)

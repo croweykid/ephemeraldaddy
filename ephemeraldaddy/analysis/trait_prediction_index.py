@@ -88,10 +88,12 @@ class TraitPredictionResult:
     stale_trait_definition: bool = False
     stale_db_baseline: bool = False
     updated_at: str = ""
+    # Current labels for mismatched or absent requested cells.
+    stale_trait_names: frozenset[str] = field(default_factory=frozenset)
 
     @property
     def stale(self) -> bool:
-        return bool(self.stale_chart_vector or self.stale_trait_definition or self.stale_db_baseline)
+        return bool(self.stale_chart_vector or self.stale_trait_definition or self.stale_db_baseline or self.stale_trait_names)
 
 
 @dataclass
@@ -374,7 +376,7 @@ class TraitPredictionIndex:
         results = {}
         for uid, entries in rows.items():
             scores = {}
-            outdated_definition = False
+            outdated_definitions = set()
             outdated_chart = False
             times = []
             for row in entries:
@@ -386,17 +388,20 @@ class TraitPredictionIndex:
                 if name in scores:
                     continue
                 scores[name] = float(row["likelihood"])
-                outdated_definition |= row.get("trait_signature") != signatures[name]
+                if row.get("trait_signature") != signatures[name]:
+                    outdated_definitions.add(name)
                 current_chart = (chart_signatures or {}).get(uid)
                 outdated_chart |= bool(current_chart and row.get("chart_signature") != current_chart)
                 times.append(str(row.get("updated_at", "")))
             if scores:
+                outdated_definitions.update(by_name.keys() - scores.keys())
                 averages = averages_by_mode[bool(entries[0].get("uses_houses", True))]
                 available = dict(averages)
                 results[uid] = TraitPredictionResult(
                     scores, available, {name: value - available[name] for name, value in scores.items() if name in available},
-                    stale_chart_vector=outdated_chart, stale_trait_definition=outdated_definition or set(scores) != set(by_name),
+                    stale_chart_vector=outdated_chart, stale_trait_definition=bool(outdated_definitions),
                     stale_db_baseline=set(available) != set(by_name), updated_at=max(times, default=""),
+                    stale_trait_names=frozenset(outdated_definitions),
                 )
         return results
 
@@ -438,8 +443,8 @@ class TraitPredictionIndex:
                 progress: Callable[[float], None] | None = None) -> dict[str, Any]:
         """Shared numeric collection for Analytics, Rankings and accuracy reviews.
 
-        Cached reads hydrate no charts. Missing intersections are calculated only
-        by explicit workers; GUI callers queue them and show available results.
+        Cached reads hydrate no charts. Missing or definition-mismatched cells
+        are calculated only by workers; GUI callers queue them and show old values.
         Cohort totals describe that cohort, never its population reference.
         """
         uids = tuple(dict.fromkeys(str(uid).strip().upper() for uid in chart_uids if str(uid).strip()))
@@ -450,8 +455,10 @@ class TraitPredictionIndex:
         cached = self.results_for_uids(uids, active)
         missing = {}
         for uid in uids:
-            scores = cached[uid].likelihoods if uid in cached else {}
-            needed = [t for t in active if t["name"] not in scores]
+            result = cached.get(uid)
+            scores = result.likelihoods if result is not None else {}
+            stale_names = result.stale_trait_names if result is not None else frozenset()
+            needed = [t for t in active if t["name"] not in scores or t["name"] in stale_names]
             if needed:
                 missing[uid] = needed
         groups = {}
@@ -524,7 +531,7 @@ class TraitPredictionIndex:
         return self.results_for_uids(completed, active)
 
     def request_missing(self, chart_uids: Iterable[str], traits: list[dict[str, Any]]) -> None:
-        """Schedule cold-cache filling; never score an already cached cell."""
+        """Schedule missing/definition-mismatched cells; reuse fresh scores."""
         uids = tuple(sorted(set(chart_uids)))
         definitions = copy.deepcopy(traits)
         obsolete = self.refresh_guard([], definitions)
