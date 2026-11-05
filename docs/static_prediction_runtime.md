@@ -28,11 +28,19 @@ Raw scores and above/below/neutral metadata are written incrementally. Partial
 updates preserve other Traits. Classification uses the selected static row,
 never an Analytics cohort mean or the old live baseline table. Batch reads
 restrict chart and Trait UIDs in SQL and require no chart hydration, scoring,
-or factor explanation. Search queues missing or definition-mismatched selected
+or factor explanation. Search queues missing or input-mismatched selected
 Trait cells separately, retaining older scores while replacements calculate.
 This also repairs Traits edited while archived after they become active again;
 availability or label changes alone leave valid numerical cells untouched.
 Unknown scores/norms are never treated as negative evidence.
+
+Each cached cell records the chart's durable astro journal revision. Batch reads
+compare this checkpoint without loading charts, so an interrupted refresh remains
+discoverable after restart, including partially refreshed chart/Trait sets. Older
+caches without checkpoints are verified in the worker for previously edited
+charts; matching signatures reuse their scores. Writes check the captured astro
+revision under the SQLite write lock before replacing either raw or derived
+rows. A new birth save cannot make an obsolete calculation appear current.
 
 Trait analytical identities exclude labels, colors, descriptions, sample
 provenance, accuracy reviews, and astro analysis. Existing static rows remain
@@ -86,7 +94,8 @@ previous-chart rejection, recreated alignment adapters, and close/reopen behavio
 
 Synthetic benchmark: 500 charts, 30 stored Traits, one requested Trait, three
 runs per checkout. On this environment the median fell from **1,366.8 ms to
-6.96 ms**, with **4,000 SELECTs reduced to 4**. Both paths performed zero score
+8.88 ms**, including durable astro-revision checks, with **4,000 SELECTs reduced
+to 4**. Both paths performed zero score
 calculations. These are cache-read measurements, not full application startup
 or a benchmark against the user's database.
 

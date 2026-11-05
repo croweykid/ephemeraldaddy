@@ -88,7 +88,7 @@ class TraitPredictionResult:
     stale_trait_definition: bool = False
     stale_db_baseline: bool = False
     updated_at: str = ""
-    # Current labels for mismatched or absent requested cells.
+    # Current labels for absent cells or mismatched chart/model inputs.
     stale_trait_names: frozenset[str] = field(default_factory=frozenset)
 
     @property
@@ -377,7 +377,7 @@ class TraitPredictionIndex:
         for uid, entries in rows.items():
             scores = {}
             outdated_definitions = set()
-            outdated_chart = False
+            outdated_charts = set()
             times = []
             for row in entries:
                 row_uid = str(row.get("trait_uid", ""))
@@ -391,7 +391,16 @@ class TraitPredictionIndex:
                 if row.get("trait_signature") != signatures[name]:
                     outdated_definitions.add(name)
                 current_chart = (chart_signatures or {}).get(uid)
-                outdated_chart |= bool(current_chart and row.get("chart_signature") != current_chart)
+                if current_chart:
+                    chart_stale = row.get("chart_signature") != current_chart
+                elif row.get("cached_astro_revision") is None:
+                    # Pre-checkpoint caches need one worker verification only
+                    # for charts that have actually had their astro inputs edited.
+                    chart_stale = bool(row.get("latest_astro_edit_revision", 0))
+                else:
+                    chart_stale = row["cached_astro_revision"] != row["current_astro_revision"]
+                if chart_stale:
+                    outdated_charts.add(name)
                 times.append(str(row.get("updated_at", "")))
             if scores:
                 outdated_definitions.update(by_name.keys() - scores.keys())
@@ -399,27 +408,43 @@ class TraitPredictionIndex:
                 available = dict(averages)
                 results[uid] = TraitPredictionResult(
                     scores, available, {name: value - available[name] for name, value in scores.items() if name in available},
-                    stale_chart_vector=outdated_chart, stale_trait_definition=bool(outdated_definitions),
+                    stale_chart_vector=bool(outdated_charts), stale_trait_definition=bool(outdated_definitions),
                     stale_db_baseline=set(available) != set(by_name), updated_at=max(times, default=""),
-                    stale_trait_names=frozenset(outdated_definitions),
+                    stale_trait_names=frozenset(outdated_definitions | outdated_charts),
                 )
         return results
 
-    def persist_scores(self, chart: Any, traits: list[dict[str, Any]], scores: Mapping[str, float], *, snapshot: Mapping[str, Any] | None = None, definition_signatures: Mapping[str, str] | None = None) -> None:
-        """Incrementally write scores and static classification for one chart."""
+    def persist_scores(
+        self, chart: Any, traits: list[dict[str, Any]], scores: Mapping[str, float], *,
+        snapshot: Mapping[str, Any] | None = None,
+        definition_signatures: Mapping[str, str] | None = None,
+        expected_astro_revision: int | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> bool:
+        """Write one saved chart's cells, rejecting a changed astro revision."""
         from ephemeraldaddy.core.prediction_norms import trait_norm_values, trait_norm_signature, prediction_norms_reference
 
         snapshot = snapshot if snapshot is not None else prediction_norms_reference()
         uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
         if not uid:
-            return
+            return False
         signature = chart_prediction_signature(chart)
+        if expected_astro_revision is None:
+            expected_astro_revision = db.chart_astro_revisions([uid]).get(uid)
+            saved = db.load_chart_by_uid(uid) if expected_astro_revision is not None else None
+            if saved is None or chart_prediction_signature(saved) != signature:
+                return False
         averages = trait_norm_values(traits, snapshot, include_houses=bool(chart_uses_houses(chart)))
         definitions = definition_signatures if definition_signatures is not None else {str(t["name"]): trait_definition_signature(t) for t in traits}
         rows = [{"trait_uid": trait_uid_for_index_item(t), "trait_name": t["name"],
                  "trait_signature": definitions[str(t["name"])], "likelihood": float(scores[t["name"]])}
                 for t in traits if t["name"] in scores]
-        db.upsert_chart_trait_likelihoods(uid, rows, chart_signature=signature)
+        if should_cancel and should_cancel():
+            return False
+        if not db.upsert_chart_trait_likelihoods(
+            uid, rows, chart_signature=signature, expected_astro_revision=expected_astro_revision,
+        ):
+            return False
         derived = []
         definitions = {t["name"]: t for t in traits}
         for row in rows:
@@ -430,7 +455,13 @@ class TraitPredictionIndex:
                                 "direction": "above" if delta >= 5 else "below" if delta <= -5 else "neutral",
                                 "norm_signature": trait_norm_signature(definitions[name], snapshot)})
         if derived:
-            db.upsert_chart_trait_metadata(uid, derived, trait_signature="", norm_signature="", chart_signature=signature)
+            if should_cancel and should_cancel():
+                return False
+            return db.upsert_chart_trait_metadata(
+                uid, derived, trait_signature="", norm_signature="", chart_signature=signature,
+                expected_astro_revision=expected_astro_revision,
+            )
+        return True
 
     def score_chart(self, chart: Any, traits: list[dict[str, Any]], *, persist: bool = True) -> dict[str, float]:
         scores = self.chart_likelihoods(chart, traits, chart_signature=chart_prediction_signature(chart))
@@ -443,7 +474,7 @@ class TraitPredictionIndex:
                 progress: Callable[[float], None] | None = None) -> dict[str, Any]:
         """Shared numeric collection for Analytics, Rankings and accuracy reviews.
 
-        Cached reads hydrate no charts. Missing or definition-mismatched cells
+        Cached reads hydrate no charts. Missing or input-mismatched cells
         are calculated only by workers; GUI callers queue them and show old values.
         Cohort totals describe that cohort, never its population reference.
         """
@@ -473,7 +504,7 @@ class TraitPredictionIndex:
                 def group_progress(value: float) -> None:
                     if progress:
                         progress((processed + value * len(scoped_uids) / 100.) * 100. / max(1, len(missing)))
-                self.refresh_uids(scoped_uids, needed, should_cancel=should_cancel, notify=False, progress=group_progress)
+                self.refresh_uids(scoped_uids, needed, should_cancel=should_cancel, notify=False, progress=group_progress, reuse_matching_scores=True)
                 processed += len(scoped_uids)
             cached = self.results_for_uids(uids, active)
             if missing:
@@ -481,7 +512,7 @@ class TraitPredictionIndex:
         elif missing:
             # Existing worker queue owns scoring; no window crosses it.
             for scoped_uids, needed in groups.values():
-                self.request_refresh(scoped_uids, needed)
+                self.request_refresh(scoped_uids, needed, reuse_matching_scores=True)
         names = [str(t["name"]) for t in active]
         complete = {uid: result for uid, result in cached.items() if set(names) <= result.likelihoods.keys()}
         parsed = len(complete)
@@ -497,6 +528,7 @@ class TraitPredictionIndex:
         should_cancel: Callable[[], bool] | None = None,
         progress: Callable[[float], None] | None = None,
         notify: bool = True, chart_versions: Mapping[str, int] | None = None,
+        reuse_matching_scores: bool = False,
     ) -> dict[str, TraitPredictionResult]:
         """Explicit worker-only refresh of the supplied chart/Trait intersection."""
         uids = tuple(dict.fromkeys(str(uid).strip().upper() for uid in chart_uids if str(uid).strip()))
@@ -511,18 +543,31 @@ class TraitPredictionIndex:
         for start in range(0, len(uids), 64):
             if obsolete() or (should_cancel and should_cancel()):
                 break
-            charts = db.load_charts_by_uids(uids[start:start + 64])
+            chunk = uids[start:start + 64]
+            astro_revisions = db.chart_astro_revisions(chunk)
+            charts = db.load_charts_by_uids(chunk)
+            chart_signatures = {uid: chart_prediction_signature(chart) for uid, chart in charts.items()}
+            cached = self.results_for_uids(charts, active, chart_signatures=chart_signatures) if reuse_matching_scores else {}
             for uid, chart in charts.items():
                 if obsolete() or (should_cancel and should_cancel()):
                     break
                 if getattr(chart, "is_placeholder", False) or self._chart_generations.get(uid, 0) != versions.get(uid, 0):
                     continue
-                scores = self.chart_likelihoods(chart, active, chart_signature=chart_prediction_signature(chart), definition_signatures=definitions)
+                result = cached.get(uid)
+                scores = {name: value for name, value in result.likelihoods.items() if name not in result.stale_trait_names} if result else {}
+                needed = [trait for trait in active if trait["name"] not in scores]
+                scores.update(self.chart_likelihoods(chart, needed, chart_signature=chart_signatures[uid], definition_signatures=definitions))
                 if obsolete() or (should_cancel and should_cancel()):
                     break
                 if self._chart_generations.get(uid, 0) != versions.get(uid, 0):
                     continue
-                self.persist_scores(chart, active, scores, snapshot=reference, definition_signatures=definitions)
+                accepted = uid in astro_revisions and self.persist_scores(
+                    chart, active, scores, snapshot=reference, definition_signatures=definitions,
+                    expected_astro_revision=astro_revisions[uid],
+                    should_cancel=lambda: obsolete() or bool(should_cancel and should_cancel()),
+                )
+                if not accepted:
+                    continue
                 completed.append(uid)
                 if progress:
                     progress(len(completed) * 100.0 / max(1, len(uids)))
@@ -531,7 +576,7 @@ class TraitPredictionIndex:
         return self.results_for_uids(completed, active)
 
     def request_missing(self, chart_uids: Iterable[str], traits: list[dict[str, Any]]) -> None:
-        """Schedule missing/definition-mismatched cells; reuse fresh scores."""
+        """Schedule missing/input-mismatched cells; reuse fresh scores."""
         uids = tuple(sorted(set(chart_uids)))
         definitions = copy.deepcopy(traits)
         obsolete = self.refresh_guard([], definitions)
@@ -540,7 +585,10 @@ class TraitPredictionIndex:
                          should_cancel=obsolete,
                          key=("missing", str(db.DB_PATH), uids, tuple((trait_uid_for_index_item(t), trait_definition_signature(t)) for t in definitions)))
 
-    def request_refresh(self, chart_uids: Iterable[str], traits: list[dict[str, Any]]) -> None:
+    def request_refresh(
+        self, chart_uids: Iterable[str], traits: list[dict[str, Any]], *,
+        reuse_matching_scores: bool = False,
+    ) -> None:
         uids = tuple(sorted(set(chart_uids)))
         definitions = copy.deepcopy(traits)
         with self._lock:
@@ -550,8 +598,8 @@ class TraitPredictionIndex:
         # just that chart, whose new request owns its replacement scores.
         cancelled = self.refresh_guard([], definitions)
         if uids and definitions:
-            self.enqueue(self.refresh_uids, uids, definitions, should_cancel=cancelled, chart_versions=chart_versions,
-                         key=(str(db.DB_PATH), "refresh", uids, tuple((trait_uid_for_index_item(t), trait_definition_signature(t)) for t in definitions), tuple(chart_versions.values()), tuple(trait_versions.values())))
+            self.enqueue(self.refresh_uids, uids, definitions, should_cancel=cancelled, chart_versions=chart_versions, reuse_matching_scores=reuse_matching_scores,
+                         key=(str(db.DB_PATH), "refresh", uids, tuple((trait_uid_for_index_item(t), trait_definition_signature(t)) for t in definitions), tuple(chart_versions.values()), tuple(trait_versions.values()), reuse_matching_scores))
 
 
 _INDEX = TraitPredictionIndex()

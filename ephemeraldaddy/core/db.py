@@ -1122,6 +1122,12 @@ def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    # A nullable checkpoint preserves older caches for worker verification.
+    # New predictions stamp the exact durable astro revision they calculated.
+    for table in ("chart_trait_likelihoods", "chart_trait_metadata"):
+        if "astro_revision" not in _table_columns(conn, table):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN astro_revision INTEGER")
+            _invalidate_table_columns_cache(table)
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_chart_trait_likelihoods_chart
@@ -2419,6 +2425,16 @@ def chart_astro_revisions(chart_uids: Iterable[str]) -> dict[str, int]:
     finally:
         conn.close()
     return revisions
+
+
+def _chart_astro_revision_matches(conn: sqlite3.Connection, chart_uid: str, expected: int) -> bool:
+    """Check a score's input revision inside its guarded write transaction."""
+    row = conn.execute(
+        """SELECT COALESCE((SELECT MAX(sequence) FROM chart_change_log
+            WHERE chart_uid = charts.chart_uid AND astro_data_changed = 1), 0)
+            FROM charts WHERE chart_uid = ?""", (chart_uid,),
+    ).fetchone()
+    return row is not None and int(row[0]) == expected
 
 
 def _serialize_sentiments(sentiments: Optional[list[str]]) -> Optional[str]:
@@ -5762,8 +5778,9 @@ def upsert_chart_trait_likelihoods(
     rows: Iterable[Mapping[str, Any]],
     *,
     chart_signature: str,
-) -> None:
-    """Persist chart-local trait likelihoods without DB baseline/deviation data."""
+    expected_astro_revision: int | None = None,
+) -> bool:
+    """Persist chart-local scores, optionally guarding/checkpointing astro inputs."""
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
@@ -5782,12 +5799,17 @@ def upsert_chart_trait_likelihoods(
                 str(row.get("trait_signature", "")),
                 str(chart_signature),
                 now,
+                expected_astro_revision,
             )
         )
     conn = _get_conn()
     try:
         with conn:
+            if expected_astro_revision is not None:
+                conn.execute("BEGIN IMMEDIATE")
             _create_chart_trait_metadata_table(conn)
+            if expected_astro_revision is not None and not _chart_astro_revision_matches(conn, normalized_uid, expected_astro_revision):
+                return False
             if prepared:
                 for _chart_uid, trait_uid, trait_name, *_rest in prepared:
                     if str(trait_uid or "").strip():
@@ -5807,17 +5829,19 @@ def upsert_chart_trait_likelihoods(
                     """
                     INSERT INTO chart_trait_likelihoods (
                         chart_uid, trait_uid, trait_name, likelihood,
-                        trait_signature, chart_signature, updated_at
+                        trait_signature, chart_signature, updated_at, astro_revision
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(chart_uid, trait_uid, trait_name) DO UPDATE SET
                         likelihood = excluded.likelihood,
                         trait_signature = excluded.trait_signature,
                         chart_signature = excluded.chart_signature,
-                        updated_at = excluded.updated_at
+                        updated_at = excluded.updated_at,
+                        astro_revision = excluded.astro_revision
                     """,
                     prepared,
                 )
+        return True
     finally:
         conn.close()
 
@@ -5937,8 +5961,9 @@ def upsert_chart_trait_metadata(
     trait_signature: str,
     norm_signature: str,
     chart_signature: str = "",
-) -> None:
-    """Persist derived trait metadata rows for a chart."""
+    expected_astro_revision: int | None = None,
+) -> bool:
+    """Persist derived rows, optionally guarding/checkpointing astro inputs."""
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
@@ -5964,12 +5989,17 @@ def upsert_chart_trait_metadata(
                 str(row.get("norm_signature", norm_signature)),
                 str(chart_signature),
                 now,
+                expected_astro_revision,
             )
         )
     conn = _get_conn()
     try:
         with conn:
+            if expected_astro_revision is not None:
+                conn.execute("BEGIN IMMEDIATE")
             _create_chart_trait_metadata_table(conn)
+            if expected_astro_revision is not None and not _chart_astro_revision_matches(conn, normalized_uid, expected_astro_revision):
+                return False
             if prepared:
                 for _uid, trait_uid, trait_name, *_rest in prepared:
                     if trait_uid:
@@ -5980,9 +6010,9 @@ def upsert_chart_trait_metadata(
                     """
                     INSERT INTO chart_trait_metadata (
                         chart_uid, trait_uid, trait_name, direction, likelihood, db_average,
-                        deviation, trait_signature, norm_signature, chart_signature, updated_at
+                        deviation, trait_signature, norm_signature, chart_signature, updated_at, astro_revision
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(chart_uid, trait_name) DO UPDATE SET
                         trait_uid = excluded.trait_uid,
                         direction = excluded.direction,
@@ -5992,10 +6022,12 @@ def upsert_chart_trait_metadata(
                         trait_signature = excluded.trait_signature,
                         norm_signature = excluded.norm_signature,
                         chart_signature = excluded.chart_signature,
-                        updated_at = excluded.updated_at
+                        updated_at = excluded.updated_at,
+                        astro_revision = excluded.astro_revision
                     """,
                     prepared,
                 )
+        return True
     finally:
         conn.close()
 
@@ -6093,7 +6125,23 @@ def get_trait_prediction_rows_by_uids(chart_uids: Iterable[str], trait_uids: Ite
                     conditions.append(f"(COALESCE(p.trait_uid, '') = '' AND p.trait_name IN ({','.join('?' for _ in selected_names)}))")
                     params.extend(selected_names)
                 predicate = " AND (" + " OR ".join(conditions) + ")" if conditions else ""
-                query = f"SELECT p.chart_uid, p.trait_uid, p.trait_name, p.likelihood, p.trait_signature, p.chart_signature, p.updated_at, CASE WHEN COALESCE(c.birthtime_unknown, 0) = 0 OR (COALESCE(c.retcon_time_used, 0) = 1 AND c.retcon_hour BETWEEN 0 AND 23 AND c.retcon_minute BETWEEN 0 AND 59) THEN 1 ELSE 0 END AS uses_houses FROM {table} p JOIN charts c ON c.chart_uid = p.chart_uid WHERE p.chart_uid IN ({scope}){predicate}"
+                query = f"""WITH revisions AS (
+                    SELECT c.chart_uid, COALESCE(MAX(log.sequence), 0) AS current_astro_revision,
+                        COALESCE(MAX(CASE WHEN log.change_type = 'astro_data_edited'
+                            THEN log.sequence ELSE 0 END), 0) AS latest_astro_edit_revision
+                    FROM charts c LEFT JOIN chart_change_log log
+                        ON log.chart_uid = c.chart_uid AND log.astro_data_changed = 1
+                    WHERE c.chart_uid IN ({scope}) GROUP BY c.chart_uid
+                )
+                SELECT p.chart_uid, p.trait_uid, p.trait_name, p.likelihood,
+                    p.trait_signature, p.chart_signature, p.updated_at,
+                    p.astro_revision AS cached_astro_revision,
+                    revisions.current_astro_revision, revisions.latest_astro_edit_revision,
+                    CASE WHEN COALESCE(c.birthtime_unknown, 0) = 0 OR
+                        (COALESCE(c.retcon_time_used, 0) = 1 AND c.retcon_hour BETWEEN 0 AND 23
+                            AND c.retcon_minute BETWEEN 0 AND 59) THEN 1 ELSE 0 END AS uses_houses
+                FROM revisions JOIN {table} p ON p.chart_uid = revisions.chart_uid
+                    JOIN charts c ON c.chart_uid = p.chart_uid WHERE 1 = 1{predicate}"""
                 rows = conn.execute(query, params).fetchall()
                 for row in rows:
                     value = dict(row)

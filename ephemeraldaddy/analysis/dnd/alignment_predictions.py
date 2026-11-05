@@ -6,7 +6,6 @@ from ephemeraldaddy.analysis.trait_prediction_index import global_trait_predicti
 from ephemeraldaddy.core.prediction_norms import trait_norm_values
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.analysis.trait_signatures import chart_prediction_signature
-from ephemeraldaddy.core import db
 
 
 def alignment_traits() -> list[dict[str, Any]]:
@@ -27,8 +26,7 @@ def alignment_parts(chart: Any, *, calculate: bool = False) -> dict[str, dict[st
     uid = str(getattr(chart, 'chart_uid', '') or '').upper()
     if calculate:
         scores = index.chart_likelihoods(chart, traits, chart_signature=chart_prediction_signature(chart))
-        saved = db.load_chart_by_uid(uid) if uid else None
-        if saved is not None and chart_prediction_signature(saved) == chart_prediction_signature(chart):
+        if uid:
             index.persist_scores(chart, traits, scores)
     else:
         cached = index.results_for_uids([uid], traits).get(uid) if uid else None

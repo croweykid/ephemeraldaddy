@@ -37,7 +37,7 @@ def main() -> None:
         selects = []
         def connect():
             connection = original()
-            connection.set_trace_callback(lambda sql: selects.append(sql) if sql.lstrip().upper().startswith('SELECT') else None)
+            connection.set_trace_callback(lambda sql: selects.append(sql) if sql.lstrip().upper().startswith(('SELECT', 'WITH')) else None)
             return connection
         db._get_conn = connect
         index = runtime.TraitPredictionIndex()

@@ -14,8 +14,10 @@ _cursors: dict[str, int] = {}
 def synchronize_chart_changes() -> bool:
     """Consume only new astro/add/delete events; never rescore a population.
 
-    The first hydration establishes the journal cursor. Missing older caches
-    are filled on demand. Subsequent astro edits enqueue just their chart UIDs.
+    The cursor schedules live updates, not numerical freshness. Each persisted
+    cell's astro checkpoint remains authoritative across restarts; collection
+    recovers unfinished cells even when this session starts at the journal head.
+    Subsequent astro edits enqueue just their chart UIDs.
     """
     db.register_chart_saved_callback(synchronize_chart_changes)
     key = str(db.DB_PATH)

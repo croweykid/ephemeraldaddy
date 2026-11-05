@@ -9,7 +9,6 @@ from ephemeraldaddy.analysis.trait_prediction_metadata_cache import (
 )
 from ephemeraldaddy.core.prediction_norms import trait_norm_values
 from ephemeraldaddy.core.chart import chart_uses_houses
-from ephemeraldaddy.core import db
 
 
 def _mark_unavailable_traits(metadata: dict[str, Any], traits: list[dict[str, Any]]) -> None:
@@ -55,14 +54,9 @@ def calculate_chart_prediction(chart: Any, traits: list[dict[str, Any]], *, incl
     if should_cancel():
         return None
     uid = str(getattr(chart, 'chart_uid', '') or '').upper()
-    if uid:
-        saved = db.load_chart_by_uid(uid)
-        if saved is not None and chart_prediction_signature(saved) == signature:
-            if should_cancel():
-                return None
-            index.persist_scores(chart, traits, scores)
-            from datetime import datetime, timezone
-            metadata["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    if uid and index.persist_scores(chart, traits, scores, should_cancel=should_cancel):
+        from datetime import datetime, timezone
+        metadata["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     if include_gender:
         from ephemeraldaddy.analysis.trait_gender import calculate_trait_likelihoods_with_gender, _gender_traits_for_chart
         gender_traits = _gender_traits_for_chart(chart, traits)

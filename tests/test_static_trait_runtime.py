@@ -259,6 +259,109 @@ def test_chart_journal_ignores_tags_and_recalculates_only_astro_changed_uid(popu
     conn.close()
 
 
+@pytest.mark.parametrize('completed_trait', [False, True])
+def test_restart_recovers_only_unfinished_cells_for_astro_changed_chart(population, monkeypatch, completed_trait):
+    index, traits, charts, calls, _ = population
+    index.refresh_uids(charts, traits)
+    unchanged = {uid: db.get_chart_trait_likelihoods(uid) for uid in ('RUNTIMEUID0000', 'RUNTIMEUID0002')}
+    monkeypatch.setattr(updates, 'list_traits', lambda **kwargs: traits)
+    queued = []
+    monkeypatch.setattr(index, 'enqueue', lambda fn, *args, **kwargs: queued.append((fn, args, kwargs)))
+    assert updates.synchronize_chart_changes() is False
+    uid = 'RUNTIMEUID0001'
+    charts[uid].lat = 20.
+    conn = db._get_conn()
+    with conn:
+        conn.execute('UPDATE charts SET lat = 20 WHERE chart_uid = ?', (uid,))
+    conn.close()
+    db._chart_save_committed()
+    assert queued
+    if completed_trait:
+        index.refresh_uids([uid], [traits[0]])
+
+    # Exit before the queued refresh runs; a new session starts at the journal
+    # head. Pending work must be recoverable from each durable cache cell.
+    queued.clear()
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    updates._cursors.pop(str(db.DB_PATH), None)
+    assert updates.synchronize_chart_changes() is False
+    calls.clear()
+    cached = index.results_for_uids(charts, traits)
+    assert cached[uid].stale_chart_vector
+    assert cached[uid].stale_trait_names == ({'Builder'} if completed_trait else {'Artist', 'Builder'})
+    assert not cached['RUNTIMEUID0000'].stale_chart_vector
+    assert not cached['RUNTIMEUID0002'].stale_chart_vector
+    assert cached[uid].likelihoods == {'Artist': 60., 'Builder': 60.}
+    monkeypatch.setattr(index, 'enqueue', lambda fn, *args, **kwargs: queued.append((fn, args, kwargs)))
+    index.request_missing(charts, traits)
+    fn, args, kwargs = queued.pop()
+    kwargs.pop('key')
+    fn(*args, **kwargs)
+    assert calls == [(uid, ('b',) if completed_trait else ('a', 'b'))]
+    assert all(not result.stale_chart_vector for result in index.results_for_uids(charts, traits).values())
+    assert {key: db.get_chart_trait_likelihoods(key) for key in unchanged} == unchanged
+    calls.clear()
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(db, 'load_charts_by_uids', lambda *a: pytest.fail('Restart rehydrated completed or untouched charts'))
+    index.collect(charts, traits, calculate_missing=True)
+    assert not calls
+
+
+@pytest.mark.parametrize('already_current', [False, True])
+def test_legacy_cache_revision_is_checked_once_without_rescoring_matching_inputs(population, monkeypatch, already_current):
+    index, traits, charts, calls, _ = population
+    index.refresh_uids(charts, traits)
+    uid = 'RUNTIMEUID0001'
+    charts[uid].lat = 20.
+    conn = db._get_conn()
+    with conn:
+        conn.execute('UPDATE charts SET lat = 20 WHERE chart_uid = ?', (uid,))
+    if already_current:
+        index.refresh_uids([uid], traits)
+    # Simulate a database written by the previous version, with no checkpoints.
+    with conn:
+        for table in ('chart_trait_likelihoods', 'chart_trait_metadata'):
+            conn.execute(f'ALTER TABLE {table} DROP COLUMN astro_revision')
+            db._invalidate_table_columns_cache(table)
+    conn.close()
+    calls.clear()
+    loaded = []
+    original_loader = db.load_charts_by_uids
+    monkeypatch.setattr(db, 'load_charts_by_uids', lambda uids: (loaded.extend(uids), original_loader(uids))[1])
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    index.collect(charts, traits, calculate_missing=True)
+    assert calls == ([] if already_current else [(uid, ('a', 'b'))])
+    assert loaded == [uid]
+    loaded.clear()
+    index.collect(charts, traits, calculate_missing=True)
+    assert not loaded
+
+
+def test_astro_edit_before_persistence_cannot_acknowledge_obsolete_scores(population, monkeypatch):
+    index, traits, charts, _, _ = population
+    index.refresh_uids(charts, traits)
+    uid = 'RUNTIMEUID0001'
+    before = db.get_chart_trait_likelihoods(uid)
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+
+    def save_while_scoring(chart, selected, **kwargs):
+        conn = db._get_conn()
+        with conn:
+            conn.execute('UPDATE charts SET lat = 20 WHERE chart_uid = ?', (uid,))
+        conn.close()
+        charts[uid].lat = 20.
+        # The durable save happened, but its post-commit callback has not run.
+        return {trait['name']: 99. for trait in selected}
+
+    monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', save_while_scoring)
+    assert index.refresh_uids([uid], traits) == {}
+    assert db.get_chart_trait_likelihoods(uid) == before
+    assert index.results_for_uids([uid], traits)[uid].stale_chart_vector
+
+
 def test_superseded_queued_trait_edit_cannot_write_old_results(population, monkeypatch):
     index, traits, charts, calls, _ = population
     queued = []
@@ -278,6 +381,23 @@ def test_cancellation_after_scoring_writes_nothing(population):
     result = index.refresh_uids(charts, traits, should_cancel=lambda: bool(calls))
     assert result == {}
     assert not db.get_chart_trait_likelihoods('RUNTIMEUID0000')
+
+
+def test_cancellation_during_saved_input_verification_writes_nothing(population, monkeypatch):
+    from ephemeraldaddy.analysis.trait_chart_prediction import calculate_chart_prediction
+
+    _, traits, charts, _, _ = population
+    cancelled = False
+    chart = charts['RUNTIMEUID0000']
+
+    def verify_saved(uid):
+        nonlocal cancelled
+        cancelled = True
+        return copy.deepcopy(chart)
+
+    monkeypatch.setattr(db, 'load_chart_by_uid', verify_saved)
+    assert calculate_chart_prediction(chart, traits, include_evidence=False, should_cancel=lambda: cancelled) is None
+    assert not db.get_chart_trait_likelihoods(chart.chart_uid)
 
 
 def test_v2_static_rows_use_recorded_or_valid_exact_rectified_house_mode(population):
