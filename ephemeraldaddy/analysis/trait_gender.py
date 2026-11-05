@@ -1,9 +1,44 @@
 """Optional recorded-gender evidence overlay on shared astrological scores."""
 from __future__ import annotations
+import copy
 from collections.abc import Mapping
 from typing import Any
 from ephemeraldaddy.analysis.traits import calculate_trait_scores, trait_possible_score
 from ephemeraldaddy.core.chart import chart_uses_houses
+
+
+def gender_prediction_cache_key(chart: Any, traits: list[dict[str, Any]]) -> str:
+    """Identify the inputs of a recorded-gender display overlay."""
+    from ephemeraldaddy.analysis.trait_signatures import (
+        chart_prediction_signature, stable_hash, trait_definition_signature,
+    )
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference, trait_norm_signature
+
+    reference = prediction_norms_reference()
+    return stable_hash({
+        "version": 1,
+        "chart_uid": str(getattr(chart, "chart_uid", "") or "").strip().upper(),
+        "astro_data": chart_prediction_signature(chart),
+        "gender": _normalize_gender(getattr(chart, "gender", None)),
+        "traits": [
+            (trait.get("uid") or trait.get("trait_uid"), trait.get("name"),
+             trait_definition_signature(trait), trait_norm_signature(trait, reference))
+            for trait in traits
+        ],
+    })
+
+
+def retain_gender_prediction_metadata(
+    chart: Any, traits: list[dict[str, Any]], metadata: Mapping[str, Any], *,
+    expected_signature: str,
+) -> bool:
+    """Retain accepted overlay data on its chart, never in the base score cache."""
+    if gender_prediction_cache_key(chart, traits) != expected_signature:
+        return False
+    chart._trait_gender_prediction_metadata_cache = {
+        "signature": expected_signature, "metadata": copy.deepcopy(dict(metadata)),
+    }
+    return True
 
 def _trait_profile(trait: Mapping[str, Any]) -> Mapping[str, Any]:
     profile = trait.get("profile")

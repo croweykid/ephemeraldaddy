@@ -13,11 +13,16 @@ def refresh_weirdness_scores(chart_uids: Iterable[str]) -> dict[str, float]:
     values = {}
     uids = tuple(chart_uids)
     for start in range(0, len(uids), 64):
-        for uid, chart in db.load_charts_by_uids(uids[start:start + 64]).items():
-            if getattr(chart, 'is_placeholder', False):
+        batch = uids[start:start + 64]
+        revisions = db.chart_astro_revisions(batch)
+        for uid, chart in db.load_charts_by_uids(batch).items():
+            if uid not in revisions or getattr(chart, 'is_placeholder', False):
                 continue
             score, _ = calculate_weirdness_score_from_metric_payloads(chart, payloads)
             if score is not None:
-                db.update_chart_weirdness_score_by_uid(uid, score, formula_version=DISTINGUISHING_FORMULA_VERSION, norm_signature=signature)
-                values[uid] = score
+                if db.update_chart_weirdness_score_by_uid(
+                    uid, score, formula_version=DISTINGUISHING_FORMULA_VERSION,
+                    norm_signature=signature, expected_astro_revision=revisions[uid],
+                ):
+                    values[uid] = score
     return values

@@ -1328,13 +1328,15 @@ from ephemeraldaddy.gui.features.predictions.trait_worker import TraitPrediction
 class _TraitPredictionsRefreshReceiver(QObject):
     """Receive worker results on the GUI thread before touching widgets."""
 
-    def __init__(self, owner: Any, cache_key: str, token: object, traits: list[dict[str, Any]]) -> None:
+    def __init__(self, owner: Any, cache_key: str, token: object, traits: list[dict[str, Any]], *, chart: Any, gender_cache_key: str | None = None) -> None:
         parent = owner if isinstance(owner, QWidget) else None
         super().__init__(parent)
         self._owner = owner
         self._cache_key = cache_key
         self._token = token
         self._traits = traits
+        self._chart = chart
+        self._gender_cache_key = gender_cache_key
         self._thread: QThread | None = None
         self._worker: QObject | None = None
 
@@ -1349,6 +1351,14 @@ class _TraitPredictionsRefreshReceiver(QObject):
         if getattr(self._owner, "_traits_prediction_render_token", None) is not finished_token:
             return
         resolved_metadata = metadata if isinstance(metadata, dict) else {}
+        if self._gender_cache_key is not None:
+            from ephemeraldaddy.analysis.trait_gender import retain_gender_prediction_metadata
+            if not retain_gender_prediction_metadata(
+                self._chart, self._traits, resolved_metadata,
+                expected_signature=self._gender_cache_key,
+            ):
+                render_traits_predictions(self._owner, self._chart)
+                return
         self._owner._traits_prediction_pending_metadata = resolved_metadata
         self._owner._traits_prediction_pending_metadata_cache_key = self._cache_key
         _apply_traits_prediction_metadata(self._owner, self._traits, resolved_metadata)
@@ -1555,8 +1565,11 @@ def _start_traits_prediction_refresh_worker(
     thread_parent = owner if isinstance(owner, QWidget) else None
     thread = QThread(thread_parent)
     from ephemeraldaddy.gui.features.charts.trait_prediction_policy import predictions_use_gender_distribution_enabled
-    worker = _TraitPredictionsRefreshWorker(chart, traits, token, include_gender=predictions_use_gender_distribution_enabled(owner))
-    receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token, traits)
+    from ephemeraldaddy.analysis.trait_gender import gender_prediction_cache_key
+    include_gender = predictions_use_gender_distribution_enabled(owner)
+    gender_cache_key = gender_prediction_cache_key(chart, traits) if include_gender else None
+    worker = _TraitPredictionsRefreshWorker(chart, traits, token, include_gender=include_gender)
+    receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token, traits, chart=chart, gender_cache_key=gender_cache_key)
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)
 

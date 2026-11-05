@@ -244,3 +244,122 @@ def test_returning_to_completed_alignment_rejects_another_chart_still_in_flight(
         index._queue.join()
         parent.deleteLater()
         app.processEvents()
+
+
+def test_gender_overlay_survives_worker_completion_and_next_render(app, monkeypatch, tmp_path):
+    import copy
+    import json
+    from PySide6.QtWidgets import QWidget
+    from ephemeraldaddy.core import prediction_norms as norms
+    from ephemeraldaddy.gui.features.charts import trait_predictions as facade
+    from ephemeraldaddy.gui.features.predictions import trait_worker
+    from ephemeraldaddy.analysis.trait_prediction_results import metadata_from_vectors
+
+    core = facade._core
+    monkeypatch.setattr(runtime, '_INDEX', runtime.TraitPredictionIndex())
+    paths = norms.PredictionNormPaths(tmp_path/'source.json', tmp_path/'official.json', tmp_path/'personal.json', tmp_path/'extra.json')
+    paths.official.write_text(json.dumps({'version': 1, 'trait_baselines': {'uid:t': {'db_average': 50.}}}))
+    monkeypatch.setattr(norms, 'default_norm_paths', lambda: paths)
+    traits = [{'uid': 't', 'name': 'T', 'profile': {'genderDistribution': {
+        'statisticallySignificant': True, 'percentages': {'Female': 80.},
+        'databasePercentages': {'Female': 50.}, 'significantCategories': ['Female'],
+    }}}]
+    monkeypatch.setattr(core, 'list_traits', lambda **kwargs: traits)
+    original = chart('OVERLAYUID0001')
+    original.gender = 'Female'
+    metadata = metadata_from_vectors(likelihoods={'T': 81.}, database_averages={'T': 50.})
+    metadata['gender_criterion_traits'] = ['T']
+    calculated = []
+    presented = []
+    prompts = []
+
+    def calculate(value, selected, **kwargs):
+        assert value is not original
+        assert kwargs['include_gender']
+        calculated.append(value.chart_uid)
+        return copy.deepcopy(metadata)
+
+    monkeypatch.setattr(trait_worker, 'calculate_chart_prediction', calculate)
+    monkeypatch.setattr(core, '_apply_traits_prediction_metadata', lambda owner, selected, data, **kwargs: presented.append(copy.deepcopy(data)))
+    monkeypatch.setattr(core, '_apply_traits_prediction_view', lambda *args, **kwargs: prompts.append(args[1]))
+    owner = QWidget()
+    owner.traits_prediction_label = QLabel(owner)
+    owner._is_placeholder_chart = lambda value: False
+    owner._predictions_use_trait_gender_distribution = True
+    owner._predictions_manual_recalculation_only = True
+    try:
+        core.render_traits_predictions(owner, original)
+        core.start_traits_prediction_calculation(owner)
+        wait_for(app, lambda: bool(presented))
+        wait_for(app, lambda: not owner._traits_prediction_worker_jobs)
+        prompt_count = len(prompts)
+        monkeypatch.setattr(core, '_start_traits_prediction_calculation', lambda *a: pytest.fail('Completed overlay started another calculation'))
+        core.render_traits_predictions(owner, original)
+        app.processEvents()
+        assert len(prompts) == prompt_count
+        assert len(presented) == 2
+        assert presented[-1]['likelihoods'] == {'T': 81.}
+        assert original._trait_gender_prediction_metadata_cache['metadata']['likelihoods'] == {'T': 81.}
+        assert calculated == ['OVERLAYUID0001']
+    finally:
+        core.stop_traits_prediction_refresh_workers(owner, wait_msecs=5000)
+        owner.deleteLater()
+        app.processEvents()
+
+
+@pytest.mark.parametrize("other_uid", [None, "WEIRDCACHE0002"])
+def test_weirdness_completion_rejects_saved_chart_changes_and_retries_only_that_uid(app, monkeypatch, other_uid):
+    from ephemeraldaddy.gui.features.database_view import weirdness_sort as ui
+
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    monkeypatch.setattr(ui, 'distinguishing_norm_reference', lambda: (({},), 'static'))
+    first_running = threading.Event()
+    release_first = threading.Event()
+    emitted = threading.Event()
+    calls = []
+    applied = []
+    parent = QObject()
+    uid = 'WEIRDCACHE0001'
+    row = [None] * 32
+    row[15], row[30] = 0, uid
+    rows_by_uid = {uid: row}
+    if other_uid:
+        other_row = [None] * 32
+        other_row[15], other_row[30] = 0, other_uid
+        rows_by_uid[other_uid] = other_row
+    rows = list(rows_by_uid.values())
+    metadata = {}
+
+    def calculate(uids):
+        calls.append(tuple(uids))
+        if len(calls) == 1:
+            first_running.set()
+            release_first.wait(3)
+            return {uid: 10., **({other_uid: 30.} if other_uid else {})}
+        return {uid: 20.}
+
+    monkeypatch.setattr(ui, 'refresh_weirdness_scores', calculate)
+    def ready(values, signature):
+        applied.append(dict(values))
+        for key, score in values.items():
+            rows_by_uid[key][31] = score
+            metadata[key] = (ui.DISTINGUISHING_FORMULA_VERSION, signature)
+        controller.request_missing(rows, metadata)
+
+    controller = ui.WeirdnessSortController(parent, ready)
+    controller.completed.connect(lambda *args: emitted.set(), Qt.DirectConnection)
+    try:
+        controller.request_missing(rows, metadata)
+        wait_for(app, first_running.is_set)
+        release_first.set()
+        assert emitted.wait(3)  # Score is finished, but its GUI slot has not run.
+        index.invalidate_chart(uid)
+        wait_for(app, lambda: len(applied) == 2)
+        assert applied == [({other_uid: 30.} if other_uid else {}), {uid: 20.}]
+        assert calls == [tuple(rows_by_uid), (uid,)]
+        assert row[31] == 20.
+    finally:
+        release_first.set()
+        parent.deleteLater()
+        app.processEvents()

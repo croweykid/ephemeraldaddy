@@ -22,6 +22,7 @@ from ephemeraldaddy.gui.settings.core import (
 
 from ephemeraldaddy.analysis.trait_gender import (
     _gender_traits_for_chart, _matching_key, _normalize_gender, _trait_profile, calculate_trait_likelihoods_with_gender, gender_evidence_points, likelihood_from_evidence,
+    gender_prediction_cache_key, retain_gender_prediction_metadata,
 )
 
 TRAIT_PREDICTION_POLICY_VERSION = 1
@@ -150,16 +151,7 @@ def _gender_metadata_cache_key(
     chart: Any,
     traits: list[dict[str, Any]],
 ) -> str:
-    return core._stable_json_hash(
-        {
-            "policyVersion": TRAIT_PREDICTION_POLICY_VERSION,
-            "chartUID": _canonical_chart_uid(chart),
-            "chartSignature": core._chart_trait_metadata_signature(chart),
-            "chartGender": _normalize_gender(getattr(chart, "gender", None)),
-            "traitGenderProfiles": _gender_profile_payload(traits),
-            "databasePolicySignature": _database_policy_signature(core, owner),
-        }
-    )
+    return gender_prediction_cache_key(chart, traits)
 
 
 def _gender_database_averages(core: ModuleType, owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
@@ -273,10 +265,7 @@ def install_trait_prediction_policy(core: ModuleType) -> None:
                 metadata[key] = base_metadata[key]
         metadata["gender_criterion_traits"] = sorted(applied_names)
         try:
-            chart._trait_gender_prediction_metadata_cache = {
-                "signature": policy_key,
-                "metadata": dict(metadata),
-            }
+            retain_gender_prediction_metadata(chart, resolved_traits, metadata, expected_signature=policy_key)
             core._apply_trait_metadata_to_chart(
                 chart,
                 metadata,

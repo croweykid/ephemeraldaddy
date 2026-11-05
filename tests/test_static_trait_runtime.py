@@ -286,3 +286,28 @@ def test_accuracy_review_rejects_norms_without_a_usable_distribution(population)
     with pytest.raises(ValueError, match='Stored DB norm unavailable'):
         accuracy_rankings(traits[0], lambda _: None, lambda: False)
     assert not calls
+
+
+@pytest.mark.parametrize('changed_input', ['gender', 'astro_data', 'trait_model', 'norm_row'])
+def test_gender_overlay_cache_rejects_changed_request_inputs(population, changed_input):
+    from ephemeraldaddy.analysis.trait_gender import gender_prediction_cache_key, retain_gender_prediction_metadata
+
+    _, traits, charts, _, paths = population
+    chart = charts['RUNTIMEUID0000']
+    chart.gender = 'Female'
+    selected = [traits[0]]
+    signature = gender_prediction_cache_key(chart, selected)
+    metadata = {'likelihoods': {'Artist': 81.}, 'gender_criterion_traits': ['Artist']}
+    if changed_input == 'gender':
+        chart.gender = 'Male'
+    elif changed_input == 'astro_data':
+        chart.lat = 25.
+    elif changed_input == 'trait_model':
+        traits[0]['profile']['signs']['Aries'] = 3
+    else:
+        payload = json.loads(paths.personal.read_text())
+        payload['trait_baselines']['uid:a']['db_average'] = 30.
+        paths.personal.write_text(json.dumps(payload))
+    assert not retain_gender_prediction_metadata(chart, selected, metadata, expected_signature=signature)
+    assert not hasattr(chart, '_trait_gender_prediction_metadata_cache')
+    assert not db.get_chart_trait_likelihoods(chart.chart_uid)

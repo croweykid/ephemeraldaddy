@@ -777,6 +777,8 @@ def _create_chart_change_log(conn: sqlite3.Connection) -> None:
         BEGIN
             INSERT INTO chart_change_log(chart_uid, change_type, astro_data_changed, session_id, changed_at)
             VALUES(UPPER(NEW.chart_uid), 'astro_data_edited', 1, (SELECT session_id FROM chart_change_context WHERE singleton = 1), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+            UPDATE charts SET weirdness_formula_version = NULL, weirdness_norm_signature = NULL
+            WHERE id = NEW.id;
         END
         """
     )
@@ -2394,6 +2396,29 @@ def chart_changes_since(sequence: int) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def chart_astro_revisions(chart_uids: Iterable[str]) -> dict[str, int]:
+    """Read per-chart astro journal versions without hydrating any charts."""
+    uids = tuple(dict.fromkeys(uid for raw in chart_uids if (uid := _normalize_chart_uid(raw))))
+    revisions: dict[str, int] = {}
+    if not uids:
+        return revisions
+    conn = _connect_readonly()
+    try:
+        for start in range(0, len(uids), 400):
+            chunk = uids[start:start + 400]
+            rows = conn.execute(
+                f"""SELECT charts.chart_uid, COALESCE(MAX(changes.sequence), 0)
+                    FROM charts LEFT JOIN chart_change_log AS changes
+                    ON changes.chart_uid = charts.chart_uid AND changes.astro_data_changed = 1
+                    WHERE charts.chart_uid IN ({','.join('?' for _ in chunk)})
+                    GROUP BY charts.chart_uid""", chunk,
+            )
+            revisions.update((str(uid), int(revision)) for uid, revision in rows)
+    finally:
+        conn.close()
+    return revisions
 
 
 def _serialize_sentiments(sentiments: Optional[list[str]]) -> Optional[str]:
@@ -7091,9 +7116,9 @@ def update_chart_dominant_sign_weights(
     conn.close()
 
 
-def update_chart_weirdness_score_by_uid(chart_uid: str, score: float, *, formula_version: int, norm_signature: str) -> bool:
+def update_chart_weirdness_score_by_uid(chart_uid: str, score: float, *, formula_version: int, norm_signature: str, expected_astro_revision: int | None = None) -> bool:
     row = get_chart_id_by_uid(chart_uid)
-    return update_chart_weirdness_score(row, score, formula_version=formula_version, norm_signature=norm_signature) if row is not None else False
+    return update_chart_weirdness_score(row, score, formula_version=formula_version, norm_signature=norm_signature, expected_astro_revision=expected_astro_revision) if row is not None else False
 
 
 def update_chart_weirdness_score(
@@ -7102,14 +7127,21 @@ def update_chart_weirdness_score(
     *,
     formula_version: int | None = None,
     norm_signature: str | None = None,
+    expected_astro_revision: int | None = None,
 ) -> bool:
-    """Persist a derived weirdness score and its cache-validity metadata."""
+    """Persist Weirdness, optionally requiring an unchanged astro revision.
+
+    A guarded write reports acceptance, including an identical current score.
+    The comparison and write share a lock so a birth save cannot intervene.
+    """
     normalized_score = _normalize_weirdness_score(weirdness_score)
     normalized_formula_version = int(formula_version) if formula_version is not None else None
     normalized_norm_signature = str(norm_signature or "")
     conn = _get_conn()
     try:
         with conn:
+            if expected_astro_revision is not None:
+                conn.execute("BEGIN IMMEDIATE")
             columns = _table_columns(conn, "charts")
             if "weirdness_score" not in columns:
                 conn.execute("ALTER TABLE charts ADD COLUMN weirdness_score REAL")
@@ -7124,13 +7156,17 @@ def update_chart_weirdness_score(
                 _invalidate_table_columns_cache("charts")
             row = conn.execute(
                 """
-                SELECT weirdness_score, weirdness_formula_version, weirdness_norm_signature
+                SELECT weirdness_score, weirdness_formula_version, weirdness_norm_signature,
+                       is_placeholder, (SELECT COALESCE(MAX(sequence), 0) FROM chart_change_log
+                           WHERE chart_uid = charts.chart_uid AND astro_data_changed = 1)
                 FROM charts
                 WHERE id = ?
                 """,
                 (int(chart_id),),
             ).fetchone()
             if row is None:
+                return False
+            if expected_astro_revision is not None and (bool(row[3]) or int(row[4]) != expected_astro_revision):
                 return False
             current_score = _normalize_weirdness_score(row[0])
             current_formula_version = int(row[1]) if row[1] is not None else None
@@ -7140,7 +7176,7 @@ def update_chart_weirdness_score(
                 and current_formula_version == normalized_formula_version
                 and current_norm_signature == normalized_norm_signature
             ):
-                return False
+                return expected_astro_revision is not None
             conn.execute(
                 """
                 UPDATE charts
