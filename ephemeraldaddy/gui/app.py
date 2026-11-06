@@ -34981,7 +34981,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         """Rerender the current chart without discarding unsaved field edits."""
         self._invalidate_chart_view_navigation_cache()
         self._mark_chart_analytics_sections_lucy_goosey(
-            {"signs", "planets", "houses", "elements", "nakshatra",
+            {"signs", "planets", "houses", "quadrants", "elements", "nakshatra",
              "modal", "gender", "planet_dynamics", "chart_type", "similar_charts"}
         )
         chart = getattr(self, "_latest_chart", None)
@@ -35007,7 +35007,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._schedule_chart_render(
             chart,
             sections={
-                "summary", "signs", "planets", "houses", "elements",
+                "summary", "signs", "planets", "houses", "quadrants", "elements",
                 "nakshatra", "modal", "gender", "planet_dynamics",
                 "chart_type", "similar_charts",
             },

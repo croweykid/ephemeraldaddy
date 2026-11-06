@@ -53,3 +53,19 @@ def test_current_chart_is_not_reloaded_and_analytics_token_tracks_mode():
     assert "load_chart_by_uid(" not in current
     token = _method("_chart_analytics_cache_token")
     assert "load_lilith_mode(self._settings)" in token
+
+
+
+def test_lilith_switch_recalculates_quadrants_with_other_house_analytics():
+    """Both the visible graph and the collapsed-section dirty flag must update."""
+    callback = _method("_handle_selected_lilith_mode_changed")
+    assert '"quadrants"' in callback.split(
+        "self._mark_chart_analytics_sections_lucy_goosey(", 1
+    )[1].split("\n        )", 1)[0]
+    assert '"quadrants"' in callback.split(
+        "self._schedule_chart_render(", 1
+    )[1].split("queue_priority=", 1)[0]
+    # The normal render scheduler already recognizes quadrants as a valid
+    # section and filters rendering based on visibility/cache state.
+    scheduler = _method("_schedule_chart_render")
+    assert '"quadrants"' in scheduler
