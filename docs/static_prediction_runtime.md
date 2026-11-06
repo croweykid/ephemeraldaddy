@@ -41,6 +41,10 @@ caches without checkpoints are verified in the worker for previously edited
 charts; matching signatures reuse their scores. Writes check the captured astro
 revision under the SQLite write lock before replacing either raw or derived
 rows. A new birth save cannot make an obsolete calculation appear current.
+Rankings starts its collector for stale cells even when all scores are present,
+and keeps the available rows visible during refresh. Committed legacy imports
+publish only newly inserted cells; Analytics receives completion through the
+shared Qt relay and repaints the current ranking without polling.
 
 Trait analytical identities exclude labels, colors, descriptions, sample
 provenance, accuracy reviews, and astro analysis. Existing static rows remain
@@ -69,6 +73,8 @@ Distinguishing Factors reads persisted metric payloads and caches their static
 baselines; chart presentation and sort refresh run outside the GUI thread. Old
 snapshots lacking this section report it unavailable until an explicit rebuild.
 No replacement norms are manufactured during rendering.
+Both chart presentation and Weirdness sorting guard persistence with the saved
+chart's astro revision, so a birth save wins over an older calculation.
 
 ## Compatibility boundaries
 

@@ -19,12 +19,16 @@ _pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='distinguishing-fac
 def _calculate(chart: Any, payloads: tuple[dict[str, Any], ...], norm_signature: str, debug: bool) -> tuple[str, float | None]:
     score, _ = calculate_weirdness_score_from_metric_payloads(chart, payloads)
     rendered = build_distinguishing_factors_html(chart, [], metric_payloads=payloads, debug_scoring=debug, highlight_color=CHART_DATA_HIGHLIGHT_COLOR)
-    uid = str(getattr(chart, 'chart_uid', '') or '').upper()
+    uid = str(getattr(chart, 'chart_uid', '') or '').strip().upper()
     if uid and score is not None:
         # A draft or an astro edit during calculation must not replace saved data.
-        saved = db.load_chart_by_uid(uid)
+        revision = db.chart_astro_revisions([uid]).get(uid)
+        saved = db.load_chart_by_uid(uid) if revision is not None else None
         if saved is not None and chart_prediction_signature(saved) == chart_prediction_signature(chart):
-            db.update_chart_weirdness_score_by_uid(uid, score, formula_version=DISTINGUISHING_FORMULA_VERSION, norm_signature=norm_signature)
+            db.update_chart_weirdness_score_by_uid(
+                uid, score, formula_version=DISTINGUISHING_FORMULA_VERSION,
+                norm_signature=norm_signature, expected_astro_revision=revision,
+            )
     return rendered, score
 
 

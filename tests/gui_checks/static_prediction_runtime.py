@@ -25,6 +25,194 @@ def chart(uid):
     return SimpleNamespace(chart_uid=uid, dt=datetime(2000,1,1,tzinfo=timezone.utc), lat=0, lon=0, birthtime_unknown=False)
 
 
+@pytest.fixture
+def cached_population(tmp_path, monkeypatch):
+    import copy
+    import json
+    from ephemeraldaddy.core import db, prediction_norms as norms
+    from ephemeraldaddy.analysis import traits as definitions
+
+    monkeypatch.setattr(db, 'DB_DIR', tmp_path)
+    monkeypatch.setattr(db, 'DB_PATH', tmp_path/'charts.db')
+    paths = norms.PredictionNormPaths(tmp_path/'source.json', tmp_path/'official.json', tmp_path/'personal.json', tmp_path/'extra.json')
+    paths.official.write_text(json.dumps({'version': 1, 'trait_baselines': {'uid:t': {'db_average': 50.}}}))
+    monkeypatch.setattr(norms, 'default_norm_paths', lambda: paths)
+    traits = [{'uid': 't', 'name': 'T', 'profile': {'signs': {'Aries': 1}}}]
+    monkeypatch.setattr(definitions, 'list_traits', lambda **kwargs: traits)
+    charts = {uid: chart(uid) for uid in ('REVIEWFIX0001', 'REVIEWFIX0002')}
+    charts['REVIEWFIX0001'].name, charts['REVIEWFIX0002'].name = 'Alpha', 'Beta'
+    charts['REVIEWFIX0002'].lat = 10.
+    conn = db._get_conn()
+    with conn:
+        for uid, value in charts.items():
+            conn.execute('INSERT INTO charts(chart_uid,name,datetime_iso,lat,lon,created_at) VALUES(?,?,?,?,0,?)',
+                         (uid, value.name, value.dt.isoformat(), value.lat, '2026-01-01'))
+    conn.close()
+    monkeypatch.setattr(db, 'load_chart_by_uid', lambda uid: copy.deepcopy(charts.get(uid)))
+    monkeypatch.setattr(db, 'load_charts_by_uids', lambda uids: {uid: copy.deepcopy(charts[uid]) for uid in uids if uid in charts})
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', lambda value, selected, **kwargs: {t['name']: 80. - value.lat for t in selected})
+    index.refresh_uids(charts, traits)
+    return index, traits, charts
+
+
+@pytest.mark.parametrize('stale_source', ['astro_data', 'definition'])
+def test_rankings_repairs_present_but_stale_scores_after_restart(app, monkeypatch, cached_population, stale_source):
+    import json
+    from PySide6.QtWidgets import QWidget
+    from ephemeraldaddy.core import db
+    from ephemeraldaddy.gui import ranking_panel_core as ui
+
+    _, traits, charts = cached_population
+    monkeypatch.setattr(ui, 'list_traits', lambda **kwargs: traits)
+    uid = 'REVIEWFIX0001'
+    if stale_source == 'astro_data':
+        charts[uid].lat = 30.
+        conn = db._get_conn()
+        with conn:
+            conn.execute('UPDATE charts SET lat=30 WHERE chart_uid=?', (uid,))
+        conn.close()
+    else:
+        traits[0]['profile']['signs']['Aries'] = 2
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    calls, states = [], []
+    entered, release = threading.Event(), threading.Event()
+    def score(value, selected, **kwargs):
+        assert QThread.currentThread() != app.thread()
+        calls.append(value.chart_uid)
+        entered.set()
+        release.wait(3)
+        return {'T': 80. - value.lat if stale_source == 'astro_data' else 40. + value.lat}
+    monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', score)
+    ids = db.get_chart_ids_by_uid(charts)
+
+    class View(QWidget, ui.RankingsPanelMixin):
+        _rankings_database_chart_uids = lambda self: tuple(charts)
+        _rankings_database_legacy_chart_ids = lambda self, uids: set(ids.values())
+        _sync_rankings_trait_combo = lambda self: 'T'
+        _traits_distribution_chart_uid_by_id = lambda self: {row: key for key, row in ids.items()}
+        _traits_distribution_chart_tokens = lambda self: {key: 'current' for key in charts}
+        _traits_distribution_signature = lambda self, selected: tuple((t['name'], '#ffffff', json.dumps(t['profile'])) for t in selected)
+        def _render_rankings_traits_html(self, name, rows, **kwargs):
+            states.append(([(r['name'], r['likelihood']) for r in rows], kwargs['cache_warmed']))
+            return repr(states[-1])
+
+    owner = View()
+    owner.rankings_traits_label = QLabel(owner)
+    owner._rankings_section_expanded = {'traits': True}
+    owner._traits_distribution_chart_likelihood_cache = {}
+    try:
+        owner._refresh_rankings_panel({'traits'})
+        wait_for(app, entered.is_set)
+        assert states[0] == ([('Alpha', 80.), ('Beta', 70.)], False)
+        release.set()
+        expected = [('Beta', 70.), ('Alpha', 50.)] if stale_source == 'astro_data' else [('Beta', 50.), ('Alpha', 40.)]
+        wait_for(app, lambda: states and states[-1] == (expected, True))
+        assert calls == ([uid] if stale_source == 'astro_data' else list(charts))
+        assert owner._rankings_trait_likelihood_cache_complete(chart_uids_by_id={row:key for key,row in ids.items()}, trait_signature=(), selected_trait_name='T')
+    finally:
+        release.set()
+        owner._stop_rankings_trait_worker(wait_msecs=5000)
+        owner.deleteLater()
+        app.processEvents()
+
+
+@pytest.mark.parametrize('race', ['unchanged', 'birth_edit', 'newer_score'])
+def test_distinguishing_write_rejects_birth_save_after_saved_input_check(app, monkeypatch, cached_population, race):
+    import copy
+    from ephemeraldaddy.core import db
+    from ephemeraldaddy.gui.features.predictions import distinguishing_factors as ui
+
+    _, _, charts = cached_population
+    uid = 'REVIEWFIX0001'
+    db.update_chart_weirdness_score_by_uid(uid, 101., formula_version=ui.DISTINGUISHING_FORMULA_VERSION, norm_signature='static')
+    monkeypatch.setattr(ui, 'calculate_weirdness_score_from_metric_payloads', lambda *a: (100., 6))
+    monkeypatch.setattr(ui, 'build_distinguishing_factors_html', lambda *a, **k: 'calculated')
+    def saved_input(value):
+        saved = copy.deepcopy(charts[value])
+        if race != 'unchanged':
+            conn = db._get_conn()
+            with conn:
+                conn.execute('UPDATE charts SET lat=20 WHERE chart_uid=?', (uid,))
+                if race == 'newer_score':
+                    conn.execute("UPDATE charts SET weirdness_score=900, weirdness_formula_version=99, weirdness_norm_signature='newer' WHERE chart_uid=?", (uid,))
+            conn.close()
+        return saved
+    monkeypatch.setattr(db, 'load_chart_by_uid', saved_input)
+    assert ui._pool.submit(ui._calculate, copy.deepcopy(charts[uid]), ({},), 'static', False).result(timeout=5) == ('calculated', 100.)
+    conn = db._get_conn()
+    row = conn.execute('SELECT weirdness_score,weirdness_formula_version,weirdness_norm_signature FROM charts WHERE chart_uid=?', (uid,)).fetchone()
+    conn.close()
+    expected = {'unchanged': (100., ui.DISTINGUISHING_FORMULA_VERSION, 'static'),
+                'birth_edit': (101., None, None), 'newer_score': (900., 99, 'newer')}
+    assert row == expected[race]
+
+
+def test_analytics_legacy_import_refreshes_rankings_after_commit_on_gui_thread(app, monkeypatch, cached_population, tmp_path):
+    import json
+    from PySide6.QtWidgets import QWidget, QVBoxLayout
+    from ephemeraldaddy.core import db
+    from ephemeraldaddy.analysis import trait_cache_migration as migration
+    from ephemeraldaddy.gui.features.charts import database_analytics as ui
+
+    index, traits, charts = cached_population
+    monkeypatch.setattr(ui, 'list_traits', lambda **kwargs: traits)
+    conn = db._get_conn()
+    with conn:
+        conn.execute('DELETE FROM chart_trait_likelihoods')
+        conn.execute('DELETE FROM chart_trait_metadata')
+    conn.close()
+    (tmp_path/'.traits_distribution_likelihood_cache.json').write_text(json.dumps({
+        'version': 4, 'profiles': [json.dumps(traits[0]['profile'])],
+        'profile_entries': [{'profile': 0, 'chart_uid': uid, 'likelihood': 89. - i*10} for i, uid in enumerate(charts)],
+    }))
+    entered, release = threading.Event(), threading.Event()
+    original_import = migration.import_legacy_trait_cache
+    def delayed_import(*args):
+        entered.set()
+        release.wait(3)
+        original_import(*args)
+    monkeypatch.setattr(migration, 'import_legacy_trait_cache', delayed_import)
+    monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', lambda *a, **k: pytest.fail('Legacy display recalculated Traits'))
+    deliveries = []
+    class View(QWidget, ui.DatabaseAnalyticsChartsMixin):
+        _traits_distribution_display_mode = lambda self: 'trait_rankings'
+        _sync_traits_distribution_rank_combo = lambda self, selected: 'T'
+        _sync_traits_distribution_display_mode = lambda self: None
+        _clear_layout = lambda self, layout: None
+        _build_dominant_planet_chart = lambda self, **kwargs: QWidget(self)
+        _build_analysis_export_rows = lambda self, **kwargs: []
+        def _refresh_traits_distribution_rankings_from_cached_context(self):
+            deliveries.append(QThread.currentThread())
+            super()._refresh_traits_distribution_rankings_from_cached_context()
+    owner = View()
+    owner.traits_distribution_rank_label = QLabel(owner)
+    owner.traits_distribution_subheader_label = QLabel(owner)
+    owner.traits_distribution_chart_layout = QVBoxLayout(owner)
+    owner._analysis_chart_export_rows = {}
+    try:
+        owner._render_traits_distribution_section(chart_ids=[], database_chart_ids=set(db.get_chart_ids_by_uid(charts).values()), loaded_charts=0, should_refresh=lambda section: True)
+        wait_for(app, entered.is_set)
+        assert 'No non-placeholder charts' in owner.traits_distribution_rank_label.text()
+        release.set()
+        wait_for(app, lambda: 'Alpha' in owner.traits_distribution_rank_label.text())
+        assert '89.0%' in owner.traits_distribution_rank_label.text()
+        assert deliveries == [app.thread()]
+        index._queue.join()
+        owner._load_traits_distribution_likelihood_cache()
+        index._queue.join()
+        index._publish(charts, [{'uid': 'unrelated', 'name': 'Unrelated'}])
+        app.processEvents()
+        assert deliveries == [app.thread()]
+    finally:
+        release.set()
+        index._queue.join()
+        owner.deleteLater()
+        app.processEvents()
+
+
 def test_shared_cache_completion_is_delivered_on_gui_thread(app, monkeypatch):
     from ephemeraldaddy.gui.features.predictions.trait_updates import TraitRefreshRelay
     index = runtime.TraitPredictionIndex()

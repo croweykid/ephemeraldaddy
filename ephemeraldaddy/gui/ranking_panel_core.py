@@ -886,7 +886,14 @@ class RankingsPanelMixin:
         eligible = set(db.prediction_chart_uids()) & set(chart_uids_by_id.values())
         eligible -= set(getattr(self, "_hidden_chart_uids", ()))
         results = global_trait_prediction_index().results_for_uids(eligible, [trait])
-        return all(uid in results and selected_trait_name in results[uid].likelihoods for uid in eligible)
+        return all(
+            uid in results
+            and selected_trait_name in results[uid].likelihoods
+            and not results[uid].stale_chart_vector
+            and not results[uid].stale_trait_definition
+            and selected_trait_name not in results[uid].stale_trait_names
+            for uid in eligible
+        )
 
     def _start_rankings_trait_worker(
         self,

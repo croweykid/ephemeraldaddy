@@ -6056,9 +6056,10 @@ def get_chart_trait_metadata(chart_uid: str) -> list[dict[str, Any]]:
         conn.close()
 
 
-def import_trait_likelihood_rows(rows: Iterable[Mapping[str, Any]]) -> None:
-    """One-transaction migration; existing shared-index scores take precedence."""
+def import_trait_likelihood_rows(rows: Iterable[Mapping[str, Any]]) -> frozenset[tuple[str, str]]:
+    """Migrate without overwriting scores; return inserted chart/Trait UID pairs."""
     conn = _get_conn()
+    inserted: set[tuple[str, str]] = set()
     try:
         with conn:
             _create_chart_trait_metadata_table(conn)
@@ -6067,10 +6068,13 @@ def import_trait_likelihood_rows(rows: Iterable[Mapping[str, Any]]) -> None:
                 uid = _normalize_chart_uid(row.get("chart_uid"))
                 if uid is None:
                     continue
-                conn.execute("""INSERT INTO chart_trait_likelihoods(chart_uid, trait_uid, trait_name, likelihood, trait_signature, chart_signature, updated_at)
+                cursor = conn.execute("""INSERT INTO chart_trait_likelihoods(chart_uid, trait_uid, trait_name, likelihood, trait_signature, chart_signature, updated_at)
                     SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS(SELECT 1 FROM charts WHERE chart_uid = ?)
                     AND NOT EXISTS(SELECT 1 FROM chart_trait_likelihoods WHERE chart_uid = ? AND (trait_uid = ? OR trait_name = ?))""",
                     (uid, row["trait_uid"], row["trait_name"], row["likelihood"], row["trait_signature"], row.get("chart_signature", "legacy"), now, uid, uid, row["trait_uid"], row["trait_name"]))
+                if cursor.rowcount > 0:
+                    inserted.add((uid, str(row["trait_uid"])))
+        return frozenset(inserted)
     finally:
         conn.close()
 

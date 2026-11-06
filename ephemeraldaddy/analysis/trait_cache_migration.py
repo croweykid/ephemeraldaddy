@@ -19,6 +19,7 @@ def import_legacy_trait_cache(traits=None):
         token = (str(path), path.stat().st_mtime_ns, tuple(sorted(trait_definition_signature(t) for t in traits)))
     except FileNotFoundError:
         return
+    inserted = frozenset()
     with _lock:
         if token in _imported:
             return
@@ -51,7 +52,18 @@ def import_legacy_trait_cache(traits=None):
                     rows.append({"chart_uid": uid, "trait_uid": str(trait.get("uid") or ""),
                                  "trait_name": trait["name"], "trait_signature": trait_definition_signature(trait),
                                  "likelihood": value, "chart_signature": "legacy-json"})
-            db.import_trait_likelihood_rows(rows)
+            inserted = db.import_trait_likelihood_rows(rows)
             _imported.add(token)
         except (OSError, ValueError):
             logging.getLogger(__name__).warning("Could not migrate the legacy Trait cache", exc_info=True)
+    if inserted:
+        # Publish only committed new cells; repeated renders/imports must not
+        # create a refresh loop or claim that existing scores changed.
+        from ephemeraldaddy.analysis.trait_prediction_index import (
+            global_trait_prediction_index, trait_uid_for_index_item,
+        )
+        trait_uids = {trait_uid for _uid, trait_uid in inserted}
+        global_trait_prediction_index()._publish(
+            {uid for uid, _trait_uid in inserted},
+            [trait for trait in traits if trait_uid_for_index_item(trait) in trait_uids],
+        )

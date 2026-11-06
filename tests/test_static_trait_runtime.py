@@ -339,6 +339,36 @@ def test_legacy_cache_revision_is_checked_once_without_rescoring_matching_inputs
     assert not loaded
 
 
+def test_legacy_import_notifies_only_inserted_cells_and_preserves_existing_scores(population, monkeypatch):
+    from ephemeraldaddy.analysis import trait_cache_migration as migration
+
+    index, traits, _, calls, _ = population
+    index.refresh_uids(['RUNTIMEUID0001'], [traits[1]])
+    before = db.get_chart_trait_likelihoods('RUNTIMEUID0001')
+    calls.clear()
+    events = []
+    index.subscribe(lambda uids, trait_uids: events.append((uids, trait_uids)))
+    monkeypatch.setattr(migration, '_imported', set())
+    (db.DB_DIR/'.traits_distribution_likelihood_cache.json').write_text(json.dumps({
+        'version': 4, 'profiles': [json.dumps(t['profile']) for t in traits],
+        'profile_entries': [
+            {'profile': 0, 'chart_uid': 'RUNTIMEUID0000', 'likelihood': 77.},
+            {'profile': 0, 'chart_uid': 'RUNTIMEUID0000', 'likelihood': 78.},
+            {'profile': 1, 'chart_uid': 'RUNTIMEUID0001', 'likelihood': 99.},
+            {'profile': 0, 'chart_uid': 'MISSINGUID0000', 'likelihood': 88.},
+        ],
+    }))
+    migration.import_legacy_trait_cache(traits)
+    assert events == [(frozenset({'RUNTIMEUID0000'}), frozenset({'a'}))]
+    assert db.get_chart_trait_likelihoods('RUNTIMEUID0000')[0]['likelihood'] == 77.
+    assert db.get_chart_trait_likelihoods('RUNTIMEUID0001') == before
+    migration.import_legacy_trait_cache(traits)
+    migration._imported.clear()
+    migration.import_legacy_trait_cache(traits)
+    assert len(events) == 1
+    assert not calls
+
+
 def test_astro_edit_before_persistence_cannot_acknowledge_obsolete_scores(population, monkeypatch):
     index, traits, charts, _, _ = population
     index.refresh_uids(charts, traits)
