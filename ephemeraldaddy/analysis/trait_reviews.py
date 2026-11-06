@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -38,9 +38,33 @@ def normalize_accuracy_rankings(entries: Any) -> list[dict[str, Any]]:
     return result
 
 
+def accuracy_rating_summary(
+    entries: Sequence[Mapping[str, Any]],
+    *,
+    excluded_chart_uids: Iterable[object] = (),
+) -> tuple[float | None, int, int]:
+    """Return (mean, rated count, eligible count) for the same review cohort.
+
+    Exclusions use permanent chart UIDs, not names or transient database IDs.
+    Empty ratings never contribute to the mean, and no eligible ratings
+    produces None rather than a misleading zero.
+    """
+    excluded = {
+        normalized
+        for uid in excluded_chart_uids
+        if (normalized := str(uid or "").strip().upper())
+    }
+    eligible = [
+        row for row in normalize_accuracy_rankings(entries)
+        if row["chart_uid"] not in excluded
+    ]
+    values = [row["value"] for row in eligible if row["value"] is not None]
+    average = sum(values) / len(values) if values else None
+    return average, len(values), len(eligible)
+
+
 def perceived_accuracy(entries: Sequence[Mapping[str, Any]]) -> float | None:
-    values = [entry["value"] for entry in normalize_accuracy_rankings(entries) if entry["value"] is not None]
-    return sum(values) / len(values) if values else None
+    return accuracy_rating_summary(entries)[0]
 
 
 def trait_review_fields(profile: Mapping[str, Any]) -> dict[str, Any]:
