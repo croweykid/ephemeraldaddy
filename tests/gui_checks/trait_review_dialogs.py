@@ -23,6 +23,13 @@ def dispose_dialogs(app):
     yield
     for widget in app.topLevelWidgets():
         if isinstance(widget, QDialog):
+            thread = getattr(widget, "_thread", None)
+            if thread is not None and thread.isRunning():
+                thread.requestInterruption()
+                deadline = time.monotonic() + 15
+                while thread.isRunning() and time.monotonic() < deadline:
+                    app.processEvents()
+                    QTest.qWait(10)
             widget.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     app.processEvents()
@@ -32,7 +39,7 @@ def wait_until(app, predicate):
     deadline = time.monotonic() + 5
     while not predicate() and time.monotonic() < deadline:
         app.processEvents()
-        QTest.qWait(5)
+        time.sleep(0.005)
     assert predicate()
 
 
@@ -217,36 +224,30 @@ def test_trait_manager_review_buttons_work_for_bundled_traits(app, monkeypatch):
     owner.deleteLater()
 
 
-def test_first_async_results_are_visible_and_inputs_stay_next_to_names(app, monkeypatch):
+def test_first_async_results_are_visible_and_inputs_stay_next_to_names(app, monkeypatch, tmp_path):
     from ephemeraldaddy.gui import ranking_panel_core as rankings
     from ephemeraldaddy.gui.features.charts import database_analytics as analytics
 
-    class Owner(rankings.RankingsPanelMixin, analytics.DatabaseAnalyticsChartsMixin):
-        def _traits_distribution_chart_uid_by_id(self):
-            return {index: f"UID{index}" for index in range(41)}
-
-        def _traits_distribution_chart_tokens(self):
-            return {f"UID{index}": "token" for index in range(41)}
-
-        def _get_chart_for_filter(self, sqlite_row_id):
-            return SimpleNamespace(chart_uid=f"UID{sqlite_row_id}", name=f"Chart {sqlite_row_id}", score=100 - sqlite_row_id)
-
-        def _is_placeholder_chart(self, chart):
-            return False
-
-        def _save_traits_distribution_likelihood_cache(self):
-            pass
-
-        def _persist_traits_distribution_metadata(self, **kwargs):
-            raise AssertionError("Review results must not wait for a metadata backfill")
-
-    owner = Owner()
-    owner._traits_distribution_chart_likelihood_cache = {}
-    owner._chart_rows = [tuple([index] + [None] * 29 + [f"UID{index}"]) for index in range(41)]
-    monkeypatch.setattr(rankings, "trait_snapshot_averages", lambda items: {"T": 60.0})
-    monkeypatch.setattr(rankings, "get_chart_ids_by_uid", lambda uids: {uid: int(uid[3:]) for uid in uids})
-    monkeypatch.setattr(rankings.db, "latest_chart_change_sequence", lambda: 1)
-    monkeypatch.setattr(analytics, "calculate_trait_likelihoods", lambda chart, items, **kwargs: {"T": chart.score})
+    import json
+    from datetime import datetime, timezone
+    from ephemeraldaddy.analysis import trait_prediction_index as runtime
+    from ephemeraldaddy.core import db, prediction_norms as norms
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, "_INDEX", index)
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "charts.db")
+    paths = norms.PredictionNormPaths(tmp_path / "source.json", tmp_path / "norms.json", tmp_path / "personal.json", tmp_path / "extra.json")
+    paths.official.write_text(json.dumps({"version": 1, "trait_baselines": {"name:t": {"db_average": 60.}}}))
+    monkeypatch.setattr(norms, "default_norm_paths", lambda: paths)
+    charts = {f"REVWUID0000{i:03d}": SimpleNamespace(chart_uid=f"REVWUID0000{i:03d}", name=f"Chart {i}", score=100 - i * .5, dt=datetime(1950 + i, 1, 1, tzinfo=timezone.utc), birthtime_unknown=False, positions={}, lat=0, lon=0) for i in range(41)}
+    conn = db._get_conn()
+    with conn:
+        for uid, chart in charts.items():
+            conn.execute("INSERT INTO charts(chart_uid,name,datetime_iso,lat,lon,created_at) VALUES(?,?,?,0,0,?)", (uid, chart.name, chart.dt.isoformat(), chart.dt.isoformat()))
+    conn.close()
+    monkeypatch.setattr(db, "load_charts_by_uids", lambda uids: {uid: charts[uid] for uid in uids})
+    monkeypatch.setattr(runtime, "calculate_trait_likelihoods", lambda chart, items, **kwargs: {"T": chart.score})
+    owner = rankings.RankingsPanelMixin()
     release = threading.Event()
     saved = []
 
@@ -258,7 +259,7 @@ def test_first_async_results_are_visible_and_inputs_stay_next_to_names(app, monk
 
     dialog = ui.RateAccuracyDialog(
         trait_name="T", entries=[], query=query, save=lambda entries: saved.append(copy.deepcopy(entries)),
-        trait_profile={"sample_uids": ["UID0"], "antisample_uids": ["UID1"]},
+        trait_profile={"sample_uids": ["REVWUID0000000"], "antisample_uids": ["REVWUID0000001"]},
     )
     dialog.show()
     app.processEvents()
@@ -270,13 +271,13 @@ def test_first_async_results_are_visible_and_inputs_stay_next_to_names(app, monk
     assert len(dialog.inputs) == 40
     assert all(field.isVisible() and field.width() == 38 for field in dialog.inputs.values())
     assert all(label.isVisible() for label in dialog._labels.values())
-    field = dialog.inputs["UID0"]
-    label = dialog._labels["UID0"]
+    field = dialog.inputs["REVWUID0000000"]
+    label = dialog._labels["REVWUID0000000"]
     assert label.geometry().left() - (field.geometry().right() + 1) == 6
     assert label.alignment() & Qt.AlignLeft
     assert label.text() == "🧚 Chart 0"
-    assert dialog._labels["UID1"].text() == "👹 Chart 1"
-    assert dialog._labels["UID2"].text() == "Chart 2"
+    assert dialog._labels["REVWUID0000001"].text() == "👹 Chart 1"
+    assert dialog._labels["REVWUID0000002"].text() == "Chart 2"
     scroll = dialog.findChild(QScrollArea)
     assert scroll.widget().height() >= dialog._rows_layout.minimumSize().height()
     assert scroll.verticalScrollBar().maximum() > 0
@@ -327,7 +328,7 @@ def test_repeated_query_success_and_failure_close_cleanly(app):
         if index % 2:
             assert "Stored norm unavailable" in dialog.status_label.text()
         else:
-            assert dialog.inputs["A"].isVisible()
+            wait_until(app, lambda: dialog.inputs["A"].isVisible())
         dialog.close()
         assert dialog._thread.isFinished()
         dialog.deleteLater()

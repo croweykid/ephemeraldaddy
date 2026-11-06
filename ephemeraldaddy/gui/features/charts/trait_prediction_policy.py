@@ -20,6 +20,11 @@ from ephemeraldaddy.gui.settings.core import (
     load_predictions_use_trait_gender_distribution,
 )
 
+from ephemeraldaddy.analysis.trait_gender import (
+    _gender_traits_for_chart, _matching_key, _normalize_gender, _trait_profile, calculate_trait_likelihoods_with_gender, gender_evidence_points, likelihood_from_evidence,
+    gender_prediction_cache_key, retain_gender_prediction_metadata,
+)
+
 TRAIT_PREDICTION_POLICY_VERSION = 1
 
 
@@ -55,111 +60,18 @@ def predictions_use_gender_distribution_enabled(owner: Any) -> bool:
     )
 
 
-def _trait_profile(trait: Mapping[str, Any]) -> Mapping[str, Any]:
-    profile = trait.get("profile")
-    return profile if isinstance(profile, Mapping) else trait
 
 
-def _normalize_gender(value: Any) -> str:
-    return " ".join(str(value or "").split()).casefold()
 
 
-def _matching_key(mapping: Mapping[Any, Any], normalized_label: str) -> Any | None:
-    for key in mapping:
-        if _normalize_gender(key) == normalized_label:
-            return key
-    return None
 
 
-def gender_evidence_points(profile: Mapping[str, Any], gender: Any) -> float | None:
-    """Return significant sample-minus-database gender prevalence in percentage points."""
-    normalized_gender = _normalize_gender(gender)
-    if not normalized_gender:
-        return None
-    distribution = profile.get("genderDistribution")
-    if not isinstance(distribution, Mapping) or not bool(distribution.get("statisticallySignificant", False)):
-        return None
-    percentages = distribution.get("percentages")
-    database_percentages = distribution.get("databasePercentages")
-    if not isinstance(percentages, Mapping) or not isinstance(database_percentages, Mapping):
-        return None
-    sample_key = _matching_key(percentages, normalized_gender)
-    database_key = _matching_key(database_percentages, normalized_gender)
-    if sample_key is None or database_key is None:
-        return None
-
-    category_significant = False
-    significance = distribution.get("significance")
-    if isinstance(significance, Mapping):
-        significance_key = _matching_key(significance, normalized_gender)
-        detail = significance.get(significance_key) if significance_key is not None else None
-        if isinstance(detail, Mapping):
-            category_significant = bool(detail.get("significant", False))
-    if not category_significant:
-        categories = distribution.get("significantCategories")
-        if isinstance(categories, (list, tuple, set, frozenset)):
-            category_significant = any(
-                _normalize_gender(value) == normalized_gender for value in categories
-            )
-    if not category_significant:
-        return None
-    try:
-        return float(percentages[sample_key]) - float(database_percentages[database_key])
-    except (TypeError, ValueError):
-        return None
 
 
-def likelihood_from_evidence(
-    raw_score: float,
-    possible_score: float,
-    *,
-    gender_delta: float | None = None,
-) -> float:
-    """Normalize signed evidence, adding gender to numerator and denominator when present."""
-    raw = float(raw_score)
-    possible = max(float(possible_score), 1.0)
-    if gender_delta is not None:
-        delta = float(gender_delta)
-        raw += delta
-        possible += abs(delta)
-    normalized = max(-1.0, min(1.0, raw / possible))
-    return round(50.0 + (normalized * 50.0), 1)
 
 
-def calculate_trait_likelihoods_with_gender(
-    chart: Any,
-    traits: list[dict[str, Any]],
-) -> dict[str, float]:
-    """Score Traits with statistically significant recorded-gender evidence."""
-    active_traits = [trait for trait in traits if not bool(trait.get("archived", False))]
-    if chart is None or not active_traits:
-        return {}
-    raw_scores = calculate_trait_scores(chart, active_traits)
-    include_houses = chart_uses_houses(chart)
-    chart_gender = getattr(chart, "gender", None)
-    likelihoods: dict[str, float] = {}
-    for trait in active_traits:
-        name = str(trait.get("name", "") or "").strip()
-        if not name:
-            continue
-        profile = _trait_profile(trait)
-        likelihoods[name] = likelihood_from_evidence(
-            float(raw_scores.get(name, 0.0)),
-            trait_possible_score(profile, include_houses=include_houses),
-            gender_delta=gender_evidence_points(profile, chart_gender),
-        )
-    return likelihoods
 
 
-def _gender_traits_for_chart(chart: Any, traits: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    gender = getattr(chart, "gender", None)
-    if not _normalize_gender(gender):
-        return []
-    return [
-        trait
-        for trait in traits
-        if gender_evidence_points(_trait_profile(trait), gender) is not None
-    ]
 
 
 def _canonical_chart_uid(chart: Any) -> str:
@@ -228,34 +140,9 @@ def _gender_profile_payload(traits: list[dict[str, Any]]) -> list[dict[str, Any]
     return payload
 
 
-def _database_gender_tokens(core: ModuleType, owner: Any) -> tuple[tuple[str, str], ...]:
-    try:
-        rows = core._database_chart_rows(owner)
-    except Exception:
-        rows = []
-    tokens: set[tuple[str, str]] = set()
-    for row in rows:
-        try:
-            uid = str(row[30] or "").strip().upper() if len(row) > 30 else ""
-            gender = _normalize_gender(row[3] if len(row) > 3 else None)
-        except (TypeError, IndexError):
-            continue
-        if uid:
-            tokens.add((uid, gender))
-    return tuple(sorted(tokens))
-
-
 def _database_policy_signature(core: ModuleType, owner: Any) -> str:
-    try:
-        base_norm = core._database_norm_signature_from_state(core._database_norm_state(owner))
-    except Exception:
-        base_norm = repr(core._database_cache_revision(owner))
-    return core._stable_json_hash(
-        {
-            "baseNorm": base_norm,
-            "genderTokens": _database_gender_tokens(core, owner),
-        }
-    )
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    return str(prediction_norms_reference().get("snapshot_id", "missing"))
 
 
 def _gender_metadata_cache_key(
@@ -264,79 +151,14 @@ def _gender_metadata_cache_key(
     chart: Any,
     traits: list[dict[str, Any]],
 ) -> str:
-    return core._stable_json_hash(
-        {
-            "policyVersion": TRAIT_PREDICTION_POLICY_VERSION,
-            "chartUID": _canonical_chart_uid(chart),
-            "chartSignature": core._chart_trait_metadata_signature(chart),
-            "chartGender": _normalize_gender(getattr(chart, "gender", None)),
-            "traitGenderProfiles": _gender_profile_payload(traits),
-            "databasePolicySignature": _database_policy_signature(core, owner),
-        }
-    )
+    return gender_prediction_cache_key(chart, traits)
 
 
-def _gender_database_averages(
-    core: ModuleType,
-    owner: Any,
-    traits: list[dict[str, Any]],
-) -> dict[str, float]:
-    """Average gender-aware Traits across persisted charts with recorded gender."""
-    if not traits:
-        return {}
-    cache_key = core._stable_json_hash(
-        {
-            "policyVersion": TRAIT_PREDICTION_POLICY_VERSION,
-            "traits": _gender_profile_payload(traits),
-            "databasePolicySignature": _database_policy_signature(core, owner),
-        }
-    )
-    cache = getattr(owner, "_trait_gender_database_averages_cache", None)
-    if not isinstance(cache, dict):
-        cache = {}
-        try:
-            owner._trait_gender_database_averages_cache = cache
-        except Exception:
-            pass
-    cached = cache.get(cache_key)
-    if isinstance(cached, dict):
-        return dict(cached)
-
-    chart_uids = tuple(core._database_chart_uids(owner))
-    if not chart_uids:
-        return {}
-    try:
-        charts_by_uid = db.load_charts_by_uids(chart_uids)
-    except Exception:
-        return {}
-    is_placeholder = getattr(owner, "_is_placeholder_chart", None)
-    totals = {
-        str(trait.get("name", "") or "").strip(): 0.0
-        for trait in traits
-        if str(trait.get("name", "") or "").strip()
-    }
-    chart_count = 0
-    for raw_uid in chart_uids:
-        uid = str(raw_uid or "").strip().upper()
-        chart = charts_by_uid.get(uid)
-        if chart is None or not _normalize_gender(getattr(chart, "gender", None)):
-            continue
-        if callable(is_placeholder) and is_placeholder(chart):
-            continue
-        try:
-            likelihoods = calculate_trait_likelihoods_with_gender(chart, traits)
-        except Exception:
-            continue
-        chart_count += 1
-        for name in totals:
-            totals[name] += float(likelihoods.get(name, 0.0))
-    if not chart_count:
-        return {}
-    averages = {name: total / float(chart_count) for name, total in totals.items()}
-    if len(cache) >= 8:
-        cache.pop(next(iter(cache)), None)
-    cache[cache_key] = dict(averages)
-    return averages
+def _gender_database_averages(core: ModuleType, owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
+    # Gender is an optional display overlay. It must not derive a second live
+    # population reference or overwrite the shared astrology-only score cache.
+    from ephemeraldaddy.core.prediction_norms import trait_norm_values
+    return trait_norm_values(traits)
 
 
 def _trait_uids_by_name(core: ModuleType, traits: list[dict[str, Any]]) -> dict[str, str]:
@@ -443,15 +265,11 @@ def install_trait_prediction_policy(core: ModuleType) -> None:
                 metadata[key] = base_metadata[key]
         metadata["gender_criterion_traits"] = sorted(applied_names)
         try:
-            chart._trait_gender_prediction_metadata_cache = {
-                "signature": policy_key,
-                "metadata": dict(metadata),
-            }
+            retain_gender_prediction_metadata(chart, resolved_traits, metadata, expected_signature=policy_key)
             core._apply_trait_metadata_to_chart(
                 chart,
                 metadata,
                 _trait_uids_by_name(core, resolved_traits),
-                ("gender-policy", policy_key),
             )
         except Exception:
             pass

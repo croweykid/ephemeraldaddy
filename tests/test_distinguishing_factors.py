@@ -29,14 +29,14 @@ def _lightweight_distinguishing_factor_imports():
     style_module.CHART_DATA_HIGHLIGHT_COLOR = "#fff"
     sys.modules[module_names[0]] = hd_module
     sys.modules[module_names[1]] = style_module
-    sys.modules.pop("ephemeraldaddy.gui.features.charts.distinguishing_factors", None)
-    charts_package = importlib.import_module("ephemeraldaddy.gui.features.charts")
+    sys.modules.pop("ephemeraldaddy.analysis.distinguishing_factors", None)
+    charts_package = importlib.import_module("ephemeraldaddy.analysis")
     charts_package.__dict__.pop("distinguishing_factors", None)
-    module = importlib.import_module("ephemeraldaddy.gui.features.charts.distinguishing_factors")
+    module = importlib.import_module("ephemeraldaddy.analysis.distinguishing_factors")
     try:
         yield module
     finally:
-        sys.modules.pop("ephemeraldaddy.gui.features.charts.distinguishing_factors", None)
+        sys.modules.pop("ephemeraldaddy.analysis.distinguishing_factors", None)
         charts_package.__dict__.pop("distinguishing_factors", None)
         for name, original in original_modules.items():
             if original is None:
@@ -46,7 +46,7 @@ def _lightweight_distinguishing_factor_imports():
 
 
 def test_distinguishing_factor_html_does_not_truncate_significant_factors():
-    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/distinguishing_factors.py").read_text()
+    source = (REPO_ROOT / "ephemeraldaddy/analysis/distinguishing_factors.py").read_text()
 
     assert "for factor in factors:" in source
     assert "for factor in factors[:12]:" not in source

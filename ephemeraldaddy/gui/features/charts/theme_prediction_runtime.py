@@ -386,7 +386,8 @@ def _install_availability_matched_render(theme_predictions: Any) -> None:
         try:
             original_render(owner, chart)
             if context_error is None and context is not None:
-                snapshot = theme_predictions.load_prediction_norms_snapshot()
+                from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+                snapshot = dict(prediction_norms_reference())
                 _apply_chart_share_rows(theme_predictions, owner, snapshot, context)
         finally:
             _ACTIVE_THEME_CONTEXT_ERROR.reset(error_token)
