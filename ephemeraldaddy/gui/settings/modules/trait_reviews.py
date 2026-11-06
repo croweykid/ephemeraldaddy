@@ -14,11 +14,14 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.analysis.trait_reviews import (
-    ACCURACY_LABELS, normalize_accuracy_rankings, perceived_accuracy,
+    ACCURACY_LABELS, accuracy_rating_summary, normalize_accuracy_rankings,
 )
 from ephemeraldaddy.analysis.traits import _TRAIT_SCORE_CATEGORIES, _json_safe_trait_value
 from ephemeraldaddy.core import db
 from ephemeraldaddy.gui.features.charts.trait_sample_markers import chart_name_with_trait_sample_markers
+from ephemeraldaddy.gui.features.similarities.cohort_metadata import (
+    antisample_uids_for_profile, normalize_chart_uid, sample_uids_for_profile,
+)
 
 RankingQuery = Callable[[Callable[[float], None], Callable[[], bool]], list[dict[str, Any]]]
 
@@ -82,6 +85,19 @@ class RateAccuracyDialog(QDialog):
         self._entries = normalize_accuracy_rankings(entries)
         self._save = save
         self._trait_profile = dict(trait_profile or {})
+        # Only a known positive source cohort makes out-of-sample membership
+        # verifiable. Exclude any imported antithesis training samples too.
+        positive_uids = {
+            normalized
+            for uid in sample_uids_for_profile(self._trait_profile)
+            if (normalized := normalize_chart_uid(uid))
+        }
+        self._has_sample_provenance = bool(positive_uids)
+        self._source_sample_uids = positive_uids | {
+            normalized
+            for uid in antisample_uids_for_profile(self._trait_profile)
+            if (normalized := normalize_chart_uid(uid))
+        }
         self._ready = bool(self._entries)
         self._pending_result: int | None = None
         self._thread: QThread | None = None
@@ -94,7 +110,9 @@ class RateAccuracyDialog(QDialog):
             "1 = useless · 2 = pretty inaccurate · 3 = mixed results · "
             "4 = mostly accurate · 5 = very accurate\n"
             "Gray italic names are saved predictions outside the current top 40.\n"
-            "🧚 original sample · 👹 antithesis sample · ❓ unknown sample membership"
+            "🧚 original sample · 👹 antithesis sample · ❓ unknown sample membership\n"
+            "Out-of-sample accuracy excludes both original and antithesis source charts "
+            "when sample membership is known."
         )
         help_label.setWordWrap(True)
         layout.addWidget(help_label)
@@ -103,6 +121,15 @@ class RateAccuracyDialog(QDialog):
         layout.addWidget(self.status_label)
         self.average_label = QLabel()
         layout.addWidget(self.average_label)
+        self.out_of_sample_label = QLabel()
+        self.out_of_sample_label.setAccessibleName("Out-of-sample perceived accuracy")
+        self.out_of_sample_label.setToolTip(
+            "Average rating of predictions outside the Trait source samples. "
+            "Uses the same saved review cohort as perceived accuracy, which may "
+            "include prior predictions outside the current top 40."
+        )
+        self.out_of_sample_label.setVisible(self._has_sample_provenance)
+        layout.addWidget(self.out_of_sample_label)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         self._rows_widget = QWidget()
@@ -160,13 +187,30 @@ class RateAccuracyDialog(QDialog):
         self._update_average()
 
     def _update_average(self) -> None:
-        average = perceived_accuracy(self._entries)
-        count = sum(entry["value"] is not None for entry in self._entries)
+        average, count, _ = accuracy_rating_summary(self._entries)
         if average is None:
             self.average_label.setText("Perceived accuracy: unrated")
         else:
             label = ACCURACY_LABELS[min(4, int(average + 0.5) - 1)]
             self.average_label.setText(f"Perceived accuracy: {average:.2f} / 5 — {label} ({count} rated)")
+
+        if not self._has_sample_provenance:
+            return
+        blind_average, blind_count, eligible_count = accuracy_rating_summary(
+            self._entries, excluded_chart_uids=self._source_sample_uids,
+        )
+        if eligible_count == 0:
+            self.out_of_sample_label.setText("Out-of-sample accuracy: no eligible predictions")
+        elif blind_average is None:
+            self.out_of_sample_label.setText(
+                f"Out-of-sample accuracy: unrated (0 rated / {eligible_count} eligible)"
+            )
+        else:
+            label = ACCURACY_LABELS[min(4, int(blind_average + 0.5) - 1)]
+            self.out_of_sample_label.setText(
+                f"Out-of-sample accuracy: {blind_average:.2f} / 5 — {label} "
+                f"({blind_count} rated / {eligible_count} eligible)"
+            )
 
     @Slot(float)
     def _progress(self, percent: float) -> None:
