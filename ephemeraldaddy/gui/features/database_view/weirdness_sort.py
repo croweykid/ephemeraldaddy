@@ -11,6 +11,27 @@ from ephemeraldaddy.core.prediction_norms import distinguishing_norm_reference
 _pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='weirdness-sort')
 
 
+def apply_weirdness_results_to_rows(
+    rows: list[tuple[Any, ...]], values: dict[str, float], signature: str,
+) -> list[tuple[Any, ...]]:
+    """Keep accepted scores and raw list_charts freshness columns in sync."""
+    result = []
+    for row in rows:
+        uid = str(row[30] or "").strip().upper() if len(row) > 31 else ""
+        if uid not in values:
+            result.append(row)
+            continue
+        updated = list(row)
+        updated[31] = values[uid]
+        # Legacy 33-slot rows store provenance at 32, not freshness metadata.
+        # Their normalizer keeps the separate metadata map intact.
+        if len(updated) != 33:
+            updated.extend([None] * max(0, 34 - len(updated)))
+            updated[32:34] = (DISTINGUISHING_FORMULA_VERSION, signature)
+        result.append(tuple(updated))
+    return result
+
+
 class WeirdnessSortController(QObject):
     completed = Signal(object, object)
 

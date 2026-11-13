@@ -17745,14 +17745,16 @@ class ManageChartsDialog(
 
     def _hydrate_missing_weirdness_scores_for_sort(self, rows: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
         """Use available sort values immediately and queue missing static scores."""
-        from ephemeraldaddy.gui.features.database_view.weirdness_sort import WeirdnessSortController
+        from ephemeraldaddy.gui.features.database_view.weirdness_sort import (
+            WeirdnessSortController, apply_weirdness_results_to_rows,
+        )
         if getattr(self, "_weirdness_sort_controller", None) is None:
             def ready(values: dict[str, float], signature: str) -> None:
                 metadata = getattr(self, "_weirdness_cache_metadata_by_uid", {})
                 for uid in values:
                     metadata[uid] = (_DISTINGUISHING_FORMULA_VERSION, signature)
                 self._weirdness_cache_metadata_by_uid = metadata
-                self._chart_rows = [tuple(list(row[:31]) + [values.get(str(row[30]), row[31])] + list(row[32:])) if len(row) > 31 else row for row in self._chart_rows]
+                self._chart_rows = apply_weirdness_results_to_rows(self._chart_rows, values, signature)
                 self._populate_list()
             self._weirdness_sort_controller = WeirdnessSortController(self, ready)
         self._weirdness_sort_controller.request_missing(rows, getattr(self, "_weirdness_cache_metadata_by_uid", {}))

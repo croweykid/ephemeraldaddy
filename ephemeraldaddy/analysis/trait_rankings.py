@@ -5,12 +5,26 @@ from ephemeraldaddy.analysis.trait_prediction_index import global_trait_predicti
 from ephemeraldaddy.core import db
 
 
-def ranked_trait_rows(chart_uids: Iterable[str], trait: dict[str, Any], *, hidden_uids: Iterable[str] = (), limit: int | None = None) -> list[dict[str, Any]]:
+def ranked_trait_rows(
+    chart_uids: Iterable[str], trait: dict[str, Any], *,
+    hidden_uids: Iterable[str] = (), limit: int | None = None,
+    refresh_missing: bool = False,
+) -> list[dict[str, Any]]:
+    """Read available rows, optionally queuing missing/stale cells in this scope."""
     name = str(trait["name"])
     index = global_trait_prediction_index()
-    results = index.results_for_uids(chart_uids, [trait])
-    labels = db.prediction_chart_labels(results)
-    hidden = set(hidden_uids)
+    uids = tuple(dict.fromkeys(str(uid).strip().upper() for uid in chart_uids if str(uid).strip()))
+    results = index.results_for_uids(uids, [trait])
+    labels = db.prediction_chart_labels(uids if refresh_missing else results)
+    hidden = {str(uid).strip().upper() for uid in hidden_uids}
+    if refresh_missing:
+        needed = [uid for uid in labels if uid not in hidden and (
+            uid not in results or name not in results[uid].likelihoods
+            or results[uid].stale_chart_vector or results[uid].stale_trait_definition
+            or name in results[uid].stale_trait_names
+        )]
+        if needed:
+            index.request_missing(needed, [trait])
     rows = [{"chart_uid": uid, "name": labels[uid], "likelihood": result.likelihoods[name], "deviation": result.deviations[name]}
             for uid, result in results.items() if uid in labels and uid not in hidden and name in result.deviations]
     rows.sort(key=lambda row: (-row["deviation"], -row["likelihood"], row["name"].casefold()))

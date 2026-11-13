@@ -4719,6 +4719,8 @@ class DatabaseAnalyticsChartsMixin:
             chart_container.setVisible(not show_rankings)
 
     def _refresh_traits_distribution_rankings_from_cached_context(self) -> None:
+        if getattr(self, "_is_closing", False):
+            return
         context = getattr(self, "_traits_distribution_rank_context", None)
         rank_label = getattr(self, "traits_distribution_rank_label", None)
         if not isinstance(context, dict) or not isinstance(rank_label, QLabel):
@@ -4830,8 +4832,19 @@ class DatabaseAnalyticsChartsMixin:
 
     def _traits_distribution_chart_rankings(self, *, chart_uids: list[str] | set[str] | tuple[str, ...], trait_signature: tuple[tuple[str, str, str], ...], selected_trait_name: str, database_values: Mapping[str, float]) -> list[dict[str, Any]]:
         from ephemeraldaddy.analysis.trait_rankings import ranked_trait_rows
+        from ephemeraldaddy.analysis.trait_prediction_index import trait_uid_for_index_item
         trait = next((t for t in list_traits(active_only=True) if t["name"] == selected_trait_name), None)
-        return ranked_trait_rows(chart_uids, trait, hidden_uids=getattr(self, "_hidden_chart_uids", ()), limit=10) if trait else []
+        if isinstance(self, QWidget):
+            from ephemeraldaddy.gui.features.database_view.analytics.trait_rankings_refresh import TraitRankingsRefreshRelay
+            if getattr(self, "_traits_distribution_refresh_relay", None) is None:
+                self._traits_distribution_refresh_relay = TraitRankingsRefreshRelay(self, self._refresh_traits_distribution_rankings_from_cached_context)
+            self._traits_distribution_refresh_relay.set_scope(chart_uids, trait_uid_for_index_item(trait) if trait else "")
+        if trait is None:
+            return []
+        return ranked_trait_rows(
+            chart_uids, trait, hidden_uids=getattr(self, "_hidden_chart_uids", ()),
+            limit=10, refresh_missing=True,
+        )
 
     def _on_traits_distribution_rank_chart_link_activated(self, target: str) -> None:
         """Open a clicked Traits ranking chart in Chart View."""
@@ -5090,22 +5103,6 @@ class DatabaseAnalyticsChartsMixin:
     def _load_traits_distribution_likelihood_cache(self) -> bool:
         """Compatibility entry point: queue one-way import, never own score caches."""
         from ephemeraldaddy.analysis.trait_cache_migration import import_legacy_trait_cache
-        if isinstance(self, QWidget) and getattr(self, "_traits_distribution_refresh_relay", None) is None:
-            from ephemeraldaddy.gui.features.predictions.trait_updates import TraitRefreshRelay
-            def refreshed(chart_uids: frozenset[str], trait_uids: frozenset[str]) -> None:
-                context = getattr(self, "_traits_distribution_rank_context", None)
-                if getattr(self, "_is_closing", False) or not isinstance(context, dict):
-                    return
-                if not chart_uids.intersection(context.get("chart_uids", ())):
-                    return
-                name = str(context.get("selected_trait_name", ""))
-                if any(
-                    t["name"] == name
-                    and str(t.get("uid") or t.get("trait_uid") or "") in trait_uids
-                    for t in list_traits(active_only=True)
-                ):
-                    self._refresh_traits_distribution_rankings_from_cached_context()
-            self._traits_distribution_refresh_relay = TraitRefreshRelay(self, refreshed)
         index = global_trait_prediction_index()
         index.enqueue(import_legacy_trait_cache, key=("import-legacy", str(db.DB_PATH)))
         return True

@@ -45,6 +45,9 @@ Rankings starts its collector for stale cells even when all scores are present,
 and keeps the available rows visible during refresh. Committed legacy imports
 publish only newly inserted cells; Analytics receives completion through the
 shared Qt relay and repaints the current ranking without polling.
+Analytics' snapshot-backed rankings also queue missing/stale cells for only the
+current chart scope and selected Trait. Their scoped relay is installed before
+the cache read, independently of legacy import, and skips unrelated completions.
 
 Trait analytical identities exclude labels, colors, descriptions, sample
 provenance, accuracy reviews, and astro analysis. Existing static rows remain
@@ -75,6 +78,10 @@ snapshots lacking this section report it unavailable until an explicit rebuild.
 No replacement norms are manufactured during rendering.
 Both chart presentation and Weirdness sorting guard persistence with the saved
 chart's astro revision, so a birth save wins over an older calculation.
+Accepted sort results update the score and freshness columns together in raw
+Database View rows. Normalization therefore retains their current status when
+collections change. Row adaptation lives beside the sort controller and
+preserves the older provenance-only row shape.
 
 ## Compatibility boundaries
 

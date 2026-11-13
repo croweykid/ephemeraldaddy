@@ -75,6 +75,47 @@ def test_cached_rankings_and_search_hydrate_and_score_zero_charts(population, mo
     assert not calls
 
 
+@pytest.mark.parametrize('excluded', ['none', 'hidden', 'placeholder'])
+def test_rankings_queues_only_requested_eligible_cells_and_selected_trait(population, monkeypatch, excluded):
+    from ephemeraldaddy.analysis.trait_rankings import ranked_trait_rows
+
+    index, traits, charts, calls, _ = population
+    index.refresh_uids(charts, traits)
+    untouched = db.get_chart_trait_likelihoods('RUNTIMEUID0002')
+    other_trait = db.get_chart_trait_likelihoods('RUNTIMEUID0000')[1]
+    conn = db._get_conn()
+    with conn:
+        conn.execute("UPDATE charts SET lat=20 WHERE chart_uid IN ('RUNTIMEUID0000','RUNTIMEUID0002')")
+        conn.execute("DELETE FROM chart_trait_likelihoods WHERE chart_uid='RUNTIMEUID0001' AND trait_uid='a'")
+        conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid='RUNTIMEUID0001' AND trait_uid='a'")
+        if excluded == 'placeholder':
+            conn.execute("UPDATE charts SET is_placeholder=1 WHERE chart_uid='RUNTIMEUID0001'")
+    conn.close()
+    charts['RUNTIMEUID0000'].lat = charts['RUNTIMEUID0002'].lat = 20.
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    calls.clear()
+    queued = []
+    monkeypatch.setattr(index, 'enqueue', lambda fn, *args, **kwargs: queued.append((fn, args, kwargs)))
+    scope = ['RUNTIMEUID0000', 'RUNTIMEUID0001']
+    hidden = ['RUNTIMEUID0001'] if excluded == 'hidden' else []
+    rows = ranked_trait_rows(scope, traits[0], hidden_uids=hidden, refresh_missing=True)
+    assert [(row['chart_uid'], row['likelihood']) for row in rows] == [('RUNTIMEUID0000', 80.)]
+    assert not calls
+    assert len(queued) == 1
+    fn, args, kwargs = queued.pop()
+    expected = scope if excluded == 'none' else scope[:1]
+    assert list(args[0]) == expected
+    assert args[1] == [traits[0]]
+    kwargs.pop('key')
+    fn(*args, **kwargs)
+    assert calls == [(uid, ('a',)) for uid in expected]
+    assert db.get_chart_trait_likelihoods('RUNTIMEUID0002') == untouched
+    assert db.get_chart_trait_likelihoods('RUNTIMEUID0000')[1] == other_trait
+    ranked_trait_rows(scope, traits[0], hidden_uids=hidden, refresh_missing=True)
+    assert not queued
+
+
 def test_numeric_cache_reuses_each_trait_across_rename_recolor_roster_changes(population):
     index, traits, charts, calls, _ = population
     chart = charts['RUNTIMEUID0000']

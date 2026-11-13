@@ -213,6 +213,143 @@ def test_analytics_legacy_import_refreshes_rankings_after_commit_on_gui_thread(a
         app.processEvents()
 
 
+@pytest.mark.parametrize('cache_state', ['stale', 'missing'])
+def test_analytics_snapshot_rankings_recovers_current_scope_without_legacy_import(app, monkeypatch, cached_population, cache_state):
+    from PySide6.QtWidgets import QWidget, QVBoxLayout
+    from ephemeraldaddy.core import db
+    from ephemeraldaddy.gui.features.charts import database_analytics as ui
+
+    _, traits, charts = cached_population
+    monkeypatch.setattr(ui, 'list_traits', lambda **kwargs: traits)
+    uid = 'REVIEWFIX0001'
+    charts[uid].lat = 30.
+    conn = db._get_conn()
+    with conn:
+        conn.execute('UPDATE charts SET lat=30 WHERE chart_uid=?', (uid,))
+        if cache_state == 'missing':
+            conn.execute('DELETE FROM chart_trait_likelihoods WHERE chart_uid=?', (uid,))
+            conn.execute('DELETE FROM chart_trait_metadata WHERE chart_uid=?', (uid,))
+    conn.close()
+    unchanged = db.get_chart_trait_likelihoods('REVIEWFIX0002')
+    index = runtime.TraitPredictionIndex()
+    monkeypatch.setattr(runtime, '_INDEX', index)
+    calls, deliveries = [], []
+    entered, release = threading.Event(), threading.Event()
+    def score(value, selected, **kwargs):
+        assert QThread.currentThread() != app.thread()
+        calls.append((value.chart_uid, [t['uid'] for t in selected]))
+        entered.set()
+        release.wait(3)
+        return {'T': 80. - value.lat}
+    monkeypatch.setattr(runtime, 'calculate_trait_likelihoods', score)
+    class View(QWidget, ui.DatabaseAnalyticsChartsMixin):
+        _traits_distribution_display_mode = lambda self: 'trait_rankings'
+        _sync_traits_distribution_rank_combo = lambda self, selected: 'T'
+        _sync_traits_distribution_display_mode = lambda self: None
+        _clear_layout = lambda self, layout: None
+        _build_dominant_planet_chart = lambda self, **kwargs: QWidget(self)
+        _build_analysis_export_rows = lambda self, **kwargs: []
+        def _refresh_traits_distribution_rankings_from_cached_context(self):
+            deliveries.append(QThread.currentThread())
+            super()._refresh_traits_distribution_rankings_from_cached_context()
+    owner = View()
+    owner.traits_distribution_rank_label = QLabel(owner)
+    owner.traits_distribution_subheader_label = QLabel(owner)
+    owner.traits_distribution_chart_layout = QVBoxLayout(owner)
+    owner._analysis_chart_export_rows = {}
+    # A pre-existing GUI cache dictionary skips the legacy-import loader.
+    owner._traits_distribution_chart_likelihood_cache = {}
+    owner._schedule_traits_distribution_warm_refresh = lambda: pytest.fail('Snapshot rankings polled instead of handling completion')
+    def render():
+        owner._render_traits_distribution_section(chart_ids=[], database_chart_ids=set(db.get_chart_ids_by_uid(charts).values()), loaded_charts=0, should_refresh=lambda section: True)
+    try:
+        render()
+        wait_for(app, entered.is_set)
+        if cache_state == 'stale':
+            assert '80.0%' in owner.traits_distribution_rank_label.text()
+        assert '70.0%' in owner.traits_distribution_rank_label.text()
+        release.set()
+        wait_for(app, lambda: '50.0%' in owner.traits_distribution_rank_label.text())
+        index._queue.join()
+        assert calls == [(uid, ['t'])]
+        assert deliveries == [app.thread()]
+        assert db.get_chart_trait_likelihoods('REVIEWFIX0002') == unchanged
+        monkeypatch.setattr(db, 'load_charts_by_uids', lambda *a: pytest.fail('Warm ranking hydrated charts'))
+        render()
+        index._queue.join()
+        assert len(deliveries) == 1
+    finally:
+        release.set()
+        index._queue.join()
+        owner.deleteLater()
+        app.processEvents()
+
+
+@pytest.mark.parametrize('row_shape', ['normal', 'compact', 'legacy_provenance'])
+def test_weirdness_completed_rows_survive_normalization_and_collection_switches(app, monkeypatch, cached_population, row_shape):
+    import ast
+    import __future__
+    from pathlib import Path
+    from PySide6.QtWidgets import QWidget
+    from ephemeraldaddy.core import db
+    from ephemeraldaddy.gui.features.database_view import weirdness_sort as ui
+
+    _, _, charts = cached_population
+    uid, other_uid = charts
+    conn = db._get_conn()
+    with conn:
+        conn.execute('UPDATE charts SET auto_generated=1 WHERE chart_uid=?', (uid,))
+    conn.close()
+    monkeypatch.setattr(ui, 'distinguishing_norm_reference', lambda: (({},), 'static'))
+    calls = []
+    def calculate(uids):
+        calls.append(tuple(uids))
+        return {key: 100. + charts[key].lat for key in uids}
+    monkeypatch.setattr(ui, 'refresh_weirdness_scores', calculate)
+    source = ast.parse(Path('ephemeraldaddy/gui/app.py').read_text(encoding='utf-8'))
+    def method(name):
+        node = next(n for n in ast.walk(source) if isinstance(n, ast.FunctionDef) and n.name == name)
+        namespace = {'_DISTINGUISHING_FORMULA_VERSION': ui.DISTINGUISHING_FORMULA_VERSION,
+                     '_normalize_gui_source': lambda value: value, 'SOURCE_PERSONAL': 'personal'}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[node], type_ignores=[])), 'app.py', 'exec', flags=__future__.annotations.compiler_flag), namespace)
+        return namespace[name]
+    class View(QWidget):
+        _normalize_chart_row = method('_normalize_chart_row')
+        _hydrate_missing_weirdness_scores_for_sort = method('_hydrate_missing_weirdness_scores_for_sort')
+        def _populate_list(self):
+            rows = [self._normalize_chart_row(row) for row in self._chart_rows]
+            self._hydrate_missing_weirdness_scores_for_sort([row for row in rows if row[30] in self.collection])
+    owner = View()
+    owner._chart_rows = db.list_charts()
+    if row_shape == 'compact':
+        owner._chart_rows = [tuple(row[:32]) for row in owner._chart_rows]
+    elif row_shape == 'legacy_provenance':
+        owner._chart_rows = [tuple(row[:32]) + (bool(row[35]),) for row in owner._chart_rows]
+    owner.collection = {uid}
+    try:
+        owner._populate_list()
+        wait_for(app, lambda: next(row for row in owner._chart_rows if row[30] == uid)[31] == 100.)
+        assert owner._weirdness_cache_metadata_by_uid[uid] == (ui.DISTINGUISHING_FORMULA_VERSION, 'static')
+        owner.collection = {uid, other_uid}
+        owner._populate_list()
+        wait_for(app, lambda: next(row for row in owner._chart_rows if row[30] == other_uid)[31] == 110.)
+        assert calls == [(uid,), (other_uid,)]
+        owner.collection = {uid}
+        owner._populate_list()
+        owner.collection = {uid, other_uid}
+        owner._populate_list()
+        app.processEvents()
+        assert calls == [(uid,), (other_uid,)]
+        row = next(row for row in owner._chart_rows if row[30] == uid)
+        assert owner._normalize_chart_row(row)[32] == (row_shape != 'compact')
+        other_row = next(row for row in owner._chart_rows if row[30] == other_uid)
+        assert owner._normalize_chart_row(other_row)[32] is False
+    finally:
+        ui._pool.submit(lambda: None).result(timeout=5)
+        owner.deleteLater()
+        app.processEvents()
+
+
 def test_shared_cache_completion_is_delivered_on_gui_thread(app, monkeypatch):
     from ephemeraldaddy.gui.features.predictions.trait_updates import TraitRefreshRelay
     index = runtime.TraitPredictionIndex()
