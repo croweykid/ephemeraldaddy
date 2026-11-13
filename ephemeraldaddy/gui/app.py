@@ -21685,6 +21685,9 @@ class ManageChartsDialog(
             )
         elif self._active_left_panel == "rankings":
             self._refresh_visible_rankings_sections()
+        elif self._active_left_panel == "todays_transits":
+            # The Transit text uses the selected Lilith for positions/aspects.
+            self._refresh_todays_transits_panel()
         elif self._active_left_panel == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,

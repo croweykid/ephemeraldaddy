@@ -54,6 +54,7 @@ def _fake_window(events, *, visible, active, filters, collapsed=False):
         _owner_window=lambda: None,
         _is_left_panel_collapsed=lambda: collapsed,
         _refresh_visible_rankings_sections=refresh_rankings,
+        _refresh_todays_transits_panel=lambda: events.append(("transits",)),
     )
     return window
 
@@ -95,3 +96,31 @@ def test_unrelated_search_without_astrological_filter_does_not_repopulate():
     callback(window, "Natural Lilith")
     assert ("filter_refresh",) not in events
     assert window._rankings_data_dirty is True
+
+def test_visible_transits_refresh_on_lilith_change():
+    callback, events = _callback()
+    window = _fake_window(events, visible=True, active="todays_transits", filters=True)
+    callback(window, "Mean Lilith")
+    assert ("transits",) in events
+    assert events.count(("transits",)) == 1
+    assert ("filter_refresh",) in events
+    assert events.index(("filter_refresh",)) < events.index(("transits",))
+
+
+def test_hidden_or_collapsed_transits_do_not_refresh_in_background():
+    for visible, collapsed in ((False, False), (True, True)):
+        callback, events = _callback()
+        window = _fake_window(
+            events, visible=visible, collapsed=collapsed,
+            active="todays_transits", filters=False,
+        )
+        callback(window, "Natural Lilith")
+        assert ("transits",) not in events
+        assert window._rankings_data_dirty is True
+
+
+def test_other_visible_panel_does_not_refresh_transits():
+    callback, events = _callback()
+    window = _fake_window(events, visible=True, active="rankings", filters=False)
+    callback(window, "Osculating Lilith")
+    assert ("transits",) not in events

@@ -69,3 +69,13 @@ def test_lilith_switch_recalculates_quadrants_with_other_house_analytics():
     # section and filters rendering based on visibility/cache state.
     scheduler = _method("_schedule_chart_render")
     assert '"quadrants"' in scheduler
+
+def test_visible_transits_refresh_through_existing_controller_path():
+    callback = _method("_on_selected_lilith_mode_changed")
+    assert 'elif self._active_left_panel == "todays_transits":' in callback
+    assert "self._refresh_todays_transits_panel()" in callback
+    assert callback.index("if not self._left_panel_visible") < callback.index(
+        'elif self._active_left_panel == "todays_transits":'
+    )
+    wrapper = _method("_refresh_todays_transits_panel")
+    assert "self.transit_panel_controller.refresh_panel()" in wrapper
