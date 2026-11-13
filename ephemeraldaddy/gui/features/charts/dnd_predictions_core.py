@@ -978,20 +978,8 @@ ALIGNMENT_TRAIT_KEYS: tuple[str, ...] = ("good", "evil", "lawful", "chaotic")
 
 
 def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
-    """Expose Fantasy RPG alignments through the same trait scoring shape as custom traits."""
-    items: list[dict[str, Any]] = []
-    for key in ALIGNMENT_TRAIT_KEYS:
-        definition = DND_ALIGNMENTS.get(key, {})
-        if not isinstance(definition, dict):
-            continue
-        label = str(definition.get("label") or key.title()).strip()
-        profile = {
-            name: value
-            for name, value in definition.items()
-            if name not in {"label", "name", "confidence", "color", "motivation", "description", "quotes", "samples", "archived"}
-        }
-        items.append({"name": label, "profile": profile})
-    return items
+    from ephemeraldaddy.analysis.dnd.alignment_predictions import alignment_traits
+    return alignment_traits()
 
 
 def _dnd_alignment_trait_name(trait: Mapping[str, Any]) -> str:
@@ -1023,41 +1011,10 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
 
 
 def _dnd_alignment_norms_token(owner: Any) -> str:
-    """Return a cache token for only the Fantasy RPG alignment baselines.
-
-    The generic Predictions norms token (``_prediction_norms_render_token``) also
-    includes user-created custom Trait baselines.  Using it here makes Alignment
-    caches go stale when the user adds
-    or edits unrelated Traits, even though Alignment only depends on the four
-    fixed Fantasy RPG axes.
-    """
-    trait_items = _dnd_alignment_trait_items()
-    snapshot_provider = getattr(owner, "_prediction_norm_snapshot_trait_averages", None)
-    if callable(snapshot_provider):
-        try:
-            snapshot_averages = snapshot_provider(trait_items)
-        except Exception:
-            snapshot_averages = {}
-        requested_names = [
-            trait_name
-            for trait in trait_items
-            if (trait_name := _dnd_alignment_trait_name(trait))
-        ]
-        if requested_names and isinstance(snapshot_averages, dict) and all(name in snapshot_averages for name in requested_names):
-            return "dnd_alignment_norms:snapshot:" + _cache_key_fingerprint(
-                {name: float(snapshot_averages[name]) for name in requested_names}
-            )
-
-    try:
-        live_norm_signature = _database_norm_signature_from_state(_database_norm_state(owner))
-    except Exception:
-        live_norm_signature = "unavailable"
-    return "dnd_alignment_norms:live:" + _cache_key_fingerprint(
-        {
-            "norm_signature": live_norm_signature,
-            "alignment_trait_signature": _trait_signature_payload(trait_items, strip_uids=True),
-        }
-    )
+    from ephemeraldaddy.core.prediction_norms import trait_norm_signature
+    return "dnd_alignment_norms:static:" + _cache_key_fingerprint([
+        trait_norm_signature(trait) for trait in _dnd_alignment_trait_items()
+    ])
 
 
 def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = False) -> dict[str, dict[str, float]]:
@@ -1088,27 +1045,10 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
         cached_key = cached.get("key")
         if cached_key == cache_key or allow_stale:
             return cached["parts"]
-    trait_items = _dnd_alignment_trait_items()
-    if chart is None or not trait_items:
+    from ephemeraldaddy.analysis.dnd.alignment_predictions import alignment_parts
+    parts = alignment_parts(chart, calculate=not allow_stale)
+    if not parts:
         return {}
-    likelihoods = trait_likelihoods_with_distribution_cache(owner, chart, trait_items)
-    try:
-        database_averages = _database_trait_averages(owner, trait_items)
-    except Exception:
-        database_averages = {}
-    parts: dict[str, dict[str, float]] = {}
-    for trait in trait_items:
-        label = _dnd_alignment_trait_name(trait)
-        key = label.casefold()
-        if label not in likelihoods or label not in database_averages:
-            continue
-        chart_score = float(likelihoods[label])
-        database_score = float(database_averages[label])
-        parts[key] = {
-            "chart": chart_score,
-            "database": database_score,
-            "deviation": chart_score - database_score,
-        }
     try:
         cache_payload = {"chart_uid": _chart_prediction_cache_uid(chart), "key": cache_key, "parts": parts, "cached_at": time.time()}
         setattr(chart, "_dnd_alignment_score_parts_cache", cache_payload)

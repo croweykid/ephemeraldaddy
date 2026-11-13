@@ -751,14 +751,14 @@ def _create_chart_change_log(conn: sqlite3.Connection) -> None:
         END
         """
     )
+    conn.execute("DROP TRIGGER IF EXISTS chart_change_log_astro_update")
     conn.execute(
         """
         CREATE TRIGGER IF NOT EXISTS chart_change_log_astro_update
         AFTER UPDATE OF datetime_iso, birth_place, tz_name, lat, lon,
             birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
             rectification_range_used, rectification_range_start_minute,
-            rectification_range_end_minute, birth_month, birth_day, birth_year,
-            is_placeholder
+            rectification_range_end_minute, birth_month, birth_day, birth_year
         ON charts
         WHEN COALESCE(NEW.chart_uid, '') != '' AND (
             OLD.datetime_iso IS NOT NEW.datetime_iso OR
@@ -772,11 +772,13 @@ def _create_chart_change_log(conn: sqlite3.Connection) -> None:
             OLD.rectification_range_start_minute IS NOT NEW.rectification_range_start_minute OR
             OLD.rectification_range_end_minute IS NOT NEW.rectification_range_end_minute OR
             OLD.birth_month IS NOT NEW.birth_month OR OLD.birth_day IS NOT NEW.birth_day OR
-            OLD.birth_year IS NOT NEW.birth_year OR OLD.is_placeholder IS NOT NEW.is_placeholder
+            OLD.birth_year IS NOT NEW.birth_year
         )
         BEGIN
             INSERT INTO chart_change_log(chart_uid, change_type, astro_data_changed, session_id, changed_at)
             VALUES(UPPER(NEW.chart_uid), 'astro_data_edited', 1, (SELECT session_id FROM chart_change_context WHERE singleton = 1), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+            UPDATE charts SET weirdness_formula_version = NULL, weirdness_norm_signature = NULL
+            WHERE id = NEW.id;
         END
         """
     )
@@ -1027,10 +1029,9 @@ def get_chart_enneagram_prediction_metadata(chart_uid: str) -> dict[str, Any]:
         conn.close()
 
 def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
-    if _charts_table_exists(conn):
-        _ensure_chart_uids(conn)
     existing_columns = _table_columns(conn, "chart_trait_metadata")
     if existing_columns and "chart_uid" not in existing_columns:
+        _ensure_chart_uids(conn)
         conn.execute("ALTER TABLE chart_trait_metadata RENAME TO chart_trait_metadata_legacy")
         _invalidate_table_columns_cache("chart_trait_metadata")
         conn.execute(
@@ -1121,6 +1122,12 @@ def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    # A nullable checkpoint preserves older caches for worker verification.
+    # New predictions stamp the exact durable astro revision they calculated.
+    for table in ("chart_trait_likelihoods", "chart_trait_metadata"):
+        if "astro_revision" not in _table_columns(conn, table):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN astro_revision INTEGER")
+            _invalidate_table_columns_cache(table)
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_chart_trait_likelihoods_chart
@@ -2343,6 +2350,22 @@ def _connect_readonly() -> sqlite3.Connection:
     return _get_conn()
 
 
+_chart_saved_callbacks: set[Callable[[], None]] = set()
+
+
+def register_chart_saved_callback(callback: Callable[[], None]) -> None:
+    """Register a non-GUI post-commit observer for authoritative chart saves."""
+    _chart_saved_callbacks.add(callback)
+
+
+def _chart_save_committed() -> None:
+    for callback in tuple(_chart_saved_callbacks):
+        try:
+            callback()
+        except Exception:
+            logger.exception("Post-save prediction refresh could not be queued")
+
+
 def latest_chart_change_sequence() -> int:
     """Return the durable high-water mark for chart ranking/cache consumers."""
     conn = _connect_readonly()
@@ -2379,6 +2402,39 @@ def chart_changes_since(sequence: int) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def chart_astro_revisions(chart_uids: Iterable[str]) -> dict[str, int]:
+    """Read per-chart astro journal versions without hydrating any charts."""
+    uids = tuple(dict.fromkeys(uid for raw in chart_uids if (uid := _normalize_chart_uid(raw))))
+    revisions: dict[str, int] = {}
+    if not uids:
+        return revisions
+    conn = _connect_readonly()
+    try:
+        for start in range(0, len(uids), 400):
+            chunk = uids[start:start + 400]
+            rows = conn.execute(
+                f"""SELECT charts.chart_uid, COALESCE(MAX(changes.sequence), 0)
+                    FROM charts LEFT JOIN chart_change_log AS changes
+                    ON changes.chart_uid = charts.chart_uid AND changes.astro_data_changed = 1
+                    WHERE charts.chart_uid IN ({','.join('?' for _ in chunk)})
+                    GROUP BY charts.chart_uid""", chunk,
+            )
+            revisions.update((str(uid), int(revision)) for uid, revision in rows)
+    finally:
+        conn.close()
+    return revisions
+
+
+def _chart_astro_revision_matches(conn: sqlite3.Connection, chart_uid: str, expected: int) -> bool:
+    """Check a score's input revision inside its guarded write transaction."""
+    row = conn.execute(
+        """SELECT COALESCE((SELECT MAX(sequence) FROM chart_change_log
+            WHERE chart_uid = charts.chart_uid AND astro_data_changed = 1), 0)
+            FROM charts WHERE chart_uid = ?""", (chart_uid,),
+    ).fetchone()
+    return row is not None and int(row[0]) == expected
 
 
 def _serialize_sentiments(sentiments: Optional[list[str]]) -> Optional[str]:
@@ -4401,6 +4457,7 @@ def save_chart(
         _write_chart_derived_cache(conn, int(chart_id), chart)
     # Publish the UID only after both the row and its cache have committed.
     setattr(chart, "chart_uid", chart_uid)
+    _chart_save_committed()
     return chart_id
 
 
@@ -4761,6 +4818,7 @@ def update_chart(
         setattr(chart, "birth_place", resolved_birth_place)
     conn.close()
     _persist_chart_derived_cache(int(chart_id), chart)
+    _chart_save_committed()
 
 
 def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
@@ -5720,8 +5778,9 @@ def upsert_chart_trait_likelihoods(
     rows: Iterable[Mapping[str, Any]],
     *,
     chart_signature: str,
-) -> None:
-    """Persist chart-local trait likelihoods without DB baseline/deviation data."""
+    expected_astro_revision: int | None = None,
+) -> bool:
+    """Persist chart-local scores, optionally guarding/checkpointing astro inputs."""
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
@@ -5740,12 +5799,17 @@ def upsert_chart_trait_likelihoods(
                 str(row.get("trait_signature", "")),
                 str(chart_signature),
                 now,
+                expected_astro_revision,
             )
         )
     conn = _get_conn()
     try:
         with conn:
+            if expected_astro_revision is not None:
+                conn.execute("BEGIN IMMEDIATE")
             _create_chart_trait_metadata_table(conn)
+            if expected_astro_revision is not None and not _chart_astro_revision_matches(conn, normalized_uid, expected_astro_revision):
+                return False
             if prepared:
                 for _chart_uid, trait_uid, trait_name, *_rest in prepared:
                     if str(trait_uid or "").strip():
@@ -5765,17 +5829,19 @@ def upsert_chart_trait_likelihoods(
                     """
                     INSERT INTO chart_trait_likelihoods (
                         chart_uid, trait_uid, trait_name, likelihood,
-                        trait_signature, chart_signature, updated_at
+                        trait_signature, chart_signature, updated_at, astro_revision
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(chart_uid, trait_uid, trait_name) DO UPDATE SET
                         likelihood = excluded.likelihood,
                         trait_signature = excluded.trait_signature,
                         chart_signature = excluded.chart_signature,
-                        updated_at = excluded.updated_at
+                        updated_at = excluded.updated_at,
+                        astro_revision = excluded.astro_revision
                     """,
                     prepared,
                 )
+        return True
     finally:
         conn.close()
 
@@ -5895,8 +5961,9 @@ def upsert_chart_trait_metadata(
     trait_signature: str,
     norm_signature: str,
     chart_signature: str = "",
-) -> None:
-    """Persist derived trait metadata rows for a chart."""
+    expected_astro_revision: int | None = None,
+) -> bool:
+    """Persist derived rows, optionally guarding/checkpointing astro inputs."""
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
@@ -5919,24 +5986,33 @@ def upsert_chart_trait_metadata(
                 float(row.get("db_average", 0.0)),
                 float(row.get("deviation", 0.0)),
                 str(row.get("trait_signature", trait_signature)),
-                str(norm_signature),
+                str(row.get("norm_signature", norm_signature)),
                 str(chart_signature),
                 now,
+                expected_astro_revision,
             )
         )
     conn = _get_conn()
     try:
         with conn:
+            if expected_astro_revision is not None:
+                conn.execute("BEGIN IMMEDIATE")
             _create_chart_trait_metadata_table(conn)
-            conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid = ?", (normalized_uid,))
+            if expected_astro_revision is not None and not _chart_astro_revision_matches(conn, normalized_uid, expected_astro_revision):
+                return False
             if prepared:
+                for _uid, trait_uid, trait_name, *_rest in prepared:
+                    if trait_uid:
+                        conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid = ? AND trait_uid = ?", (normalized_uid, trait_uid))
+                    else:
+                        conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid = ? AND trait_uid = '' AND trait_name = ?", (normalized_uid, trait_name))
                 conn.executemany(
                     """
                     INSERT INTO chart_trait_metadata (
                         chart_uid, trait_uid, trait_name, direction, likelihood, db_average,
-                        deviation, trait_signature, norm_signature, chart_signature, updated_at
+                        deviation, trait_signature, norm_signature, chart_signature, updated_at, astro_revision
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(chart_uid, trait_name) DO UPDATE SET
                         trait_uid = excluded.trait_uid,
                         direction = excluded.direction,
@@ -5946,10 +6022,12 @@ def upsert_chart_trait_metadata(
                         trait_signature = excluded.trait_signature,
                         norm_signature = excluded.norm_signature,
                         chart_signature = excluded.chart_signature,
-                        updated_at = excluded.updated_at
+                        updated_at = excluded.updated_at,
+                        astro_revision = excluded.astro_revision
                     """,
                     prepared,
                 )
+        return True
     finally:
         conn.close()
 
@@ -5978,6 +6056,108 @@ def get_chart_trait_metadata(chart_uid: str) -> list[dict[str, Any]]:
         conn.close()
 
 
+def import_trait_likelihood_rows(rows: Iterable[Mapping[str, Any]]) -> frozenset[tuple[str, str]]:
+    """Migrate without overwriting scores; return inserted chart/Trait UID pairs."""
+    conn = _get_conn()
+    inserted: set[tuple[str, str]] = set()
+    try:
+        with conn:
+            _create_chart_trait_metadata_table(conn)
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            for row in rows:
+                uid = _normalize_chart_uid(row.get("chart_uid"))
+                if uid is None:
+                    continue
+                cursor = conn.execute("""INSERT INTO chart_trait_likelihoods(chart_uid, trait_uid, trait_name, likelihood, trait_signature, chart_signature, updated_at)
+                    SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS(SELECT 1 FROM charts WHERE chart_uid = ?)
+                    AND NOT EXISTS(SELECT 1 FROM chart_trait_likelihoods WHERE chart_uid = ? AND (trait_uid = ? OR trait_name = ?))""",
+                    (uid, row["trait_uid"], row["trait_name"], row["likelihood"], row["trait_signature"], row.get("chart_signature", "legacy"), now, uid, uid, row["trait_uid"], row["trait_name"]))
+                if cursor.rowcount > 0:
+                    inserted.add((uid, str(row["trait_uid"])))
+        return frozenset(inserted)
+    finally:
+        conn.close()
+
+
+def prediction_chart_uids() -> tuple[str, ...]:
+    """Eligible UID roster, without hydrating charts or their calculations."""
+    conn = _get_conn()
+    try:
+        return tuple(str(row[0]) for row in conn.execute("SELECT chart_uid FROM charts WHERE COALESCE(is_placeholder, 0) = 0 AND chart_uid != ''"))
+    finally:
+        conn.close()
+
+
+def prediction_chart_labels(chart_uids: Iterable[str]) -> dict[str, str]:
+    """Batch-load labels only, for numerical ranking presentation."""
+    uids = tuple(dict.fromkeys(uid for raw in chart_uids if (uid := _normalize_chart_uid(raw))))
+    result = {}
+    conn = _get_conn()
+    try:
+        for start in range(0, len(uids), 400):
+            chunk = uids[start:start + 400]
+            rows = conn.execute(f"SELECT chart_uid, name FROM charts WHERE chart_uid IN ({','.join('?' for _ in chunk)}) AND COALESCE(is_placeholder, 0) = 0", chunk)
+            result.update({str(uid): str(name or uid) for uid, name in rows})
+    finally:
+        conn.close()
+    return result
+
+
+def get_trait_prediction_rows_by_uids(chart_uids: Iterable[str], trait_uids: Iterable[str] | None = None, *, trait_names: Iterable[str] = ()) -> dict[str, list[dict[str, Any]]]:
+    """Batch-read score and presentation caches; never load/recalculate charts."""
+    uids = tuple(dict.fromkeys(uid for raw in chart_uids if (uid := _normalize_chart_uid(raw))))
+    selected_traits = tuple(dict.fromkeys(str(uid).strip() for uid in (trait_uids or ()) if str(uid).strip()))
+    selected_names = tuple(dict.fromkeys(str(name) for name in trait_names))
+    result = {uid: [] for uid in uids}
+    if not uids:
+        return result
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        _create_chart_trait_metadata_table(conn)
+        for start in range(0, len(uids), 400):
+            chunk = uids[start:start + 400]
+            scope = ','.join('?' for _ in chunk)
+            # Prefer raw scores; metadata is a migration fallback for older caches.
+            for table in ("chart_trait_likelihoods", "chart_trait_metadata"):
+                conditions = []
+                params = list(chunk)
+                if selected_traits:
+                    conditions.append(f"p.trait_uid IN ({','.join('?' for _ in selected_traits)})")
+                    params.extend(selected_traits)
+                if selected_names:
+                    conditions.append(f"(COALESCE(p.trait_uid, '') = '' AND p.trait_name IN ({','.join('?' for _ in selected_names)}))")
+                    params.extend(selected_names)
+                predicate = " AND (" + " OR ".join(conditions) + ")" if conditions else ""
+                query = f"""WITH revisions AS (
+                    SELECT c.chart_uid, COALESCE(MAX(log.sequence), 0) AS current_astro_revision,
+                        COALESCE(MAX(CASE WHEN log.change_type = 'astro_data_edited'
+                            THEN log.sequence ELSE 0 END), 0) AS latest_astro_edit_revision
+                    FROM charts c LEFT JOIN chart_change_log log
+                        ON log.chart_uid = c.chart_uid AND log.astro_data_changed = 1
+                    WHERE c.chart_uid IN ({scope}) GROUP BY c.chart_uid
+                )
+                SELECT p.chart_uid, p.trait_uid, p.trait_name, p.likelihood,
+                    p.trait_signature, p.chart_signature, p.updated_at,
+                    p.astro_revision AS cached_astro_revision,
+                    revisions.current_astro_revision, revisions.latest_astro_edit_revision,
+                    CASE WHEN COALESCE(c.birthtime_unknown, 0) = 0 OR
+                        (COALESCE(c.retcon_time_used, 0) = 1 AND c.retcon_hour BETWEEN 0 AND 23
+                            AND c.retcon_minute BETWEEN 0 AND 59) THEN 1 ELSE 0 END AS uses_houses
+                FROM revisions JOIN {table} p ON p.chart_uid = revisions.chart_uid
+                    JOIN charts c ON c.chart_uid = p.chart_uid WHERE 1 = 1{predicate}"""
+                rows = conn.execute(query, params).fetchall()
+                for row in rows:
+                    value = dict(row)
+                    if selected_traits and value["trait_uid"] and value["trait_uid"] not in selected_traits:
+                        continue
+                    value["cache_source"] = table
+                    result[value.pop("chart_uid")].append(value)
+        return result
+    finally:
+        conn.close()
+
+
 def purge_chart_trait_metadata_for_trait(*, trait_uid: str = "", trait_name: str = "") -> int:
     """Delete persisted derived trait metadata for a removed trait across all charts."""
     normalized_uid = str(trait_uid or "").strip()
@@ -6000,7 +6180,9 @@ def purge_chart_trait_metadata_for_trait(*, trait_uid: str = "", trait_name: str
                 f"DELETE FROM chart_trait_metadata WHERE {' OR '.join(clauses)}",
                 tuple(params),
             )
-            return int(cursor.rowcount or 0)
+            count = int(cursor.rowcount or 0)
+            conn.execute(f"DELETE FROM chart_trait_likelihoods WHERE {' OR '.join(clauses)}", tuple(params))
+            return count
     finally:
         conn.close()
 
@@ -6986,20 +7168,32 @@ def update_chart_dominant_sign_weights(
     conn.close()
 
 
+def update_chart_weirdness_score_by_uid(chart_uid: str, score: float, *, formula_version: int, norm_signature: str, expected_astro_revision: int | None = None) -> bool:
+    row = get_chart_id_by_uid(chart_uid)
+    return update_chart_weirdness_score(row, score, formula_version=formula_version, norm_signature=norm_signature, expected_astro_revision=expected_astro_revision) if row is not None else False
+
+
 def update_chart_weirdness_score(
     chart_id: int,
     weirdness_score: Any,
     *,
     formula_version: int | None = None,
     norm_signature: str | None = None,
+    expected_astro_revision: int | None = None,
 ) -> bool:
-    """Persist a derived weirdness score and its cache-validity metadata."""
+    """Persist Weirdness, optionally requiring an unchanged astro revision.
+
+    A guarded write reports acceptance, including an identical current score.
+    The comparison and write share a lock so a birth save cannot intervene.
+    """
     normalized_score = _normalize_weirdness_score(weirdness_score)
     normalized_formula_version = int(formula_version) if formula_version is not None else None
     normalized_norm_signature = str(norm_signature or "")
     conn = _get_conn()
     try:
         with conn:
+            if expected_astro_revision is not None:
+                conn.execute("BEGIN IMMEDIATE")
             columns = _table_columns(conn, "charts")
             if "weirdness_score" not in columns:
                 conn.execute("ALTER TABLE charts ADD COLUMN weirdness_score REAL")
@@ -7014,13 +7208,17 @@ def update_chart_weirdness_score(
                 _invalidate_table_columns_cache("charts")
             row = conn.execute(
                 """
-                SELECT weirdness_score, weirdness_formula_version, weirdness_norm_signature
+                SELECT weirdness_score, weirdness_formula_version, weirdness_norm_signature,
+                       is_placeholder, (SELECT COALESCE(MAX(sequence), 0) FROM chart_change_log
+                           WHERE chart_uid = charts.chart_uid AND astro_data_changed = 1)
                 FROM charts
                 WHERE id = ?
                 """,
                 (int(chart_id),),
             ).fetchone()
             if row is None:
+                return False
+            if expected_astro_revision is not None and (bool(row[3]) or int(row[4]) != expected_astro_revision):
                 return False
             current_score = _normalize_weirdness_score(row[0])
             current_formula_version = int(row[1]) if row[1] is not None else None
@@ -7030,7 +7228,7 @@ def update_chart_weirdness_score(
                 and current_formula_version == normalized_formula_version
                 and current_norm_signature == normalized_norm_signature
             ):
-                return False
+                return expected_astro_revision is not None
             conn.execute(
                 """
                 UPDATE charts

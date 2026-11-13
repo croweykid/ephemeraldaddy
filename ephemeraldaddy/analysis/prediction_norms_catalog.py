@@ -360,4 +360,15 @@ def legacy_prediction_snapshot_to_catalog(payload: Mapping[str, Any]) -> dict[st
             if isinstance(value, (int, float))
         }
     sections[PREDICTION_NORMS_SECTION_FANTASY_RPG]["rows"] = fantasy_rows
+    enneagram_rows = {}
+    for old, new in (("enneagram_type_raw_averages", "type_raw_averages"), ("enneagram_definition_signature", "definition_signature")):
+        if old in payload:
+            enneagram_rows[new] = payload[old]
+    sections[PREDICTION_NORMS_SECTION_ENNEAGRAM]["rows"] = enneagram_rows
+    if "distinguishing_metric_payloads" in payload:
+        sections[PREDICTION_NORMS_SECTION_DISTINGUISHING_FACTORS]["rows"] = {"metric_payloads": payload["distinguishing_metric_payloads"]}
+    # Themes retain the existing reader contract until they gain a catalog section.
+    for key, value in payload.items():
+        if str(key).startswith("theme_"):
+            catalog[str(key)] = value
     return catalog

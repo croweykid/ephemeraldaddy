@@ -76,22 +76,14 @@ def _trait_key(trait: Mapping[str, Any]) -> str:
 
 
 def _trait_payload(trait: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "key": _trait_key(trait),
-        "uid": str(trait.get("uid", "") or trait.get("trait_uid", "") or "").strip(),
-        "name": str(trait.get("name", "") or "").strip(),
-        "profile_hash": _stable_hash(without_trait_reviews(trait.get("profile", {}) or {})),
-    }
+    from ephemeraldaddy.analysis.trait_signatures import trait_definition_signature
+    return {"key": _trait_key(trait), "uid": str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
+            "name": str(trait.get("name") or "").strip(), "profile_hash": trait_definition_signature(trait)}
 
 
 def load_prediction_norms_source() -> str:
-    """Return the explicitly selected population baseline source."""
-    try:
-        payload = json.loads(PREDICTION_NORMS_SOURCE_PATH.read_text(encoding="utf-8"))
-        source = str(payload.get("source", "") or "")
-    except (FileNotFoundError, TypeError, ValueError, OSError):
-        source = ""
-    return source if source in PREDICTION_NORMS_SOURCES else PREDICTION_NORMS_SOURCE_OFFICIAL
+    from ephemeraldaddy.core.prediction_norms import PredictionNormPaths, selected_norm_source
+    return selected_norm_source(PredictionNormPaths(PREDICTION_NORMS_SOURCE_PATH, OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH, PREDICTION_NORMS_SNAPSHOT_PATH, PREDICTION_NORMS_TRAIT_EXTENSIONS_PATH))
 
 
 def save_prediction_norms_source(source: str) -> str:
@@ -117,59 +109,19 @@ def prediction_norms_snapshot_path(source: str | None = None) -> Path:
 
 
 def _load_snapshot_file(snapshot_path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {}
-    except Exception as exc:
-        logger.warning("Skipped corrupt Predictions norms snapshot %s: %s", snapshot_path, exc, exc_info=True)
-        return {}
-    if not isinstance(payload, dict) or payload.get("version") != PREDICTION_NORMS_SNAPSHOT_VERSION:
-        return {}
-    return payload
+    from ephemeraldaddy.core.prediction_norms import read_snapshot_file
+    return read_snapshot_file(snapshot_path)
 
 
-def load_prediction_norms_snapshot(
-    path: Path | None = None,
-    *,
-    source: str | None = None,
-    include_trait_extensions: bool = True,
-) -> dict[str, Any]:
-    """Load one population snapshot plus the explicit custom-Trait extension.
-
-    The extension contributes only custom ``trait_baselines``. It can never
-    replace population data for other predictor sections, so Official and My
-    Database are never silently merged.
-    """
+def load_prediction_norms_snapshot(path: Path | None = None, *, source: str | None = None, include_trait_extensions: bool = True) -> dict[str, Any]:
+    """Compatibility facade over the GUI-free, shared static reference reader."""
+    from ephemeraldaddy.core.prediction_norms import PredictionNormPaths, load_prediction_norms_snapshot as read
     if path is not None:
         return _load_snapshot_file(path)
-    selected = source or load_prediction_norms_source()
-    population_path = prediction_norms_snapshot_path(selected)
-    population = _load_snapshot_file(population_path)
-    resolved = dict(population)
-    extension = (
-        _load_snapshot_file(PREDICTION_NORMS_TRAIT_EXTENSIONS_PATH)
-        if include_trait_extensions and selected == PREDICTION_NORMS_SOURCE_OFFICIAL
-        else {}
-    )
-    population_rows = dict(population.get("trait_baselines", {}) or {})
-    extension_rows = dict(extension.get("trait_baselines", {}) or {})
-    for key, row in extension_rows.items():
-        # Extensions fill custom-trait gaps; they never shadow a bundled row.
-        population_rows.setdefault(key, row)
-    resolved["trait_baselines"] = population_rows
-    resolved["active_source"] = selected
-    resolved["population_snapshot_path"] = str(population_path)
-    resolved["population_snapshot_id"] = str(population.get("snapshot_id", "") or "")
-    resolved["trait_extension_snapshot_id"] = str(extension.get("snapshot_id", "") or "")
-    resolved["snapshot_id"] = _stable_hash(
-        {
-            "source": selected,
-            "population": resolved["population_snapshot_id"],
-            "trait_extensions": resolved["trait_extension_snapshot_id"],
-        }
-    )
-    return resolved
+    return read(paths=PredictionNormPaths(PREDICTION_NORMS_SOURCE_PATH,
+        OFFICIAL_PREDICTION_NORMS_SNAPSHOT_PATH, PREDICTION_NORMS_SNAPSHOT_PATH,
+        PREDICTION_NORMS_TRAIT_EXTENSIONS_PATH), source=source,
+        include_trait_extensions=include_trait_extensions)
 
 
 def prediction_norms_source_metadata(source: str | None = None) -> dict[str, Any]:
@@ -261,32 +213,17 @@ def set_trait_retired_in_prediction_norms_snapshot(
 
 
 def prediction_norms_snapshot_token(owner: Any | None = None) -> str:
-    payload = load_prediction_norms_snapshot()
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    payload = prediction_norms_reference()
     if payload:
         return str(payload.get("snapshot_id") or payload.get("norm_signature") or "prediction_norm_snapshot:present")
     return "prediction_norm_snapshot:missing"
 
 
 def trait_snapshot_averages(traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None) -> dict[str, float]:
-    payload = dict(snapshot or load_prediction_norms_snapshot())
-    rows = payload.get("trait_baselines", {}) if isinstance(payload, dict) else {}
-    if not isinstance(rows, dict):
-        return {}
-    averages: dict[str, float] = {}
-    for trait in traits:
-        name = str(trait.get("name", "") or "").strip()
-        if not name:
-            continue
-        row = rows.get(_trait_key(trait))
-        if not isinstance(row, dict):
-            continue
-        if str(row.get("profile_hash", "") or "") != _stable_hash(without_trait_reviews(trait.get("profile", {}) or {})):
-            continue
-        try:
-            averages[name] = float(row.get("db_average", 0.0))
-        except (TypeError, ValueError):
-            continue
-    return averages
+    """Read mode-agnostic availability summaries; scoring selects its own mode."""
+    from ephemeraldaddy.core.prediction_norms import trait_norm_preflight_values
+    return trait_norm_preflight_values(traits, snapshot)
 
 
 def missing_trait_norms(
@@ -301,39 +238,17 @@ def missing_trait_norms(
     ]
 
 
-def trait_norm_unavailability_reasons(
-    traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None
-) -> dict[str, str]:
-    """Explain why each requested trait cannot use a stored norm."""
-    payload = dict(snapshot or load_prediction_norms_snapshot())
-    rows = payload.get("trait_baselines", {}) if isinstance(payload, dict) else {}
-    rows = rows if isinstance(rows, dict) else {}
-    reasons: dict[str, str] = {}
-    for trait in traits:
-        name = str(trait.get("name", "") or "").strip() or "<unnamed>"
-        row = rows.get(_trait_key(trait))
-        if not isinstance(row, dict):
-            reasons[name] = "no stored DB norm exists for this trait profile"
-            continue
-        stored_hash = str(row.get("profile_hash", "") or "")
-        current_hash = _stable_hash(without_trait_reviews(trait.get("profile", {}) or {}))
-        if stored_hash != current_hash:
-            reasons[name] = "the trait's analytical profile changed after its DB norm was calculated"
-            continue
-        try:
-            float(row["db_average"])
-        except KeyError:
-            reasons[name] = "the stored norm row has no db_average value"
-        except (TypeError, ValueError):
-            reasons[name] = "the stored db_average value is not numeric"
-    return reasons
+def trait_norm_unavailability_reasons(traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None) -> dict[str, str]:
+    available = trait_snapshot_averages(traits, snapshot)
+    return {trait["name"]: "no stored DB norm exists for this trait UID" for trait in traits if trait["name"] not in available}
 
 
 def prospective_trait_snapshot_token(
     traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None
 ) -> str:
     """Return the token produced after merging the requested missing traits."""
-    payload = dict(snapshot or load_prediction_norms_snapshot())
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    payload = dict(snapshot if snapshot is not None else prediction_norms_reference())
     missing = missing_trait_norms(traits, payload)
     current_token = str(payload.get("snapshot_id", "") or "")
     if not missing:
@@ -354,7 +269,8 @@ def prospective_trait_snapshot_token(
 
 
 def dnd_stat_snapshot_averages(snapshot: Mapping[str, Any] | None = None) -> dict[str, float]:
-    payload = dict(snapshot or load_prediction_norms_snapshot())
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    payload = dict(snapshot if snapshot is not None else prediction_norms_reference())
     rows = payload.get("dnd_stat_raw_averages", {}) if isinstance(payload, dict) else {}
     if not isinstance(rows, dict):
         return {}
@@ -447,9 +363,12 @@ def refresh_prediction_norms_snapshot(
     for source, group_traits in trait_groups:
         if not group_traits:
             continue
-        from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
-
-        averages = _database_trait_averages(owner, group_traits, force_refresh_stale=True)
+        from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods
+        totals = {trait["name"]: 0.0 for trait in group_traits}
+        for chart in charts:
+            for name, value in calculate_trait_likelihoods(chart, group_traits).items():
+                totals[name] += value
+        averages = {name: total / len(charts) for name, total in totals.items()} if charts else {}
         for trait in group_traits:
             name = str(trait.get("name", "") or "").strip()
             if not name or name not in averages:
@@ -476,6 +395,7 @@ def refresh_prediction_norms_snapshot(
 
     chart_uids = tuple(sorted(_chart_uid(chart) for chart in charts if _chart_uid(chart)))
     norm_signature = _stable_hash({"chart_uids": chart_uids})
+    from ephemeraldaddy.analysis.distinguishing_factors import distinguishing_metric_payload_for_chart
     snapshot = {
         "version": PREDICTION_NORMS_SNAPSHOT_VERSION,
         "snapshot_id": _stable_hash({
@@ -491,6 +411,10 @@ def refresh_prediction_norms_snapshot(
         "retired_trait_keys": [],
         "dnd_alignment_trait_keys": [str(trait.get("name", "") or "") for trait in dnd_alignment_traits],
         "dnd_stat_raw_averages": dnd_stat_raw_averages,
+        "distinguishing_metric_payloads": [
+            distinguishing_metric_payload_for_chart(chart)
+            for chart in charts
+        ],
     }
     # A manual rebuild creates/replaces My Database only. The bundled Official
     # catalog and the user's explicit source selection are independent.

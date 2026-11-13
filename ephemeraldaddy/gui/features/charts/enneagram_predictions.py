@@ -24,10 +24,10 @@ def _snapshot_database_norm_averages(
     from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
         ExplicitNormRecalculationRequired,
         enneagram_type_snapshot_averages,
-        load_prediction_norms_snapshot,
     )
 
-    snapshot = load_prediction_norms_snapshot()
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    snapshot = prediction_norms_reference()
     stored_definition_signature = str(
         snapshot.get("enneagram_definition_signature", "") or ""
     )

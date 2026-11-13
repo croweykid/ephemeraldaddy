@@ -27,7 +27,8 @@ def enneagram_type_snapshot_averages(
     snapshot: Mapping[str, Any] | None = None,
 ) -> dict[int, float]:
     """Read a complete finite Enneagram 1-9 baseline from the selected snapshot."""
-    payload = dict(snapshot or _core.load_prediction_norms_snapshot())
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    payload = dict(snapshot if snapshot is not None else prediction_norms_reference())
     rows = payload.get("enneagram_type_raw_averages", {}) if isinstance(payload, dict) else {}
     if not isinstance(rows, Mapping):
         return {}
@@ -147,9 +148,8 @@ def refresh_prediction_norms_snapshot(
             f"Calculating {source.replace('_', ' ')} baselines",
             force_terminal=True,
         )
-        from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
-
-        averages = _database_trait_averages(owner, group_traits, force_refresh_stale=True)
+        from ephemeraldaddy.analysis.prediction_norms_generator import trait_population_means
+        averages = trait_population_means(charts, group_traits)
         for trait in group_traits:
             name = str(trait.get("name", "") or "").strip()
             if not name or name not in averages:
@@ -219,6 +219,7 @@ def refresh_prediction_norms_snapshot(
         sorted(_core._chart_uid(chart) for chart in charts if _core._chart_uid(chart))
     )
     norm_signature = _core._stable_hash({"chart_uids": chart_uids})
+    from ephemeraldaddy.analysis.distinguishing_factors import distinguishing_metric_payload_for_chart
     snapshot = {
         "version": _core.PREDICTION_NORMS_SNAPSHOT_VERSION,
         "snapshot_id": _core._stable_hash(
@@ -240,6 +241,7 @@ def refresh_prediction_norms_snapshot(
             str(trait.get("name", "") or "") for trait in dnd_alignment_traits
         ],
         "dnd_stat_raw_averages": dnd_stat_raw_averages,
+        "distinguishing_metric_payloads": [distinguishing_metric_payload_for_chart(chart) for chart in charts],
         "enneagram_type_raw_averages": {
             str(enneagram_type): float(value)
             for enneagram_type, value in enneagram_type_raw_averages.items()

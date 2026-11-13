@@ -319,7 +319,8 @@ def render_theme_predictions(owner: Any, chart: Any | None) -> None:
         _refresh_theme_prediction_filter(owner)
         return
 
-    snapshot = load_prediction_norms_snapshot()
+    from ephemeraldaddy.core.prediction_norms import prediction_norms_reference
+    snapshot = dict(prediction_norms_reference())
     db_averages = theme_family_snapshot_averages(snapshot)
     if not db_averages:
         reason = theme_snapshot_unavailability_reason(snapshot)
