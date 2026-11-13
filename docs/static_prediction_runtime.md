@@ -55,6 +55,10 @@ usable by UID even when their legacy full-profile hash differs. This deliberatel
 accepts stale references rather than silently regenerating a population baseline.
 V2 distributions retain their separate recorded/exact-rectified and unknown-time
 house policies. No distribution spread is invented for v1 means.
+Rankings and Rate Accuracy share a mode-agnostic norm preflight: a Trait is
+available when either stored distribution is usable, including no-house-only
+catalogs. Actual chart classification still requires its own mode's reference;
+preflight does not substitute one distribution for the other.
 
 Numerical/factor-evidence work lives in `analysis/`, not `app.py`. Qt job and
 presentation boundaries live in `gui/features/predictions/`; Database View's

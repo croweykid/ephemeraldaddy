@@ -58,14 +58,30 @@ def cached_population(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('stale_source', ['astro_data', 'definition'])
-def test_rankings_repairs_present_but_stale_scores_after_restart(app, monkeypatch, cached_population, stale_source):
+@pytest.mark.parametrize('norm_mode', ['legacy', 'without_houses'])
+def test_rankings_repairs_present_but_stale_scores_after_restart(app, monkeypatch, cached_population, stale_source, norm_mode):
     import json
     from PySide6.QtWidgets import QWidget
-    from ephemeraldaddy.core import db
+    from ephemeraldaddy.core import db, prediction_norms as norms
     from ephemeraldaddy.gui import ranking_panel_core as ui
 
     _, traits, charts = cached_population
     monkeypatch.setattr(ui, 'list_traits', lambda **kwargs: traits)
+    if norm_mode == 'without_houses':
+        from ephemeraldaddy.analysis.prediction_norms_catalog import build_trait_norm_row
+        row = build_trait_norm_row(key='uid:t', uid='t', name='T', profile_hash='old', source='official',
+                                   with_houses_scores=[], without_houses_scores=[40., 60.])
+        norms.default_norm_paths().official.write_text(json.dumps({
+            'catalog_version': 2, 'snapshot_id': 'no-house-only',
+            'sections': {'traits': {'rows': {'uid:t': row}}},
+        }))
+        conn = db._get_conn()
+        with conn:
+            conn.execute('UPDATE charts SET birthtime_unknown=1')
+        conn.close()
+        for value in charts.values():
+            value.birthtime_unknown = True
+        runtime.global_trait_prediction_index().refresh_uids(charts, traits)
     uid = 'REVIEWFIX0001'
     if stale_source == 'astro_data':
         charts[uid].lat = 30.

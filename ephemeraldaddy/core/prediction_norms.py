@@ -172,6 +172,22 @@ def trait_norm_values(traits: list[dict[str, Any]], snapshot: Mapping[str, Any] 
     return result
 
 
+def trait_norm_preflight_values(
+    traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None,
+) -> dict[str, float]:
+    """Return available reference summaries across house modes for UI preflight.
+
+    Prefer the house-enabled summary when both exist. Numerical classification
+    must keep using trait_norm_values with the chart's explicit house mode.
+    """
+    reference = prediction_norms_reference() if snapshot is None else _legacy_projection(snapshot)
+    values = trait_norm_values(traits, reference, include_houses=True)
+    missing = [trait for trait in traits if str(trait.get("name") or "").strip() not in values]
+    if missing:
+        values.update(trait_norm_values(missing, reference, include_houses=False))
+    return values
+
+
 def trait_norm_signature(trait: Mapping[str, Any], snapshot: Mapping[str, Any] | None = None) -> str:
     snapshot = snapshot if snapshot is not None else prediction_norms_reference()
     return stable_hash({"uid": trait.get("uid") or trait.get("trait_uid"),

@@ -567,6 +567,56 @@ def test_accuracy_review_accepts_each_available_static_norm_mode(population, mod
     assert not calls
 
 
+@pytest.mark.parametrize(('with_scores', 'without_scores', 'expected'), [
+    ([20., 40.], [], 30.),
+    ([], [60., 80.], 70.),
+    ([20., 40.], [60., 80.], 30.),
+    ([], [], None),
+    ([0., 0.], [60., 80.], 0.),
+])
+def test_trait_norm_preflight_accepts_available_modes_without_cross_mode_classification(population, monkeypatch, with_scores, without_scores, expected):
+    from ephemeraldaddy.analysis.prediction_norms_catalog import build_trait_norm_row
+    from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot_core as facade
+
+    _, traits, _, calls, paths = population
+    selected = [traits[0]]
+    row = build_trait_norm_row(key='uid:a', uid='a', name='Artist', profile_hash='old', source='my_database',
+                               with_houses_scores=with_scores, without_houses_scores=without_scores)
+    catalog = {'catalog_version': 2, 'snapshot_id': 'preflight-v2', 'sections': {'traits': {'rows': {'uid:a': row}}}}
+    paths.personal.write_text(json.dumps(catalog))
+    monkeypatch.setattr(db, 'load_charts_by_uids', lambda *a: pytest.fail('Norm availability hydrated charts'))
+    monkeypatch.setattr(db, 'load_chart_by_uid', lambda *a: pytest.fail('Norm availability hydrated a chart'))
+    values = {} if expected is None else {'Artist': expected}
+    assert norms.trait_norm_preflight_values(selected) == values
+    assert facade.trait_snapshot_averages(selected) == values
+    assert facade.trait_snapshot_averages(selected, catalog) == values
+    assert facade.missing_trait_norms(selected, catalog) == (selected if expected is None else [])
+    reference = norms.prediction_norms_reference()
+    for include_houses, scores in ((True, with_scores), (False, without_scores)):
+        mode_values = {'Artist': sum(scores)/len(scores)} if scores else {}
+        assert norms.trait_norm_values(selected, reference, include_houses=include_houses) == mode_values
+    assert not calls
+
+
+def test_trait_norm_preflight_accepts_different_available_modes_per_trait(population):
+    from ephemeraldaddy.analysis.prediction_norms_catalog import build_trait_norm_row
+    from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot_core as facade
+
+    _, traits, _, calls, paths = population
+    rows = {
+        'uid:a': build_trait_norm_row(key='uid:a', uid='a', name='Artist', profile_hash='old', source='my_database',
+                                     with_houses_scores=[20., 40.], without_houses_scores=[]),
+        'uid:b': build_trait_norm_row(key='uid:b', uid='b', name='Builder', profile_hash='old', source='my_database',
+                                     with_houses_scores=[], without_houses_scores=[60., 80.]),
+    }
+    catalog = {'catalog_version': 2, 'snapshot_id': 'mixed-modes', 'sections': {'traits': {'rows': rows}}}
+    paths.personal.write_text(json.dumps(catalog))
+    assert facade.trait_snapshot_averages(traits) == {'Artist': 30., 'Builder': 70.}
+    assert facade.missing_trait_norms(traits, catalog) == []
+    assert facade.trait_norm_unavailability_reasons(traits, catalog) == {}
+    assert not calls
+
+
 def test_accuracy_review_rejects_norms_without_a_usable_distribution(population):
     from ephemeraldaddy.analysis.prediction_norms_catalog import build_trait_norm_row
     from ephemeraldaddy.analysis.trait_rankings import accuracy_rankings

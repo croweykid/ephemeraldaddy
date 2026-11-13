@@ -221,8 +221,9 @@ def prediction_norms_snapshot_token(owner: Any | None = None) -> str:
 
 
 def trait_snapshot_averages(traits: list[dict[str, Any]], snapshot: Mapping[str, Any] | None = None) -> dict[str, float]:
-    from ephemeraldaddy.core.prediction_norms import trait_norm_values, prediction_norms_reference
-    return trait_norm_values(traits, snapshot if snapshot is not None else prediction_norms_reference(), include_houses=True)
+    """Read mode-agnostic availability summaries; scoring selects its own mode."""
+    from ephemeraldaddy.core.prediction_norms import trait_norm_preflight_values
+    return trait_norm_preflight_values(traits, snapshot)
 
 
 def missing_trait_norms(
