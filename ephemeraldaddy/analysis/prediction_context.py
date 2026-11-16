@@ -136,25 +136,25 @@ def _birth_time_policy(chart: Any) -> tuple[str, tuple[int, int] | None]:
 
 
 def _default_sign_weight_calculator() -> WeightCalculator:
-    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_sign_weights
+    from ephemeraldaddy.core.chart_metrics import calculate_dominant_sign_weights
 
     return calculate_dominant_sign_weights
 
 
 def _default_body_weight_calculator() -> WeightCalculator:
-    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_planet_weights
+    from ephemeraldaddy.core.chart_metrics import calculate_dominant_planet_weights
 
     return calculate_dominant_planet_weights
 
 
 def _default_house_weight_calculator() -> WeightCalculator:
-    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_house_weights
+    from ephemeraldaddy.core.chart_metrics import calculate_dominant_house_weights
 
     return calculate_dominant_house_weights
 
 
 def _default_nakshatra_weight_calculator() -> WeightCalculator:
-    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
+    from ephemeraldaddy.core.chart_metrics import calculate_dominant_nakshatra_weights
 
     return calculate_dominant_nakshatra_weights
 

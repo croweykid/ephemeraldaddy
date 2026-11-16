@@ -2,8 +2,8 @@
 """Stable public facade for Fantasy RPG Predictions.
 
 The established implementation lives in ``dnd_predictions_core``. This facade
-keeps Stat Block population norms snapshot-only and makes Fantasy RPG Alignment
-self-refreshing whenever its visible section is rendered.
+keeps Stat Block population norms snapshot-only and queues Fantasy RPG Alignment
+refreshes outside the GUI thread when its visible section renders.
 """
 
 from __future__ import annotations
@@ -54,20 +54,29 @@ class DndPredictionPanelAdapter(_CoreDndPredictionPanelAdapter):
             visible_sections
             or {"dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment"}
         )
-        if (
-            "dnd_alignment" in effective_sections
-            and self.alignment_layout is not None
-            and chart is not None
-            and not self.is_placeholder_chart(chart)
-        ):
-            try:
-                self.cache_alignment_metadata(chart)
-            except Exception as exc:  # pragma: no cover - defensive UI path
-                _core.logger.warning(
-                    "Automatic Fantasy RPG Alignment calculation failed: %s",
-                    exc,
-                    exc_info=True,
-                )
+        from ephemeraldaddy.gui.features.predictions.alignment_refresh import AlignmentRefreshController
+        from PySide6.QtCore import QObject
+        parent = self.owner if isinstance(self.owner, QObject) else None
+        controller = parent.findChild(AlignmentRefreshController, "prediction-alignment-refresh") if parent is not None else None
+        if controller is None and parent is not None:
+            controller = AlignmentRefreshController(parent)
+            controller.setObjectName("prediction-alignment-refresh")
+        if controller is not None:
+            if chart is None or self.is_placeholder_chart(chart) or "dnd_alignment" not in effective_sections:
+                controller.invalidate()
+            elif "dnd_alignment" in effective_sections and self.alignment_layout is not None:
+                def attach(parts: dict[str, Any]) -> None:
+                    chart._dnd_alignment_score_parts_cache = {
+                        "chart_uid": _core._chart_prediction_cache_uid(chart),
+                        "key": _core._dnd_alignment_cache_key(self.owner or self, chart),
+                        "parts": parts,
+                    }
+                def ready(parts: dict[str, Any]) -> None:
+                    attach(parts)
+                    super(DndPredictionPanelAdapter, self).render(chart, metric_panel_renderer, visible_sections={"dnd_alignment"})
+                cached = controller.request(chart, ready)
+                if cached is not None:
+                    attach(cached)
         return super().render(
             chart,
             metric_panel_renderer,

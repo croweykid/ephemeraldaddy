@@ -1133,11 +1133,7 @@ class EnneagramPredictionPanelAdapter:
         )
 
     def _norm_charts(self) -> Any:
-        if callable(self.norm_charts_provider):
-            try:
-                return self.norm_charts_provider()
-            except Exception:
-                return []
+        """Snapshot-backed runtime scoring never loads population charts."""
         return []
 
     def _norms_token(self) -> str:

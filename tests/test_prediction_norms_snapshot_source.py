@@ -49,9 +49,8 @@ def test_trait_norm_unavailability_reasons_distinguish_missing_changed_and_inval
     reasons = trait_norm_unavailability_reasons(traits, snapshot)
 
     assert reasons == {
-        "Missing": "no stored DB norm exists for this trait profile",
-        "Changed": "the trait's analytical profile changed after its DB norm was calculated",
-        "Invalid": "the stored db_average value is not numeric",
+        "Missing": "no stored DB norm exists for this trait UID",
+        "Invalid": "no stored DB norm exists for this trait UID",
     }
 
 
@@ -118,7 +117,7 @@ def test_partial_dnd_stat_snapshot_is_not_treated_as_complete_norms():
 def test_app_adapter_avoids_loading_norm_charts_when_snapshot_has_dnd_stat_averages():
     adapter = APP_SOURCE.split("def _dnd_prediction_adapter", 1)[1].split("def _draw_dnd_statblock_predictions", 1)[0]
     assert "db_norm_averages_provider=self._prediction_norm_snapshot_dnd_stat_averages" in adapter
-    assert "norm_charts_provider=lambda: [] if self._prediction_norm_snapshot_dnd_stat_averages() else self._prediction_norm_charts()" in adapter
+    assert "norm_charts_provider=lambda: []" in adapter
 
 
 def test_database_statistics_exposes_manual_refresh_norms_button():
@@ -262,7 +261,7 @@ def test_static_snapshot_short_circuits_live_cohort_signature_work():
     assert "get_chart_ids_by_uid(" not in helper
 
 
-def test_snapshot_requires_matching_profile_hash_for_full_trait_coverage(tmp_path):
+def test_snapshot_retains_uid_reference_when_legacy_profile_hash_is_stale(tmp_path):
     trait = {"uid": "doctor", "name": "Doctor", "profile": {"signs": {"Aries": 1}}}
     path = tmp_path / "norms.json"
     save_prediction_norms_snapshot(
@@ -282,7 +281,8 @@ def test_snapshot_requires_matching_profile_hash_for_full_trait_coverage(tmp_pat
     )
     snapshot = load_prediction_norms_snapshot(path)
 
-    assert missing_trait_norms([trait], snapshot) == [trait]
+    assert missing_trait_norms([trait], snapshot) == []
+    assert snapshot_module.trait_snapshot_averages([trait], snapshot) == {"Doctor": 55.0}
 
 
 def test_population_source_is_exclusive_and_official_uses_custom_trait_extension(

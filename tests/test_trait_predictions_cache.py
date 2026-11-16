@@ -30,56 +30,22 @@ def test_pending_metadata_reuses_render_lookup_for_header_and_expansion(monkeypa
     assert trait_predictions._traits_pending_cached_metadata(owner) is metadata
 
 
-def test_v4_likelihood_cache_uses_change_journal_instead_of_rescanning_all_chart_tokens(
-    tmp_path, monkeypatch
-):
-    owner = _TraitsCacheOwner(())
-    owner._traits_distribution_likelihood_cache_loaded = False
-    cache_path = tmp_path / "traits.json"
-    owner._traits_distribution_likelihood_cache_path = lambda: cache_path
-    cache_path.write_text(
-        trait_predictions.json.dumps(
-            {
-                "version": 4,
-                "format": "profile_likelihoods_v2_change_journal",
-                "created_at": "2026-01-01T00:00:00+00:00",
-                "last_modified_at": "2026-01-02T00:00:00+00:00",
-                "db_change_sequence": 10,
-                "profiles": ["doctor-profile"],
-                "profile_entries": [
-                    {"profile": 0, "chart_uid": "UNCHANGED", "chart_token": "old-a", "likelihood": 70.0},
-                    {"profile": 0, "chart_uid": "CHANGED", "chart_token": "old-b", "likelihood": 80.0},
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(
-        "ephemeraldaddy.gui.features.charts.database_analytics.db.chart_changes_since",
-        lambda sequence: [
-            {
-                "sequence": 11,
-                "chart_uid": "CHANGED",
-                "change_type": "astro_data_edited",
-                "astro_data_changed": True,
-                "changed_at": "2026-01-03T00:00:00Z",
-            }
-        ],
-    )
-    monkeypatch.setattr(
-        "ephemeraldaddy.gui.features.charts.database_analytics.db.latest_chart_change_sequence",
-        lambda: 11,
-    )
-    owner._traits_distribution_chart_tokens = lambda: (_ for _ in ()).throw(
-        AssertionError("v4 cache must not fingerprint the whole database during load")
-    )
-
-    assert owner._load_traits_distribution_likelihood_cache() is True
-    cache = owner._traits_distribution_individual_profile_likelihood_cache
-    assert cache[("doctor-profile", "UNCHANGED")] == 70.0
-    assert ("doctor-profile", "CHANGED") not in cache
-    assert owner._traits_distribution_likelihood_cache_created_at == "2026-01-01T00:00:00+00:00"
-    assert owner._traits_distribution_likelihood_cache_dirty is True
+def test_v4_likelihood_cache_uses_change_journal_instead_of_rescanning_all_chart_tokens(tmp_path, monkeypatch):
+    from ephemeraldaddy.analysis.trait_cache_migration import import_legacy_trait_cache
+    from ephemeraldaddy.core import db
+    import json
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    profile = {"signs": {"Aries": 1}}
+    (tmp_path / ".traits_distribution_likelihood_cache.json").write_text(json.dumps({
+        "version": 4, "db_change_sequence": 10, "profiles": [json.dumps(profile)],
+        "profile_entries": [{"profile": 0, "chart_uid": "UNCHANGED", "likelihood": 70}, {"profile": 0, "chart_uid": "CHANGED", "likelihood": 80}],
+    }))
+    monkeypatch.setattr(db, "chart_changes_since", lambda sequence: [{"chart_uid": "CHANGED", "astro_data_changed": True}])
+    imported = []
+    monkeypatch.setattr(db, "import_trait_likelihood_rows", imported.extend)
+    import_legacy_trait_cache([{"uid": "a", "name": "A", "profile": profile}])
+    assert [row["chart_uid"] for row in imported] == ["UNCHANGED"]
+    assert imported[0]["likelihood"] == 70
 
 
 class _TraitsCacheOwner(DatabaseAnalyticsChartsMixin):
@@ -109,30 +75,17 @@ def _chart_row(chart_id: int, name: str, chart_uid: str, *, datetime_iso: str = 
     return tuple(row)
 
 
-def test_explicit_trait_norm_generation_scores_only_requested_profiles():
-    trait = {"uid": "creative", "name": "Creative", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
-    owner = _TraitsCacheOwner(
-        (("uid:one", "row"),),
-        chart_rows=[
-            _chart_row(1, "One", "UID1"),
-            _chart_row(2, "Two", "UID2"),
-        ],
-    )
-    owner._traits_distribution_signature = lambda traits: tuple(
-        (item["name"], "#ffffff", repr(item.get("profile", {}))) for item in traits
-    )
-
-    def collect(_chart_uids, *, trait_items, trait_signature, time_budget_seconds):
-        assert set(_chart_uids) == {"UID1", "UID2"}
-        assert [item["name"] for item in trait_items] == ["Creative"]
-        assert time_budget_seconds is None
-        return {"trait_names": ["Creative"], "totals": {"Creative": 1.7}, "chart_count": 2}
-
-    owner._collect_traits_distribution_analytics_by_uids = collect
-
-    assert trait_predictions._database_trait_averages(
-        owner, [trait], force_refresh_stale=True
-    ) == {"Creative": 85.0}
+def test_explicit_trait_norm_generation_scores_only_requested_profiles(monkeypatch):
+    from ephemeraldaddy.analysis.prediction_norms_generator import trait_population_means
+    from ephemeraldaddy.analysis import traits
+    trait = {"uid": "creative", "name": "Creative", "profile": {"signs": {"Leo": 1}}}
+    calls = []
+    def score(chart, selected):
+        calls.append((chart, selected))
+        return {"Creative": chart}
+    monkeypatch.setattr(traits, "calculate_trait_likelihoods", score)
+    assert trait_population_means([80., 90.], [trait]) == {"Creative": 85.}
+    assert calls == [(80., [trait]), (90., [trait])]
 
 
 def test_database_chart_uids_reads_appended_list_charts_uid_slot(monkeypatch):
@@ -333,27 +286,15 @@ def test_traits_distribution_cancellation_discards_score_completed_after_interru
 
 
 def test_traits_distribution_collection_uses_warm_cache_past_time_budget(monkeypatch):
-    owner = _TraitsCacheOwner(
-        (("uid:one", "row"),),
-        chart_rows=[_chart_row(index, str(index), f"UID{index}") for index in (1, 2)],
-    )
-    signature = (("Creative", "#ffffff", "{}"),)
-    owner._traits_distribution_chart_likelihood_cache = {
-        (0, signature, "UID1"): {"Creative": 80.0},
-        (0, signature, "UID2"): {"Creative": 60.0},
-    }
-    owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
-    owner._is_placeholder_chart = lambda _chart: False
-
-    monkeypatch.setattr("ephemeraldaddy.gui.features.charts.database_analytics.time.monotonic", lambda: 10_000.0)
-
-    result = owner._collect_traits_distribution_analytics_by_uids(
-        ["UID1", "UID2"],
-        trait_items=[{"name": "Creative", "profile": {}}],
-        trait_signature=signature,
-        time_budget_seconds=0.0,
-    )
-
+    from ephemeraldaddy.analysis.trait_prediction_index import TraitPredictionResult, global_trait_prediction_index
+    owner = _TraitsCacheOwner((("uid:one", "row"),), chart_rows=[_chart_row(index, str(index), f"UID{index}") for index in (1, 2)])
+    index = global_trait_prediction_index()
+    monkeypatch.setattr(index, "results_for_uids", lambda uids, traits: {
+        "UID1": TraitPredictionResult({"Creative": 80.}, {"Creative": 50.}, {"Creative": 30.}),
+        "UID2": TraitPredictionResult({"Creative": 60.}, {"Creative": 50.}, {"Creative": 10.}),
+    })
+    monkeypatch.setattr(index, "request_refresh", lambda *args: pytest.fail("Warm collection should not queue scoring"))
+    result = owner._collect_traits_distribution_analytics_by_uids(["UID1", "UID2"], trait_items=[{"name": "Creative", "profile": {}}], time_budget_seconds=0.0)
     assert result["partial"] is False
     assert result["chart_count"] == 2
     assert result["totals"]["Creative"] == 1.4

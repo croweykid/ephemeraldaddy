@@ -1,0 +1,776 @@
+"""Most-distinguishing chart factor summaries for Chart Analytics."""
+
+from __future__ import annotations
+
+from collections import Counter
+import json
+from dataclasses import dataclass
+import html
+import math
+import statistics
+import threading
+import urllib.parse
+from pathlib import Path
+from typing import Any, Callable, Iterable
+
+from ephemeraldaddy.core.human_design_system import calculate_human_design as build_human_design_result
+from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, HD_LINE_COLORS
+from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+from ephemeraldaddy.core.chart_data_fields import astro_data_recalculation_token
+from ephemeraldaddy.core.interpretations import (
+    ELEMENT_COLORS,
+    HOUSE_COLORS,
+    MODE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
+    SIGN_COLORS,
+    WEIRDNESS_SCALE,
+    ZODIAC_NAMES,
+)
+from ephemeraldaddy.core.sidereal import NAKSHATRA_NAMES
+from ephemeraldaddy.core.chart_metrics import (
+    calculate_dominant_element_weights,
+    calculate_dominant_house_weights,
+    calculate_dominant_nakshatra_weights,
+    calculate_dominant_planet_weights,
+    calculate_dominant_sign_weights,
+    calculate_mode_weights,
+    dominant_planet_keys,
+)
+
+DISTINGUISHING_Z_THRESHOLD = 2.0
+ELEMENT_SHARE_THRESHOLD = 0.50
+MODE_SHARE_THRESHOLD = 0.65
+MIN_NORM_SAMPLE_SIZE = 5
+
+DISTINGUISHING_METRICS_SCHEMA_VERSION = 3
+DISTINGUISHING_FORMULA_VERSION = 3
+WEIRDNESS_FACTOR_COUNT_WEIGHT = 0.08
+
+
+
+def chart_essential_astro_signature(chart: Chart) -> str:
+    """Return the narrow ESSENTIAL_ASTRO signature used to invalidate derived astro caches."""
+    payload = astro_data_recalculation_token(
+        chart,
+        chart_uses_houses_value=chart_uses_houses(chart),
+    )
+    return json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
+
+
+def distinguishing_metric_payload_for_chart(chart: Chart) -> dict[str, Any]:
+    """Build persisted per-chart normalized shares used by distinguishing-factor baselines."""
+    groups: dict[str, dict[str, dict[str, float]]] = {}
+    for group in _metric_groups(chart):
+        values = _safe_chart_values(group, chart)
+        if values is None:
+            continue
+        shares = _normalized_shares(values, group.labels)
+        groups[group.key] = {
+            str(label): {
+                "share": float(shares.get(label, 0.0)),
+                "raw": max(0.0, float(values.get(label, 0.0) or 0.0)),
+            }
+            for label in group.labels
+        }
+    return {
+        "schema_version": DISTINGUISHING_METRICS_SCHEMA_VERSION,
+        "formula_version": DISTINGUISHING_FORMULA_VERSION,
+        "essential_astro_signature": chart_essential_astro_signature(chart),
+        "uses_houses": bool(chart_uses_houses(chart)),
+        "groups": groups,
+    }
+
+
+def load_distinguishing_metric_cache(cache_path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"schema_version": DISTINGUISHING_METRICS_SCHEMA_VERSION, "charts": {}}
+    if not isinstance(data, dict) or data.get("schema_version") != DISTINGUISHING_METRICS_SCHEMA_VERSION:
+        return {"schema_version": DISTINGUISHING_METRICS_SCHEMA_VERSION, "charts": {}}
+    charts = data.get("charts")
+    if not isinstance(charts, dict):
+        data["charts"] = {}
+    return data
+
+
+def save_distinguishing_metric_cache(cache_path: Path, cache: dict[str, Any]) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(cache, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+    tmp_path.replace(cache_path)
+
+
+@dataclass(frozen=True)
+class _MetricGroup:
+    key: str
+    label: str
+    values_for_chart: Callable[[Chart], dict[object, float]]
+    labels: tuple[object, ...]
+
+
+@dataclass(frozen=True)
+class DistinguishingFactor:
+    group_key: str
+    group_label: str
+    raw_label: object
+    factor_label: str
+    value_pct: float
+    mean_pct: float
+    z_score: float
+    raw_value: float = 0.0
+    raw_mean: float = 0.0
+    raw_z_score: float | None = None
+    basis: str = "share"
+
+    @property
+    def extremity(self) -> float:
+        if self.basis == "raw" and self.raw_z_score is not None:
+            return abs(self.raw_z_score)
+        return abs(self.z_score)
+
+
+@dataclass(frozen=True)
+class _NormBaseline:
+    mean: float
+    stdev: float
+
+
+_NORM_BASELINE_CACHE: dict[tuple[tuple[object, ...], ...], tuple[int, dict[tuple[str, str, object], _NormBaseline]]] = {}
+_NORM_BASELINE_CACHE_MAX_SIZE = 8
+
+
+def _normalized_shares(values: dict[object, float], labels: Iterable[object]) -> dict[object, float]:
+    raw = {label: max(0.0, float(values.get(label, 0.0) or 0.0)) for label in labels}
+    total = sum(raw.values())
+    if total <= 0:
+        return {label: 0.0 for label in labels}
+    return {label: value / total for label, value in raw.items()}
+
+
+def _normalize_css_color(color: str | None) -> str:
+    color_text = str(color or "").strip()
+    if (
+        color_text
+        and not color_text.startswith("#")
+        and len(color_text) in {3, 6}
+        and all(character in "0123456789abcdefABCDEF" for character in color_text)
+    ):
+        return f"#{color_text}"
+    return color_text
+
+
+def _color_token(label: object, color: str | None, href: str = "") -> str:
+    label_text = str(label)
+    color_text = _normalize_css_color(color)
+    escaped_label = html.escape(label_text)
+    if not color_text:
+        token = escaped_label
+    else:
+        token = (
+            f'<span style="color:{html.escape(color_text)}; font-weight:400;">'
+            f"{escaped_label}</span>"
+        )
+    if not href:
+        return token
+    return (
+        f'<a href="{html.escape(href, quote=True)}" '
+        'style="text-decoration:none;">'
+        f"{token}</a>"
+    )
+
+
+def _factor_info_href(group_key: str, raw_label: object) -> str:
+    if group_key == "planets":
+        kind = "planet"
+    elif group_key == "signs":
+        kind = "sign"
+    elif group_key == "houses":
+        kind = "house"
+    elif group_key == "nakshatras":
+        kind = "nakshatra"
+    elif group_key == "modes":
+        kind = "mode"
+    else:
+        return ""
+    return f"distinguishing-factor:{kind}:{urllib.parse.quote(str(raw_label), safe='')}"
+
+
+def _factor_label_html(group_key: str, raw_label: object, display_label: str) -> str:
+    href = _factor_info_href(group_key, raw_label)
+    if group_key == "planets":
+        return _color_token(display_label, PLANET_COLORS.get(str(raw_label)), href)
+    if group_key == "signs":
+        return _color_token(display_label, SIGN_COLORS.get(str(raw_label)), href)
+    if group_key == "houses":
+        return _color_token(display_label, HOUSE_COLORS.get(str(raw_label)), href)
+    if group_key == "elements":
+        return _color_token(display_label, ELEMENT_COLORS.get(str(raw_label)))
+    if group_key == "modes":
+        return _color_token(display_label, MODE_COLORS.get(str(raw_label).lower()), href)
+    if group_key == "nakshatras":
+        return _color_token(display_label, NAKSHATRA_PLANET_COLOR.get(str(raw_label), (None, None))[1], href)
+    return html.escape(display_label)
+
+
+def _hd_gate_label_html(gate: int) -> str:
+    href = f"distinguishing-factor:gate:{int(gate)}"
+    return _color_token(f"Gate {gate}", GATE_COLORS.get(int(gate)), href)
+
+
+def _hd_gate_line_html(gate: int, line: int) -> str:
+    href = f"distinguishing-factor:gate-line:{int(gate)}:{int(line)}"
+    return _color_token(f"{gate}.{line}", HD_LINE_COLORS.get(int(line), GATE_COLORS.get(int(gate))), href)
+
+
+def _planet_group() -> _MetricGroup:
+    labels = tuple(dominant_planet_keys(None))
+    return _MetricGroup("planets", "planet/body", calculate_dominant_planet_weights, labels) #weight
+
+
+def _house_values(chart: Chart) -> dict[object, float]:
+    if not chart_uses_houses(chart):
+        return {house: 0.0 for house in range(1, 13)}
+    return dict(calculate_dominant_house_weights(chart))
+
+
+def _metric_groups(chart: Chart) -> tuple[_MetricGroup, ...]:
+    groups: list[_MetricGroup] = [
+        _planet_group(),
+        _MetricGroup("signs", "sign", calculate_dominant_sign_weights, tuple(ZODIAC_NAMES)), #weight
+        _MetricGroup("elements", "element", calculate_dominant_element_weights, ("Fire", "Earth", "Air", "Water")), #weight
+        _MetricGroup("modes", "mode", calculate_mode_weights, ("cardinal", "mutable", "fixed")), #weight
+        _MetricGroup(
+            "nakshatras",
+            "nakshatra", #weight
+            calculate_dominant_nakshatra_weights,
+            NAKSHATRA_NAMES,
+        ),
+    ]
+    if chart_uses_houses(chart):
+        groups.insert(3, _MetricGroup("houses", "house", _house_values, tuple(range(1, 13)))) #weight
+    return tuple(groups)
+
+
+def _label_text(label: object, group_key: str) -> str:
+    if group_key == "houses":
+        return f"House {int(label)}"
+    if group_key == "modes":
+        return str(label).title()
+    return str(label)
+
+
+def _safe_chart_values(group: _MetricGroup, chart: Chart) -> dict[object, float] | None:
+    try:
+        values = group.values_for_chart(chart)
+    except Exception:
+        return None
+    if not isinstance(values, dict):
+        return None
+    return values
+
+
+def _chart_norm_signature(chart: Chart) -> tuple[object, ...]:
+    dt_value = getattr(chart, "dt", None)
+    dt_token = dt_value.isoformat() if dt_value is not None else None
+    positions = tuple(
+        sorted(
+            (str(body), round(float(value), 8))
+            for body, value in (getattr(chart, "positions", None) or {}).items()
+            if isinstance(value, (int, float))
+        )
+    )
+    houses = tuple(
+        round(float(value), 8)
+        for value in (getattr(chart, "houses", None) or [])
+        if isinstance(value, (int, float))
+    )
+    return (
+        id(chart),
+        dt_token,
+        round(float(getattr(chart, "lat", 0.0) or 0.0), 8),
+        round(float(getattr(chart, "lon", 0.0) or 0.0), 8),
+        bool(getattr(chart, "birthtime_unknown", False)),
+        bool(getattr(chart, "retcon_time_used", False)),
+        getattr(chart, "retcon_hour", None),
+        getattr(chart, "retcon_minute", None),
+        positions,
+        houses,
+    )
+
+
+def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple[str, str, object], _NormBaseline]:
+    cache_key = (
+        ("target_uses_houses", chart_uses_houses(chart)),
+        *(_chart_norm_signature(norm_chart) for norm_chart in usable_norm_charts),
+    )
+    cached = _NORM_BASELINE_CACHE.get(cache_key)
+    if cached is not None and cached[0] == len(usable_norm_charts):
+        return cached[1]
+
+    baselines: dict[tuple[str, str, object], _NormBaseline] = {}
+    for group in _metric_groups(chart):
+        norm_shares_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
+        norm_raw_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
+        for norm_chart in usable_norm_charts:
+            if group.key == "houses" and not chart_uses_houses(norm_chart):
+                continue
+            norm_values = _safe_chart_values(group, norm_chart)
+            if norm_values is None:
+                continue
+            shares = _normalized_shares(norm_values, group.labels)
+            for label in group.labels:
+                norm_shares_by_label[label].append(float(shares.get(label, 0.0)))
+                norm_raw_by_label[label].append(max(0.0, float(norm_values.get(label, 0.0) or 0.0)))
+        for label, baseline in norm_shares_by_label.items():
+            if len(baseline) < MIN_NORM_SAMPLE_SIZE:
+                continue
+            stdev = statistics.pstdev(baseline)
+            if stdev <= 1e-9 or not math.isfinite(stdev):
+                continue
+            baselines[("share", group.key, label)] = _NormBaseline(
+                mean=statistics.fmean(baseline),
+                stdev=stdev,
+            )
+        for label, baseline in norm_raw_by_label.items():
+            if len(baseline) < MIN_NORM_SAMPLE_SIZE:
+                continue
+            stdev = statistics.pstdev(baseline)
+            if stdev <= 1e-9 or not math.isfinite(stdev):
+                continue
+            baselines[("raw", group.key, label)] = _NormBaseline(
+                mean=statistics.fmean(baseline),
+                stdev=stdev,
+            )
+
+    if len(_NORM_BASELINE_CACHE) >= _NORM_BASELINE_CACHE_MAX_SIZE:
+        _NORM_BASELINE_CACHE.pop(next(iter(_NORM_BASELINE_CACHE)))
+    _NORM_BASELINE_CACHE[cache_key] = (len(usable_norm_charts), baselines)
+    return baselines
+
+
+def _payload_metric_value(raw_payload_value: object, field: str) -> float:
+    if isinstance(raw_payload_value, dict):
+        return float(raw_payload_value.get(field, 0.0) or 0.0)
+    if field == "share":
+        return float(raw_payload_value or 0.0)
+    return 0.0
+
+
+def _build_norm_baselines_from_metric_payloads(chart: Chart, payloads: Iterable[dict[str, Any]]) -> tuple[int, dict[tuple[str, str, object], _NormBaseline]]:
+    usable_payloads = [payload for payload in payloads if isinstance(payload, dict)]
+    baselines: dict[tuple[str, str, object], _NormBaseline] = {}
+    for group in _metric_groups(chart):
+        norm_shares_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
+        norm_raw_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
+        for payload in usable_payloads:
+            if group.key == "houses" and not bool(payload.get("uses_houses")):
+                continue
+            group_values = (payload.get("groups") or {}).get(group.key) or {}
+            if not isinstance(group_values, dict):
+                continue
+            for label in group.labels:
+                payload_value = group_values.get(str(label), 0.0)
+                norm_shares_by_label[label].append(_payload_metric_value(payload_value, "share"))
+                norm_raw_by_label[label].append(_payload_metric_value(payload_value, "raw"))
+        for label, baseline in norm_shares_by_label.items():
+            if len(baseline) < MIN_NORM_SAMPLE_SIZE:
+                continue
+            stdev = statistics.pstdev(baseline)
+            if stdev <= 1e-9 or not math.isfinite(stdev):
+                continue
+            baselines[("share", group.key, label)] = _NormBaseline(mean=statistics.fmean(baseline), stdev=stdev)
+        for label, baseline in norm_raw_by_label.items():
+            if len(baseline) < MIN_NORM_SAMPLE_SIZE:
+                continue
+            stdev = statistics.pstdev(baseline)
+            if stdev <= 1e-9 or not math.isfinite(stdev):
+                continue
+            baselines[("raw", group.key, label)] = _NormBaseline(mean=statistics.fmean(baseline), stdev=stdev)
+    return len(usable_payloads), baselines
+
+
+_STATIC_BASELINE_LOCK = threading.RLock()
+_STATIC_BASELINE_CACHE: dict[tuple[Any, ...], tuple[Any, Any]] = {}
+
+
+def _norm_baselines_from_metric_payloads(chart: Chart, payloads: Iterable[dict[str, Any]]) -> tuple[int, dict[tuple[str, str, object], _NormBaseline]]:
+    if not isinstance(payloads, tuple):
+        return _build_norm_baselines_from_metric_payloads(chart, payloads)
+    key = (chart_uses_houses(chart), tuple(id(payload) for payload in payloads))
+    with _STATIC_BASELINE_LOCK:
+        cached = _STATIC_BASELINE_CACHE.get(key)
+        if cached is not None:
+            return cached[1]
+        result = _build_norm_baselines_from_metric_payloads(chart, payloads)
+        if len(_STATIC_BASELINE_CACHE) >= 8:
+            _STATIC_BASELINE_CACHE.pop(next(iter(_STATIC_BASELINE_CACHE)))
+        # Retaining the payloads makes object identity safe until eviction.
+        _STATIC_BASELINE_CACHE[key] = (payloads, result)
+        return result
+
+
+def find_distinguishing_factors_from_metric_payloads(chart: Chart, metric_payloads: Iterable[dict[str, Any]]) -> tuple[list[DistinguishingFactor], int]:
+    factors: list[DistinguishingFactor] = []
+    norm_count, baselines = _norm_baselines_from_metric_payloads(chart, metric_payloads)
+    if norm_count < MIN_NORM_SAMPLE_SIZE:
+        return factors, norm_count
+    for group in _metric_groups(chart):
+        chart_values = _safe_chart_values(group, chart)
+        if chart_values is None:
+            continue
+        chart_shares = _normalized_shares(chart_values, group.labels)
+        for label in group.labels:
+            share_baseline = baselines.get(("share", group.key, label))
+            raw_baseline = baselines.get(("raw", group.key, label))
+            value = float(chart_shares.get(label, 0.0))
+            raw_value = max(0.0, float(chart_values.get(label, 0.0) or 0.0))
+            share_z_score = (value - share_baseline.mean) / share_baseline.stdev if share_baseline else 0.0
+            raw_z_score = (raw_value - raw_baseline.mean) / raw_baseline.stdev if raw_baseline else None
+            share_distinguishing = share_baseline is not None and abs(share_z_score) >= DISTINGUISHING_Z_THRESHOLD
+            raw_distinguishing = raw_z_score is not None and raw_z_score >= DISTINGUISHING_Z_THRESHOLD
+            if share_distinguishing or raw_distinguishing:
+                basis = "share" if share_distinguishing else "raw"
+                factors.append(DistinguishingFactor(group.key, group.label, label, _label_text(label, group.key), value * 100.0, (share_baseline.mean * 100.0) if share_baseline else 0.0, share_z_score, raw_value, raw_baseline.mean if raw_baseline else 0.0, raw_z_score, basis))
+    factors.sort(key=lambda factor: factor.extremity, reverse=True)
+    return factors, norm_count
+
+
+def calculate_weirdness_score_from_metric_payloads(
+    chart: Chart,
+    metric_payloads: Iterable[dict[str, Any]],
+) -> tuple[float | None, int]:
+    """Return a database-weirdness score adjusted for the number of true outlier factors.
+
+    The base remains the summed absolute percentage-point deviation from database norms,
+    but charts with more factors past the distinguishing threshold receive a gentle
+    multiplier. This keeps one huge spike from being treated the same as a broad pattern
+    of several independently unusual chart features without letting factor count swamp
+    the actual deviation size.
+    """
+    norm_count, baselines = _norm_baselines_from_metric_payloads(chart, metric_payloads)
+    if norm_count < MIN_NORM_SAMPLE_SIZE:
+        return None, norm_count
+    total_deviation = 0.0
+    distinguishing_factor_count = 0
+    for group in _metric_groups(chart):
+        chart_values = _safe_chart_values(group, chart)
+        if chart_values is None:
+            continue
+        chart_shares = _normalized_shares(chart_values, group.labels)
+        for label in group.labels:
+            share_baseline = baselines.get(("share", group.key, label))
+            if share_baseline is None:
+                continue
+            share = float(chart_shares.get(label, 0.0))
+            deviation = abs((share - share_baseline.mean) * 100.0)
+            total_deviation += deviation
+            z_score = (share - share_baseline.mean) / share_baseline.stdev
+            if abs(z_score) >= DISTINGUISHING_Z_THRESHOLD:
+                distinguishing_factor_count += 1
+    count_multiplier = 1.0 + (distinguishing_factor_count * WEIRDNESS_FACTOR_COUNT_WEIGHT)
+    return round(total_deviation * count_multiplier, 2), norm_count
+
+
+def weirdness_scale_label(score: float | None) -> str:
+    """Return the configured display label for a weirdness score."""
+    if score is None:
+        return ""
+    highest_entry: dict[str, object] | None = None
+    highest_minimum: float | None = None
+    for scale_entry in WEIRDNESS_SCALE.values():
+        try:
+            minimum = float(scale_entry.get("min", 0.0))
+            maximum = float(scale_entry.get("max", 0.0))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if highest_minimum is None or minimum > highest_minimum:
+            highest_minimum = minimum
+            highest_entry = scale_entry
+        if minimum <= score < maximum:
+            return str(scale_entry.get("display_name") or "")
+    if highest_entry is not None and highest_minimum is not None and score >= highest_minimum:
+        return str(highest_entry.get("display_name") or "")
+    return ""
+
+
+def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> tuple[list[DistinguishingFactor], int]:
+    """Return factors whose normalized share is at least two standard deviations from DB norms."""
+    usable_norm_charts = [norm_chart for norm_chart in norm_charts if norm_chart is not None]
+    factors: list[DistinguishingFactor] = []
+    if len(usable_norm_charts) < MIN_NORM_SAMPLE_SIZE:
+        return factors, len(usable_norm_charts)
+
+    baselines = _norm_baselines(chart, usable_norm_charts)
+    for group in _metric_groups(chart):
+        chart_values = _safe_chart_values(group, chart)
+        if chart_values is None:
+            continue
+        chart_shares = _normalized_shares(chart_values, group.labels)
+        for label in group.labels:
+            share_baseline = baselines.get(("share", group.key, label))
+            raw_baseline = baselines.get(("raw", group.key, label))
+            value = float(chart_shares.get(label, 0.0))
+            raw_value = max(0.0, float(chart_values.get(label, 0.0) or 0.0))
+            share_z_score = (value - share_baseline.mean) / share_baseline.stdev if share_baseline else 0.0
+            raw_z_score = (raw_value - raw_baseline.mean) / raw_baseline.stdev if raw_baseline else None
+            share_distinguishing = share_baseline is not None and abs(share_z_score) >= DISTINGUISHING_Z_THRESHOLD
+            raw_distinguishing = raw_z_score is not None and raw_z_score >= DISTINGUISHING_Z_THRESHOLD
+            if share_distinguishing or raw_distinguishing:
+                factors.append(
+                    DistinguishingFactor(
+                        group_key=group.key,
+                        group_label=group.label,
+                        raw_label=label,
+                        factor_label=_label_text(label, group.key),
+                        value_pct=value * 100.0,
+                        mean_pct=(share_baseline.mean * 100.0) if share_baseline else 0.0,
+                        z_score=share_z_score,
+                        raw_value=raw_value,
+                        raw_mean=raw_baseline.mean if raw_baseline else 0.0,
+                        raw_z_score=raw_z_score,
+                        basis="share" if share_distinguishing else "raw",
+                    )
+                )
+    factors.sort(key=lambda factor: factor.extremity, reverse=True)
+    return factors, len(usable_norm_charts)
+
+
+def _duplicate_human_design_gate_lines(chart: Chart) -> list[tuple[int, list[int]]]:
+    try:
+        hd_result = build_human_design_result(chart)
+    except Exception:
+        return []
+    activations = (*hd_result.personality_activations, *hd_result.design_activations)
+    gate_lines: dict[int, list[int]] = {}
+    for activation in activations:
+        try:
+            gate = int(activation.gate)
+            line = int(activation.line)
+        except Exception:
+            continue
+        gate_lines.setdefault(gate, []).append(line)
+    duplicates = [
+        (gate, sorted(lines))
+        for gate, lines in gate_lines.items()
+        if len(lines) >= 2
+    ]
+    duplicates.sort(key=lambda item: (-len(item[1]), item[0]))
+    return duplicates
+
+
+def _concentration_lines(chart: Chart) -> list[str]:
+    lines: list[str] = []
+    element_shares = _normalized_shares(calculate_dominant_element_weights(chart), ("Fire", "Earth", "Air", "Water"))
+    for element, share in sorted(element_shares.items(), key=lambda item: item[1], reverse=True):
+        if share > ELEMENT_SHARE_THRESHOLD:
+            lines.append(f"{_color_token(element, ELEMENT_COLORS.get(element))} makes up {share * 100.0:.1f}% of weighted elements.")
+    mode_shares = _normalized_shares(calculate_mode_weights(chart), ("cardinal", "mutable", "fixed"))
+    for mode, share in sorted(mode_shares.items(), key=lambda item: item[1], reverse=True):
+        if share >= MODE_SHARE_THRESHOLD:
+            lines.append(f"{_color_token(str(mode).title(), MODE_COLORS.get(mode))} makes up {share * 100.0:.1f}% of weighted modes.")
+    return lines
+
+
+
+@dataclass(frozen=True)
+class DatabaseDistinctionProfile:
+    factors: tuple[DistinguishingFactor, ...]
+    concentration_traits: tuple[tuple[str, object], ...]
+    repeated_gate_counts: tuple[tuple[int, int], ...]
+    norm_count: int
+
+
+def database_distinction_profile(chart: Chart, norm_charts: Iterable[Chart]) -> DatabaseDistinctionProfile:
+    """Return the machine-readable traits shown by the database distinction scan."""
+    factors, norm_count = find_distinguishing_factors(chart, norm_charts)
+    concentration_traits: list[tuple[str, object]] = []
+    element_shares = _normalized_shares(calculate_dominant_element_weights(chart), ("Fire", "Earth", "Air", "Water"))
+    for element, share in element_shares.items():
+        if share > ELEMENT_SHARE_THRESHOLD:
+            concentration_traits.append(("elements", element))
+    mode_shares = _normalized_shares(calculate_mode_weights(chart), ("cardinal", "mutable", "fixed"))
+    for mode, share in mode_shares.items():
+        if share >= MODE_SHARE_THRESHOLD:
+            concentration_traits.append(("modes", mode))
+    repeated_gate_counts = tuple((gate, len(lines)) for gate, lines in _duplicate_human_design_gate_lines(chart))
+    return DatabaseDistinctionProfile(
+        factors=tuple(factors),
+        concentration_traits=tuple(concentration_traits),
+        repeated_gate_counts=repeated_gate_counts,
+        norm_count=norm_count,
+    )
+
+
+def database_distinction_similarity_score(
+    query_profile: DatabaseDistinctionProfile,
+    candidate: Chart,
+    norm_charts: Iterable[Chart],
+) -> tuple[float, dict[str, float]]:
+    """Score how strongly a candidate shares a query chart's database-distinction traits."""
+    norm_list = [norm_chart for norm_chart in norm_charts if norm_chart is not None]
+    if not query_profile.factors and not query_profile.concentration_traits and not query_profile.repeated_gate_counts:
+        return 0.0, {"distinguishing_factors": 0.0, "concentration_flags": 0.0, "repeated_hd_gates": 0.0}
+
+    candidate_factors, _norm_count = find_distinguishing_factors(candidate, norm_list)
+    candidate_factor_map = {(factor.group_key, factor.raw_label): factor for factor in candidate_factors}
+    factor_scores: list[float] = []
+    for query_factor in query_profile.factors:
+        candidate_factor = candidate_factor_map.get((query_factor.group_key, query_factor.raw_label))
+        if candidate_factor is None or (candidate_factor.z_score > 0) != (query_factor.z_score > 0):
+            factor_scores.append(0.0)
+            continue
+        factor_scores.append(
+            min(abs(candidate_factor.z_score), abs(query_factor.z_score))
+            / max(abs(query_factor.z_score), DISTINGUISHING_Z_THRESHOLD)
+        )
+    factor_score = statistics.fmean(factor_scores) if factor_scores else 0.0
+
+    if query_profile.concentration_traits:
+        candidate_concentration = set(database_distinction_profile(candidate, norm_list).concentration_traits)
+        concentration_score = len(set(query_profile.concentration_traits) & candidate_concentration) / len(
+            query_profile.concentration_traits
+        )
+    else:
+        concentration_score = 0.0
+
+    candidate_gate_counts = {gate: len(lines) for gate, lines in _duplicate_human_design_gate_lines(candidate)}
+    query_gate_weight = sum(count for _gate, count in query_profile.repeated_gate_counts)
+    repeated_gate_score = (
+        sum(
+            min(candidate_gate_counts.get(gate, 0), query_count)
+            for gate, query_count in query_profile.repeated_gate_counts
+        )
+        / query_gate_weight
+        if query_gate_weight > 0
+        else 0.0
+    )
+
+    weighted_parts: list[tuple[float, float]] = []
+    if query_profile.factors:
+        weighted_parts.append((0.60, factor_score))
+    if query_profile.concentration_traits:
+        weighted_parts.append((0.15, concentration_score))
+    if query_profile.repeated_gate_counts:
+        weighted_parts.append((0.25, repeated_gate_score))
+    total_weight = sum(weight for weight, _score in weighted_parts) or 1.0
+    score = sum(weight * value for weight, value in weighted_parts) / total_weight
+    return max(0.0, min(1.0, score)), {
+        "distinguishing_factors": factor_score,
+        "concentration_flags": concentration_score,
+        "repeated_hd_gates": repeated_gate_score,
+    }
+
+def build_distinguishing_factors_html(
+    chart: Chart | None,
+    norm_charts: Iterable[Chart],
+    metric_payloads: Iterable[dict[str, Any]] | None = None,
+    *,
+    debug_scoring: bool = False,
+    highlight_color: str = "inherit",
+) -> str:
+    """Build rich text for the Chart Analytics tab's distinguishing-factors section."""
+    if chart is None:
+        return "<span style='color:#f5f5f5;'>No chart loaded.</span>"
+
+    if metric_payloads is not None:
+        metric_payload_list = tuple(metric_payloads)
+        factors, norm_count = find_distinguishing_factors_from_metric_payloads(chart, metric_payload_list)
+        weirdness_score, _weirdness_norm_count = calculate_weirdness_score_from_metric_payloads(
+            chart,
+            metric_payload_list,
+        )
+    else:
+        norm_chart_list = list(norm_charts)
+        factors, norm_count = find_distinguishing_factors(chart, norm_chart_list)
+        weirdness_score = None
+    lines: list[str] = []
+    if norm_count < MIN_NORM_SAMPLE_SIZE:
+        lines.append(
+            html.escape(f"Need at least {MIN_NORM_SAMPLE_SIZE} database charts to calculate norms; found only {norm_count}. Add more charts, then we'll talk.")
+        )
+    elif factors:
+        weirdness_label = weirdness_scale_label(weirdness_score)
+        weirdness_prefix = (
+            f"Weirdness: {weirdness_label}. "
+            if weirdness_label
+            else ""
+        )
+        lines.append(
+            html.escape(
+                f"{weirdness_prefix}Compared to {norm_count} charts in the selected static population reference, these factors stand out as at least "
+                f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ from the norm:"
+            )
+        )
+        for factor in factors:
+            factor_name_html = (
+                f"{_factor_label_html(factor.group_key, factor.raw_label, factor.factor_label)} "
+                f"{html.escape(factor.group_label)}"
+            )
+            if debug_scoring:
+                if factor.basis == "raw" and factor.raw_z_score is not None:
+                    direction = "above" if factor.raw_z_score > 0 else "below"
+                    lines.append(
+                        "• "
+                        f"{factor_name_html}: "
+                        f"raw weight {factor.raw_value:.1f} vs DB avg {factor.raw_mean:.1f} "
+                        f"({abs(factor.raw_z_score):.1f}σ {html.escape(direction)}); "
+                        f"share {factor.value_pct:.1f}% vs DB avg {factor.mean_pct:.1f}%."
+                    )
+                else:
+                    direction = "above" if factor.z_score > 0 else "below"
+                    lines.append(
+                        "• "
+                        f"{factor_name_html}: "
+                        f"{factor.value_pct:.1f}% vs DB avg {factor.mean_pct:.1f}% "
+                        f"({abs(factor.z_score):.1f}σ {html.escape(direction)})."
+                    )
+                continue
+
+            delta_pct = factor.value_pct - factor.mean_pct
+            delta_color = "#6ee27a" if delta_pct >= 0 else "#ff6b6b"
+            delta_sign = "+" if delta_pct >= 0 else ""
+            lines.append(
+                "• "
+                f"{factor_name_html}: "
+                f"<span style='color:{delta_color}; font-weight:700;'>"
+                f"{delta_sign}{delta_pct:.1f}%</span> DB avg."
+            )
+    else:
+        weirdness_label = weirdness_scale_label(weirdness_score)
+        weirdness_prefix = (
+            f"Weirdness: {weirdness_label}. "
+            if weirdness_label
+            else ""
+        )
+        lines.append(
+            html.escape(
+                f"{weirdness_prefix}Compared to the {norm_count} charts in the selected static population reference, nothing stands out as exceeding "
+                f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ of the norm. This chart is jarringly normal. Vanilla X-Treme." #As the zoomers say, this chart is 'normiemaxxing'
+            )
+        )
+
+    concentration_lines = _concentration_lines(chart)
+    if concentration_lines:
+        lines.append("")
+        lines.append(html.escape("Concentration flags:"))
+        lines.extend(f"• {line}" for line in concentration_lines)
+
+    duplicate_gates = _duplicate_human_design_gate_lines(chart)
+    if duplicate_gates:
+        lines.append("")
+        lines.append(html.escape("Repeated Human Design gates:"))
+        for gate, duplicate_lines in duplicate_gates[:10]:
+            line_counts = Counter(duplicate_lines)
+            line_text = ", ".join(
+                _hd_gate_line_html(gate, line) + (f" ×{count}" if count > 1 else "")
+                for line, count in sorted(line_counts.items())
+            )
+            lines.append(f"• {_hd_gate_label_html(gate)} appears {len(duplicate_lines)} times ({line_text}).")
+
+    body = "<br>".join("<br>" if line == "" else line for line in lines)
+    return (
+        f"<span style='color:{highlight_color}; font-weight:700;'>Database distinction scan</span>"
+        f"<br><span style='color:#f5f5f5; font-weight:400;'>{body}</span>"
+    )

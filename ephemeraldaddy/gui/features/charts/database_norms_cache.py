@@ -88,22 +88,6 @@ def database_norms_freshness(
 
 
 def analytical_mapping_signature(value: Mapping[str, Any] | None, *, strip_uids: bool = False) -> dict[str, Any]:
-    """Remove display-only and provenance metadata from a trait/profile-like mapping."""
-    if not isinstance(value, Mapping):
-        return {}
-    excluded = {
-        "name",
-        "color",
-        "description",
-        "motivation",
-        "quotes",
-        "archived",
-        "samples",
-        "exported_at",
-        "chart_accuracy_rankings",
-        "perceived_accuracy",
-        "astro_analysis",
-    }
-    if strip_uids:
-        excluded.update({"uid", "trait_uid"})
-    return {str(key): item for key, item in value.items() if str(key) not in excluded}
+    # Transitional import boundary; delete when all consumers import the analysis owner.
+    from ephemeraldaddy.analysis.trait_signatures import analytical_mapping_signature as canonical
+    return canonical(value, strip_uids=strip_uids)

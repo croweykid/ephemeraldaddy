@@ -120,3 +120,15 @@ def build_trait_norm_row_from_charts(
             "without_houses": len(without_houses),
         },
     )
+
+
+def trait_population_means(charts: Sequence[Any], traits: list[dict[str, Any]]) -> dict[str, float]:
+    """Explicit norm generation; never read cached/stale runtime predictions."""
+    from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods
+    totals = {trait["name"]: 0.0 for trait in traits}
+    if not charts:
+        return {}
+    for chart in charts:
+        for name, value in calculate_trait_likelihoods(chart, traits).items():
+            totals[name] += value
+    return {name: value / len(charts) for name, value in totals.items()}

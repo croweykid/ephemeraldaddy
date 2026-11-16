@@ -1114,10 +1114,6 @@ def calculate_trait_likelihoods(
 
 
 def calculate_trait_scores(chart: Any, traits: list[dict[str, Any]] | None = None) -> dict[str, float]:
-    trait_items = traits if traits is not None else list_traits(active_only=True)
-    trait_items = [item for item in trait_items if not bool(item.get("archived", False))]
-    predictors = {item["name"]: item.get("profile", {}) for item in trait_items}
-    if not predictors:
-        return {}
-    raw_scores = calculate_weighted_criteria_scores(chart, predictors=predictors)
-    return {str(name): float(raw_scores.get(name, 0.0)) for name in predictors}
+    # All callers, including headless workers, share birth-time/house policy.
+    from ephemeraldaddy.analysis.trait_evidence import _calculate_trait_scores_with_context
+    return _calculate_trait_scores_with_context(chart, traits)
