@@ -27,6 +27,7 @@ class _AccuracyRankingWorker(QThread):
     """Run one finite query; Qt's finished signal owns thread completion."""
 
     result_ready = Signal(object, object)
+    details_ready = Signal(object)
     failed = Signal(str)
     progress = Signal(float)
 
@@ -47,16 +48,32 @@ class _AccuracyRankingWorker(QThread):
     @Slot()
     def run(self) -> None:
         try:
-            names = {
-                uid: str(row["name"] or "Unnamed chart")
-                for uid, row in db.load_chart_rows_for_uids(
-                    entry["chart_uid"] for entry in self._saved_entries
-                ).items()
-            } if self._saved_entries else {}
+            details = {}
+            if self._saved_entries:
+                details = self._chart_details(self._saved_entries)
+                # Existing ratings remain useful even if the current norm is
+                # unavailable. Refresh their identifying details independently.
+                self.details_ready.emit(details)
             rows = self._query(self._report_progress, self.isInterruptionRequested)
-            self.result_ready.emit(rows, names)
+            if not self._saved_entries and not self.isInterruptionRequested():
+                details = self._chart_details(rows)
+            self.result_ready.emit(rows, details)
         except Exception as exc:
             self.failed.emit(str(exc))
+
+    @staticmethod
+    def _chart_details(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        rows = db.load_chart_rows_for_uids(entry["chart_uid"] for entry in entries)
+        details = {}
+        for uid, row in rows.items():
+            values = dict(row)
+            details[uid] = {
+                "name": str(values.get("name") or "Unnamed chart"),
+                "alias": str(values.get("alias") or "").strip(),
+                "from_whence": str(values.get("from_whence") or "").strip(),
+                "tags": db.parse_tags(values.get("tags")),
+            }
+        return details
 
 
 class RateAccuracyDialog(QDialog):
@@ -82,6 +99,7 @@ class RateAccuracyDialog(QDialog):
         self._entries = normalize_accuracy_rankings(entries)
         self._save = save
         self._trait_profile = dict(trait_profile or {})
+        self._chart_details: dict[str, dict[str, Any]] = {}
         self._ready = bool(self._entries)
         self._pending_result: int | None = None
         self._thread: QThread | None = None
@@ -105,6 +123,7 @@ class RateAccuracyDialog(QDialog):
         layout.addWidget(self.average_label)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._rows_widget = QWidget()
         self._rows_layout = QGridLayout(self._rows_widget)
         self._rows_layout.setAlignment(Qt.AlignTop)
@@ -123,6 +142,7 @@ class RateAccuracyDialog(QDialog):
 
         self._thread = _AccuracyRankingWorker(query, self._entries, self)
         self._thread.result_ready.connect(self._loaded, Qt.QueuedConnection)
+        self._thread.details_ready.connect(self._refresh_chart_details, Qt.QueuedConnection)
         self._thread.failed.connect(self._failed, Qt.QueuedConnection)
         self._thread.progress.connect(self._progress, Qt.QueuedConnection)
         self._thread.finished.connect(self._thread_finished)
@@ -133,7 +153,7 @@ class RateAccuracyDialog(QDialog):
             uid = entry["chart_uid"]
             label = QLabel(self._display_name(entry), self._rows_widget)
             label.setTextFormat(Qt.PlainText)
-            label.setWordWrap(True)
+            label.setWordWrap(False)
             label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             field = QLineEdit(self._rows_widget)
             field.setAccessibleName(f"Accuracy rating for {label.text()}")
@@ -151,9 +171,28 @@ class RateAccuracyDialog(QDialog):
         self._update_average()
 
     def _display_name(self, entry: Mapping[str, Any]) -> str:
-        return chart_name_with_trait_sample_markers(
-            entry["name"] or "Unavailable chart", self._trait_profile, entry["chart_uid"],
+        details = self._chart_details.get(entry["chart_uid"], {})
+        name = chart_name_with_trait_sample_markers(
+            details.get("name") or entry["name"] or "Unavailable chart", self._trait_profile, entry["chart_uid"],
         )
+        parts = []
+        if details.get("alias"):
+            parts.append(f"alias: {details['alias']}")
+        if details.get("from_whence"):
+            parts.append(f"from: {details['from_whence']}")
+        if details.get("tags"):
+            parts.append(f"tags: {', '.join(details['tags'])}")
+        return f"{name} ({'; '.join(parts)})" if parts else name
+
+    @Slot(object)
+    def _refresh_chart_details(self, details: dict[str, dict[str, Any]]) -> None:
+        self._chart_details.update(details)
+        for entry in self._entries:
+            uid = entry["chart_uid"]
+            if uid in details:
+                entry["name"] = details[uid]["name"]
+                self._labels[uid].setText(self._display_name(entry))
+                self.inputs[uid].setAccessibleName(f"Accuracy rating for {self._labels[uid].text()}")
 
     def _rating_changed(self, entry: dict[str, Any], text: str) -> None:
         entry["value"] = int(text) if text in {"1", "2", "3", "4", "5"} else None
@@ -175,19 +214,17 @@ class RateAccuracyDialog(QDialog):
             self.status_label.setText(f"{phase}… {percent:.0f}%")
 
     @Slot(object, object)
-    def _loaded(self, rows: list[dict[str, Any]], names: dict[str, str]) -> None:
+    def _loaded(self, rows: list[dict[str, Any]], details: dict[str, dict[str, Any]]) -> None:
         if self._pending_result is not None:
             return
         current_uids = {row["chart_uid"] for row in rows}
+        self._chart_details.update(details)
         if not self._entries:
             self._entries = normalize_accuracy_rankings(rows)
             self._render_entries()
+        self._refresh_chart_details(details)
         for entry in self._entries:
             uid = entry["chart_uid"]
-            if uid in names:
-                entry["name"] = names[uid]
-                self._labels[uid].setText(self._display_name(entry))
-                self.inputs[uid].setAccessibleName(f"Accuracy rating for {self._labels[uid].text()}")
             stale = uid not in current_uids
             label = self._labels[uid]
             font = label.font()
