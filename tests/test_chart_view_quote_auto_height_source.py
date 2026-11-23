@@ -28,14 +28,19 @@ def test_quote_editors_use_fixed_content_height_and_reflow_on_resize():
     assert "editor.setMinimumHeight(56)" not in builder
 
 
-def test_quote_list_stacks_at_top_instead_of_stretching_every_editor():
+def test_quote_list_stacks_in_a_scrolling_viewport_when_too_tall():
     setup = _section("def setup_chart_view_quotes_section(", "\ndef setup_chart_view_tags_section(")
     assert "owner.chart_quotes_list_layout.setSpacing(6)" in setup
     assert "owner.chart_quotes_list_layout.setAlignment(Qt.AlignTop)" in setup
-    assert "QSizePolicy.Expanding, QSizePolicy.Maximum" in setup
-    assert "quotes_content_layout.addWidget(owner.chart_quotes_list_widget, 0, Qt.AlignTop)" in setup
-    assert "quotes_content_layout.addStretch(1)" in setup
-    assert "quotes_content_layout.addWidget(owner.chart_quotes_list_widget, 1)" not in setup
+    assert "owner.chart_quotes_list_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)" in setup
+    assert "owner.chart_quotes_scroll_area = QScrollArea()" in setup
+    assert "owner.chart_quotes_scroll_area.setWidgetResizable(True)" in setup
+    assert "owner.chart_quotes_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)" in setup
+    assert "owner.chart_quotes_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)" in setup
+    assert "owner.chart_quotes_scroll_area.setWidget(owner.chart_quotes_list_widget)" in setup
+    assert "quotes_content_layout.addWidget(owner.chart_quotes_scroll_area, 1)" in setup
+    assert setup.index("quotes_content_layout.addLayout(quote_row)") < setup.index("quotes_content_layout.addWidget(owner.chart_quotes_scroll_area, 1)")
+    assert "quotes_content_layout.addWidget(owner.chart_quotes_list_widget, 0, Qt.AlignTop)" not in setup
 
 
 def test_quote_editing_still_marks_metadata_dirty_and_persists_text():
