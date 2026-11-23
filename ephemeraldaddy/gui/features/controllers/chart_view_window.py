@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import html
+import math
 import statistics
 import logging
 import urllib.parse
@@ -2648,12 +2649,45 @@ def build_chart_view_right_panel(
 
 
 
+class _AutoHeightQuoteEdit(QTextEdit):
+    """Keep an editable quote card no taller than its wrapped content."""
+
+    _MIN_HEIGHT = 40
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.textChanged.connect(self._sync_height)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_height()
+
+    def _sync_height(self) -> None:
+        viewport = self.viewport()
+        if viewport.width() <= 0:
+            return
+        document = self.document()
+        document.setTextWidth(viewport.width())
+        # Account for QTextEdit's frame/viewport padding in addition to
+        # QTextDocument's own margins; avoid a clipped final text line.
+        chrome_height = self.height() - viewport.height()
+        needed_height = max(
+            self._MIN_HEIGHT,
+            math.ceil(document.size().height() + chrome_height + 2),
+        )
+        if self.height() != needed_height:
+            self.setFixedHeight(needed_height)
+
+
 def _build_chart_quote_editor(owner: QWidget, quote: str) -> QTextEdit:
-    """Create one editable quote block for Chart View quote metadata."""
-    editor = QTextEdit()
+    """Create one editable, content-sized quote block for Chart View."""
+    editor = _AutoHeightQuoteEdit()
     editor.setAcceptRichText(False)
     editor.setPlaceholderText("Edit this quote…")
-    editor.setMinimumHeight(56)
     editor.setPlainText(str(quote or ""))
     editor.textChanged.connect(owner._mark_lucygoosey)
     return editor
@@ -2726,8 +2760,11 @@ def setup_chart_view_quotes_section(*, owner: QWidget, quotes_content_layout: QV
     owner.chart_quotes_list_layout = QVBoxLayout()
     owner.chart_quotes_list_layout.setContentsMargins(0, 0, 0, 0)
     owner.chart_quotes_list_layout.setSpacing(6)
+    owner.chart_quotes_list_layout.setAlignment(Qt.AlignTop)
     owner.chart_quotes_list_widget.setLayout(owner.chart_quotes_list_layout)
-    quotes_content_layout.addWidget(owner.chart_quotes_list_widget, 1)
+    owner.chart_quotes_list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+    quotes_content_layout.addWidget(owner.chart_quotes_list_widget, 0, Qt.AlignTop)
+    quotes_content_layout.addStretch(1)
     owner._chart_quote_editors = []
     owner._chart_quotes_current = []
     render_chart_view_quotes(owner)
