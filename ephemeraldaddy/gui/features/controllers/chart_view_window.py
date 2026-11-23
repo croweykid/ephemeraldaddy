@@ -2667,6 +2667,11 @@ class _AutoHeightQuoteEdit(QTextEdit):
         super().resizeEvent(event)
         self._sync_height()
 
+    def wheelEvent(self, event) -> None:
+        # The editor has no internal scrollbars; let the parent quote list scroll
+        # even while the pointer is over editable text.
+        event.ignore()
+
     def _sync_height(self) -> None:
         viewport = self.viewport()
         if viewport.width() <= 0:
