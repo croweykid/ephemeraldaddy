@@ -21,6 +21,8 @@ def test_quote_editors_use_fixed_content_height_and_reflow_on_resize():
     assert "self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)" in editor_class
     assert "self.textChanged.connect(self._sync_height)" in editor_class
     assert "def resizeEvent(self, event)" in editor_class
+    assert "def wheelEvent(self, event)" in editor_class
+    assert "event.ignore()" in editor_class
     assert "document.setTextWidth(viewport.width())" in editor_class
     assert "document.size().height()" in editor_class
     assert "self.setFixedHeight(needed_height)" in editor_class
