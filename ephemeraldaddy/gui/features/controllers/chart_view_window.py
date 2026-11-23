@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    #QLayout,
+    QLayout,
     QLineEdit,
     QMessageBox,
     QMenu,
@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QButtonGroup,
     QRadioButton,
+    QScrollArea,
     QToolButton,
     QSlider,
     QStackedWidget,
@@ -2761,10 +2762,20 @@ def setup_chart_view_quotes_section(*, owner: QWidget, quotes_content_layout: QV
     owner.chart_quotes_list_layout.setContentsMargins(0, 0, 0, 0)
     owner.chart_quotes_list_layout.setSpacing(6)
     owner.chart_quotes_list_layout.setAlignment(Qt.AlignTop)
+    # Propagate editor height changes to the scroll area's content bounds.
+    # Otherwise a long quote can be clipped even when scrolling is enabled.
+    owner.chart_quotes_list_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
     owner.chart_quotes_list_widget.setLayout(owner.chart_quotes_list_layout)
-    owner.chart_quotes_list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-    quotes_content_layout.addWidget(owner.chart_quotes_list_widget, 0, Qt.AlignTop)
-    quotes_content_layout.addStretch(1)
+
+    owner.chart_quotes_scroll_area = QScrollArea()
+    owner.chart_quotes_scroll_area.setWidgetResizable(True)
+    owner.chart_quotes_scroll_area.setFrameShape(QFrame.NoFrame)
+    owner.chart_quotes_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    owner.chart_quotes_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    owner.chart_quotes_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    owner.chart_quotes_scroll_area.setWidget(owner.chart_quotes_list_widget)
+    # Keep the add-quote field visible; only the growing list scrolls.
+    quotes_content_layout.addWidget(owner.chart_quotes_scroll_area, 1)
     owner._chart_quote_editors = []
     owner._chart_quotes_current = []
     render_chart_view_quotes(owner)
