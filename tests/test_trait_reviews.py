@@ -5,7 +5,8 @@ import pytest
 
 from ephemeraldaddy.analysis import traits
 from ephemeraldaddy.analysis.trait_reviews import (
-    normalize_accuracy_rankings, perceived_accuracy, save_trait_review, without_trait_reviews,
+    accuracy_rating_summary, normalize_accuracy_rankings, perceived_accuracy,
+    save_trait_review, without_trait_reviews,
 )
 from ephemeraldaddy.gui.features.charts.database_norms_cache import analytical_mapping_signature
 from ephemeraldaddy.gui.features.charts import prediction_norms_snapshot_core as norms
@@ -45,6 +46,29 @@ def test_rating_validation_keeps_blank_uids_and_values_distinct():
     assert [row["value"] for row in entries] == [5, None, None, None, None, None]
     assert perceived_accuracy(entries) == 5.0
     assert perceived_accuracy([]) is None
+
+
+def test_accuracy_summary_uses_only_eligible_rated_uids():
+    entries = [
+        {"chart_uid": "SOURCE", "value": 5},
+        {"chart_uid": "ANTI", "value": 1},
+        {"chart_uid": " new ", "value": 2},
+        {"chart_uid": "OTHER", "value": 4},
+        {"chart_uid": "BLANK", "value": None},
+        {"chart_uid": "NEW", "value": 5},  # Repeated UID must not count twice.
+    ]
+    assert accuracy_rating_summary(entries) == (3.0, 4, 5)
+    assert accuracy_rating_summary(
+        entries, excluded_chart_uids=[" source ", "anti", "", None],
+    ) == (3.0, 2, 3)
+    assert perceived_accuracy(entries) == 3.0
+
+
+def test_accuracy_summary_unrated_and_no_eligible_charts_are_not_zero():
+    entries = [{"chart_uid": "sample", "value": 5}, {"chart_uid": "unrated", "value": None}]
+    assert accuracy_rating_summary(entries, excluded_chart_uids=["SAMPLE"]) == (None, 0, 1)
+    assert accuracy_rating_summary(entries, excluded_chart_uids=["SAMPLE", "UNRATED"]) == (None, 0, 0)
+    assert accuracy_rating_summary([], excluded_chart_uids=["SAMPLE"]) == (None, 0, 0)
 
 
 def test_custom_ratings_roundtrip_and_survive_rename(catalog):

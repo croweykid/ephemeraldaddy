@@ -68,6 +68,112 @@ def test_initial_cohort_validates_single_digits_and_saves_average_on_close(app):
     assert [entry["value"] for entry in saved[0]] == [5, None, None]
 
 
+def test_out_of_sample_average_excludes_original_and_antithesis_training_charts(app):
+    saved = []
+    dialog = ui.RateAccuracyDialog(
+        trait_name="Actor", entries=[],
+        query=lambda progress, cancelled: [
+            {"chart_uid": uid, "name": f"Chart {uid}"} for uid in "ABCDEF"
+        ],
+        save=lambda entries: saved.append(copy.deepcopy(entries)),
+        trait_profile={"sample_uids": [" a ", "B"], "antisample_uids": ["c"]},
+    )
+    dialog.show()
+    finish_query(app, dialog)
+    assert dialog.out_of_sample_label.isVisible()
+    for uid, value in {"A": "5", "B": "5", "C": "1", "D": "2", "E": "4"}.items():
+        dialog.inputs[uid].setText(value)
+    assert "3.40 / 5" in dialog.average_label.text()
+    assert "5 rated" in dialog.average_label.text()
+    assert "3.00 / 5" in dialog.out_of_sample_label.text()
+    assert "2 rated / 3 eligible" in dialog.out_of_sample_label.text()
+    assert dialog._labels["A"].text() == "🧚 Chart A"
+    assert dialog._labels["C"].text() == "👹 Chart C"
+
+    # The second score updates immediately, but its training ratings never count.
+    dialog.inputs["D"].setText("5")
+    assert "4.50 / 5" in dialog.out_of_sample_label.text()
+    dialog.inputs["E"].clear()
+    assert "5.00 / 5" in dialog.out_of_sample_label.text()
+    assert "1 rated / 3 eligible" in dialog.out_of_sample_label.text()
+    dialog.close()
+    assert len(saved[0]) == 6
+    assert saved[0][0]["value"] == 5
+
+
+def test_out_of_sample_average_supports_legacy_sample_uid_key(app):
+    dialog = ui.RateAccuracyDialog(
+        trait_name="Legacy", entries=[],
+        query=lambda progress, cancelled: [
+            {"chart_uid": "A", "name": "Training chart"},
+            {"chart_uid": "B", "name": "Prediction"},
+        ],
+        save=lambda entries: None,
+        trait_profile={"chartUIDs": ["a"]},
+    )
+    dialog.show()
+    finish_query(app, dialog)
+    dialog.inputs["A"].setText("5")
+    dialog.inputs["B"].setText("2")
+    assert "3.50 / 5" in dialog.average_label.text()
+    assert "2.00 / 5" in dialog.out_of_sample_label.text()
+    assert "1 rated / 1 eligible" in dialog.out_of_sample_label.text()
+    dialog.close()
+
+
+@pytest.mark.parametrize("profile", [
+    None, {}, {"sample_uids": []}, {"sample_uids": "A"},
+    {"antisample_uids": ["A"]},
+])
+def test_out_of_sample_metric_is_hidden_when_source_provenance_is_unknown(app, profile):
+    dialog = ui.RateAccuracyDialog(
+        trait_name="Untracked", entries=[],
+        query=lambda progress, cancelled: [{"chart_uid": "A", "name": "Chart"}],
+        save=lambda entries: None,
+        trait_profile=profile,
+    )
+    dialog.show()
+    finish_query(app, dialog)
+    dialog.inputs["A"].setText("5")
+    assert "5.00 / 5" in dialog.average_label.text()
+    assert dialog.out_of_sample_label.isHidden()
+    dialog.close()
+
+
+def test_out_of_sample_label_distinguishes_unrated_and_no_eligible_predictions(app):
+    dialog = ui.RateAccuracyDialog(
+        trait_name="T", entries=[],
+        query=lambda progress, cancelled: [
+            {"chart_uid": "SAMPLE", "name": "Training chart"},
+            {"chart_uid": "NEW", "name": "Prediction"},
+        ],
+        save=lambda entries: None,
+        trait_profile={"sample_uids": ["SAMPLE"]},
+    )
+    dialog.show()
+    finish_query(app, dialog)
+    dialog.inputs["SAMPLE"].setText("5")
+    assert dialog.out_of_sample_label.text() == (
+        "Out-of-sample accuracy: unrated (0 rated / 1 eligible)"
+    )
+    dialog.close()
+
+    only_samples = ui.RateAccuracyDialog(
+        trait_name="T", entries=[],
+        query=lambda progress, cancelled: [{"chart_uid": "SAMPLE", "name": "Training chart"}],
+        save=lambda entries: None,
+        trait_profile={"sample_uids": ["SAMPLE"]},
+    )
+    only_samples.show()
+    finish_query(app, only_samples)
+    only_samples.inputs["SAMPLE"].setText("5")
+    assert "5.00 / 5" in only_samples.average_label.text()
+    assert only_samples.out_of_sample_label.text() == (
+        "Out-of-sample accuracy: no eligible predictions"
+    )
+    only_samples.close()
+
+
 def test_reopen_preserves_saved_uids_and_marks_only_former_predictions(app, monkeypatch):
     monkeypatch.setattr(ui.db, "load_chart_rows_for_uids", lambda uids: {"A": {"name": "Renamed chart"}})
     saved = []
